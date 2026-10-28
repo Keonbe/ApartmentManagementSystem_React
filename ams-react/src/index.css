@@ -231,3 +231,21 @@ input.no-spinner {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Keyboard focus ring for controls whose `outline-none` left them without one.
+   Unlayered on purpose so it beats Tailwind utilities. :focus-visible keeps it
+   off mouse clicks; text fields are left out (they show focus with their border),
+   and so is anything that already draws its own focus-visible ring. */
+:is(a, button, select, summary, [role="button"], [role="switch"], [role="tab"], [tabindex]):focus-visible:not([class*="focus-visible:ring"]):not([tabindex="-1"]) {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* Room under the page content for the floating chat button (fixed bottom-right,
+   about 5.5rem tall with its offset), so it never sits on the last rows or the
+   last row's actions. Pages scroll in `main > .overflow-y-auto`. */
+@media screen {
+  main > .overflow-y-auto {
+    padding-bottom: 6rem;
+  }
+}

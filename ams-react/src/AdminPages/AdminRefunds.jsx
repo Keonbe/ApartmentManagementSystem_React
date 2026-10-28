@@ -123,7 +123,7 @@ export default function AdminRefunds() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="m-0 text-base font-bold text-slate-800">{r.tenantName}{r.roomName ? ` · Unit ${r.roomName}` : ''}</h3>
-                    <p className="m-0 text-xs text-slate-400">#{r.id} · {TYPE_LABELS[r.type]}{r.invoiceId ? ` (${r.invoiceId})` : ''} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by admin' : ''}</p>
+                    <p className="m-0 text-xs text-slate-500">#{r.id} · {TYPE_LABELS[r.type]}{r.invoiceId ? ` (${r.invoiceId})` : ''} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by admin' : ''}</p>
                   </div>
                   <div className="text-right">
                     <p className="m-0 text-lg font-extrabold text-slate-800">{peso(r.amount)}</p>

@@ -15,10 +15,10 @@ export const CHECKBOX = 'rounded border-slate-300 text-indigo-600 focus:ring-ind
 const TONES = {
   indigo: 'bg-indigo-50 text-indigo-600',
   violet: 'bg-violet-50 text-violet-600',
-  amber: 'bg-amber-50 text-amber-600',
+  amber: 'bg-amber-50 text-amber-700',
   rose: 'bg-rose-50 text-rose-600',
   blue: 'bg-blue-50 text-blue-600',
-  emerald: 'bg-emerald-50 text-emerald-600',
+  emerald: 'bg-emerald-50 text-emerald-700',
 };
 
 export function SettingsSection({ icon, tone = 'indigo', title, description, action, children }) {
@@ -48,12 +48,12 @@ export function Field({ label, icon, hint, error, htmlFor, children, className =
     <div className={`flex flex-col gap-1.5 ${className}`}>
       {label && (
         <label htmlFor={htmlFor} className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          {icon && <FontAwesomeIcon icon={icon} className="text-slate-400 text-xs" />}
+          {icon && <FontAwesomeIcon icon={icon} className="text-slate-500 text-xs" />}
           {label}
         </label>
       )}
       {children}
-      {error && <p id={`${htmlFor}-error`} role="alert" className="text-red-500 text-xs m-0">{error}</p>}
+      {error && <p id={`${htmlFor}-error`} role="alert" className="text-red-600 text-xs m-0">{error}</p>}
       {hint &&<p className="text-[11px] text-slate-500 m-0 leading-relaxed">{hint}</p>}
     </div>
   );
@@ -106,9 +106,9 @@ export function PillOption({ selected, onClick, children }) {
 
 export function Callout({ tone = 'slate', icon, title, children }) {
   const tones = {
-    slate: ['bg-slate-50 border-slate-200', 'text-slate-400', 'text-slate-800', 'text-slate-600'],
+    slate: ['bg-slate-50 border-slate-200', 'text-slate-500', 'text-slate-800', 'text-slate-600'],
     rose: ['bg-rose-50 border-rose-100', 'text-rose-400', 'text-rose-800', 'text-rose-700'],
-    amber: ['bg-amber-50 border-amber-100', 'text-amber-500', 'text-amber-800', 'text-amber-700'],
+    amber: ['bg-amber-50 border-amber-100', 'text-amber-700', 'text-amber-800', 'text-amber-700'],
     violet: ['bg-violet-50 border-violet-100', 'text-violet-500', 'text-violet-800', 'text-violet-800'],
   };
   const [box, iconCls, titleCls, bodyCls] = tones[tone] || tones.slate;

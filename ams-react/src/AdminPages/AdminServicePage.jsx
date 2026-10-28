@@ -50,7 +50,7 @@ const initialServices = [
     price: '₱300',
     unit: '/ month',
     icon: faCar,
-    iconColor: 'text-emerald-500',
+    iconColor: 'text-emerald-700',
     isActive: true,
   },
   {
@@ -61,7 +61,7 @@ const initialServices = [
     price: 'Variable',
     unit: '/ ticket',
     icon: faTools,
-    iconColor: 'text-amber-500',
+    iconColor: 'text-amber-700',
     isActive: true,
   },
   {
@@ -510,7 +510,7 @@ const AdminServicePage = () => {
 
               <div className="p-4">
                 {loading ? (
-                  <div className="py-12 text-center text-slate-400 text-sm font-medium">Loading service catalog...</div>
+                  <div className="py-12 text-center text-slate-500 text-sm font-medium">Loading service catalog...</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[880px] text-left text-sm">
@@ -531,18 +531,18 @@ const AdminServicePage = () => {
                             <tr key={item.id} className={`transition-colors hover:bg-slate-50 ${item.isActive ? '' : 'opacity-60'}`}>
                               <td className="px-4 py-3">
                                 <p className="font-medium text-slate-800 m-0">{item.name}</p>
-                                <p className="max-w-md truncate text-[11px] text-slate-400 m-0 mt-0.5" title={item.description}>{item.description}</p>
+                                <p className="max-w-md truncate text-[11px] text-slate-500 m-0 mt-0.5" title={item.description}>{item.description}</p>
                               </td>
                               <td className="px-4 py-3">
                                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600">{item.category}</span>
                               </td>
                               <td className="px-4 py-3 font-semibold text-indigo-600">
                                 ₱{Number(item.price || 0).toLocaleString()}
-                                <span className="ml-1 text-[10px] font-medium text-slate-400">/ {item.pricingUnit}</span>
+                                <span className="ml-1 text-[10px] font-medium text-slate-500">/ {item.pricingUnit}</span>
                               </td>
                               <td className="px-4 py-3 text-slate-600">
                                 {item.pricingUnit === 'session'
-                                  ? <span className="text-slate-400 italic">Single visit</span>
+                                  ? <span className="text-slate-500 italic">Single visit</span>
                                   : `${item.minQuantity} – ${item.maxQuantity ?? '∞'}`}
                               </td>
                               <td className="px-4 py-3 text-slate-600">{item.leadTimeDays} day(s)</td>
@@ -550,8 +550,11 @@ const AdminServicePage = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleToggleCatalogItem(item)}
+                                  role="switch"
+                                  aria-checked={!!item.isActive}
+                                  aria-label={`${item.name} bookable`}
                                   title={item.isActive ? 'Hide from tenants' : 'Make bookable'}
-                                  className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${item.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                  className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${item.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                 >
                                   <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${item.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
@@ -630,7 +633,7 @@ const AdminServicePage = () => {
 
               <div className="p-4">
                 {loading ? (
-                  <div className="py-12 text-center text-slate-400 text-sm font-medium">Loading request queue...</div>
+                  <div className="py-12 text-center text-slate-500 text-sm font-medium">Loading request queue...</div>
                 ) : (
                   <>
                     {/*ServiceBookingsTable*/}
@@ -638,7 +641,7 @@ const AdminServicePage = () => {
                       <>
                         {unbilledCount > 0 && (
                           <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                            <FontAwesomeIcon icon={faReceipt} className="text-amber-500" />
+                            <FontAwesomeIcon icon={faReceipt} className="text-amber-700" />
                             <p className="m-0 text-xs text-amber-800">
                               {unbilledCount} completed booking(s) have not been billed yet. Use the
                               <strong> Post charge </strong> action to add them to the tenant invoice.
@@ -670,7 +673,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.serviceName}
                                       <br />
-                                      <span className="text-[10px] uppercase text-slate-400">{req.category}</span>
+                                      <span className="text-[10px] uppercase text-slate-500">{req.category}</span>
                                     </td>
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.pricingUnit === 'session' ? '—' : `${req.quantity} ${req.pricingUnit}`}
@@ -679,7 +682,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.preferredDate}
                                       <br />
-                                      <span className="text-[10px] text-slate-400">{req.preferredTimeSlot}</span>
+                                      <span className="text-[10px] text-slate-500">{req.preferredTimeSlot}</span>
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       {req.attachmentPath ? (
@@ -692,15 +695,15 @@ const AdminServicePage = () => {
                                           <FontAwesomeIcon icon={faEye} /> View
                                         </a>
                                       ) : (
-                                        <span className="text-xs text-slate-400 italic">—</span>
+                                        <span className="text-xs text-slate-500 italic">—</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       {req.isInvoiced ? (
-                                        <span className="text-[10px] font-semibold text-emerald-600" title={`Billed to ${req.invoiceId}`}>
+                                        <span className="text-[10px] font-semibold text-emerald-700" title={`Billed to ${req.invoiceId}`}>
                                           {req.invoiceId}
                                           <br />
-                                          <span className="font-medium text-slate-400">{req.billingPeriod}</span>
+                                          <span className="font-medium text-slate-500">{req.billingPeriod}</span>
                                         </span>
                                       ) : req.status === 'Completed' ? (
                                         <button
@@ -711,7 +714,7 @@ const AdminServicePage = () => {
                                           Post charge
                                         </button>
                                       ) : (
-                                        <span className="text-xs text-slate-400 italic">—</span>
+                                        <span className="text-xs text-slate-500 italic">—</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-3 text-center">
@@ -728,7 +731,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-right">
                                       <div className="flex justify-end gap-2">
                                         {canMove(req.status, 'Approved') && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'Approved')} className="rounded p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
+                                          <button type="button" onClick={() => handleServiceStatus(req, 'Approved')} className="rounded p-1.5 text-emerald-700 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
                                             <FontAwesomeIcon icon={faCheck} />
                                           </button>
                                         )}
@@ -738,7 +741,7 @@ const AdminServicePage = () => {
                                           </button>
                                         )}
                                         {req.status === 'In Progress' && canMove(req.status, 'Completed') && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'Completed')} className="rounded p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Mark completed and bill">
+                                          <button type="button" onClick={() => handleServiceStatus(req, 'Completed')} className="rounded p-1.5 text-emerald-700 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Mark completed and bill">
                                             <FontAwesomeIcon icon={faCheck} />
                                           </button>
                                         )}
@@ -753,7 +756,7 @@ const AdminServicePage = () => {
                                           </button>
                                         )}
                                         {(SERVICE_TRANSITIONS[req.status] || []).length === 0 && (
-                                          <span className="text-xs font-medium italic text-slate-400">Closed</span>
+                                          <span className="text-xs font-medium italic text-slate-500">Closed</span>
                                         )}
                                       </div>
                                     </td>
@@ -794,7 +797,7 @@ const AdminServicePage = () => {
                                   <td className="px-4 py-3 text-slate-600">
                                     {req.incidentDate}
                                     <br />
-                                    <span className="text-[10px] text-slate-400">{req.time}</span>
+                                    <span className="text-[10px] text-slate-500">{req.time}</span>
                                   </td>
                                   <td className="px-4 py-3 text-slate-600">{req.location}</td>
                                   <td className="max-w-xs px-4 py-3 truncate text-slate-500" title={req.reason}>{req.reason}</td>
@@ -806,7 +809,7 @@ const AdminServicePage = () => {
                                   <td className="px-4 py-3 text-right">
                                     {req.status === 'Pending' ? (
                                       <div className="flex justify-end gap-2">
-                                        <button type="button" onClick={() => handleCctvStatus(req.id, 'Approved')} className="rounded p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
+                                        <button type="button" onClick={() => handleCctvStatus(req.id, 'Approved')} className="rounded p-1.5 text-emerald-700 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
                                           <FontAwesomeIcon icon={faCheck} />
                                         </button>
                                         <button type="button" onClick={() => handleCctvStatus(req.id, 'Rejected')} className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reject">
@@ -814,7 +817,7 @@ const AdminServicePage = () => {
                                         </button>
                                       </div>
                                     ) : (
-                                      <span className="text-xs font-medium italic text-slate-400">Resolved</span>
+                                      <span className="text-xs font-medium italic text-slate-500">Resolved</span>
                                     )}
                                   </td>
                                 </tr>
@@ -868,7 +871,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.model}
                                       <br />
-                                      <span className="text-[10px] text-slate-400 capitalize">{req.vehicleType} • {req.transmission}</span>
+                                      <span className="text-[10px] text-slate-500 capitalize">{req.vehicleType} • {req.transmission}</span>
                                     </td>
                                     <td className="px-4 py-3 uppercase font-mono text-xs text-slate-600">{req.plate}</td>
                                     <td className="px-4 py-3 text-slate-600">{req.slotNumber ? `#${req.slotNumber}` : '—'}</td>
@@ -884,7 +887,7 @@ const AdminServicePage = () => {
                                           <FontAwesomeIcon icon={faEye} /> View
                                         </a>
                                       ) : (
-                                        <span className="text-xs text-slate-400 italic">—</span>
+                                        <span className="text-xs text-slate-500 italic">—</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-3 text-center">
@@ -961,6 +964,9 @@ const ServiceCard = ({ service, onToggle }) => {
           <button
             type="button"
             disabled
+            role="switch"
+            aria-checked="true"
+            aria-label={`${service.title} (always on)`}
             title="Core module is always enabled"
             className="touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center rounded-full border-2 border-transparent bg-indigo-600 opacity-80"
           >
@@ -970,7 +976,10 @@ const ServiceCard = ({ service, onToggle }) => {
           <button
             type="button"
             onClick={onToggle}
-            className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
+            role="switch"
+            aria-checked={!!service.isActive}
+            aria-label={`${service.title} enabled`}
+            className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
           >
             <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${service.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
@@ -978,7 +987,7 @@ const ServiceCard = ({ service, onToggle }) => {
       </div>
       <p className="mb-4 flex-1 text-xs text-slate-500 leading-relaxed m-0">{service.description}</p>
       <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
-        <p className={`text-xs font-semibold m-0 ${service.isActive ? 'text-indigo-600' : 'text-slate-400'}`}>
+        <p className={`text-xs font-semibold m-0 ${service.isActive ? 'text-indigo-600' : 'text-slate-500'}`}>
           {service.price}
           <span className="ml-1 text-[10px] font-medium">{service.unit}</span>
         </p>

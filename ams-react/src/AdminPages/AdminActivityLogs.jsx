@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 
 import api from '../api/axiosConfig';
 import { LIMITS } from '../utils/validation';
+import { clickable } from '../utils/clickable';
 
 // Icon and colour per category. Keys match LOG_CATEGORIES in backend/config.php;
 // labels come from the server so the two can't drift apart.
@@ -193,8 +194,8 @@ export default function AdminActivityLogs() {
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
               <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
                 <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus-within:border-indigo-500 focus-within:bg-white transition-all flex-grow">
-                  <FontAwesomeIcon icon={faSearch} className="text-slate-400" />
-                  <input maxLength={LIMITS.search}
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-500" />
+                  <input aria-label="Search activity log" maxLength={LIMITS.search}
                     type="text"
                     placeholder="Search action, details, user name or email, or log ID…"
                     value={searchInput}
@@ -202,7 +203,7 @@ export default function AdminActivityLogs() {
                     className="bg-transparent border-none outline-none text-sm text-slate-800 placeholder-slate-400 w-full"
                   />
                 </div>
-                <select
+                <select aria-label="Filter by who performed the action"
                   value={performer}
                   onChange={(e) => setFilter(setPerformer)(e.target.value)}
                   className="px-3 py-2.5 text-xs font-semibold border border-slate-200 rounded-xl bg-white text-slate-700 outline-none focus:border-indigo-500"
@@ -238,7 +239,7 @@ export default function AdminActivityLogs() {
                       category === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'
                     }`}
                   >
-                    {label} <span className="text-[10px] text-slate-400 font-semibold">({count})</span>
+                    {label} <span className="text-[10px] text-slate-500 font-semibold">({count})</span>
                   </button>
                 ))}
               </div>
@@ -266,18 +267,18 @@ export default function AdminActivityLogs() {
                       <tr><td colSpan="6" className="text-center py-12 text-rose-600 text-sm">{error}</td></tr>
                     ) : !loading && logs.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="text-center py-12 text-slate-400">
+                        <td colSpan="6" className="text-center py-12 text-slate-500">
                           <div className="flex flex-col items-center justify-center gap-2">
                             <FontAwesomeIcon icon={faInfoCircle} className="text-2xl text-slate-300" />
                             <p className="m-0 text-sm font-semibold">No activity logs found</p>
-                            <p className="m-0 text-xs text-slate-400">Try adjusting your filters or search query.</p>
+                            <p className="m-0 text-xs text-slate-500">Try adjusting your filters or search query.</p>
                           </div>
                         </td>
                       </tr>
                     ) : logs.map((log) => {
                       const style = categoryStyle[log.category] || categoryStyle.system;
                       return (
-                        <tr key={log.id} onClick={() => setSelectedLog(log)} className="hover:bg-slate-50/80 cursor-pointer transition-colors">
+                        <tr key={log.id} {...clickable(() => setSelectedLog(log), { role: null })} className="hover:bg-slate-50/80 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
                           <td className="px-6 py-4 font-mono text-xs text-indigo-600 font-semibold">LOG-{String(log.id).padStart(4, '0')}</td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${style.color}`}>
@@ -290,7 +291,7 @@ export default function AdminActivityLogs() {
                           <td className="px-6 py-4 text-xs text-slate-600 max-w-xs truncate">{log.details}</td>
                           <td className="px-6 py-4 text-xs text-slate-600 whitespace-nowrap">
                             <div className="font-semibold">{log.performerName}</div>
-                            <div className="text-[10px] text-slate-400 uppercase tracking-wide">{log.performerRole}</div>
+                            <div className="text-[10px] text-slate-500 uppercase tracking-wide">{log.performerRole}</div>
                           </td>
                         </tr>
                       );
@@ -336,9 +337,9 @@ export default function AdminActivityLogs() {
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
                   LOG-{String(selectedLog.id).padStart(4, '0')}
                 </span>
-                <span className="text-xs text-slate-400 font-medium">Log Details</span>
+                <span className="text-xs text-slate-500 font-medium">Log Details</span>
               </div>
-              <button onClick={() => setSelectedLog(null)} aria-label="Close" className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
+              <button onClick={() => setSelectedLog(null)} aria-label="Close" className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
                 <FontAwesomeIcon icon={faTimes} className="text-lg" />
               </button>
             </div>
@@ -346,34 +347,34 @@ export default function AdminActivityLogs() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Category</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Category</span>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border mt-1 ${(categoryStyle[selectedLog.category] || categoryStyle.system).color}`}>
                     <FontAwesomeIcon icon={(categoryStyle[selectedLog.category] || categoryStyle.system).icon} />
                     {selectedLog.categoryLabel}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Timestamp</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Timestamp</span>
                   <span className="text-sm font-semibold text-slate-700 block mt-1">{formatDateTime(selectedLog.createdAt)}</span>
                 </div>
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Action</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Action</span>
                 <span className="text-base font-bold text-slate-800 block mt-1">{selectedLog.action}</span>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Details</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Details</span>
                 <p className="m-0 text-sm text-slate-700 leading-relaxed font-mono whitespace-pre-wrap">{selectedLog.details || '—'}</p>
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Performed By</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Performed By</span>
                 <span className="text-sm font-semibold text-slate-700 block mt-1">
                   {selectedLog.performerName}
-                  {selectedLog.performerEmail && <span className="text-slate-400 font-normal"> · {selectedLog.performerEmail}</span>}
-                  <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-400">({selectedLog.performerRole})</span>
+                  {selectedLog.performerEmail && <span className="text-slate-500 font-normal"> · {selectedLog.performerEmail}</span>}
+                  <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500">({selectedLog.performerRole})</span>
                 </span>
               </div>
             </div>

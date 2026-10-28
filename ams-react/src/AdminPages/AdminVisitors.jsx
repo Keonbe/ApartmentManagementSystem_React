@@ -369,8 +369,8 @@ export default function AdminVisitors() {
 
   const statusPills = [
     { key: 'all', label: 'All Records', count: stats.total_count },
-    { key: 'pending_approval', label: 'Pending Review', count: stats.pending_count, color: 'text-amber-600 bg-amber-50' },
-    { key: 'checked_in', label: 'Checked In', count: stats.active_count, color: 'text-emerald-600 bg-emerald-50' },
+    { key: 'pending_approval', label: 'Pending Review', count: stats.pending_count, color: 'text-amber-700 bg-amber-50' },
+    { key: 'checked_in', label: 'Checked In', count: stats.active_count, color: 'text-emerald-700 bg-emerald-50' },
     { key: 'overstayed', label: 'Overstayed', count: stats.overstay_count, color: 'text-rose-600 bg-rose-50' },
     { key: 'checked_out', label: 'Checked Out' },
     { key: 'denied', label: 'Denied' },
@@ -393,24 +393,24 @@ export default function AdminVisitors() {
               <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Currently On-Premise</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
                     <FontAwesomeIcon icon={faDoorOpen} />
                   </div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-emerald-950 m-0">{stats.active_count}</p>
-                <p className="mt-1 text-xs text-emerald-600 font-medium m-0">Active visitor passes</p>
+                <p className="mt-1 text-xs text-emerald-700 font-medium m-0">Active visitor passes</p>
               </div>
 
               {/* Pending Review */}
               <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
                     <FontAwesomeIcon icon={faUserClock} />
                   </div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-amber-950 m-0">{stats.pending_count}</p>
-                <p className="mt-1 text-xs text-amber-600 font-medium m-0">Tenant registered visitors</p>
+                <p className="mt-1 text-xs text-amber-700 font-medium m-0">Tenant registered visitors</p>
               </div>
 
               {/* Today's Check-ins */}
@@ -457,8 +457,8 @@ export default function AdminVisitors() {
                 {/* Search Bar */}
                 <form onSubmit={handleSearchSubmit} className="flex-1 w-full flex items-center gap-2">
                   <div className="relative flex-1">
-                    <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                    <input maxLength={LIMITS.search}
+                    <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
+                    <input aria-label="Search visitors" maxLength={LIMITS.search}
                       type="text"
                       placeholder="Search visitor name, phone, unit, plate number..."
                       value={searchQuery}
@@ -478,7 +478,7 @@ export default function AdminVisitors() {
                 <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
                   
                   {/* Unit Select Filter */}
-                  <select
+                  <select aria-label="Filter by unit"
                     value={unitFilter}
                     onChange={(e) => setUnitFilter(e.target.value)}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-indigo-500 cursor-pointer"
@@ -556,7 +556,7 @@ export default function AdminVisitors() {
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">
+                        <td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">
                           Loading visitor records...
                         </td>
                       </tr>
@@ -569,7 +569,7 @@ export default function AdminVisitors() {
                     ) : visitors.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center">
-                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faIdBadge} className="text-xl text-slate-300 shrink-0" />
                             <span className="text-sm italic">No visitor records found matching current filters.</span>
                           </div>
@@ -596,7 +596,7 @@ export default function AdminVisitors() {
                                 <div>
                                   <p className="font-bold text-slate-800 m-0 leading-snug">{v.visitorName}</p>
                                   <p className="text-xs text-slate-500 m-0 mt-0.5 flex flex-wrap items-center gap-1.5">
-                                    <FontAwesomeIcon icon={faPhone} className="text-[10px] text-slate-400" />
+                                    <FontAwesomeIcon icon={faPhone} className="text-[10px] text-slate-500" />
                                     <span>{v.contactNumber}</span>
                                     {v.idNumber && (
                                       <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
@@ -635,11 +635,11 @@ export default function AdminVisitors() {
                               <p className="text-xs font-semibold text-slate-700 m-0">{v.purpose}</p>
                               {v.vehiclePlate ? (
                                 <p className="text-[11px] text-slate-500 m-0 mt-0.5 flex items-center gap-1">
-                                  <FontAwesomeIcon icon={faCar} className="text-[10px] text-slate-400" />
+                                  <FontAwesomeIcon icon={faCar} className="text-[10px] text-slate-500" />
                                   <span className="font-mono uppercase font-bold text-indigo-600">{v.vehiclePlate}</span>
                                 </p>
                               ) : (
-                                <span className="text-[10px] text-slate-400">Pedestrian / Drop-off</span>
+                                <span className="text-[10px] text-slate-500">Pedestrian / Drop-off</span>
                               )}
                             </td>
 
@@ -648,18 +648,18 @@ export default function AdminVisitors() {
                               <p className="m-0 font-medium">
                                 {new Date(v.visitAt || v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </p>
-                              <p className="text-[11px] text-slate-400 m-0 mt-0.5">
+                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">
                                 {new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
                               {v.expectedCheckOutAt && (
-                                <p className="text-[10px] text-slate-400 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>
+                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>
                               )}
                             </td>
 
                             {/* Duration */}
                             <td className="px-4 py-4 text-xs">
                               {isPending ? (
-                                <span className="text-slate-400 italic text-[11px]">
+                                <span className="text-slate-500 italic text-[11px]">
                                   {v.expectedAt
                                     ? `Expected ${new Date(v.expectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                                     : 'Awaiting entry'}
@@ -751,7 +751,7 @@ export default function AdminVisitors() {
                               )}
 
                               {(isCompleted || isDenied) && (
-                                <span className="text-xs font-medium italic text-slate-400">
+                                <span className="text-xs font-medium italic text-slate-500">
                                   {v.checkOutAt ? `Departed ${new Date(v.checkOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Archived'}
                                 </span>
                               )}
@@ -784,7 +784,7 @@ export default function AdminVisitors() {
               <button
                 type="button"
                 onClick={() => setShowCheckInModal(false)}
-                className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-lg"
+                className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-lg"
               >
                 <FontAwesomeIcon icon={faTimes} />
               </button>
@@ -1025,7 +1025,7 @@ export default function AdminVisitors() {
               <button
                 type="button"
                 onClick={() => setShowCheckoutModal(false)}
-                className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
+                className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
               >
                 <FontAwesomeIcon icon={faTimes} />
               </button>
@@ -1111,7 +1111,7 @@ export default function AdminVisitors() {
               <button
                 type="button"
                 onClick={() => setShowThresholdModal(false)}
-                className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
+                className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
               >
                 <FontAwesomeIcon icon={faTimes} />
               </button>

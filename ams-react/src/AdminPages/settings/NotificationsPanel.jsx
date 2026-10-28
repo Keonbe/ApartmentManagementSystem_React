@@ -51,7 +51,7 @@ export default function NotificationsPanel({
               <option value="semaphore">Semaphore (Philippines)</option>
             </select>
             {provider === 'semaphore' && (
-              <p className="text-[11px] text-amber-600 m-0">
+              <p className="text-[11px] text-amber-700 m-0">
                 Live: every SMS spends Semaphore credits. Admin actions queue their messages and the queue task
                 delivers them within about a minute — it must be scheduled (see the go-live guide).
               </p>
@@ -297,7 +297,7 @@ export default function NotificationsPanel({
                 : label}
             </button>
           ))}
-          {isDirty && <span className="text-[11px] text-amber-600">Save your changes first — tests use the saved settings.</span>}
+          {isDirty && <span className="text-[11px] text-amber-700">Save your changes first — tests use the saved settings.</span>}
         </div>
       </SettingsSection>
     </>

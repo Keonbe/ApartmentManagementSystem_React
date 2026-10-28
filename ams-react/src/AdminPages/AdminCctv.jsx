@@ -101,23 +101,23 @@ export default function AdminCctv() {
               <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
                     <FontAwesomeIcon icon={faClock} />
                   </div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-amber-950 m-0">{pendingCount}</p>
-                <p className="mt-1 text-xs text-amber-600 font-medium m-0">Awaiting footage review</p>
+                <p className="mt-1 text-xs text-amber-700 font-medium m-0">Awaiting footage review</p>
               </div>
 
               <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Approved</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
                     <FontAwesomeIcon icon={faCheckCircle} />
                   </div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-emerald-950 m-0">{approvedCount}</p>
-                <p className="mt-1 text-xs text-emerald-600 font-medium m-0">Footage granted</p>
+                <p className="mt-1 text-xs text-emerald-700 font-medium m-0">Footage granted</p>
               </div>
 
               <div className="card-interactive rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
@@ -136,7 +136,7 @@ export default function AdminCctv() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
-                  <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                  <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
                   <input maxLength={LIMITS.search}
                     type="text"
                     placeholder="Search by tenant, unit, incident location, or reason..."
@@ -193,7 +193,7 @@ export default function AdminCctv() {
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr>
-                        <td colSpan="6" className="px-5 py-12 text-center text-slate-400 font-medium">
+                        <td colSpan="6" className="px-5 py-12 text-center text-slate-500 font-medium">
                           Loading CCTV requests...
                         </td>
                       </tr>
@@ -206,7 +206,7 @@ export default function AdminCctv() {
                     ) : filteredRequests.length === 0 ? (
                       <tr>
                         <td colSpan="6" className="px-5 py-12 text-center">
-                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faVideo} className="text-xl text-slate-300 shrink-0" />
                             <span className="text-sm italic">No CCTV footage requests found.</span>
                           </div>
@@ -225,10 +225,10 @@ export default function AdminCctv() {
 
                           <td className="px-4 py-4 text-xs text-slate-600">
                             <p className="m-0 font-medium flex items-center gap-1">
-                              <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-400 text-[10px]" />
+                              <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-500 text-[10px]" />
                               {req.incidentDate}
                             </p>
-                            <p className="text-[11px] text-slate-400 m-0 mt-0.5">{req.time}</p>
+                            <p className="text-[11px] text-slate-500 m-0 mt-0.5">{req.time}</p>
                           </td>
 
                           <td className="px-4 py-4 text-xs font-medium text-slate-700">
@@ -270,7 +270,7 @@ export default function AdminCctv() {
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-xs font-medium italic text-slate-400">Resolved</span>
+                              <span className="text-xs font-medium italic text-slate-500">Resolved</span>
                             )}
                           </td>
                         </tr>

@@ -4,6 +4,7 @@ import { fileUrl } from '../api/fileUrl';
 import { LIMITS, MAX_AMOUNT, TITLE_MIN, checkAmount, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import { clickable } from '../utils/clickable';
 import useFieldErrors from '../hooks/useFieldErrors';
 import useFilePreview from '../hooks/useFilePreview';
 import FieldError from '../Components/form/FieldError';
@@ -91,10 +92,10 @@ const toViewModel = (r) => ({
 });
 
 const COLUMNS = [
-  { key: 'Pending', statuses: ['Pending'], icon: faClock, iconClass: 'text-amber-500' },
+  { key: 'Pending', statuses: ['Pending'], icon: faClock, iconClass: 'text-amber-700' },
   { key: 'In Progress', statuses: ['In Progress'], icon: faWrench, iconClass: 'text-indigo-500' },
-  { key: 'Completed', statuses: ['Completed'], icon: faCheckCircle, iconClass: 'text-emerald-500' },
-  { key: 'Rejected / Cancelled', statuses: ['Rejected', 'Cancelled'], icon: faBan, iconClass: 'text-red-500' },
+  { key: 'Completed', statuses: ['Completed'], icon: faCheckCircle, iconClass: 'text-emerald-700' },
+  { key: 'Rejected / Cancelled', statuses: ['Rejected', 'Cancelled'], icon: faBan, iconClass: 'text-red-600' },
 ];
 
 const emptyNewReq = { title: '', issueType: 'Plumbing', unit: '', priority: 'Medium', description: '' };
@@ -102,14 +103,14 @@ const emptyNewReq = { title: '', issueType: 'Plumbing', unit: '', priority: 'Med
 const timelineFor = (r) => {
   const closed = r.status === 'Rejected' || r.status === 'Cancelled';
   const steps = [
-    { label: 'Reported', at: r.createdAt, icon: faClock, tone: 'text-amber-500' },
+    { label: 'Reported', at: r.createdAt, icon: faClock, tone: 'text-amber-700' },
     { label: 'Acknowledged', at: r.acknowledgedAt, icon: faInfoCircle, tone: 'text-sky-500' },
   ];
   if (!closed || r.startedAt) steps.push({ label: 'Work Started', at: r.startedAt, icon: faWrench, tone: 'text-indigo-500' });
   if (closed) {
-    steps.push({ label: r.status, at: r.status === 'Rejected' ? r.acknowledgedAt : null, icon: faBan, tone: 'text-red-500' });
+    steps.push({ label: r.status, at: r.status === 'Rejected' ? r.acknowledgedAt : null, icon: faBan, tone: 'text-red-600' });
   } else {
-    steps.push({ label: 'Resolved', at: r.resolvedAt, icon: faCheckCircle, tone: 'text-emerald-500' });
+    steps.push({ label: 'Resolved', at: r.resolvedAt, icon: faCheckCircle, tone: 'text-emerald-700' });
   }
   return steps;
 };
@@ -119,9 +120,9 @@ const timelineFor = (r) => {
 // search change without touching row content, not the modal-typing case below.
 const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
   return (
-    <div onClick={() => onOpen(req)} className="card-interactive bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group">
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex gap-1.5 flex-wrap">
+    <div {...clickable(() => onOpen(req))} className="card-interactive bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+      <div className="flex justify-between items-start gap-2 mb-2">
+        <div className="flex gap-1.5 flex-wrap min-w-0">
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
           <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-slate-50 text-slate-600">{req.category || 'Uncategorized'}</span>
           {req.tenantResponsible && (
@@ -131,7 +132,7 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
             <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status]}`}>{req.status}</span>
           )}
         </div>
-        <span className="text-[10px] text-slate-400 font-mono group-hover:text-indigo-500 transition-colors">{req.code}</span>
+        <span className="shrink-0 whitespace-nowrap text-[10px] text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
       </div>
       <h4 className="text-sm font-bold text-slate-800 m-0 leading-snug mb-3">{req.title}</h4>
       <div className="flex flex-col gap-2">
@@ -143,14 +144,14 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
           {req.assignedTo ? (
             <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{req.assignedTo}</span>
           ) : (
-            <span className="text-[10px] font-medium text-slate-400 italic">Unassigned</span>
+            <span className="text-[10px] font-medium text-slate-500 italic">Unassigned</span>
           )}
           <div className="flex items-center gap-2">
             {(req.actualCost ?? req.estimatedCost) > 0 && (
-              <span className="text-[10px] font-bold text-emerald-600">{formatCurrency(req.actualCost ?? req.estimatedCost)}</span>
+              <span className="text-[10px] font-bold text-emerald-700">{formatCurrency(req.actualCost ?? req.estimatedCost)}</span>
             )}
             {req.attachment && (
-              <span className="text-[10px] text-slate-400 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> 1</span>
+              <span className="text-[10px] text-slate-500 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> 1</span>
             )}
           </div>
         </div>
@@ -223,7 +224,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
       <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={handleSubmit} noValidate>
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 m-0">Create New Request</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+          <button type="button" aria-label="Close" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
         </div>
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
@@ -244,7 +245,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
             </select>
             <FieldError id="newreq-unit" error={form.errors.unit} />
             {newReq.unit && (
-              <p className="text-[11px] text-slate-400 m-0 mt-1">
+              <p className="text-[11px] text-slate-500 m-0 mt-1">
                 {occupantOf(newReq.unit) ? `Ticket will be linked to ${occupantOf(newReq.unit)}.` : 'Vacant unit — no tenant will be notified.'}
               </p>
             )}
@@ -293,9 +294,9 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
                 }}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
-              <FontAwesomeIcon icon={faUpload} className="text-slate-400 mb-2 text-lg" />
+              <FontAwesomeIcon icon={faUpload} className="text-slate-500 mb-2 text-lg" />
               <p className="text-xs text-slate-600 m-0">Click or drag a file here to attach</p>
-              <p className="text-[10px] text-slate-400 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to {FILE_RULES.maintenance.maxMB}MB</p>
+              <p className="text-[10px] text-slate-500 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to {FILE_RULES.maintenance.maxMB}MB</p>
             </div>
             <FieldError id="newreq-photo" error={form.errors.photo} />
             {newPhoto && (
@@ -309,9 +310,9 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-700 truncate m-0">{newPhoto.name}</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold m-0">{formatFileSize(newPhoto.size)} · Ready for upload</p>
+                  <p className="text-[10px] text-emerald-700 font-semibold m-0">{formatFileSize(newPhoto.size)} · Ready for upload</p>
                 </div>
-                <button type="button" onClick={() => { setNewPhoto(null); form.clearError('photo'); }} className="text-xs text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1">Remove</button>
+                <button type="button" onClick={() => { setNewPhoto(null); form.clearError('photo'); }} className="text-xs text-red-600 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1">Remove</button>
               </div>
             )}
           </div>
@@ -391,17 +392,17 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                 {req.preferredDate && (
                   <>
                     <span className="text-slate-300">•</span>
-                    <span className="flex items-center gap-1.5"><FontAwesomeIcon icon={faCalendarAlt} className="text-slate-400" /> Preferred: {req.preferredDate} ({req.preferredTime})</span>
+                    <span className="flex items-center gap-1.5"><FontAwesomeIcon icon={faCalendarAlt} className="text-slate-500" /> Preferred: {req.preferredDate} ({req.preferredTime})</span>
                   </>
                 )}
                 <span className="text-slate-300">•</span>
                 <span>{req.permissionToEnter ? 'Permission to enter granted' : 'Tenant must be present'}</span>
               </div>
               {req.actualCost !== null && req.actualCost !== undefined && req.status === 'Completed' && (
-                <p className="text-sm font-bold text-emerald-600 m-0 mt-2">Actual Cost: {formatCurrency(req.actualCost)}</p>
+                <p className="text-sm font-bold text-emerald-700 m-0 mt-2">Actual Cost: {formatCurrency(req.actualCost)}</p>
               )}
             </div>
-            <button onClick={onClose} className="p-1 md:hidden text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+            <button onClick={onClose} className="p-1 md:hidden text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
           </div>
 
           <div className="p-6 overflow-y-auto flex-1 space-y-6">
@@ -412,7 +413,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             )}
 
             <div>
-              <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 m-0">Description</h4>
+              <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Description</h4>
               <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 text-sm text-slate-700 leading-relaxed">{req.description || 'No description provided.'}</div>
             </div>
 
@@ -444,7 +445,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
 
             {req.attachment && (
               <div>
-                <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 m-0">Attached Media</h4>
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Attached Media</h4>
                 {req.attachment.kind === 'video' ? (
                   <video controls preload="metadata" src={req.attachment.url} className="w-full max-w-md rounded-lg bg-slate-900 border border-slate-200">
                     Your browser cannot play this video. <a href={req.attachment.url} target="_blank" rel="noopener noreferrer">Download it</a>.
@@ -462,7 +463,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             )}
 
             <div>
-              <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3 m-0">Timeline</h4>
+              <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-3 m-0">Timeline</h4>
               <div className="space-y-3">
                 {timelineFor(req).map(step => (
                   <div key={step.label} className="flex items-center gap-3">
@@ -470,8 +471,8 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                       <FontAwesomeIcon icon={step.icon} className={`text-[11px] ${step.at ? step.tone : 'text-slate-300'}`} />
                     </div>
                     <div className="flex-1 flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
-                      <span className={`text-xs font-bold ${step.at ? 'text-slate-800' : 'text-slate-400'}`}>{step.label}</span>
-                      <time className="font-mono text-[10px] text-slate-400">{step.at ? formatDateTime(step.at) : 'Not yet'}</time>
+                      <span className={`text-xs font-bold ${step.at ? 'text-slate-800' : 'text-slate-500'}`}>{step.label}</span>
+                      <time className="font-mono text-[10px] text-slate-500">{step.at ? formatDateTime(step.at) : 'Not yet'}</time>
                     </div>
                   </div>
                 ))}
@@ -518,7 +519,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
         {/* Right side: Assignment, Cost & Notes */}
         <div className="w-full md:w-80 flex flex-col bg-slate-50 shrink-0">
           <div className="px-6 py-4 border-b border-slate-200 hidden md:flex justify-end bg-slate-50">
-            <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-xl" /></button>
+            <button onClick={onClose} className="p-1 text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-xl" /></button>
           </div>
 
           <div className="p-6 flex-1 flex flex-col overflow-hidden">
@@ -577,16 +578,16 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
               </div>
             )}
 
-            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3 m-0 shrink-0">Work Notes</h4>
+            <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-3 m-0 shrink-0">Work Notes</h4>
             <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-1">
               {parseNotes(req.workNotes).map((note, idx) => (
                 <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
                   <p className="text-xs text-slate-700 m-0 leading-relaxed whitespace-pre-wrap">{note.text}</p>
-                  {note.timestamp && <p className="text-[9px] text-slate-400 font-medium m-0 mt-2 text-right">{note.timestamp}</p>}
+                  {note.timestamp && <p className="text-[9px] text-slate-500 font-medium m-0 mt-2 text-right">{note.timestamp}</p>}
                 </div>
               ))}
               {!req.workNotes && (
-                <div className="text-center py-4 text-slate-400 text-xs italic">No notes added yet.</div>
+                <div className="text-center py-4 text-slate-500 text-xs italic">No notes added yet.</div>
               )}
             </div>
 
@@ -679,7 +680,7 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
               placeholder="Enter 0 if there was no cost" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.actualCost)} />
             <FieldError id="action-actualCost" error={form.errors.actualCost} />
             {req.estimatedCost !== null && req.estimatedCost !== undefined && (
-              <p className="text-[11px] text-slate-400 m-0 mt-1">Estimate was {formatCurrency(req.estimatedCost)}.</p>
+              <p className="text-[11px] text-slate-500 m-0 mt-1">Estimate was {formatCurrency(req.estimatedCost)}.</p>
             )}
           </div>
         )}
@@ -693,7 +694,7 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
               placeholder="Explain why this request is being rejected" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" + invalidCls(form.errors.rejectionReason)} />
             <FieldError id="action-rejectionReason" error={form.errors.rejectionReason} />
             <CharCount value={rejectReason} max={LIMITS.reason} />
-            <p className="text-[11px] text-slate-400 m-0 mt-1">The tenant will be notified with this reason.</p>
+            <p className="text-[11px] text-slate-500 m-0 mt-1">The tenant will be notified with this reason.</p>
           </div>
         )}
 
@@ -880,10 +881,10 @@ const AdminMaintainance = () => {
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
-                  <FontAwesomeIcon icon={faChartBar} className="text-amber-600" />
+                  <FontAwesomeIcon icon={faChartBar} className="text-amber-700" />
                   Maintenance Budget — {monthLabel}
                 </h3>
-                <span className="text-[11px] text-slate-400">Monthly Budget: <strong className="text-slate-700">{formatCurrency(monthlyBudget)}</strong> · Counts requests resolved this month</span>
+                <span className="text-[11px] text-slate-500">Monthly Budget: <strong className="text-slate-700">{formatCurrency(monthlyBudget)}</strong> · Counts requests resolved this month</span>
               </div>
               <div className="p-6">
                 <div className="stagger-children grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
@@ -893,7 +894,7 @@ const AdminMaintainance = () => {
                   </div>
                   <div className={`rounded-lg p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-100'}`}>
                     <p className={`text-lg font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(budgetData.totalSpent)}</p>
-                    <p className={`text-[10px] font-semibold m-0 mt-0.5 ${budgetData.isOverBudget ? 'text-red-500' : 'text-emerald-600'}`}>Spent (Building)</p>
+                    <p className={`text-[10px] font-semibold m-0 mt-0.5 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>Spent (Building)</p>
                   </div>
                   <div className="bg-violet-50 rounded-lg p-3 border border-violet-100 text-center">
                     <p className="text-lg font-bold text-violet-700 m-0">{formatCurrency(budgetData.tenantCharged)}</p>
@@ -910,7 +911,7 @@ const AdminMaintainance = () => {
                 </div>
 
                 <div className="mb-6">
-                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <div className="flex justify-between text-[10px] text-slate-500 mb-1">
                     <span>₱0</span>
                     <span>{formatCurrency(monthlyBudget)}</span>
                   </div>
@@ -940,7 +941,7 @@ const AdminMaintainance = () => {
                         </div>
                       ))}
                       {Object.keys(budgetData.categories).length === 0 && (
-                        <p className="text-xs text-slate-400 m-0">No building-paid maintenance resolved this month.</p>
+                        <p className="text-xs text-slate-500 m-0">No building-paid maintenance resolved this month.</p>
                       )}
                     </div>
                   </div>
@@ -954,7 +955,7 @@ const AdminMaintainance = () => {
                         </div>
                       ))}
                       {Object.keys(budgetData.perUnit).length === 0 && (
-                        <p className="text-xs text-slate-400 m-0">No unit costs recorded.</p>
+                        <p className="text-xs text-slate-500 m-0">No unit costs recorded.</p>
                       )}
                     </div>
                   </div>
@@ -971,19 +972,19 @@ const AdminMaintainance = () => {
 
               <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-all shadow-sm max-w-xs w-full">
-                  <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                  <input maxLength={LIMITS.search} type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
+                  <input aria-label="Search maintenance requests" maxLength={LIMITS.search} type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
                 </div>
 
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-2 shadow-sm">
-                  <FontAwesomeIcon icon={faFilter} className="text-slate-400 text-xs ml-2" />
-                  <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
+                  <FontAwesomeIcon icon={faFilter} className="text-slate-500 text-xs ml-2" />
+                  <select aria-label="Filter by priority" value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
                     <option value="All">All Priorities</option>
                     <option value={MAINTENANCE_DEFAULT_URGENCY}>{MAINTENANCE_DEFAULT_URGENCY}</option>
                     {[...MAINTENANCE_URGENCIES].reverse().map(u => <option key={u.value} value={u.value}>{u.value}</option>)}
                   </select>
                   <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                  <select value={filterType} onChange={e => setFilterType(e.target.value)} className="bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
+                  <select aria-label="Filter by category" value={filterType} onChange={e => setFilterType(e.target.value)} className="bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
                     <option value="All">All Categories</option>
                     {MAINTENANCE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value}</option>)}
                   </select>
@@ -1001,7 +1002,7 @@ const AdminMaintainance = () => {
 
             {/* Kanban / List Board */}
             {loadingReqs ? (
-              <div className="py-16 text-center text-slate-400 text-sm font-medium bg-white border border-slate-200 rounded-xl shadow-sm">
+              <div className="py-16 text-center text-slate-500 text-sm font-medium bg-white border border-slate-200 rounded-xl shadow-sm">
                 Loading maintenance requests…
               </div>
             ) : viewMode === 'kanban' ? (
@@ -1019,7 +1020,7 @@ const AdminMaintainance = () => {
                       </div>
                       <div className="stagger-children flex-1 overflow-y-auto space-y-3 pr-1">
                         {reqs.map(req => <RequestCard key={req.dbId} req={req} onOpen={openDetail} />)}
-                        {reqs.length === 0 && <p className="text-xs text-slate-400 text-center mt-6">Nothing here.</p>}
+                        {reqs.length === 0 && <p className="text-xs text-slate-600 text-center mt-6">Nothing here.</p>}
                       </div>
                     </div>
                   );
@@ -1041,7 +1042,7 @@ const AdminMaintainance = () => {
                   </thead>
                   <tbody className="stagger-children">
                     {filteredRequests.map(req => (
-                      <tr key={req.dbId} onClick={() => openDetail(req)} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                      <tr key={req.dbId} {...clickable(() => openDetail(req), { role: null })} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
                         <td className="py-3 px-4 font-mono text-xs text-slate-500">{req.code}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
@@ -1049,7 +1050,7 @@ const AdminMaintainance = () => {
                             {req.tenantResponsible && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-violet-100 text-violet-700 rounded">T</span>}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-700">{req.tenant} <span className="text-slate-400 text-xs ml-1">({req.unit})</span></td>
+                        <td className="py-3 px-4 text-slate-700">{req.tenant} <span className="text-slate-500 text-xs ml-1">({req.unit})</span></td>
                         <td className="py-3 px-4">
                           <div className="flex gap-1.5">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>

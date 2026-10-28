@@ -55,7 +55,7 @@ const hasValue = (v) => v !== null && v !== undefined && v !== '';
 
 function ChangeBadge({ pct }) {
   if (pct === null || pct === undefined) return null;
-  const tone = pct > SPIKE_THRESHOLD_PCT ? 'text-rose-600' : 'text-slate-400';
+  const tone = pct > SPIKE_THRESHOLD_PCT ? 'text-rose-600' : 'text-slate-500';
   return (
     <div className={`text-[10px] font-semibold ${tone}`}>
       {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {Math.abs(pct)}% vs previous
@@ -342,7 +342,7 @@ export default function AdminUtilities() {
                   <FontAwesomeIcon icon={faTint} />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Water Consumption</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Water Consumption</p>
                   <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">{stats.waterM3} m³</p>
                   <p className="text-xs font-semibold text-blue-600 m-0 mt-0.5">₱{stats.waterPHP} billed</p>
                 </div>
@@ -350,13 +350,13 @@ export default function AdminUtilities() {
 
               {/* Electric Card */}
               <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0 text-xl">
+                <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 text-xl">
                   <FontAwesomeIcon icon={faBolt} />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Electricity Usage</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Electricity Usage</p>
                   <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">{stats.elecKWh} kWh</p>
-                  <p className="text-xs font-semibold text-amber-600 m-0 mt-0.5">₱{stats.elecPHP} billed</p>
+                  <p className="text-xs font-semibold text-amber-700 m-0 mt-0.5">₱{stats.elecPHP} billed</p>
                 </div>
               </div>
 
@@ -366,7 +366,7 @@ export default function AdminUtilities() {
                   <FontAwesomeIcon icon={faFileInvoiceDollar} />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Pending Invoice Sync</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Pending Invoice Sync</p>
                   <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">{stats.pendingSyncCount}</p>
                   <p className="text-xs font-semibold text-slate-500 m-0 mt-0.5">Ready to invoice</p>
                 </div>
@@ -374,13 +374,13 @@ export default function AdminUtilities() {
 
               {/* Total Utility Card */}
               <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 text-xl">
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 text-xl">
                   <FontAwesomeIcon icon={faReceipt} />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Total Utility (₱)</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Total Utility (₱)</p>
                   <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">₱{stats.totalUtilityPHP}</p>
-                  <p className="text-xs font-semibold text-emerald-600 m-0 mt-0.5">Combined Billed</p>
+                  <p className="text-xs font-semibold text-emerald-700 m-0 mt-0.5">Combined Billed</p>
                 </div>
               </div>
 
@@ -393,8 +393,8 @@ export default function AdminUtilities() {
                 {/* Search & Unit Filter */}
                 <div className="flex flex-1 items-center gap-3 flex-wrap">
                   <div className="relative min-w-[200px] flex-1 max-w-md">
-                    <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
-                    <input maxLength={LIMITS.search}
+                    <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs" />
+                    <input aria-label="Search utility bills" maxLength={LIMITS.search}
                       type="text"
                       placeholder="Search unit, notes, period..."
                       value={searchQuery}
@@ -404,7 +404,7 @@ export default function AdminUtilities() {
                   </div>
 
                   {/* Room Selector */}
-                  <select
+                  <select aria-label="Filter by unit"
                     value={roomFilter}
                     onChange={e => setRoomFilter(e.target.value)}
                     className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
@@ -420,13 +420,14 @@ export default function AdminUtilities() {
                     <button
                       type="button"
                       onClick={handleOpenMonthPicker}
-                      className="absolute left-3 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 text-xs z-10 flex items-center justify-center"
+                      className="absolute left-2 w-6 h-6 rounded text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 text-xs z-10 flex items-center justify-center"
+                      aria-label="Open month picker"
                       title="Open Calendar Month Picker"
                     >
                       <FontAwesomeIcon icon={faCalendarAlt} />
                     </button>
                     
-                    <select
+                    <select aria-label="Filter by billing period"
                       value={periodFilter}
                       onChange={e => {
                         const val = e.target.value;
@@ -494,17 +495,17 @@ export default function AdminUtilities() {
                       <button
                         type="button"
                         onClick={() => setPeriodFilter('')}
-                        className="absolute right-2 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"
+                        className="absolute right-2 text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"
                         title="Clear period filter"
                       >
                         <FontAwesomeIcon icon={faTimes} />
                       </button>
                     ) : (
-                      <span className="absolute right-2.5 text-[10px] text-slate-400 pointer-events-none">▼</span>
+                      <span className="absolute right-2.5 text-[10px] text-slate-500 pointer-events-none">▼</span>
                     )}
 
                     {/* Hidden Native Month Input for visual calendar picking */}
-                    <input
+                    <input aria-label="Pick a billing month"
                       ref={monthInputRef}
                       type="month"
                       value={periodFilter && periodFilter !== 'last-3-months' && periodFilter !== 'ytd' ? periodFilter : ''}
@@ -541,7 +542,7 @@ export default function AdminUtilities() {
                   <button
                     type="button"
                     onClick={() => navigate('/admin-reports?tab=utilities')}
-                    className="flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-bold text-white transition-all shadow-sm hover:shadow-emerald-200 active:scale-[0.98] border-0 cursor-pointer ml-2"
+                    className="flex items-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-4 py-2 text-xs font-bold text-white transition-all shadow-sm hover:shadow-emerald-200 active:scale-[0.98] border-0 cursor-pointer ml-2"
                   >
                     <FontAwesomeIcon icon={faChartLine} />
                     <span>View Analytics</span>
@@ -597,7 +598,7 @@ export default function AdminUtilities() {
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">
+                        <td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">
                           <FontAwesomeIcon icon={faSync} className="animate-spin text-lg mb-2 text-indigo-500" />
                           <p className="m-0 text-xs">Loading utility readings...</p>
                         </td>
@@ -611,10 +612,10 @@ export default function AdminUtilities() {
                     ) : filteredReadings.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center">
-                          <div className="flex flex-col items-center justify-center text-slate-400 py-6">
+                          <div className="flex flex-col items-center justify-center text-slate-500 py-6">
                             <FontAwesomeIcon icon={faTint} className="text-3xl text-slate-300 mb-2" />
                             <p className="text-sm font-semibold text-slate-600 m-0">No utility readings found</p>
-                            <p className="text-xs text-slate-400 mt-1 m-0">Click "+ Record Reading" to log water and electricity meters.</p>
+                            <p className="text-xs text-slate-500 mt-1 m-0">Click "+ Record Reading" to log water and electricity meters.</p>
                           </div>
                         </td>
                       </tr>
@@ -635,14 +636,14 @@ export default function AdminUtilities() {
                                   <p className="text-xs font-bold text-slate-900 m-0">Unit {r.room_name}</p>
                                   {r.tenant_first_name ? (
                                     <p className="text-[11px] text-indigo-600 font-medium m-0">
-                                      {r.tenant_first_name} {r.tenant_last_name} <span className="text-slate-400 font-normal">(User #{r.user_id})</span>
+                                      {r.tenant_first_name} {r.tenant_last_name} <span className="text-slate-500 font-normal">(User #{r.user_id})</span>
                                     </p>
                                   ) : r.user_id ? (
                                     <p className="text-[11px] text-indigo-600 font-medium m-0">
                                       Tenant ID: #{r.user_id}
                                     </p>
                                   ) : (
-                                    <p className="text-[11px] text-slate-400 italic m-0">No tenant assigned</p>
+                                    <p className="text-[11px] text-slate-500 italic m-0">No tenant assigned</p>
                                   )}
                                   {r.has_spike && (
                                     <p
@@ -654,7 +655,7 @@ export default function AdminUtilities() {
                                     </p>
                                   )}
                                   {r.reading_date && (
-                                    <p className="text-[10px] text-slate-400 m-0 font-normal">
+                                    <p className="text-[10px] text-slate-500 m-0 font-normal">
                                       Read: {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                     </p>
                                   )}
@@ -676,7 +677,7 @@ export default function AdminUtilities() {
                             {/* Provider bill: the amounts are what the bill says; usage only when a reading was noted */}
                             {[
                               { key: 'water', icon: faTint, tone: 'text-blue-500', unit: 'm³', label: 'Water bill' },
-                              { key: 'electric', icon: faBolt, tone: 'text-amber-500', unit: 'kWh', label: 'Electricity bill' },
+                              { key: 'electric', icon: faBolt, tone: 'text-amber-700', unit: 'kWh', label: 'Electricity bill' },
                             ].map(({ key, icon, tone, unit, label }) => (
                               <td key={key} className="px-4 py-4 text-xs">
                                 <div className="space-y-0.5">
@@ -688,10 +689,10 @@ export default function AdminUtilities() {
                                   {hasValue(r[`${key}_consumption`]) ? (
                                     <div className="text-[11px] text-slate-500 font-medium">
                                       {r[`${key}_consumption`]} {unit}
-                                      <span className="text-slate-400 font-normal ml-1">({r[`${key}_prev_reading`]} → {r[`${key}_curr_reading`]})</span>
+                                      <span className="text-slate-500 font-normal ml-1">({r[`${key}_prev_reading`]} → {r[`${key}_curr_reading`]})</span>
                                     </div>
                                   ) : hasValue(r[`${key}_curr_reading`]) ? (
-                                    <div className="text-[11px] text-slate-400">Meter: {r[`${key}_curr_reading`]} {unit}</div>
+                                    <div className="text-[11px] text-slate-500">Meter: {r[`${key}_curr_reading`]} {unit}</div>
                                   ) : null}
                                   <ChangeBadge pct={r[`${key}_change_pct`]} />
                                 </div>
@@ -704,11 +705,11 @@ export default function AdminUtilities() {
                                 <div className="flex items-center gap-1.5 font-bold text-slate-800">
                                   <FontAwesomeIcon icon={faTint} className="text-blue-500 text-[10px]" />
                                   <span>{r.water_consumption} m³</span>
-                                  <span className="text-slate-400 font-normal">(@ ₱{r.water_rate_per_unit}/m³)</span>
+                                  <span className="text-slate-500 font-normal">(@ ₱{r.water_rate_per_unit}/m³)</span>
                                 </div>
                                 <div className="text-[11px] text-slate-500 font-medium">
                                   ₱{parseFloat(r.water_amount || 0).toFixed(2)}
-                                  <span className="text-slate-400 font-normal ml-1">({r.water_prev_reading} → {r.water_curr_reading})</span>
+                                  <span className="text-slate-500 font-normal ml-1">({r.water_prev_reading} → {r.water_curr_reading})</span>
                                 </div>
                                 <ChangeBadge pct={r.water_change_pct} />
                                 {parseFloat(r.water_other_fees || 0) > 0 && (
@@ -721,17 +722,17 @@ export default function AdminUtilities() {
                             <td className="px-4 py-4 text-xs">
                               <div className="space-y-0.5">
                                 <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                                  <FontAwesomeIcon icon={faBolt} className="text-amber-500 text-[10px]" />
+                                  <FontAwesomeIcon icon={faBolt} className="text-amber-700 text-[10px]" />
                                   <span>{r.electric_consumption} kWh</span>
-                                  <span className="text-slate-400 font-normal">(@ ₱{r.electric_rate_per_unit}/kWh)</span>
+                                  <span className="text-slate-500 font-normal">(@ ₱{r.electric_rate_per_unit}/kWh)</span>
                                 </div>
                                 <div className="text-[11px] text-slate-500 font-medium">
                                   ₱{parseFloat(r.electric_amount || 0).toFixed(2)}
-                                  <span className="text-slate-400 font-normal ml-1">({r.electric_prev_reading} → {r.electric_curr_reading})</span>
+                                  <span className="text-slate-500 font-normal ml-1">({r.electric_prev_reading} → {r.electric_curr_reading})</span>
                                 </div>
                                 <ChangeBadge pct={r.electric_change_pct} />
                                 {parseFloat(r.electric_other_fees || 0) > 0 && (
-                                  <div className="text-[10px] text-amber-600 font-semibold">+ ₱{parseFloat(r.electric_other_fees).toFixed(2)} fees</div>
+                                  <div className="text-[10px] text-amber-700 font-semibold">+ ₱{parseFloat(r.electric_other_fees).toFixed(2)} fees</div>
                                 )}
                               </div>
                             </td>
@@ -756,7 +757,7 @@ export default function AdminUtilities() {
                                 {isInvoiced ? 'Invoiced' : 'Pending Sync'}
                               </span>
                               {isInvoiced && r.invoice_id && (
-                                <span className="block text-[10px] text-slate-400 font-medium mt-1">{r.invoice_id}</span>
+                                <span className="block text-[10px] text-slate-500 font-medium mt-1">{r.invoice_id}</span>
                               )}
                             </td>
 
@@ -786,7 +787,7 @@ export default function AdminUtilities() {
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-xs font-medium text-slate-400">Synced</span>
+                                <span className="text-xs font-medium text-slate-500">Synced</span>
                               )}
                               <div className="mt-1.5 flex items-center justify-end gap-2 text-[11px] font-semibold">
                                 {r.bill_file_path && (
@@ -869,7 +870,7 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
       <div className="modal-card-anim bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-slate-800 m-0 text-sm">Sync Utility to Invoice</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-lg">
+          <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-lg">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
@@ -1162,7 +1163,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
           <button 
             type="button" 
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-base transition-colors"
+            className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-base transition-colors"
             title="Close"
           >
             <FontAwesomeIcon icon={faTimes} />
@@ -1253,7 +1254,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     ['water_bill_amount', 'Water bill amount (₱)', 'e.g. 350.00', faTint, 'text-blue-500'],
-                    ['electric_bill_amount', 'Electricity bill amount (₱)', 'e.g. 1240.75', faBolt, 'text-amber-500'],
+                    ['electric_bill_amount', 'Electricity bill amount (₱)', 'e.g. 1240.75', faBolt, 'text-amber-700'],
                   ].map(([name, label, placeholder, icon, tone]) => (
                     <div key={name}>
                       <label htmlFor={`reading-${name}`} className="block text-xs font-bold text-slate-700 mb-1">
@@ -1283,7 +1284,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   <button type="button" aria-expanded={showMeter} onClick={() => setShowMeter((v) => !v)}
                     className="flex w-full items-center justify-between border-0 bg-transparent px-3 py-2 text-left text-xs font-bold text-slate-700 cursor-pointer">
                     Meter reading (optional)
-                    <span className="text-slate-400">{showMeter ? 'Hide' : 'Show'}</span>
+                    <span className="text-slate-500">{showMeter ? 'Hide' : 'Show'}</span>
                   </button>
                   {showMeter && (
                     <div className="space-y-2 border-t border-slate-200 p-3">
@@ -1390,7 +1391,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   <FieldError id="reading-water_rate_per_unit" error={readingForm.errors.water_rate_per_unit} />
                 </div>
                 <div className="col-span-2">
-                  <label htmlFor="reading-water_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Water Fees (₱) <span className="text-slate-400 font-normal italic">- Optional fixed charges</span></label>
+                  <label htmlFor="reading-water_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Water Fees (₱) <span className="text-slate-500 font-normal italic">- Optional fixed charges</span></label>
                   <input
                     type="number"
                     step="0.01"
@@ -1417,7 +1418,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
             <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-100 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                  <FontAwesomeIcon icon={faBolt} className="text-amber-500" /> Electricity Meter
+                  <FontAwesomeIcon icon={faBolt} className="text-amber-700" /> Electricity Meter
                 </span>
                 <span className="text-[11px] text-amber-700 font-medium">
                   Prev Reading: <strong>{modalCalculations.elecPrev} kWh</strong>
@@ -1462,7 +1463,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   <FieldError id="reading-electric_rate_per_unit" error={readingForm.errors.electric_rate_per_unit} />
                 </div>
                 <div className="col-span-2">
-                  <label htmlFor="reading-electric_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Electricity Fees (₱) <span className="text-slate-400 font-normal italic">- Optional fixed charges</span></label>
+                  <label htmlFor="reading-electric_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Electricity Fees (₱) <span className="text-slate-500 font-normal italic">- Optional fixed charges</span></label>
                   <input
                     type="number"
                     step="0.01"

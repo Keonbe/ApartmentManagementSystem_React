@@ -43,3 +43,7 @@ docs/audits/known_bugs_test_spec_2026-10-15.md
 tests/api/node_modules/
 tests/api/.test-cache/
 /backend/room_images/1792160900_9159deee07f0_floor_plan.png
+
+
+# Playwright MCP screenshots/snapshots
+.playwright-mcp/

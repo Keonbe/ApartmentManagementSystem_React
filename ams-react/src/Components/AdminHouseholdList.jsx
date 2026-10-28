@@ -30,17 +30,17 @@ export default function AdminHouseholdList({ userId }) {
         {data.members.map((m) => (
           <li key={m.id} className="flex justify-between gap-3 px-3 py-2 text-sm">
             <span className="text-slate-700">
-              {m.fullName} <span className="text-xs text-slate-400">· {m.relationship}{m.age !== null && m.age !== undefined ? ` · age ${m.age}` : ''}{m.ageCategory ? ` (${m.ageCategory})` : ''}{m.contactNo ? ` · ${m.contactNo}` : ''}</span>
+              {m.fullName} <span className="text-xs text-slate-500">· {m.relationship}{m.age !== null && m.age !== undefined ? ` · age ${m.age}` : ''}{m.ageCategory ? ` (${m.ageCategory})` : ''}{m.contactNo ? ` · ${m.contactNo}` : ''}</span>
             </span>
             {(m.status === 'Pending' || m.removalRequested) && (
-              <span className="text-[10px] font-bold text-amber-600 shrink-0">
+              <span className="text-[10px] font-bold text-amber-700 shrink-0">
                 {m.status === 'Pending' ? 'Addition pending' : 'Removal pending'}
               </span>
             )}
           </li>
         ))}
         {data.members.length === 0 && (
-          <li className="px-3 py-2 text-xs text-slate-400">No other household members named.</li>
+          <li className="px-3 py-2 text-xs text-slate-500">No other household members named.</li>
         )}
       </ul>
     </div>

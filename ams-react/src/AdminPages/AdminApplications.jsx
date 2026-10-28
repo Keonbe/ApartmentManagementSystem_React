@@ -14,6 +14,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import ReasonModal from '../Components/form/ReasonModal';
 import { fileUrl } from '../api/fileUrl';
 import { LIMITS } from '../utils/validation';
+import { clickable } from '../utils/clickable';
 
 const STATUS_OPTIONS = [
   { 
@@ -34,7 +35,7 @@ const STATUS_OPTIONS = [
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     countBadge: 'bg-emerald-100 text-emerald-700',
     icon: faCheckCircle,
-    iconColor: 'text-emerald-500',
+    iconColor: 'text-emerald-700',
     borderCol: 'border-emerald-500',
     emptyText: 'No approved applications'
   },
@@ -380,7 +381,7 @@ const AdminApplications = () => {
 
             <div className="min-w-0">
               <h4 className="m-0 text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">{app.name}</h4>
-              <p className="m-0 text-[11px] text-slate-400">{new Date(app.created_at).toLocaleDateString()}</p>
+              <p className="m-0 text-[11px] text-slate-500">{new Date(app.created_at).toLocaleDateString()}</p>
             </div>
           </div>
           <div className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md border border-slate-200 shrink-0">
@@ -390,18 +391,18 @@ const AdminApplications = () => {
         
         <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
           <div className="flex items-center gap-1.5 text-slate-500">
-            <FontAwesomeIcon icon={faUsers} className="text-[10px] shrink-0 text-slate-400" /> 
+            <FontAwesomeIcon icon={faUsers} className="text-[10px] shrink-0 text-slate-500" /> 
             <span className="truncate">{app.occupants} Occupant(s)</span>
           </div>
           <div className="flex items-center gap-1.5 text-slate-500">
-            <FontAwesomeIcon icon={faCalendarAlt} className="text-[10px] shrink-0 text-slate-400" /> 
+            <FontAwesomeIcon icon={faCalendarAlt} className="text-[10px] shrink-0 text-slate-500" /> 
             <span className="truncate">{app.months_of_rent} Months</span>
           </div>
         </div>
       </div>
 
       <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
-        <span className="text-slate-400 text-[11px] truncate mr-2">
+        <span className="text-slate-500 text-[11px] truncate mr-2">
           Move in: <strong className="text-slate-700 font-semibold">{getMoveInDisplay(app)}</strong>
         </span>
         <span className="font-bold text-indigo-600 shrink-0">{app.rent}</span>
@@ -424,7 +425,7 @@ const AdminApplications = () => {
                 <p className="text-sm text-slate-500 m-0 mt-1">Manage and track incoming rent applications</p>
               </div>
               <div className="flex items-center gap-3 w-full max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
-                <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
+                <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
                 <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="focus-glow flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
               </div>
             </div>
@@ -452,9 +453,9 @@ const AdminApplications = () => {
                       <div className="flex items-center gap-2">
                         <FontAwesomeIcon 
                           icon={faFilter} 
-                          className={!isAllStatusesSelected ? 'text-indigo-600' : 'text-slate-400'} 
+                          className={!isAllStatusesSelected ? 'text-indigo-600' : 'text-slate-500'} 
                         />
-                        <span className="text-slate-400 font-normal hidden sm:inline">Status:</span>
+                        <span className="text-slate-500 font-normal hidden sm:inline">Status:</span>
                         <span className="font-bold">{getFilterButtonLabel()}</span>
                       </div>
 
@@ -470,7 +471,7 @@ const AdminApplications = () => {
                         </span>
                         <FontAwesomeIcon 
                           icon={faChevronDown} 
-                          className={`text-xs text-slate-400 transition-transform duration-200 ${
+                          className={`text-xs text-slate-500 transition-transform duration-200 ${
                             showStatusFilter ? 'rotate-180 text-indigo-600' : ''
                           }`} 
                         />
@@ -483,7 +484,7 @@ const AdminApplications = () => {
                         {/* Dropdown Header */}
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100 px-1">
                           <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <FontAwesomeIcon icon={faFilter} className="text-slate-400 text-[10px]" />
+                            <FontAwesomeIcon icon={faFilter} className="text-slate-500 text-[10px]" />
                             Filter by Status
                           </span>
                           <button
@@ -518,14 +519,14 @@ const AdminApplications = () => {
                                   />
                                   <FontAwesomeIcon 
                                     icon={opt.icon} 
-                                    className={`text-xs shrink-0 ${isChecked ? opt.iconColor : 'text-slate-400'}`} 
+                                    className={`text-xs shrink-0 ${isChecked ? opt.iconColor : 'text-slate-500'}`} 
                                   />
                                   <span className="text-xs truncate">
                                     {opt.label}
                                   </span>
                                 </div>
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                                  isChecked ? opt.countBadge : 'bg-slate-100 text-slate-400'
+                                  isChecked ? opt.countBadge : 'bg-slate-100 text-slate-500'
                                 }`}>
                                   {count}
                                 </span>
@@ -536,7 +537,7 @@ const AdminApplications = () => {
 
                         {/* Dropdown Footer */}
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between px-1 text-xs">
-                          <span className="text-slate-400 font-medium">
+                          <span className="text-slate-500 font-medium">
                             {filteredApps.length} matching application{filteredApps.length !== 1 ? 's' : ''}
                           </span>
                           <button
@@ -567,7 +568,7 @@ const AdminApplications = () => {
 
                 {/* View Switcher & Counter */}
                 <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                  <span className="text-xs text-slate-400 font-medium">
+                  <span className="text-xs text-slate-500 font-medium">
                     Showing <span className="font-bold text-slate-700">{filteredApps.length}</span> of {applications.length}
                   </span>
                   
@@ -631,7 +632,7 @@ const AdminApplications = () => {
                   <tbody className="divide-y divide-slate-100">
                     {filteredApps.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="text-center py-12 text-slate-400 text-sm">
+                        <td colSpan="7" className="text-center py-12 text-slate-500 text-sm">
                           <FontAwesomeIcon icon={faSearch} className="text-slate-300 text-2xl mb-2 block mx-auto" />
                           No applications found matching your criteria.
                           {selectedStatuses.length < STATUS_OPTIONS.length && (
@@ -649,8 +650,8 @@ const AdminApplications = () => {
                       filteredApps.map((app) => (
                         <tr 
                           key={app.id} 
-                          onClick={() => openProfile(app)}
-                          className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                          {...clickable(() => openProfile(app), { role: null })}
+                          className="hover:bg-slate-50/80 transition-colors cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
                         >
                           {/* Applicant */}
                           <td className="px-5 py-4">
@@ -665,7 +666,7 @@ const AdminApplications = () => {
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
                                   <span className="truncate max-w-[180px]">{app.email || '—'}</span>
                                   {app.phone && <span>• {app.phone}</span>}
                                 </div>
@@ -684,11 +685,11 @@ const AdminApplications = () => {
                           {/* Tenancy Terms */}
                           <td className="px-4 py-4 text-xs text-slate-600">
                             <div className="flex items-center gap-1.5 font-medium">
-                              <FontAwesomeIcon icon={faUsers} className="text-slate-400 text-[10px]" />
+                              <FontAwesomeIcon icon={faUsers} className="text-slate-500 text-[10px]" />
                               <span>{app.occupants} Person(s)</span>
                             </div>
                             <div className="flex items-center gap-1.5 font-medium mt-1">
-                              <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-400 text-[10px]" />
+                              <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-500 text-[10px]" />
                               <span>{app.months_of_rent} Months Term</span>
                             </div>
                           </td>
@@ -732,7 +733,7 @@ const AdminApplications = () => {
                 {/* Cards (phones) */}
                 <div className="md:hidden divide-y divide-slate-100">
                   {filteredApps.length === 0 ? (
-                    <div className="text-center py-12 px-4 text-slate-400 text-sm">
+                    <div className="text-center py-12 px-4 text-slate-500 text-sm">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-300 text-2xl mb-2 block mx-auto" />
                       No applications found matching your criteria.
                       {selectedStatuses.length < STATUS_OPTIONS.length && (
@@ -753,7 +754,7 @@ const AdminApplications = () => {
                             {renderApplicantAvatar(app)}
                             <div className="min-w-0">
                               <div className="font-bold text-slate-800 truncate">{app.name}</div>
-                              <div className="text-xs text-slate-400 truncate">{app.email || '—'}</div>
+                              <div className="text-xs text-slate-500 truncate">{app.email || '—'}</div>
                             </div>
                           </div>
                           <div className="shrink-0">{renderStatusBadge(app.status)}</div>
@@ -790,7 +791,7 @@ const AdminApplications = () => {
             {/* Kanban Board View */}
             {!loading && viewMode === 'kanban' && (
               selectedStatuses.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-sm bg-white border border-slate-200 rounded-2xl shadow-sm">
+                <div className="text-center py-12 text-slate-500 text-sm bg-white border border-slate-200 rounded-2xl shadow-sm">
                   <FontAwesomeIcon icon={faFilter} className="text-slate-300 text-2xl mb-2 block mx-auto" />
                   No status columns selected. Please check one or more filters above.
                   <button
@@ -832,7 +833,7 @@ const AdminApplications = () => {
                         {/* Column body: cards and empty placeholders have matching min-h-[148px] */}
                         <div className="stagger-children space-y-3">
                           {colApps.length === 0 ? (
-                            <div className="min-h-[148px] flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-xl text-slate-400 text-xs font-medium text-center bg-slate-50/50">
+                            <div className="min-h-[148px] flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-xl text-slate-500 text-xs font-medium text-center bg-slate-50/50">
                               <FontAwesomeIcon icon={cat.icon} className="text-slate-300 text-base mb-2" />
                               <span>{cat.emptyText}</span>
                             </div>
@@ -914,7 +915,7 @@ const AdminApplications = () => {
                             onClick={(e) => openPreview(e, selectedApp.rejection_attachment_path, 'Rejection Document')}
                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-red-200 text-red-700 hover:bg-red-100/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-xs"
                           >
-                            <FontAwesomeIcon icon={faFilePdf} className="text-red-500" />
+                            <FontAwesomeIcon icon={faFilePdf} className="text-red-600" />
                             <span>View Attached PDF</span>
                           </button>
                         ) : (
@@ -938,42 +939,42 @@ const AdminApplications = () => {
               
               <div className="stagger-children grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1"/> Occupants</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1"/> Occupants</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.occupants} Person(s)</p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Rent Term</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Rent Term</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.months_of_rent} Months</p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Move In By</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Move In By</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">
                     {getMoveInDisplay(selectedApp)}
                   </p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Monthly Rent</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Monthly Rent</p>
                   <p className="text-sm font-bold text-indigo-600 m-0">{selectedApp.rent}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1"/> Email Address</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1"/> Email Address</p>
                   <p className="text-sm font-semibold text-slate-800 m-0 truncate" title={selectedApp.email}>{selectedApp.email || '—'}</p>
                 </div>
                 <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1"/> Contact Number</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1"/> Contact Number</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.phone || '—'}</p>
                 </div>
                 <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faVenusMars} className="mr-1"/> Gender</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faVenusMars} className="mr-1"/> Gender</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.gender || 'Not Specified'}</p>
                 </div>
               </div>
 
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Previous Address</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Previous Address</p>
                 <p className="text-sm font-semibold text-slate-800 m-0 wrap-break-word">{selectedApp.previous_address || '—'}</p>
               </div>
 
@@ -997,7 +998,7 @@ const AdminApplications = () => {
                    ))}
                    {!selectedApp.documents_verified_at && (selectedApp.missing_documents || []).map((label) => (
                      <div key={`missing-${label}`}
-                        className="flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400">
+                        className="flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-500">
                        <FontAwesomeIcon icon={faFileAlt} className="text-2xl text-slate-300" />
                        <span className="font-semibold text-center mt-1">{label}</span>
                        <span className="text-[10px] uppercase">Missing</span>
@@ -1117,7 +1118,7 @@ const AdminApplications = () => {
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-scale-in">
             <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
               <h3 className="text-lg font-bold text-slate-800 m-0">{preview.title}</h3>
-              <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-600 bg-white hover:bg-slate-100 rounded-lg p-2 transition-colors border border-slate-200 cursor-pointer flex items-center justify-center">
+              <button onClick={() => setPreview(null)} className="text-slate-500 hover:text-slate-600 bg-white hover:bg-slate-100 rounded-lg p-2 transition-colors border border-slate-200 cursor-pointer flex items-center justify-center">
                 <FontAwesomeIcon icon={faTimes} className="text-lg" />
               </button>
             </div>

@@ -230,7 +230,7 @@ const AdminUsers = () => {
   const renderUserActions = (u, iconSize, layout) => (
     <div className={`flex items-center ${layout}`}>
       {u.is_self ? (
-        <span className="text-[10px] font-semibold text-slate-400" title="Your own details and password are managed from Account Settings">
+        <span className="text-[10px] font-semibold text-slate-500" title="Your own details and password are managed from Account Settings">
           You · Account Settings
         </span>
       ) : statusFilter === 'active' ? (
@@ -258,7 +258,7 @@ const AdminUsers = () => {
         </>
       ) : (
         <button onClick={() => handleRestore(u)} title="Restore User"
-          className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
+          className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
           <FontAwesomeIcon icon={faCheck} className="text-[10px]" /> Restore Account
         </button>
       )}
@@ -287,7 +287,7 @@ const AdminUsers = () => {
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-slate-800 m-0 leading-none">{s.value}</p>
-                    <p className="text-xs text-slate-400 m-0 mt-0.5">{s.label}</p>
+                    <p className="text-xs text-slate-500 m-0 mt-0.5">{s.label}</p>
                   </div>
                 </div>
               ))}
@@ -297,7 +297,7 @@ const AdminUsers = () => {
             <div className="flex items-center gap-3 flex-wrap justify-between">
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 <div className="flex items-center gap-2 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                  <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
                   <input maxLength={LIMITS.search}
                     type="text" value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Search by name or email..."
@@ -306,7 +306,7 @@ const AdminUsers = () => {
                 </div>
 
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-                  <FontAwesomeIcon icon={faFilter} className="text-slate-400 text-xs" />
+                  <FontAwesomeIcon icon={faFilter} className="text-slate-500 text-xs" />
                   {ROLES.map(r => (
                     <button key={r} onClick={() => setRoleFilter(r)}
                       className={`btn-interactive px-3 py-1 rounded-md text-xs font-semibold border-0 cursor-pointer transition-colors ${roleFilter === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 bg-transparent'}`}>
@@ -332,9 +332,9 @@ const AdminUsers = () => {
             {/* Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden table-scroll-x">
               {loading ? (
-                <div className="py-20 text-center text-slate-400 text-sm">Loading users...</div>
+                <div className="py-20 text-center text-slate-500 text-sm">Loading users...</div>
               ) : filtered.length === 0 ? (
-                <div className="py-20 text-center text-slate-400 text-sm">No users found.</div>
+                <div className="py-20 text-center text-slate-500 text-sm">No users found.</div>
               ) : (
                 <>
                 <table className="hidden md:table w-full text-sm border-collapse">
@@ -358,7 +358,7 @@ const AdminUsers = () => {
                             </div>
                             <div>
                               <p className="font-semibold text-slate-800 m-0">{u.first_name} {u.middle_name ? u.middle_name.charAt(0) + '. ' : ''}{u.last_name}{u.suffix ? ' ' + u.suffix : ''}</p>
-                              <p className="text-[10px] text-slate-400 m-0">ID #{u.id}</p>
+                              <p className="text-[10px] text-slate-500 m-0">ID #{u.id}</p>
                             </div>
                           </div>
                         </td>
@@ -385,7 +385,7 @@ const AdminUsers = () => {
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-800 m-0 truncate">{u.first_name} {u.middle_name ? u.middle_name.charAt(0) + '. ' : ''}{u.last_name}{u.suffix ? ' ' + u.suffix : ''}</p>
-                            <p className="text-[10px] text-slate-400 m-0">ID #{u.id}</p>
+                            <p className="text-[10px] text-slate-500 m-0">ID #{u.id}</p>
                           </div>
                         </div>
                         <RoleBadge role={u.role} />
@@ -423,7 +423,7 @@ const AdminUsers = () => {
           <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
-              <button onClick={() => setEditUser(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
+              <button onClick={() => setEditUser(null)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
@@ -493,9 +493,9 @@ const AdminUsers = () => {
           <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={handleResetPassword} noValidate>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
-                <FontAwesomeIcon icon={faKey} className="text-amber-500" /> Reset Password
+                <FontAwesomeIcon icon={faKey} className="text-amber-700" /> Reset Password
               </h3>
-              <button type="button" onClick={closeReset} aria-label="Close" className="text-slate-400 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
+              <button type="button" onClick={closeReset} aria-label="Close" className="text-slate-500 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>

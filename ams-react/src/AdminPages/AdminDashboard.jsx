@@ -11,21 +11,22 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { clickable } from '../utils/clickable';
 
 // Keyed on the 12 activity-log categories (LOG_CATEGORIES in config.php). The
 // widget used to key on legacy names (invoice, payment, rent_application), so
 // most entries fell through to the generic icon.
 const LOG_CATEGORY_STYLE = {
-  billing: { icon: faDollarSign, color: 'bg-emerald-100 text-emerald-600' },
+  billing: { icon: faDollarSign, color: 'bg-emerald-100 text-emerald-700' },
   utilities: { icon: faChartLine, color: 'bg-cyan-100 text-cyan-600' },
-  maintenance: { icon: faWrench, color: 'bg-amber-100 text-amber-600' },
+  maintenance: { icon: faWrench, color: 'bg-amber-100 text-amber-700' },
   tenant: { icon: faUserPlus, color: 'bg-blue-100 text-blue-600' },
   user: { icon: faUsers, color: 'bg-blue-100 text-blue-600' },
   auth: { icon: faKey, color: 'bg-violet-100 text-violet-600' },
   unit: { icon: faBuilding, color: 'bg-indigo-100 text-indigo-600' },
   contract: { icon: faFileSignature, color: 'bg-indigo-100 text-indigo-600' },
   service: { icon: faClipboardList, color: 'bg-teal-100 text-teal-600' },
-  inquiry: { icon: faInfoCircle, color: 'bg-sky-100 text-sky-600' },
+  inquiry: { icon: faInfoCircle, color: 'bg-sky-100 text-sky-700' },
   communication: { icon: faBullhorn, color: 'bg-rose-100 text-rose-600' },
   system: { icon: faCogs, color: 'bg-slate-100 text-slate-600' },
 };
@@ -255,16 +256,16 @@ const AdminDashboard = () => {
                 {/* Quick Summary Metrics Ribbon */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50/70 border-b border-slate-100 px-4 md:px-6 py-3 text-xs">
                   <div>
-                    <span className="text-slate-400 font-medium">6-Mo Total Collected</span>
-                    <p className="font-bold text-emerald-600 text-sm m-0 mt-0.5">{formatCurrency(stats.total_6m_collected)}</p>
+                    <span className="text-slate-500 font-medium">6-Mo Total Collected</span>
+                    <p className="font-bold text-emerald-700 text-sm m-0 mt-0.5">{formatCurrency(stats.total_6m_collected)}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-medium">Monthly Average</span>
+                    <span className="text-slate-500 font-medium">Monthly Average</span>
                     <p className="font-bold text-slate-700 text-sm m-0 mt-0.5">{formatCurrency(stats.avg_monthly_income)}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400 font-medium">Collection Efficiency</span>
-                    <p className={`font-bold text-sm m-0 mt-0.5 ${rentCollectionRate >= 90 ? 'text-emerald-600' : rentCollectionRate >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
+                    <span className="text-slate-500 font-medium">Collection Efficiency</span>
+                    <p className={`font-bold text-sm m-0 mt-0.5 ${rentCollectionRate >= 90 ? 'text-emerald-700' : rentCollectionRate >= 70 ? 'text-amber-700' : 'text-red-600'}`}>
                       {rentCollectionRate}%
                     </p>
                   </div>
@@ -273,11 +274,11 @@ const AdminDashboard = () => {
                 {/* Chart Canvas Area */}
                 <div className="p-4 md:p-6 flex-1 flex flex-col">
                   {loading ? (
-                    <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
+                    <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
                       <FontAwesomeIcon icon={faClock} className="animate-spin mr-2" /> Loading financial data...
                     </div>
                   ) : incomeData.length === 0 ? (
-                    <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
+                    <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
                       No income records found
                     </div>
                   ) : chartView === 'bar' ? (
@@ -307,8 +308,10 @@ const AdminDashboard = () => {
                           return (
                             <div 
                               key={d.key || d.month} 
-                              className="flex flex-col items-center flex-1 min-w-0 gap-2 group relative cursor-pointer"
-                              onClick={() => setSelectedMonth(isSelected ? null : d.month)}
+                              className="flex flex-col items-center flex-1 min-w-0 gap-2 group relative cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                              {...clickable(() => setSelectedMonth(isSelected ? null : d.month))}
+                              aria-pressed={isSelected}
+                              aria-label={`${d.full_month || d.month}: collected ${formatCurrency(d.collected)}, pending ${formatCurrency(d.pending)}`}
                             >
                               {/* Hover / Active Tooltip */}
                               <div className={`absolute bottom-full mb-2 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-[11px] p-2.5 rounded-lg shadow-xl transition-all z-50 w-36 pointer-events-none ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 translate-y-2'}`}>
@@ -319,7 +322,7 @@ const AdminDashboard = () => {
                               </div>
                               
                               {/* Amount Label above bar */}
-                              <span className="text-[10px] font-semibold text-slate-400 group-hover:text-slate-700 transition-colors whitespace-nowrap">
+                              <span className="text-[10px] font-semibold text-slate-500 group-hover:text-slate-700 transition-colors whitespace-nowrap">
                                 <span className="sm:hidden">{formatCompactCurrency(totalBilled)}</span>
                                 <span className="hidden sm:inline">{totalBilled > 0 ? formatCurrency(totalBilled) : '₱0'}</span>
                               </span>
@@ -435,8 +438,8 @@ const AdminDashboard = () => {
                                 <td className="py-2.5 px-3 font-semibold text-slate-800">{d.full_month || d.month}</td>
                                 <td className="py-2.5 px-3 text-right text-slate-500">{d.count || 0}</td>
                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700">{formatCurrency(totalBilled)}</td>
-                                <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{formatCurrency(d.collected)}</td>
-                                <td className="py-2.5 px-3 text-right font-bold text-amber-600">{formatCurrency(d.pending)}</td>
+                                <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{formatCurrency(d.collected)}</td>
+                                <td className="py-2.5 px-3 text-right font-bold text-amber-700">{formatCurrency(d.pending)}</td>
                                 <td className="py-2.5 px-3 text-right">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${rate >= 90 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
                                     {rate}%
@@ -506,7 +509,7 @@ const AdminDashboard = () => {
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${stats.occupancy_rate}%` }}></div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1.5 m-0">{stats.occupied_rooms} occupied out of {stats.total_rooms} total building units</p>
+                      <p className="text-[10px] text-slate-500 mt-1.5 m-0">{stats.occupied_rooms} occupied out of {stats.total_rooms} total building units</p>
                     </div>
 
                     <div>
@@ -517,7 +520,7 @@ const AdminDashboard = () => {
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div className={`h-2 rounded-full transition-all ${rentCollectionRate >= 90 ? 'bg-emerald-500' : rentCollectionRate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${rentCollectionRate}%` }}></div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1.5 m-0">
+                      <p className="text-[10px] text-slate-500 mt-1.5 m-0">
                         {stats.pending_dues > 0 ? `${formatCurrency(stats.pending_dues)} remaining balance` : 'All invoices settled'}
                       </p>
                     </div>
@@ -528,7 +531,7 @@ const AdminDashboard = () => {
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex-1 flex flex-col">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
-                      <FontAwesomeIcon icon={faUserPlus} className="text-emerald-600" /> Newest Tenants
+                      <FontAwesomeIcon icon={faUserPlus} className="text-emerald-700" /> Newest Tenants
                     </h3>
                     <button onClick={() => navigate('/admin-tenants')} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">
                       View All
@@ -537,12 +540,12 @@ const AdminDashboard = () => {
                   
                   <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                     {loading ? (
-                       <div className="text-xs text-slate-400 text-center py-4">Loading tenants...</div>
+                       <div className="text-xs text-slate-500 text-center py-4">Loading tenants...</div>
                     ) : newTenants.length === 0 ? (
-                       <div className="text-xs text-slate-400 text-center py-4">No recent tenants</div>
+                       <div className="text-xs text-slate-500 text-center py-4">No recent tenants</div>
                     ) : newTenants.map((t, idx) => (
                       <div key={idx} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-100">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
                           {t.name ? t.name.charAt(0) : '?'}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -551,7 +554,7 @@ const AdminDashboard = () => {
                             <FontAwesomeIcon icon={faBuilding} className="text-[9px]" /> Unit {t.unit}
                           </p>
                         </div>
-                        <div className="text-[10px] font-medium text-slate-400 shrink-0 bg-slate-100 px-2 py-1 rounded">
+                        <div className="text-[10px] font-medium text-slate-500 shrink-0 bg-slate-100 px-2 py-1 rounded">
                           {t.date}
                         </div>
                       </div>
@@ -594,7 +597,7 @@ const AdminDashboard = () => {
                     >
                       <FontAwesomeIcon icon={faBuilding} />
                       <span>Unit Matrix</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
+                      <span className="text-[10px] text-slate-500 font-normal">
                         ({roomsSummary.length})
                       </span>
                     </button>
@@ -617,7 +620,7 @@ const AdminDashboard = () => {
                     <div className="space-y-4">
                       {totalPendingActions === 0 ? (
                         <div className="py-8 text-center flex flex-col items-center justify-center">
-                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl mb-3">
+                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl mb-3">
                             <FontAwesomeIcon icon={faCheckCircle} />
                           </div>
                           <h4 className="text-sm font-bold text-slate-800 m-0">All Operational Queues Clear</h4>
@@ -769,7 +772,7 @@ const AdminDashboard = () => {
                                   {isOccupied ? 'Occupied' : isReserved ? 'Reserved' : 'Vacant'}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-slate-400 m-0 mt-1">{room.floor} • {room.type}</p>
+                              <p className="text-[10px] text-slate-500 m-0 mt-1">{room.floor} • {room.type}</p>
                               <p className="text-xs font-semibold m-0 mt-2 truncate text-slate-700">
                                 {isOccupied || isReserved ? room.tenant || (isReserved ? 'Reserved' : 'Active Tenant') : formatCurrency(room.rent)}
                               </p>
@@ -784,7 +787,7 @@ const AdminDashboard = () => {
                   {activeLowerTab === 'activity' && (
                     <div className="space-y-3">
                       {(activityLogs || []).length === 0 ? (
-                        <div className="text-xs text-slate-400 text-center py-8">No recent activity logged</div>
+                        <div className="text-xs text-slate-500 text-center py-8">No recent activity logged</div>
                       ) : (
                         <div className="divide-y divide-slate-100">
                           {(activityLogs || []).map(log => (
@@ -795,7 +798,7 @@ const AdminDashboard = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-2">
                                   <p className="text-xs font-bold text-slate-800 m-0 truncate">{log.action}</p>
-                                  <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap shrink-0">
+                                  <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap shrink-0">
                                     {formatLogDate(log.created_at)}
                                   </span>
                                 </div>
@@ -853,7 +856,7 @@ const AdminDashboard = () => {
                       className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-emerald-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                           <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-xs" />
                         </div>
                         <div>
@@ -869,7 +872,7 @@ const AdminDashboard = () => {
                       className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-amber-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
                           <FontAwesomeIcon icon={faBullhorn} className="text-xs" />
                         </div>
                         <div>
@@ -936,11 +939,11 @@ const AdminDashboard = () => {
 /* --- StatCard Helper --- */
 const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showProgress, progress, onClick, hoverable, tooltip }) => {
   const colorMap = {
-    emerald: 'bg-emerald-50 text-emerald-600',
+    emerald: 'bg-emerald-50 text-emerald-700',
     red: 'bg-red-50 text-red-600',
     indigo: 'bg-indigo-50 text-indigo-600',
     blue: 'bg-blue-50 text-blue-600',
-    amber: 'bg-amber-50 text-amber-600',
+    amber: 'bg-amber-50 text-amber-700',
     slate: 'bg-slate-50 text-slate-600',
   };
 
@@ -948,11 +951,11 @@ const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showP
 
   return (
     <div 
-      className={`card-interactive bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative group ${hoverable || onClick ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all' : ''}`}
-      onClick={onClick}
+      className={`card-interactive bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${hoverable || onClick ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all' : ''}`}
+      {...(onClick ? clickable(onClick) : {})}
     >
       {tooltip && (
-        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1.5 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-normal w-44 text-center pointer-events-none z-50 flex items-center justify-center gap-1">
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1.5 rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity whitespace-normal w-44 text-center pointer-events-none z-50 flex items-center justify-center gap-1">
           <FontAwesomeIcon icon={faInfoCircle} className="shrink-0 text-slate-400" /> 
           <span>{tooltip}</span>
         </div>
@@ -969,7 +972,7 @@ const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showP
         )}
       </div>
       <div>
-        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">{title}</p>
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0 mb-1">{title}</p>
         <p className="text-2xl font-bold text-slate-800 m-0 leading-none">{value}</p>
         {subtext && <p className="text-[10px] text-slate-500 m-0 mt-2 font-medium">{subtext}</p>}
         {showProgress && progress !== undefined && (

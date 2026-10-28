@@ -36,7 +36,7 @@ export default function SettingsNav({ tabs, active, onSelect, dirtyTabs }) {
                 : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-800'
             }`}
           >
-            <FontAwesomeIcon icon={tab.icon} className={`w-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+            <FontAwesomeIcon icon={tab.icon} className={`w-4 ${isActive ? 'text-indigo-600' : 'text-slate-500'}`} />
             <span className="flex-1">{tab.label}</span>
             {isDirty && (
               <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Unsaved changes" aria-label="Unsaved changes" />

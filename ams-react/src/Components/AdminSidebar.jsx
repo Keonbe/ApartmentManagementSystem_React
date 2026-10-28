@@ -147,7 +147,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {/* Logo Area */}
       <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800 shrink-0 bg-slate-900 z-10 select-none">
         <div className="flex flex-col justify-center">
-          <h1 className="text-2xl font-bold text-white tracking-wider italic font-serif m-0 leading-none uppercase">AMS</h1>
+          <p className="text-2xl font-bold text-white tracking-wider italic font-serif m-0 leading-none uppercase">AMS</p>
           <p className="text-[11px] font-medium text-slate-400 m-0 mt-1 whitespace-nowrap tracking-tight font-sans">Apartment Management System</p>
         </div>
         {isMobile && (
@@ -170,7 +170,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
 
           return (
             <div key={section.title}>
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2 m-0">{section.title}</h2>
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2 m-0">{section.title}</h2>
               <ul className="space-y-1 p-0 m-0 list-none">
                 {visibleItems.map((item) => (
                   <li key={item.to}>
@@ -200,8 +200,26 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     </>
   );
 
+  // Every admin page renders its own <main> (the header sits inside it), so the
+  // skip link focuses whichever one is on screen instead of a fixed id.
+  const skipToMain = (e) => {
+    const main = document.querySelector('main');
+    if (!main) return;
+    e.preventDefault();
+    main.tabIndex = -1;
+    main.focus();
+  };
+
   return (
     <>
+      <a
+        href="#main"
+        onClick={skipToMain}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-white focus:text-indigo-700 focus:font-semibold focus:shadow-lg focus:ring-2 focus:ring-indigo-500 print:hidden"
+      >
+        Skip to main content
+      </a>
+
       {/* Desktop Persistent Sidebar */}
       <aside className="w-64 bg-slate-900 text-slate-300 flex-col hidden lg:flex h-full text-left shrink-0 select-none border-r border-slate-800 print:hidden">
         {renderNavContent(false)}
@@ -222,6 +240,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
           isDrawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Mobile Navigation"
+        inert={!isDrawerOpen}
       >
         {renderNavContent(true)}
       </aside>

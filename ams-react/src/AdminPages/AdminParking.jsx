@@ -158,19 +158,19 @@ export default function AdminParking() {
               <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Slots In Use</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600"><FontAwesomeIcon icon={faParking} /></div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><FontAwesomeIcon icon={faParking} /></div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-emerald-950 m-0">{capacity.occupied_count} / {capacity.max_slots}</p>
-                <p className="mt-1 text-xs text-emerald-600 font-medium m-0">{capacity.available_slots} free{freeSlots.length > 0 ? ` (#${freeSlots.join(', #')})` : ''}</p>
+                <p className="mt-1 text-xs text-emerald-700 font-medium m-0">{capacity.available_slots} free{freeSlots.length > 0 ? ` (#${freeSlots.join(', #')})` : ''}</p>
               </div>
 
               <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Requests</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600"><FontAwesomeIcon icon={faClock} /></div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><FontAwesomeIcon icon={faClock} /></div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-amber-950 m-0">{countOf('Pending')}</p>
-                <p className="mt-1 text-xs text-amber-600 font-medium m-0">Awaiting slot assignment</p>
+                <p className="mt-1 text-xs text-amber-700 font-medium m-0">Awaiting slot assignment</p>
               </div>
 
               <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
@@ -203,7 +203,7 @@ export default function AdminParking() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
-                  <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                  <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
                   <input maxLength={LIMITS.search}
                     type="text"
                     placeholder="Search by tenant, unit, vehicle, plate number or #slot..."
@@ -258,13 +258,13 @@ export default function AdminParking() {
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
-                      <tr><td colSpan="8" className="px-5 py-12 text-center text-slate-400 font-medium">Loading parking reservations...</td></tr>
+                      <tr><td colSpan="8" className="px-5 py-12 text-center text-slate-500 font-medium">Loading parking reservations...</td></tr>
                     ) : error ? (
                       <tr><td colSpan="8" className="px-5 py-12 text-center text-rose-500 font-medium">{error}</td></tr>
                     ) : filteredReservations.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="px-5 py-12 text-center">
-                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faCar} className="text-xl text-slate-300 shrink-0" />
                             <span className="text-sm italic">No parking reservations found.</span>
                           </div>
@@ -286,7 +286,7 @@ export default function AdminParking() {
 
                             <td className="px-4 py-4 text-xs text-slate-700">
                               <p className="m-0 font-bold">{r.vehicleModel}</p>
-                              <p className="text-[11px] text-slate-400 m-0 mt-0.5 capitalize">{r.vehicleType} • {r.transmission}</p>
+                              <p className="text-[11px] text-slate-500 m-0 mt-0.5 capitalize">{r.vehicleType} • {r.transmission}</p>
                             </td>
 
                             <td className="px-4 py-4 text-xs">
@@ -295,7 +295,7 @@ export default function AdminParking() {
 
                             <td className="px-4 py-4 text-xs">
                               <p className="m-0 font-bold text-slate-800">{r.slotNumber ? `Slot #${r.slotNumber}` : '—'}</p>
-                              <p className="text-[11px] text-slate-400 m-0 mt-0.5">
+                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">
                                 {r.durationMonths} month(s){r.termEndsAt ? ` · ends ${new Date(r.termEndsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
                               </p>
                               {(r.rejectionReason || r.releaseReason) && (
@@ -305,7 +305,7 @@ export default function AdminParking() {
 
                             <td className="px-4 py-4 text-xs">
                               <p className="m-0 font-bold text-indigo-600">{peso(r.totalCost)} total</p>
-                              <p className="text-[11px] text-slate-400 m-0 mt-0.5">
+                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">
                                 {r.billedPeriods.length ? `Billed: ${r.billedPeriods.map(monthLabel).join(', ')}` : 'Not billed yet'}
                               </p>
                             </td>
@@ -316,7 +316,7 @@ export default function AdminParking() {
                                   <FontAwesomeIcon icon={faEye} /><span>View</span>
                                 </a>
                               ) : (
-                                <span className="text-xs text-slate-400 italic">—</span>
+                                <span className="text-xs text-slate-500 italic">—</span>
                               )}
                             </td>
 
@@ -360,7 +360,7 @@ export default function AdminParking() {
                                       <FontAwesomeIcon icon={faFileInvoiceDollar} className="mr-1" /> {billedThisMonth ? 'Billed' : 'Bill this month'}
                                     </button>
                                   ) : (
-                                    <span className="text-[11px] font-semibold text-slate-400 self-center">Auto-billed</span>
+                                    <span className="text-[11px] font-semibold text-slate-500 self-center">Auto-billed</span>
                                   )}
                                   <button
                                     type="button"
@@ -374,7 +374,7 @@ export default function AdminParking() {
                                 </div>
                               )}
                               {!['Pending', 'Assigned'].includes(r.status) && (
-                                <span className="text-xs font-medium italic text-slate-400">Closed</span>
+                                <span className="text-xs font-medium italic text-slate-500">Closed</span>
                               )}
                             </td>
                           </tr>
@@ -421,7 +421,7 @@ export default function AdminParking() {
                     ))}
                   </div>
                 )}
-                <p className="text-[11px] text-slate-400 m-0">
+                <p className="text-[11px] text-slate-500 m-0">
                   {billingMode === 'auto'
                     ? `This month's ${peso(monthlyFee)} fee will be added to the tenant's invoice automatically.`
                     : `Bill ${peso(monthlyFee)} per month with "Bill this month" once the slot is assigned.`}

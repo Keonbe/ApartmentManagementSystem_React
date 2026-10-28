@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import {
   ADMIN_PAYMENTS_EVENT, PAYMENT_WATCH_POLL_MS, formatRelativeTime,
 } from '../config/notificationLinks';
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
+import { clickable } from '../utils/clickable';
 import AdminNotificationModal from './AdminNotificationModal';
 import '../assets/styles/responsive/admin/admin-header.responsive.css';
 
@@ -18,6 +19,8 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
+  const bellRef = useRef(null);
+  const avatarRef = useRef(null);
 
   const [notifications, setNotifications] = useState([]);
 
@@ -85,6 +88,21 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     setIsNotifOpen(false);
     setHighlightIds(NO_HIGHLIGHT);
   };
+
+  // Esc closes whichever dropdown is open and returns focus to its button.
+  useEffect(() => {
+    if (!isNotifOpen && !isProfileOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      const trigger = isNotifOpen ? bellRef.current : avatarRef.current;
+      setIsNotifOpen(false);
+      setIsProfileOpen(false);
+      setHighlightIds(NO_HIGHLIGHT);
+      trigger?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isNotifOpen, isProfileOpen]);
 
   const handleToggle = () => {
     if (onToggleSidebar) {
@@ -169,9 +187,9 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
           <FontAwesomeIcon icon={faBars} />
         </button>
 
-        <h2 className="admin-header-title text-xl md:text-2xl font-bold !text-[#1e293b] opacity-100 m-0 tracking-tight truncate">
+        <h1 className="admin-header-title text-xl md:text-2xl font-bold !text-[#1e293b] opacity-100 m-0 tracking-tight truncate">
           {title}
-        </h2>
+        </h1>
       </div>
 
       <div className="flex items-center gap-3 sm:gap-6 relative shrink-0">
@@ -179,13 +197,17 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
         {/* Notifications */}
         <div className="relative">
           <button
+            ref={bellRef}
+            type="button"
             onClick={() => { if (isNotifOpen) closeNotifications(); else setIsNotifOpen(true); setIsProfileOpen(false); }}
-            className="admin-header-notif-btn btn-interactive text-gray-500 hover:text-gray-700 transition-colors relative bg-transparent border-0 cursor-pointer p-2 outline-none"
-            aria-label="Notifications"
+            className="admin-header-notif-btn btn-interactive text-gray-500 hover:text-gray-700 transition-colors relative bg-transparent border-0 cursor-pointer p-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+            aria-expanded={isNotifOpen}
+            aria-haspopup="true"
           >
             <FontAwesomeIcon icon={faBell} className="text-lg sm:text-xl" />
             {unreadCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-0.5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+              <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-0.5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border border-white">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -196,7 +218,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center select-none">
                 <h3 className="text-sm font-semibold text-gray-700 m-0">Notifications</h3>
                 {unreadCount > 0 && (
-                  <span onClick={handleMarkAllRead} className="text-xs text-indigo-600 font-medium cursor-pointer hover:text-indigo-800 transition-colors">Mark all as read</span>
+                  <button type="button" onClick={handleMarkAllRead} className="text-xs text-indigo-600 font-medium cursor-pointer hover:text-indigo-800 transition-colors bg-transparent border-0 p-0 rounded focus-visible:ring-2 focus-visible:ring-indigo-500">Mark all as read</button>
                 )}
               </div>
               <div className="stagger-children max-h-80 overflow-y-auto">
@@ -208,8 +230,8 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
                       <div
                         key={notif.id}
                         data-new={isNew || undefined}
-                        onClick={() => openNotification(notif)}
-                        className={`px-4 py-3.5 border-b border-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 ${isNew ? 'bg-indigo-50 hover:bg-indigo-100/70 border-l-4 border-l-indigo-500' : `hover:bg-gray-50 ${!Number(notif.is_read) ? 'bg-indigo-50/20' : ''}`}`}
+                        {...clickable(() => openNotification(notif))}
+                        className={`px-4 py-3.5 border-b border-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 outline-none ${isNew ? 'bg-indigo-50 hover:bg-indigo-100/70 border-l-4 border-l-indigo-500' : `hover:bg-gray-50 ${!Number(notif.is_read) ? 'bg-indigo-50/20' : ''}`}`}
                       >
                         {!Number(notif.is_read) && !isNew && (
                           <span className="absolute left-1.5 top-[18px] w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
@@ -221,7 +243,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
                           )}
                         </p>
                         <p className="text-[11px] text-slate-500 m-0 leading-normal">{notif.message}</p>
-                        <p className="text-[9px] text-slate-400 font-medium m-0 mt-1">{formatRelativeTime(notif.created_at)}</p>
+                        <p className="text-[9px] text-slate-500 font-medium m-0 mt-1">{formatRelativeTime(notif.created_at)}</p>
                         {isNew && (
                           <p className="text-[11px] font-bold text-indigo-700 m-0 mt-1">Review payment →</p>
                         )}
@@ -229,7 +251,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
                     );
                   })
                 ) : (
-                  <div className="py-12 text-center text-slate-400 text-xs italic">
+                  <div className="py-12 text-center text-slate-500 text-xs italic">
                     Nothing needs your attention
                   </div>
                 )}
@@ -243,13 +265,17 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
 
         {/* Profile */}
         <div className="relative">
-          <div
+          <button
+            ref={avatarRef}
+            type="button"
             onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotifOpen(false); }}
-            className="admin-header-avatar-btn btn-interactive w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer text-xs sm:text-sm hover:bg-indigo-700 transition-all border-2 border-transparent hover:border-indigo-200 select-none"
+            className="admin-header-avatar-btn btn-interactive w-9 h-9 sm:w-10 sm:h-10 p-0 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer text-xs sm:text-sm hover:bg-indigo-700 transition-all border-2 border-transparent hover:border-indigo-200 select-none outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
             aria-label="Admin Profile Menu"
+            aria-expanded={isProfileOpen}
+            aria-haspopup="true"
           >
             Ad
-          </div>
+          </button>
 
           {isProfileOpen && (
             <div className="admin-header-profile-dropdown animate-scale-in absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-gray-200 py-2 z-50 transform origin-top-right transition-all">

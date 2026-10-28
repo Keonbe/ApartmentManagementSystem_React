@@ -96,7 +96,7 @@ export default function MinorsPanel() {
           <p className="m-0 font-semibold text-slate-700">Floors where young children may not live</p>
           <p className="m-0 text-xs text-slate-500">Babies and small children are not accepted on these floors (the 3rd floor, because of the stairs). Other floors have no age limit. Leave every floor unticked for no restriction.</p>
           <div className="flex flex-wrap gap-3" role="group" aria-label="Restricted floors">
-            {floors.length === 0 && <span className="text-xs text-slate-400">No floors found.</span>}
+            {floors.length === 0 && <span className="text-xs text-slate-500">No floors found.</span>}
             {floors.map((f) => (
               <label key={f} className="inline-flex items-center gap-1.5 text-sm text-slate-700">
                 <input type="checkbox" checked={restrictedFloors.includes(f)} onChange={() => toggleFloor(f)} />

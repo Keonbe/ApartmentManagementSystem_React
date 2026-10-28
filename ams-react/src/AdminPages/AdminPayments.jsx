@@ -19,6 +19,7 @@ import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers'
 import { ADMIN_PAYMENTS_EVENT } from '../config/notificationLinks';
 import { daysPastDue, formatCoveredPeriod, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import { printElement } from '../utils/print';
+import { clickable } from '../utils/clickable';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -391,6 +392,21 @@ const AdminPayments = () => {
       return 0;
     });
   }, [tenants, searchTerm, sortOption, statusFilter]);
+
+  // Keep the selected tenant's row visible in the list. The first load selects the
+  // first tenant in API order, which can sit far down the name-sorted list. Scrolls
+  // only the list panel, so the page itself does not jump. Runs on selection
+  // change only, so a background refresh never yanks a list the admin scrolled.
+  const tenantListRef = useRef(null);
+  useEffect(() => {
+    const list = tenantListRef.current;
+    const row = list?.querySelector('[aria-pressed="true"]');
+    if (!row) return;
+    const top = row.offsetTop;
+    if (top < list.scrollTop || top + row.offsetHeight > list.scrollTop + list.clientHeight) {
+      list.scrollTop = Math.max(0, top - 8);
+    }
+  }, [selectedTenantId]);
 
   // The method is the tenant's declared one: fixed while their proof is under
   // review, otherwise the default, which a manual choice overrides while that
@@ -796,7 +812,7 @@ const handleMarkAsPaid = async () => {
         <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
           <Header title="Payment Management" />
           <div className="flex-1 flex items-center justify-center p-6 md:p-8">
-             <p className="text-slate-400 text-sm font-semibold animate-pulse">Loading active tenant ledger parameters safely...</p>
+             <p className="text-slate-500 text-sm font-semibold animate-pulse">Loading active tenant ledger parameters safely...</p>
           </div>
         </main>
       </div>
@@ -810,7 +826,7 @@ const handleMarkAsPaid = async () => {
         <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
           <Header title="Payment Management" />
           <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 text-center bg-white border border-slate-200 rounded-xl m-6">
-             <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-2xl mb-4">
+             <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-2xl mb-4">
                <FontAwesomeIcon icon={faInfoCircle} />
              </div>
              <h3 className="text-lg font-bold text-slate-800 m-0">No Active Tenant Ledgers</h3>
@@ -834,18 +850,18 @@ const handleMarkAsPaid = async () => {
             {/* Summary Cards */}
             <div className="stagger-children grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faDollarSign} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Collected</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{formatCurrency(totalCollected)}</p></div>
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faDollarSign} /></div>
+                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Collected</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{formatCurrency(totalCollected)}</p></div>
               </div>
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                 <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p></div>
+                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p></div>
               </div>
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faCalendarAlt} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Pending Payments</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{pendingCount}</p></div>
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faCalendarAlt} /></div>
+                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Pending Payments</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{pendingCount}</p></div>
               </div>
               <div className="card-interactive bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-sm flex items-center gap-4 text-white">
                 <div className="w-12 h-12 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faMoneyBillWave} /></div>
@@ -857,7 +873,7 @@ const handleMarkAsPaid = async () => {
             {(dueWithin5DaysCount > 0 || overdueCount > 0) && (
               <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-2">
-                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600 text-base" />
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-700 text-base" />
                   <span>
                     <strong>{overdueCount}</strong> overdue account(s) and <strong>{dueWithin5DaysCount}</strong> bill(s) due within 5 days.
                   </span>
@@ -866,7 +882,7 @@ const handleMarkAsPaid = async () => {
                   type="button"
                   onClick={handleBatchReminders}
                   disabled={batchSending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer border-0 shrink-0 self-start sm:self-auto disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer border-0 shrink-0 self-start sm:self-auto disabled:opacity-50"
                 >
                   <FontAwesomeIcon icon={faBell} />
                   {batchSending ? 'Sending Reminders...' : 'Send Due Reminders to All'}
@@ -898,16 +914,17 @@ const handleMarkAsPaid = async () => {
               <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden h-[calc(100vh-18rem)] min-h-[500px]">
                 <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-2">
                   <h3 className="text-sm font-semibold text-slate-800 m-0">Select Tenant</h3>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
-                      <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                      <input maxLength={LIMITS.search} type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                  {/* Search on its own row: beside the two filters it was squeezed to "Searc". */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
+                      <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
+                      <input aria-label="Search tenants" maxLength={LIMITS.search} type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
                     </div>
                     <div className="flex gap-2">
-                      <select 
+                      <select aria-label="Filter by payment status" 
                         value={statusFilter} 
                         onChange={e => setStatusFilter(e.target.value)} 
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                        className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
                       >
                         <option value="all">All</option>
                         <option value="unpaid">Unpaid</option>
@@ -918,10 +935,10 @@ const handleMarkAsPaid = async () => {
                         <option value="payment-failed">Failed</option>
                         <option value="overdue">Overdue</option>
                       </select>
-                      <select 
+                      <select aria-label="Sort tenants" 
                         value={sortOption} 
                         onChange={e => setSortOption(e.target.value)} 
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                        className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
                       >
                         <option value="name-asc">Name ↑</option>
                         <option value="name-desc">Name ↓</option>
@@ -931,23 +948,23 @@ const handleMarkAsPaid = async () => {
                     </div>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div ref={tenantListRef} className="relative flex-1 overflow-y-auto">
                   {filteredTenants.map(t => {
                     const days = getDaysUntilDue(t.dueDate);
                     const isDueSoon = t.status !== 'paid' && days !== null && days >= 0 && days <= 5;
                     const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance;
                     const tenantTotalDue = t.outstandingBalance > 0 ? t.outstandingBalance : fallbackTotal;
                     return (
-                      <div key={t.id} onClick={() => {setSelectedTenantId(t.id); setHistoryPage(1);}} className={`p-3.5 border-b border-slate-100 border-l-4 cursor-pointer transition-colors ${selectedTenantId === t.id ? 'bg-indigo-50 border-l-indigo-600' : 'border-l-transparent hover:bg-slate-50'}`}>
+                      <div key={t.id} {...clickable(() => {setSelectedTenantId(t.id); setHistoryPage(1);})} aria-pressed={selectedTenantId === t.id} className={`p-3.5 border-b border-slate-100 border-l-4 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 ${selectedTenantId === t.id ? 'bg-indigo-50 border-l-indigo-600' : 'border-l-transparent hover:bg-slate-50'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-slate-800 m-0 flex items-center gap-2 min-w-0 truncate">
                             <span className="truncate">{t.name}</span>
-                            {t.status === 'overdue' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-500 animate-pulse" />}
+                            {t.status === 'overdue' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-600 animate-pulse" />}
                             {t.status === 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-600 animate-pulse" />}
                             {t.status === 'pending-verification' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-indigo-500 animate-pulse" />}
                             {t.status === 'scheduled' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-blue-500" />}
-                            {t.status === 'processing' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-500 animate-pulse" />}
-                            {isDueSoon && t.status !== 'pending-verification' && t.status !== 'scheduled' && t.status !== 'processing' && t.status !== 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-500" />}
+                            {t.status === 'processing' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-700 animate-pulse" />}
+                            {isDueSoon && t.status !== 'pending-verification' && t.status !== 'scheduled' && t.status !== 'processing' && t.status !== 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-700" />}
                           </p>
                           <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold text-center uppercase shrink-0 ${
                             t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
@@ -958,7 +975,7 @@ const handleMarkAsPaid = async () => {
                           }`}>{t.status === 'pending-verification' ? 'VERIFY' : t.status}</span>
                         </div>
                         <div className="mt-1.5 flex items-center justify-between gap-2">
-                          <p className="text-xs text-slate-500 m-0 min-w-0 truncate">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
+                          <p className="text-xs text-slate-600 m-0 min-w-0 truncate">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
                           <p className="text-sm font-bold text-slate-900 m-0 shrink-0">{t.status !== 'paid' ? formatCurrency(tenantTotalDue) : '₱0'}</p>
                         </div>
                       </div>
@@ -1008,7 +1025,7 @@ const handleMarkAsPaid = async () => {
                             Last Reminded: <strong className="text-slate-700">{new Date(activeTenant.lastReminderDate).toLocaleDateString()}</strong> {activeTenant.reminderCount > 1 ? `(${activeTenant.reminderCount}x)` : ''}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                          <span className="text-[11px] text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
                             No reminders sent yet
                           </span>
                         )}
@@ -1027,33 +1044,33 @@ const handleMarkAsPaid = async () => {
 
                   {/* Read-only: what the bill says. The period, charges and due
                       date are changed with "Adjust invoice", never at the till. */}
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-2">
+                  <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-3 mb-2">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Period</p>
+                      <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">Period</p>
                       <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.billingPeriod || '—'}</p>
                     </div>
                     {/* A past-due bill shows the period it covers (from move-in), not its lapsed due date. */}
                     {activeTenant.pastDue ? (
                       <div className="bg-rose-50 p-3 rounded-lg border border-rose-100">
-                        <p className="text-[10px] uppercase text-rose-400 font-semibold mb-1 m-0">Covers (overdue)</p>
+                        <p className="text-[10px] uppercase text-rose-700 font-semibold mb-1 m-0">Covers (overdue)</p>
                         <p className="text-sm font-medium text-rose-800 m-0">{activeTenant.coveredPeriod}</p>
                       </div>
                     ) : (
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Due Date</p>
+                      <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">Due Date</p>
                       <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.dueDate || '—'}</p>
                     </div>
                     )}
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Term</p>
+                      <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">Term</p>
                       <p className="text-sm font-medium text-slate-800 m-0">Monthly</p>
-                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">Due on the move-in day each month</p>
+                      <p className="text-[10px] leading-snug text-slate-500 m-0 mt-0.5">Due on the move-in day each month</p>
                     </div>
                     {[['Security Deposit', depositChip(activeTenant.account)], ['Prepaid Rent', prepaidChip(activeTenant.account)]].map(([label, chip]) => (
                       <div key={label} className="bg-white p-3 rounded-lg border border-slate-200">
-                        <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">{label}</p>
+                        <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">{label}</p>
                         <p className={`text-sm font-semibold m-0 ${CHIP_TONES[chip.tone]}`}>{chip.text}</p>
-                        {chip.sub && <p className="text-[10px] text-slate-400 m-0 mt-0.5">{chip.sub}</p>}
+                        {chip.sub && <p className="text-[10px] leading-snug text-slate-500 m-0 mt-0.5">{chip.sub}</p>}
                       </div>
                     ))}
                   </div>
@@ -1141,7 +1158,7 @@ const handleMarkAsPaid = async () => {
                         {activeTenant.billing.lateFee > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Late Fee:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.lateFee)}</span></div>}
                         <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
                       </div>
-                      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Total Due</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Total Due</p>
                       <p className="text-3xl font-bold text-indigo-600 m-0 mt-0.5">{formatCurrency(totalDue)}</p>
                     </div>
                   </div>
@@ -1376,11 +1393,11 @@ const handleMarkAsPaid = async () => {
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex-1">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-400" /> Payment History</h3>
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-500" /> Payment History</h3>
                     </div>
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus-within:border-indigo-400 transition-colors">
-                      <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                      <input maxLength={LIMITS.search} type="text" placeholder="Filter period..." value={historySearchPeriod} onChange={e => {setHistorySearchPeriod(e.target.value); setHistoryPage(1);}} className="bg-transparent text-xs outline-none border-0 p-0 text-slate-700 w-24 bg-slate-50" />
+                      <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
+                      <input aria-label="Filter payment history by period" maxLength={LIMITS.search} type="text" placeholder="Filter period..." value={historySearchPeriod} onChange={e => {setHistorySearchPeriod(e.target.value); setHistoryPage(1);}} className="bg-transparent text-xs outline-none border-0 p-0 text-slate-700 w-24 bg-slate-50" />
                     </div>
                   </div>
                   
@@ -1401,7 +1418,7 @@ const handleMarkAsPaid = async () => {
                         {paginatedHistory.length > 0 ? paginatedHistory.map((record, idx) => (
                           <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="w-32 px-4 py-3 font-medium text-slate-900">{record.period}</td>
-                            <td className="w-28 px-4 py-3 font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(record.amount)}</td>
+                            <td className="w-28 px-4 py-3 font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(record.amount)}</td>
                             <td className="w-32 px-4 py-3 text-slate-600"><span className="inline-block max-w-full whitespace-normal break-words rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5">{record.method?.toLowerCase() === 'split' || record.paymentTransactions?.length > 1 ? 'Split Payment' : record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
                             <td className="max-w-xs px-4 py-3 text-slate-600 break-words whitespace-normal" title={record.paymentTransactions?.length ? record.paymentTransactions.map(tx => `${formatCurrency(tx.amount)} ${tx.bank_name || tx.payment_method}${tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}`).join(' + ') : record.breakdown}>
                               {record.paymentTransactions?.length > 1
@@ -1471,7 +1488,7 @@ const handleMarkAsPaid = async () => {
                   <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all duration-500 ${collectionPct >= 80 ? 'bg-emerald-500' : collectionPct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${collectionPct}%` }}></div>
                   </div>
-                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                  <div className="flex justify-between text-[10px] text-slate-500 mt-1">
                     <span>Collected: {formatCurrency(monthlyCollected)}</span>
                     <span>Target: {formatCurrency(monthlyTarget)}</span>
                   </div>
@@ -1483,11 +1500,11 @@ const handleMarkAsPaid = async () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-emerald-700 m-0">{formatCurrency(agingData.current)}</p>
-                      <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Current</p>
+                      <p className="text-[10px] text-emerald-700 font-semibold m-0 mt-0.5">Current</p>
                     </div>
                     <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-amber-700 m-0">{formatCurrency(agingData.days15)}</p>
-                      <p className="text-[10px] text-amber-600 font-semibold m-0 mt-0.5">1–15 Days</p>
+                      <p className="text-[10px] text-amber-700 font-semibold m-0 mt-0.5">1–15 Days</p>
                     </div>
                     <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-orange-700 m-0">{formatCurrency(agingData.days30)}</p>
@@ -1530,8 +1547,8 @@ const handleMarkAsPaid = async () => {
                               }`}>{t.status.toUpperCase()}</span>
                             </div>
                             <div className="flex justify-between mt-0.5">
-                              <span className="text-[9px] text-slate-400">{paidCount} payments recorded</span>
-                              {(t.outstandingBalance || 0) > 0 && <span className="text-[9px] text-red-500 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
+                              <span className="text-[9px] text-slate-500">{paidCount} payments recorded</span>
+                              {(t.outstandingBalance || 0) > 0 && <span className="text-[9px] text-red-600 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
                             </div>
                           </div>
                         </div>
@@ -1554,13 +1571,13 @@ const handleMarkAsPaid = async () => {
                     {/* Outstanding Balance Monitor */}
                     <div className={`rounded-xl p-4 border flex items-center justify-between ${(activeTenant.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                       <div className="flex items-center gap-3">
-                        <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-500 text-xl' : 'text-emerald-500 text-xl'} />
+                        <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600 text-xl' : 'text-emerald-700 text-xl'} />
                         <div>
                           <p className="text-sm font-bold text-slate-800 m-0">Outstanding Balance</p>
                           <p className="text-[11px] text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
                         </div>
                       </div>
-                      <p className={`text-2xl font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      <p className={`text-2xl font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                         {formatCurrency(activeTenant.outstandingBalance || 0)}
                       </p>
                     </div>
@@ -1578,10 +1595,10 @@ const handleMarkAsPaid = async () => {
               <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
-                  <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-600" />
+                  <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-700" />
                   Security Deposit Tracking Ledger
                 </h3>
-                <span className="text-xs text-slate-500 font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wider">Non-Refundable Held Assets</span>
+                <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wider">Non-Refundable Held Assets</span>
               </div>
               
               <div className="p-6 space-y-6">
@@ -1615,7 +1632,7 @@ const handleMarkAsPaid = async () => {
                 {/* Ledger search, filter and sort */}
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                   <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
-                    <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
+                    <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
                     <input maxLength={LIMITS.search} type="text" aria-label="Search deposits by tenant or unit" placeholder="Search tenant or unit..." value={depositSearch} onChange={(e) => setDepositSearch(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0" />
                   </div>
                   <div className="flex gap-2">
@@ -1626,7 +1643,7 @@ const handleMarkAsPaid = async () => {
                       {DEPOSIT_SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                   </div>
-                  <span className="text-[11px] text-slate-400 font-semibold sm:ml-auto whitespace-nowrap">{visibleContracts.length} of {contracts.length}</span>
+                  <span className="text-[11px] text-slate-500 font-semibold sm:ml-auto whitespace-nowrap">{visibleContracts.length} of {contracts.length}</span>
                 </div>
 
                 {/* Detailed Deposits Table */}
@@ -1657,16 +1674,16 @@ const handleMarkAsPaid = async () => {
                             <td className="py-3.5 px-4 text-slate-500">{leaseStart} – {leaseEnd}</td>
                             <td className="py-3.5 px-4 font-semibold text-slate-700">{formatCurrency(baseDeposit)}</td>
                             <td className="py-3.5 px-4">{depositStatusBadge(status)}</td>
-                            <td className={`py-3.5 px-4 font-semibold ${dmg > 0 ? 'text-red-600' : 'text-slate-400'}`}>{dmg > 0 ? formatCurrency(dmg) : '—'}</td>
-                            <td className={`py-3.5 px-4 font-semibold ${utl > 0 ? 'text-red-600' : 'text-slate-400'}`}>{utl > 0 ? formatCurrency(utl) : '—'}</td>
+                            <td className={`py-3.5 px-4 font-semibold ${dmg > 0 ? 'text-red-600' : 'text-slate-500'}`}>{dmg > 0 ? formatCurrency(dmg) : '—'}</td>
+                            <td className={`py-3.5 px-4 font-semibold ${utl > 0 ? 'text-red-600' : 'text-slate-500'}`}>{utl > 0 ? formatCurrency(utl) : '—'}</td>
                             <td className="py-3.5 px-4 font-bold text-indigo-600">{appliedRent > 0 ? formatCurrency(appliedRent) : '—'}</td>
-                            <td className="py-3.5 px-4 text-slate-400 font-medium">₱0.00 <span className="text-[9px] text-slate-400 italic font-normal">(Non-Refundable)</span></td>
+                            <td className="py-3.5 px-4 text-slate-500 font-medium">₱0.00 <span className="text-[9px] text-slate-500 italic font-normal">(Non-Refundable)</span></td>
                           </tr>
                           {items.length > 0 && (
                             <tr className="border-t-0">
                               <td colSpan="9" className="px-4 pb-3 pt-0">
                                 <div className="ml-4 max-w-xl bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 m-0 mb-1">Deductions</p>
+                                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
                                   {depositItemsList(items)}
                                 </div>
                               </td>
@@ -1675,7 +1692,7 @@ const handleMarkAsPaid = async () => {
                           </Fragment>
                         );
                       }) : (
-                        <tr><td colSpan="9" className="py-6 text-center text-slate-400">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
+                        <tr><td colSpan="9" className="py-6 text-center text-slate-500">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1697,10 +1714,10 @@ const handleMarkAsPaid = async () => {
                         <dl className="space-y-1.5 m-0 pt-2 border-t border-slate-100">
                           {[
                             ['Original deposit', formatCurrency(baseDeposit), 'text-slate-700'],
-                            ['Fixture damages', dmg > 0 ? formatCurrency(dmg) : '—', dmg > 0 ? 'text-red-600' : 'text-slate-400'],
-                            ['Unpaid utilities', utl > 0 ? formatCurrency(utl) : '—', utl > 0 ? 'text-red-600' : 'text-slate-400'],
+                            ['Fixture damages', dmg > 0 ? formatCurrency(dmg) : '—', dmg > 0 ? 'text-red-600' : 'text-slate-500'],
+                            ['Unpaid utilities', utl > 0 ? formatCurrency(utl) : '—', utl > 0 ? 'text-red-600' : 'text-slate-500'],
                             ['Applied to rent', appliedRent > 0 ? formatCurrency(appliedRent) : '—', 'text-indigo-600'],
-                            ['Refunded', '₱0.00 (Non-Refundable)', 'text-slate-400'],
+                            ['Refunded', '₱0.00 (Non-Refundable)', 'text-slate-500'],
                           ].map(([label, value, tone]) => (
                             <div key={label} className="flex justify-between gap-3">
                               <dt className="text-slate-500">{label}</dt>
@@ -1710,14 +1727,14 @@ const handleMarkAsPaid = async () => {
                         </dl>
                         {items.length > 0 && (
                           <div className="pt-2 border-t border-slate-100">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0 mb-1">Deductions</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
                             {depositItemsList(items)}
                           </div>
                         )}
                       </div>
                     );
                   }) : (
-                    <div className="py-6 text-center text-slate-400 text-sm">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</div>
+                    <div className="py-6 text-center text-slate-500 text-sm">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</div>
                   )}
                 </div>
             </div>
@@ -1768,7 +1785,7 @@ const handleMarkAsPaid = async () => {
                   className={`w-full px-3 py-2 text-sm border border-solid rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-y ${adjustReasonError ? 'border-red-400' : 'border-slate-200'}`} />
                 {adjustReasonError
                   ? <p id="adjust-reason-error" role="alert" className="text-[11px] text-red-700 m-0 mt-1">{adjustReasonError}</p>
-                  : <p id="adjust-reason-hint" className="text-[11px] text-slate-400 m-0 mt-1">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>}
+                  : <p id="adjust-reason-hint" className="text-[11px] text-slate-500 m-0 mt-1">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>}
               </div>
               <div className="flex justify-between text-sm mb-4">
                 <span className="text-slate-500">Total {formatCurrency(adjustForm.oldTotal)} →</span>
@@ -1794,7 +1811,7 @@ const handleMarkAsPaid = async () => {
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm space-y-2 mb-6">
                 <div className="flex justify-between"><span className="text-slate-500">Tenant</span><span className="font-semibold text-slate-800">{activeTenant.name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Period</span><span className="font-semibold text-slate-800 text-right">{activeTenant.billingPeriod}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-bold text-emerald-600">{formatCurrency(totalDue)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-bold text-emerald-700">{formatCurrency(totalDue)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Method</span><span className="font-semibold text-slate-800">{paymentMethod}</span></div>
               </div>
               {(() => {
@@ -1831,7 +1848,7 @@ const handleMarkAsPaid = async () => {
             <div className="p-6 space-y-4 font-mono text-sm">
               <div className="flex justify-between border-b border-slate-200 pb-4">
                 <div><p className="text-slate-500 text-[10px] uppercase m-0">Date</p><p className="font-semibold m-0 mt-0.5">{receiptData.date}</p></div>
-                <div className="text-right"><p className="text-slate-500 text-[10px] uppercase m-0">Status</p><p className="font-bold text-emerald-600 m-0 mt-0.5">{receiptData.status}</p></div>
+                <div className="text-right"><p className="text-slate-500 text-[10px] uppercase m-0">Status</p><p className="font-bold text-emerald-700 m-0 mt-0.5">{receiptData.status}</p></div>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-4">
                 <div><p className="text-slate-500 text-[10px] uppercase m-0">Received From</p><p className="font-bold text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-xs">Unit {receiptData.unit}</p></div>
@@ -1859,7 +1876,7 @@ const handleMarkAsPaid = async () => {
               {/* Signature placeholder */}
               <div className="pt-6 flex flex-col items-end text-right">
                 <div className="border-b border-slate-400 w-36 h-8 mb-1"></div>
-                <p className="text-[9px] uppercase text-slate-400 font-bold tracking-widest m-0">Authorized Admin Signature</p>
+                <p className="text-[9px] uppercase text-slate-500 font-bold tracking-widest m-0">Authorized Admin Signature</p>
               </div>
             </div>
             <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">
@@ -1895,7 +1912,7 @@ const handleMarkAsPaid = async () => {
                 </a>
                 <button
                   onClick={() => setPreviewProof(null)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
+                  className="text-slate-500 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
                 >
                   <FontAwesomeIcon icon={faTimes} />
                 </button>

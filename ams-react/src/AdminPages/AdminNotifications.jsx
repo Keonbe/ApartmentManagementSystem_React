@@ -16,6 +16,7 @@ import api from '../api/axiosConfig';
 import { ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, formatRelativeTime } from '../config/notificationLinks';
 import { LIMITS, checkIntRange } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import { clickable } from '../utils/clickable';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
@@ -32,20 +33,20 @@ const REMINDER_VALIDATORS = {
 const typeConfig = {
   occupancy_request: { label: 'Occupancy Request', icon: faUsers, color: 'bg-purple-100 text-purple-600', badge: 'bg-purple-100 text-purple-700' },
   household_request: { label: 'Household Change', icon: faUsers, color: 'bg-violet-100 text-violet-600', badge: 'bg-violet-100 text-violet-700' },
-  lease_extension_request: { label: 'Rent Extension', icon: faCalendarPlus, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  lease_extension_request: { label: 'Rent Extension', icon: faCalendarPlus, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
   rent_application: { label: 'Rent Application', icon: faFileContract, color: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' },
-  maintenance_request: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700' },
+  maintenance_request: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-100 text-amber-700', badge: 'bg-amber-100 text-amber-700' },
   parking_reservation: { label: 'Parking', icon: faCar, color: 'bg-teal-100 text-teal-600', badge: 'bg-teal-100 text-teal-700' },
   cctv_request: { label: 'CCTV Request', icon: faVideo, color: 'bg-slate-100 text-slate-600', badge: 'bg-slate-100 text-slate-700' },
   service_request: { label: 'Service Booking', icon: faConciergeBell, color: 'bg-cyan-100 text-cyan-600', badge: 'bg-cyan-100 text-cyan-700' },
-  inquiry: { label: 'Inquiry', icon: faInfoCircle, color: 'bg-sky-100 text-sky-600', badge: 'bg-sky-100 text-sky-700' },
-  unit_waitlist: { label: 'Waitlist', icon: faClock, color: 'bg-sky-100 text-sky-600', badge: 'bg-sky-100 text-sky-700' },
-  payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
-  cash_payment_declared: { label: 'Cash Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
-  payment: { label: 'Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  inquiry: { label: 'Inquiry', icon: faInfoCircle, color: 'bg-sky-100 text-sky-700', badge: 'bg-sky-100 text-sky-700' },
+  unit_waitlist: { label: 'Waitlist', icon: faClock, color: 'bg-sky-100 text-sky-700', badge: 'bg-sky-100 text-sky-700' },
+  payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+  cash_payment_declared: { label: 'Cash Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+  payment: { label: 'Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
   payment_followup: { label: 'Overdue Payment', icon: faExclamationTriangle, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
-  document_followup: { label: 'Documents Needed', icon: faFileContract, color: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700' },
-  refund_request: { label: 'Refund Request', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  document_followup: { label: 'Documents Needed', icon: faFileContract, color: 'bg-amber-100 text-amber-700', badge: 'bg-amber-100 text-amber-700' },
+  refund_request: { label: 'Refund Request', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
   move_out_request: { label: 'Move-Out Notice', icon: faCalendarPlus, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
 };
 
@@ -278,7 +279,7 @@ const AdminNotifications = () => {
                 {/* Toolbar */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm focus-within:border-indigo-500 transition-all flex-1 max-w-sm">
-                    <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
+                    <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
                     <input maxLength={LIMITS.search} type="text" placeholder="Search requests & notifications..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
                   </div>
                   <div className="flex items-center gap-2">
@@ -305,7 +306,7 @@ const AdminNotifications = () => {
                         className={`btn-interactive px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap border-0 cursor-pointer transition-colors ${activeFilter === f.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>
                         {f.label}
                         {count > 0 && (
-                          <span className="ml-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
+                          <span className="ml-1.5 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
                         )}
                       </button>
                     );
@@ -315,7 +316,7 @@ const AdminNotifications = () => {
                 {/* Notification Cards */}
                 <div className="stagger-children space-y-2">
                   {loading ? (
-                    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-sm text-slate-400">Loading…</div>
+                    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-sm text-slate-500">Loading…</div>
                   ) : filtered.length === 0 && (
                     <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                       <FontAwesomeIcon icon={faBell} className="text-4xl text-slate-200 mb-3" />
@@ -332,8 +333,8 @@ const AdminNotifications = () => {
                     return (
                       <div
                         key={n.id}
-                        onClick={() => setSelectedNotification(n)}
-                        className={`card-interactive bg-white rounded-xl border shadow-sm p-4 flex gap-4 items-start transition-all hover:shadow-md group cursor-pointer ${n.read ? 'border-slate-200' : 'border-indigo-200 bg-indigo-50/30'}`}
+                        {...clickable(() => setSelectedNotification(n), { role: null })}
+                        className={`card-interactive bg-white rounded-xl border shadow-sm p-4 flex gap-4 items-start transition-all hover:shadow-md group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${n.read ? 'border-slate-200' : 'border-indigo-200 bg-indigo-50/30'}`}
                       >
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${cfg.color}`}>
                           <FontAwesomeIcon icon={cfg.icon} className="text-sm" />
@@ -346,7 +347,7 @@ const AdminNotifications = () => {
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${cfg.badge}`}>{cfg.label}</span>
                               {!n.read && <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>}
                             </div>
-                            <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap shrink-0" title={n.createdAt}>{formatRelativeTime(n.createdAt)}</span>
+                            <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap shrink-0" title={n.createdAt}>{formatRelativeTime(n.createdAt)}</span>
                           </div>
 
                           <p className="text-xs text-slate-600 m-0 leading-relaxed">{n.message}</p>
@@ -385,19 +386,19 @@ const AdminNotifications = () => {
                                 <span>Review Request</span>
                                 <FontAwesomeIcon icon={faArrowRight} />
                               </button>
-                              <span className="text-[10px] text-slate-400">Clears from this list once decided.</span>
+                              <span className="text-[10px] text-slate-500">Clears from this list once decided.</span>
                             </div>
                           )}
                         </div>
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                           {!n.read && (
-                            <button onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }} title="Mark read" aria-label="Mark read" className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors">
+                            <button onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }} title="Mark read" aria-label="Mark read" className="w-7 h-7 rounded flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faCheck} className="text-xs" />
                             </button>
                           )}
                           {!isPending && (
-                            <button onClick={(e) => { e.stopPropagation(); handleArchive(n.id); }} title="Archive" aria-label="Archive" className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-0 cursor-pointer transition-colors">
+                            <button onClick={(e) => { e.stopPropagation(); handleArchive(n.id); }} title="Archive" aria-label="Archive" className="w-7 h-7 rounded flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 bg-transparent border-0 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faTimes} className="text-xs" />
                             </button>
                           )}
@@ -411,13 +412,13 @@ const AdminNotifications = () => {
               {/* Settings Panel */}
               <div className={`w-full lg:w-80 shrink-0 ${showSettings ? 'block' : 'hidden lg:block'}`}>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6 sticky top-6">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faCog} className="text-slate-400" /> Reminder Automation</h3>
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faCog} className="text-slate-500" /> Reminder Automation</h3>
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-700 m-0">Rent Due Reminders</p>
-                        <p className="text-[10px] text-slate-400 m-0 mt-0.5">Sent before the due date</p>
+                        <p className="text-[10px] text-slate-500 m-0 mt-0.5">Sent before the due date</p>
                       </div>
                       <button onClick={() => toggleSetting('rentDueEnabled')} className="bg-transparent border-0 cursor-pointer text-2xl" aria-label="Toggle rent due reminders">
                         <FontAwesomeIcon icon={settings.rentDueEnabled ? faToggleOn : faToggleOff} className={settings.rentDueEnabled ? 'text-indigo-600' : 'text-slate-300'} />
@@ -436,7 +437,7 @@ const AdminNotifications = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-700 m-0">Overdue Alerts</p>
-                        <p className="text-[10px] text-slate-400 m-0 mt-0.5">Repeated while unpaid</p>
+                        <p className="text-[10px] text-slate-500 m-0 mt-0.5">Repeated while unpaid</p>
                       </div>
                       <button onClick={() => toggleSetting('overdueEnabled')} className="bg-transparent border-0 cursor-pointer text-2xl" aria-label="Toggle overdue alerts">
                         <FontAwesomeIcon icon={settings.overdueEnabled ? faToggleOn : faToggleOff} className={settings.overdueEnabled ? 'text-indigo-600' : 'text-slate-300'} />
@@ -459,13 +460,13 @@ const AdminNotifications = () => {
 
                   <div className="border-t border-slate-100 pt-4 space-y-2">
                     <p className="text-[11px] text-slate-500 m-0 flex gap-2">
-                      <FontAwesomeIcon icon={faClock} className="text-slate-400 mt-0.5" />
+                      <FontAwesomeIcon icon={faClock} className="text-slate-500 mt-0.5" />
                       Reminders, overdue alerts and automatic parking billing run once a day on their own.
                     </p>
                     <button onClick={handleRunSweep} disabled={runningSweep} className="w-full py-2 bg-white text-indigo-700 rounded-lg text-xs font-bold border border-indigo-200 hover:bg-indigo-50 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
                       <FontAwesomeIcon icon={faPlay} /> {runningSweep ? 'Running…' : 'Run reminder check now'}
                     </button>
-                    <p className="text-[10px] text-slate-400 m-0 flex gap-2">
+                    <p className="text-[10px] text-slate-500 m-0 flex gap-2">
                       <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5" />
                       These automatic reminders go out in-app and by email, not by SMS. To text a tenant, use Send Due Reminder on the Payments page.
                     </p>

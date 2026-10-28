@@ -142,7 +142,7 @@ export default function RequirementsPanel() {
             ) : items.length === 0 ? (
               <tr><td colSpan="6" className="px-4 py-8 text-center text-slate-500">No requirements yet. Applicants will not be asked for any document.</td></tr>
             ) : items.map((r, i) => (
-              <tr key={r.id} className={r.is_active ? '' : 'bg-slate-50/60 text-slate-400'}>
+              <tr key={r.id} className={r.is_active ? '' : 'bg-slate-50/60 text-slate-500'}>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     <button type="button" aria-label={`Move ${r.label} up`} disabled={busy || i === 0} onClick={() => move(i, -1)} className={btn}><FontAwesomeIcon icon={faArrowUp} /></button>
@@ -150,7 +150,7 @@ export default function RequirementsPanel() {
                   </div>
                 </td>
                 <td className="px-4 py-3 font-bold text-slate-800">{r.label}</td>
-                <td className="px-4 py-3 text-slate-600">{r.label_fil || <span className="text-slate-400">—</span>}</td>
+                <td className="px-4 py-3 text-slate-600">{r.label_fil || <span className="text-slate-500">—</span>}</td>
                 <td className="px-4 py-3">
                   <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600">
                     <input type="checkbox" checked={!!r.is_required} disabled={busy} onChange={() => toggleRequired(r)} className="h-4 w-4 accent-indigo-600" />
@@ -189,7 +189,7 @@ export default function RequirementsPanel() {
               <FieldError id="req-label" error={form.errors.label} />
             </div>
             <div>
-              <label htmlFor="req-label_fil" className="block text-sm font-semibold text-slate-700">Filipino name <span className="font-normal text-slate-400">(Optional)</span></label>
+              <label htmlFor="req-label_fil" className="block text-sm font-semibold text-slate-700">Filipino name <span className="font-normal text-slate-500">(Optional)</span></label>
               <input
                 {...form.fieldA11y('label_fil')}
                 maxLength={REQUIREMENT_LIMITS.labelMax}

@@ -155,7 +155,7 @@ function BiInput({ id, label, value, onChange, multiline = false, rows = 3, max,
           )}
         </div>
         {multiline ? <textarea rows={rows} {...props} /> : <input type="text" autoComplete="off" {...props} />}
-        {max && len > max * 0.8 && <span className="text-[10px] text-slate-400 self-end">{len}/{max}</span>}
+        {max && len > max * 0.8 && <span className="text-[10px] text-slate-500 self-end">{len}/{max}</span>}
       </div>
     );
   };
@@ -168,7 +168,7 @@ function BiInput({ id, label, value, onChange, multiline = false, rows = 3, max,
         {box('tl')}
       </div>
       {empty && <p className="text-[11px] text-rose-500 m-0">Required in at least one language.</p>}
-      {!empty && oneSided && <p className="text-[11px] text-amber-600 m-0">One language is blank — the other will be shown in its place.</p>}
+      {!empty && oneSided && <p className="text-[11px] text-amber-700 m-0">One language is blank — the other will be shown in its place.</p>}
       {hint && <p className="text-[11px] text-slate-500 m-0 leading-relaxed">{hint}</p>}
     </div>
   );
@@ -571,7 +571,7 @@ const AdminContractEditor = ({ embedded = false }) => {
 
         <div className="flex items-center gap-2 max-w-xs w-full">
           <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-full">
-            <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
+            <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
             <input
               type="text"
               placeholder="Search clauses..."
@@ -580,7 +580,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               className="bg-transparent border-0 outline-none text-xs w-full text-slate-700"
             />
             {clauseSearch && (
-              <button type="button" onClick={() => setClauseSearch('')} className="bg-transparent border-0 text-slate-400 hover:text-slate-600 cursor-pointer p-0 text-xs">
+              <button type="button" onClick={() => setClauseSearch('')} className="bg-transparent border-0 text-slate-500 hover:text-slate-600 cursor-pointer p-0 text-xs">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             )}
@@ -597,7 +597,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                 <button
                   type="button"
                   onClick={() => toggleSectionCollapse(section.id)}
-                  className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-0 text-xs"
+                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-0 text-xs"
                 >
                   <FontAwesomeIcon icon={isCollapsed ? faChevronRight : faChevronDown} />
                 </button>
@@ -607,7 +607,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                 <span className="font-bold text-sm text-slate-800 truncate">
                   {pick(section.title, 'en') || `Section ${roman(si + 1)}`}
                 </span>
-                <span className="text-xs text-slate-400">({section.clauses.length} clauses)</span>
+                <span className="text-xs text-slate-500">({section.clauses.length} clauses)</span>
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -1203,7 +1203,7 @@ const AdminContractEditor = ({ embedded = false }) => {
             <h4 className="text-xs font-bold text-slate-800 m-0">{toast.title}</h4>
             <p className="text-xs text-slate-500 mt-0.5 m-0 leading-relaxed">{toast.message}</p>
           </div>
-          <button type="button" onClick={() => setToast(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
+          <button type="button" onClick={() => setToast(null)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>

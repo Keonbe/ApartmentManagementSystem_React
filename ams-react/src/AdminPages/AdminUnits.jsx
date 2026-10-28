@@ -367,7 +367,7 @@ const AdminUnits = () => {
             {/* Top Bar */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
+                <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
                 <input maxLength={LIMITS.search}
                   type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Search units, tenants..."
@@ -385,22 +385,22 @@ const AdminUnits = () => {
             {/* Stats Summary */}
             <div className="stagger-children grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Units</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Units</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1 m-0">{counts.all}</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Occupied</p>
-                <p className="text-2xl font-bold text-emerald-600 mt-1 m-0">{counts.occupied}</p>
-                <p className="text-[10px] text-slate-400 m-0 mt-0.5">{counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupancy</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupied</p>
+                <p className="text-2xl font-bold text-emerald-700 mt-1 m-0">{counts.occupied}</p>
+                <p className="text-[10px] text-slate-500 m-0 mt-0.5">{counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupancy</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Vacant</p>
-                <p className="text-2xl font-bold text-amber-500 mt-1 m-0">{counts.vacant}</p>
-                <p className="text-[10px] text-slate-400 m-0 mt-0.5">Available now</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Vacant</p>
+                <p className="text-2xl font-bold text-amber-700 mt-1 m-0">{counts.vacant}</p>
+                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Available now</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-red-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Under Repair</p>
-                <p className="text-2xl font-bold text-red-500 mt-1 m-0">{counts.repair}</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Under Repair</p>
+                <p className="text-2xl font-bold text-red-600 mt-1 m-0">{counts.repair}</p>
               </div>
             </div>
 
@@ -454,10 +454,10 @@ const AdminUnits = () => {
 
                     {unit.status === 'occupied' ? (
                       <>
-                        <div className="text-[10px] text-slate-400 mt-2">{unit.tenant}</div>
+                        <div className="text-[10px] text-slate-500 mt-2">{unit.tenant}</div>
                         <div className="text-xs font-bold text-indigo-600 mt-1">{formatCurrency(unit.rent)}/mo</div>
                         {remaining !== null && (
-                          <div className={`text-[10px] font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-500' : remaining <= 90 ? 'text-amber-500' : 'text-slate-400'}`}>
+                          <div className={`text-[10px] font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
                             <FontAwesomeIcon icon={faClock} className="text-[9px]" />
                             {remaining > 0 ? `${remaining} days left` : 'Rent expired'}
                           </div>
@@ -465,9 +465,9 @@ const AdminUnits = () => {
                       </>
                     ) : (
                       <>
-                        <div className="text-[10px] text-amber-500 mt-2">Available now</div>
-                        <div className="text-xs font-bold text-emerald-500 mt-1">{formatCurrency(unit.rent)}/mo</div>
-                        {unit.lastTenant && <div className="text-[10px] text-slate-400 mt-1">Last: {unit.lastTenant}</div>}
+                        <div className="text-[10px] text-amber-700 mt-2">Available now</div>
+                        <div className="text-xs font-bold text-emerald-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
+                        {unit.lastTenant && <div className="text-[10px] text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
                       </>
                     )}
 
@@ -481,7 +481,7 @@ const AdminUnits = () => {
                       {unit.status === 'vacant' && (
                         <button
                           onClick={() => openAssignTenant(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal)}
-                          className="flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
+                          className="flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
                         >
                           <FontAwesomeIcon icon={faUserPlus} className="text-[9px]" /> Assign
                         </button>
@@ -517,10 +517,10 @@ const AdminUnits = () => {
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 m-0">Add New Unit</h3>
-                  <p className="text-xs text-slate-400 m-0 mt-0.5">Create a new apartment unit</p>
+                  <p className="text-xs text-slate-500 m-0 mt-0.5">Create a new apartment unit</p>
                 </div>
               </div>
-              <button type="button" onClick={closeAddModal} aria-label="Close" className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button type="button" onClick={closeAddModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               {addUnitError && (
@@ -552,7 +552,7 @@ const AdminUnits = () => {
                   <FieldError id="unit-type" error={unitErrors.errors.type} />
                 </div>
                 <div>
-                  <label htmlFor="unit-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *{floorRates[unitForm.floor.trim()] ? <span className="normal-case font-normal text-slate-400"> (floor rent {floorRates[unitForm.floor.trim()]})</span> : null}</label>
+                  <label htmlFor="unit-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *{floorRates[unitForm.floor.trim()] ? <span className="normal-case font-normal text-slate-500"> (floor rent {floorRates[unitForm.floor.trim()]})</span> : null}</label>
                   <input type="number" {...unitErrors.fieldA11y('rent')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={unitForm.rent}
                     onKeyDown={blockNonNumericKeys}
                     onChange={e => { setRentTyped(true); setUnitForm({ ...unitForm, rent: e.target.value }); unitErrors.clearError('rent'); }}
@@ -576,13 +576,13 @@ const AdminUnits = () => {
           <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()} onSubmit={handleAssignTenant} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 m-0">Assign Tenant to Unit {selectedUnit.id}</h3>
-                  <p className="text-xs text-slate-400 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
+                  <p className="text-xs text-slate-500 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
                 </div>
               </div>
-              <button type="button" onClick={closeAssignModal} aria-label="Close" className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button type="button" onClick={closeAssignModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -643,7 +643,7 @@ const AdminUnits = () => {
               </p>
               {leaseError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
-                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                   {leaseError}
                 </div>
               )}
@@ -826,17 +826,17 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
             </div>
             <div>
               <h3 className="text-lg font-bold text-slate-800 m-0">Unit {unit.id}</h3>
-              <p className="text-xs text-slate-400 m-0 mt-0.5">{unit.type} · {unit.floor} · {formatCurrency(unit.rent)}/mo</p>
+              <p className="text-xs text-slate-500 m-0 mt-0.5">{unit.type} · {unit.floor} · {formatCurrency(unit.rent)}/mo</p>
             </div>
           </div>
-          <button onClick={onClose} className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+          <button onClick={onClose} className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
         </div>
 
         <div className="flex border-b border-slate-200 px-3 shrink-0 bg-white overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-3 text-xs font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer whitespace-nowrap ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-400 border-b-transparent hover:text-slate-600'}`}
+              className={`flex items-center gap-1.5 px-3 py-3 text-xs font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer whitespace-nowrap ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-500 border-b-transparent hover:text-slate-600'}`}
             >
               <FontAwesomeIcon icon={tab.icon} className="text-[10px]" /> {tab.label}
             </button>
@@ -849,7 +849,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               <div className={`rounded-xl p-4 border ${unit.status === 'occupied' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <FontAwesomeIcon icon={unit.status === 'occupied' ? faCheckCircle : faBuilding} className={unit.status === 'occupied' ? 'text-emerald-600 text-lg' : 'text-amber-600 text-lg'} />
+                    <FontAwesomeIcon icon={unit.status === 'occupied' ? faCheckCircle : faBuilding} className={unit.status === 'occupied' ? 'text-emerald-700 text-lg' : 'text-amber-700 text-lg'} />
                     <div>
                       <p className="text-sm font-semibold text-slate-800 m-0">{unit.status === 'occupied' ? 'Currently Occupied' : 'Vacant — Available'}</p>
                       <p className="text-xs text-slate-500 m-0 mt-0.5">{unit.tenant ? `Tenant: ${unit.tenant}` : 'No current tenant'}</p>
@@ -978,7 +978,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
 
               {galleryError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
-                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                   {galleryError}
                 </div>
               )}
@@ -986,7 +986,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               {galleryImages.length === 0 ? (
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faImages} className="text-slate-300 text-4xl mb-3 mx-auto block" />
-                  <p className="text-sm text-slate-400 m-0">No showcase images uploaded for this unit yet.</p>
+                  <p className="text-sm text-slate-500 m-0">No showcase images uploaded for this unit yet.</p>
                 </div>
               ) : (
                 <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1044,13 +1044,13 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   <div className="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl p-5 border border-indigo-100">
                     <h4 className="text-sm font-semibold text-slate-800 m-0 mb-4">Rent Progress</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center mb-4">
-                      <div><p className="text-xl font-bold text-indigo-600 m-0 truncate" title={unit.tenant}>{unit.tenant?.split(' ')[0]}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Tenant</p></div>
-                      <div><p className="text-xl font-bold text-slate-800 m-0">{unit.occupants || 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Occupants</p></div>
-                      <div><p className="text-xl font-bold text-slate-800 m-0">{elapsed > 0 ? elapsed : 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Days Elapsed</p></div>
-                      <div><p className={`text-xl font-bold m-0 ${remaining <= 30 ? 'text-red-500' : remaining <= 90 ? 'text-amber-500' : 'text-emerald-600'}`}>{remaining > 0 ? remaining : 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Days Left</p></div>
+                      <div><p className="text-xl font-bold text-indigo-600 m-0 truncate" title={unit.tenant}>{unit.tenant?.split(' ')[0]}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Tenant</p></div>
+                      <div><p className="text-xl font-bold text-slate-800 m-0">{unit.occupants || 0}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Occupants</p></div>
+                      <div><p className="text-xl font-bold text-slate-800 m-0">{elapsed > 0 ? elapsed : 0}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Days Elapsed</p></div>
+                      <div><p className={`text-xl font-bold m-0 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-emerald-700'}`}>{remaining > 0 ? remaining : 0}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Days Left</p></div>
                     </div>
                     <div>
-                      <div className="flex justify-between text-[10px] text-slate-400 mb-1"><span>{unit.leaseStart}</span><span>{unit.leaseEnd}</span></div>
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1"><span>{unit.leaseStart}</span><span>{unit.leaseEnd}</span></div>
                       <div className="w-full h-2 bg-white rounded-full overflow-hidden shadow-inner"><div className={`h-full rounded-full transition-all ${remaining <= 30 ? 'bg-red-500' : remaining <= 90 ? 'bg-amber-400' : 'bg-indigo-500'}`} style={{ width: `${progressPct}%` }} /></div>
                     </div>
                   </div>
@@ -1087,7 +1087,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       )}
                       {leaseError && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
-                          <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                           {leaseError}
                         </div>
                       )}
@@ -1105,9 +1105,9 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                               <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-2 border border-slate-100 text-xs">
                                 <div>
                                   <span className="text-slate-600 font-semibold">{ext.oldEnd} → {ext.newEnd}</span>
-                                  <span className="text-slate-400 ml-2">({ext.detail})</span>
+                                  <span className="text-slate-500 ml-2">({ext.detail})</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400">{ext.date}</span>
+                                <span className="text-[10px] text-slate-500">{ext.date}</span>
                               </div>
                             ))}
                           </div>
@@ -1119,7 +1119,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               ) : (
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faBuilding} className="text-slate-300 text-4xl mb-3 mx-auto block" />
-                  <p className="text-sm text-slate-400 m-0">This unit is currently vacant.</p>
+                  <p className="text-sm text-slate-500 m-0">This unit is currently vacant.</p>
                 </div>
               )}
             </div>
@@ -1145,7 +1145,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                             </div>
                             <div>
                               <p className="text-sm font-semibold text-slate-800 m-0">{occ.tenant}</p>
-                              <p className="text-[10px] text-slate-400 m-0">{occ.status === 'current' ? 'Current Tenant' : 'Past Tenant'}</p>
+                              <p className="text-[10px] text-slate-500 m-0">{occ.status === 'current' ? 'Current Tenant' : 'Past Tenant'}</p>
                             </div>
                           </div>
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
@@ -1153,9 +1153,9 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                           </span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                          <div><span className="text-slate-400">Period:</span> <span className="font-semibold text-slate-700">{occ.leaseStart} → {occ.leaseEnd}</span></div>
-                          <div><span className="text-slate-400">Duration:</span> <span className="font-semibold text-slate-700">{duration} months</span></div>
-                          <div><span className="text-slate-400">Rent:</span> <span className="font-bold text-indigo-600">{formatCurrency(occ.rent)}</span></div>
+                          <div><span className="text-slate-500">Period:</span> <span className="font-semibold text-slate-700">{occ.leaseStart} → {occ.leaseEnd}</span></div>
+                          <div><span className="text-slate-500">Duration:</span> <span className="font-semibold text-slate-700">{duration} months</span></div>
+                          <div><span className="text-slate-500">Rent:</span> <span className="font-bold text-indigo-600">{formatCurrency(occ.rent)}</span></div>
                         </div>
                         {occ.moveOutReason && (
                           <div className="mt-2 text-[11px] text-slate-500 bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
@@ -1169,10 +1169,10 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                               {occ.extensions.map((ext, i) => (
                                 <div key={i} className="flex flex-wrap items-center gap-2 text-[10px]">
                                   <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{ext.oldEnd}</span>
-                                  <FontAwesomeIcon icon={faChevronRight} className="text-slate-400 text-[8px]" />
+                                  <FontAwesomeIcon icon={faChevronRight} className="text-slate-500 text-[8px]" />
                                   <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">{ext.newEnd}</span>
                                   <span className="text-slate-500">+{ext.addedMonths} month(s)</span>
-                                  {ext.date && <span className="text-slate-400 ml-auto">{ext.date}</span>}
+                                  {ext.date && <span className="text-slate-500 ml-auto">{ext.date}</span>}
                                 </div>
                               ))}
                             </div>
@@ -1192,7 +1192,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               ) : (
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faUser} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                  <p className="text-sm text-slate-400 m-0">No occupancy history. This unit has never been rented.</p>
+                  <p className="text-sm text-slate-500 m-0">No occupancy history. This unit has never been rented.</p>
                 </div>
               )}
             </div>
@@ -1206,9 +1206,9 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5 text-xs"><FontAwesomeIcon icon={faHistory} /></div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-slate-800 m-0">{entry.event}</p>
-                    <p className="text-[11px] text-slate-400 m-0 mt-0.5">{entry.detail}</p>
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">{entry.detail}</p>
                   </div>
-                  <span className="text-[11px] text-slate-400 shrink-0">{entry.date}</span>
+                  <span className="text-[11px] text-slate-500 shrink-0">{entry.date}</span>
                 </div>
               ))}
             </div>
@@ -1225,17 +1225,17 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   </div>
                   {[...unit.maintenanceHistory].reverse().map((entry, idx) => (
                     <div key={idx} className="card-interactive flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <div className={`w-8 h-8 rounded-full ${entry.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faWrench} /></div>
+                      <div className={`w-8 h-8 rounded-full ${entry.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faWrench} /></div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-slate-800 m-0">{entry.issue}</p>
-                        <p className="text-[11px] text-slate-400 m-0 mt-0.5">Status: {entry.status} {entry.cost ? `· Cost: ${formatCurrency(entry.cost)}` : ''}</p>
+                        <p className="text-[11px] text-slate-500 m-0 mt-0.5">Status: {entry.status} {entry.cost ? `· Cost: ${formatCurrency(entry.cost)}` : ''}</p>
                       </div>
-                      <span className="text-[11px] text-slate-400 shrink-0">{entry.date}</span>
+                      <span className="text-[11px] text-slate-500 shrink-0">{entry.date}</span>
                     </div>
                   ))}
                 </>
               ) : (
-                <div className="text-center py-8 text-slate-400 text-sm">No maintenance history for this unit.</div>
+                <div className="text-center py-8 text-slate-500 text-sm">No maintenance history for this unit.</div>
               )}
             </div>
           )}
@@ -1248,7 +1248,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
 
 const DetailField = ({ label, value }) => (
   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">{label}</p>
+    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">{label}</p>
     <p className="text-sm font-medium text-slate-700 m-0 mt-0.5">{value || '—'}</p>
   </div>
 );

@@ -408,12 +408,12 @@ export default function AdminInquiries() {
               <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Needs Response</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
                     <FontAwesomeIcon icon={faClock} />
                   </div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-amber-950 m-0">{newCount}</p>
-                <p className="mt-1 text-xs text-amber-600 font-medium m-0">Not yet contacted</p>
+                <p className="mt-1 text-xs text-amber-700 font-medium m-0">Not yet contacted</p>
               </div>
 
               <div className="card-interactive rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm">
@@ -430,12 +430,12 @@ export default function AdminInquiries() {
               <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Converted</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
                     <FontAwesomeIcon icon={faCheckCircle} />
                   </div>
                 </div>
                 <p className="mt-2 text-3xl font-extrabold text-emerald-950 m-0">{convertedCount}</p>
-                <p className="mt-1 text-xs text-emerald-600 font-medium m-0">Became applications</p>
+                <p className="mt-1 text-xs text-emerald-700 font-medium m-0">Became applications</p>
               </div>
             </div>
 
@@ -479,7 +479,7 @@ export default function AdminInquiries() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
-                  <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                  <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
                   <input maxLength={LIMITS.search}
                     type="text"
                     placeholder={view === 'inquiries' ? 'Search by name, email, contact, unit, or message...' : 'Search by name, unit, or contact...'}
@@ -534,12 +534,12 @@ export default function AdminInquiries() {
                     </thead>
                     <tbody className="stagger-children divide-y divide-slate-100">
                       {loading ? (
-                        <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">Loading inquiries...</td></tr>
+                        <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">Loading inquiries...</td></tr>
                       ) : error ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center text-rose-500 font-medium">{error}</td></tr>
                       ) : filteredInquiries.length === 0 ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
-                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faEnvelopeOpenText} className="text-xl text-slate-300 shrink-0" />
                             <span className="text-sm italic">No inquiries found.</span>
                           </div>
@@ -565,10 +565,10 @@ export default function AdminInquiries() {
                                   Unit {inq.unit}
                                 </span>
                               ) : (
-                                <span className="text-xs text-slate-400 italic">Any available</span>
+                                <span className="text-xs text-slate-500 italic">Any available</span>
                               )}
                               {inq.occupants && (
-                                <p className="text-[11px] text-slate-400 m-0 mt-0.5">{inq.occupants} occupant(s)</p>
+                                <p className="text-[11px] text-slate-500 m-0 mt-0.5">{inq.occupants} occupant(s)</p>
                               )}
                             </td>
                             <td className="px-4 py-4 text-xs text-slate-600">{fmtDate(inq.preferredMoveIn)}</td>
@@ -610,12 +610,12 @@ export default function AdminInquiries() {
                     </thead>
                     <tbody className="stagger-children divide-y divide-slate-100">
                       {loading ? (
-                        <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">Loading reservations...</td></tr>
+                        <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">Loading reservations...</td></tr>
                       ) : error ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center text-rose-500 font-medium">{error}</td></tr>
                       ) : filteredReservations.length === 0 ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
-                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faBookmark} className="text-xl text-slate-300 shrink-0" />
                             <span className="text-sm italic">No reservations found.</span>
                           </div>
@@ -628,17 +628,17 @@ export default function AdminInquiries() {
                                 <FontAwesomeIcon icon={faBuilding} className="text-[10px] text-indigo-500" />
                                 Unit {res.unit}
                               </span>
-                              <p className="text-[11px] text-slate-400 m-0 mt-0.5">{res.roomType || '—'}</p>
+                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">{res.roomType || '—'}</p>
                             </td>
                             <td className="px-4 py-4">
                               <p className="font-semibold text-slate-700 m-0">{res.reservedFor}</p>
-                              <p className="text-[11px] text-slate-400 m-0 mt-0.5">{res.contactNo || res.email || '—'}</p>
+                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">{res.contactNo || res.email || '—'}</p>
                             </td>
                             <td className="px-4 py-4 text-xs text-slate-500">{fmtDate(res.createdAt)}</td>
                             <td className="px-4 py-4">
                               <p className="text-xs font-semibold text-slate-700 m-0">{fmtDate(res.holdExpiresAt)}</p>
                               {res.status === 'Active' && (
-                                <p className={`text-[11px] m-0 mt-0.5 font-bold ${Number(res.daysRemaining) <= 2 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                <p className={`text-[11px] m-0 mt-0.5 font-bold ${Number(res.daysRemaining) <= 2 ? 'text-rose-600' : 'text-slate-500'}`}>
                                   {Number(res.daysRemaining) < 0
                                     ? 'Lapsed'
                                     : Number(res.daysRemaining) === 0
@@ -676,7 +676,7 @@ export default function AdminInquiries() {
                                   </button>
                                 </div>
                               ) : (
-                                <span className="text-xs font-medium italic text-slate-400">
+                                <span className="text-xs font-medium italic text-slate-500">
                                   {res.releasedReason || 'Closed'}
                                 </span>
                               )}
@@ -726,26 +726,26 @@ export default function AdminInquiries() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
                   <p className="text-sm font-semibold text-slate-800 m-0 break-all">{selected.email}</p>
                 </div>
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selected.contactNo}</p>
                 </div>
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{fmtDate(selected.preferredMoveIn)}</p>
                 </div>
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1" /> Occupants</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1" /> Occupants</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selected.occupants || '—'}</p>
                 </div>
               </div>
 
               {selected.message && (
                 <div className="bg-white rounded-xl p-4 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 m-0"><FontAwesomeIcon icon={faComment} className="mr-1" /> Message</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 m-0"><FontAwesomeIcon icon={faComment} className="mr-1" /> Message</p>
                   <p className="text-sm text-slate-700 m-0 whitespace-pre-wrap">{selected.message}</p>
                 </div>
               )}
@@ -757,7 +757,7 @@ export default function AdminInquiries() {
               )}
 
               <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3">
-                <label htmlFor="inquiry-detail-admin_notes" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Admin Notes</label>
+                <label htmlFor="inquiry-detail-admin_notes" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Notes</label>
                 <textarea
                   rows="3"
                   {...detailErrors.fieldA11y('admin_notes')}
@@ -771,7 +771,7 @@ export default function AdminInquiries() {
                 <FieldError id="inquiry-detail-admin_notes" error={detailErrors.errors.admin_notes} />
                 <CharCount value={notes} max={LIMITS.notes} />
 
-                <label htmlFor="inquiry-detail-viewing_date" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Viewing Schedule</label>
+                <label htmlFor="inquiry-detail-viewing_date" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Viewing Schedule</label>
                 <input
                   type="datetime-local"
                   {...detailErrors.fieldA11y('viewing_date')}
@@ -841,7 +841,7 @@ export default function AdminInquiries() {
 
               {!['Converted', 'Closed'].includes(selected.status) && (
                 <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                     <FontAwesomeIcon icon={faListOl} className="mr-1" /> Waitlist for an occupied unit
                   </label>
                   <div className="flex gap-2">
@@ -864,7 +864,7 @@ export default function AdminInquiries() {
                     </button>
                   </div>
                   {waitlistMsg && (
-                    <p className={`text-xs font-semibold m-0 ${waitlistMsg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{waitlistMsg.text}</p>
+                    <p className={`text-xs font-semibold m-0 ${waitlistMsg.ok ? 'text-emerald-700' : 'text-rose-600'}`}>{waitlistMsg.text}</p>
                   )}
                 </div>
               )}
@@ -923,7 +923,7 @@ export default function AdminInquiries() {
               </p>
 
               <div>
-                <label htmlFor="reserve-room_name" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Unit (vacant only)</label>
+                <label htmlFor="reserve-room_name" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit (vacant only)</label>
                 <select
                   {...reserveErrors.fieldA11y('room_name')}
                   value={resRoom}
@@ -937,13 +937,13 @@ export default function AdminInquiries() {
                 </select>
                 <FieldError id="reserve-room_name" error={reserveErrors.errors.room_name} />
                 {rooms.length === 0 && (
-                  <p className="text-xs text-amber-600 font-medium mt-1.5 m-0">No vacant units are available to reserve.</p>
+                  <p className="text-xs text-amber-700 font-medium mt-1.5 m-0">No vacant units are available to reserve.</p>
                 )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="reserve-hold_days" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
+                  <label htmlFor="reserve-hold_days" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
                   {/* Kept as typed: Number('') used to turn an empty field into 0. */}
                   <input
                     type="number"
@@ -961,7 +961,7 @@ export default function AdminInquiries() {
                   <FieldError id="reserve-hold_days" error={reserveErrors.errors.hold_days} />
                 </div>
                 <div>
-                  <label htmlFor="reserve-reservation_fee" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Reservation Fee (₱)</label>
+                  <label htmlFor="reserve-reservation_fee" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Reservation Fee (₱)</label>
                   <input
                     type="number"
                     {...reserveErrors.fieldA11y('reservation_fee')}
@@ -981,7 +981,7 @@ export default function AdminInquiries() {
               </div>
 
               <div>
-                <label htmlFor="reserve-notes" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
+                <label htmlFor="reserve-notes" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Notes</label>
                 <textarea
                   rows="2"
                   {...reserveErrors.fieldA11y('notes')}
@@ -1029,7 +1029,7 @@ export default function AdminInquiries() {
               <p className="text-sm text-slate-600 m-0">Record an inquiry that came in by phone or at the office.</p>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Source</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Source</label>
                 <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
                   {['walk-in', 'phone'].map(s => (
                     <button
@@ -1052,7 +1052,7 @@ export default function AdminInquiries() {
                 { key: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. juan@email.com', max: LIMITS.email },
               ].map(field => (
                 <div key={field.key}>
-                  <label htmlFor={`log-${field.key}`} className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{field.label}</label>
+                  <label htmlFor={`log-${field.key}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">{field.label}</label>
                   {field.type === 'tel' ? (
                     <PhoneInput
                       id="log-contact_no"
@@ -1084,7 +1084,7 @@ export default function AdminInquiries() {
               ))}
 
               <div>
-                <label htmlFor="log-room_name" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Unit of Interest</label>
+                <label htmlFor="log-room_name" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit of Interest</label>
                 <select
                   {...logErrors.fieldA11y('room_name')}
                   value={logForm.room_name}
@@ -1100,7 +1100,7 @@ export default function AdminInquiries() {
               </div>
 
               <div>
-                <label htmlFor="log-message" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">What did they ask?</label>
+                <label htmlFor="log-message" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">What did they ask?</label>
                 <textarea
                   rows="3"
                   {...logErrors.fieldA11y('message')}

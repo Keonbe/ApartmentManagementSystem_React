@@ -353,7 +353,7 @@ const AdminMessages = () => {
                   <FontAwesomeIcon icon={faComments} className="text-indigo-500 text-xl" />
                 </div>
                 <label className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus-within:border-indigo-400">
-                  <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
                   <input maxLength={LIMITS.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tenants or messages" className="w-full bg-transparent outline-none border-0 text-sm text-slate-800" />
                 </label>
                 <div className="flex items-center gap-1.5 mt-3" role="group" aria-label="Filter conversations">
@@ -371,7 +371,7 @@ const AdminMessages = () => {
               </div>
               <div className="flex-1 overflow-y-auto">
                 {visibleConversations.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-slate-400">{search ? 'No matching conversations.' : 'No tenant conversations yet.'}</div>
+                  <div className="p-8 text-center text-sm text-slate-500">{search ? 'No matching conversations.' : 'No tenant conversations yet.'}</div>
                 ) : visibleConversations.map((conversation) => {
                   const convKey = conversation.thread_type === 'guest' ? `guest_${conversation.thread_id}` : `user_${conversation.other_user_id}`;
                   const selectedKey = activeChat?.thread_type === 'guest' ? `guest_${activeChat.thread_id}` : activeChat ? `user_${activeChat.other_user_id}` : null;
@@ -386,7 +386,7 @@ const AdminMessages = () => {
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                           </span>
-                          <span className="text-[10px] text-slate-400 shrink-0">{formatTime(conversation.last_message_time)}</span>
+                          <span className="text-[10px] text-slate-500 shrink-0">{formatTime(conversation.last_message_time)}</span>
                         </div>
                         <div className="mt-1 flex justify-between gap-2 items-center">
                     <span className="text-xs text-slate-500 truncate">{conversation.matched_message || getConversationPreview(conversation, userId)}</span>
@@ -415,7 +415,7 @@ const AdminMessages = () => {
                     </div>}
                   </header>
                   <div ref={messagesContainerRef} className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
-                    {(activeChat.thread_type === 'guest' ? guestMessages : messages).length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">No messages in this conversation yet.</p> : (activeChat.thread_type === 'guest' ? normalizeGuestMessages(guestMessages) : messages).map((message, index) => {
+                    {(activeChat.thread_type === 'guest' ? guestMessages : messages).length === 0 ? <p className="text-center text-sm text-slate-500 mt-10">No messages in this conversation yet.</p> : (activeChat.thread_type === 'guest' ? normalizeGuestMessages(guestMessages) : messages).map((message, index) => {
                       const messageKey = message.id || index;
                       const isAdmin = activeChat.thread_type === 'guest' ? String(message.sender_id) === 'admin' : String(message.sender_id) === String(userId);
                       const hasText = Boolean(message.message?.trim());

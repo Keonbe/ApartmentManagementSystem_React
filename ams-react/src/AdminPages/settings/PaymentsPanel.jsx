@@ -21,7 +21,7 @@ function ChannelRow({ label, sublabel, checked, onChange, disabled = false }) {
     }`}>
       <span>
         <span className="text-xs font-medium text-slate-700 block">{label}</span>
-        {sublabel && <span className="text-[10px] text-slate-400">{sublabel}</span>}
+        {sublabel && <span className="text-[10px] text-slate-500">{sublabel}</span>}
       </span>
       <input
         type="checkbox"

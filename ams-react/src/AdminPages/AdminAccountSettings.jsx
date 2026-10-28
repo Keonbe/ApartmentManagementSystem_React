@@ -424,7 +424,7 @@ const AdminAccountSettings = () => {
                 <button
                   type="button"
                   onClick={() => setToast(null)}
-                  className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"
+                  className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"
                 >
                   <FontAwesomeIcon icon={faTimes} />
                 </button>

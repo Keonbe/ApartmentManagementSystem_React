@@ -468,14 +468,14 @@ const AdminTenants = () => {
         <div className="text-[10px] text-violet-500 font-semibold">{t.archiveReason}</div>
       </div>
     ) : t.status === 'Pending Review' ? (
-      <span className="text-slate-400">Move-in date pending</span>
+      <span className="text-slate-500">Move-in date pending</span>
     ) : t.status === 'Approved' ? (
-      <span className="text-sky-600 font-semibold">Pending move-in payment</span>
+      <span className="text-sky-700 font-semibold">Pending move-in payment</span>
     ) : t.leaseEnd ? (
       <div>
         <div>Rent ends: {t.leaseEnd}</div>
         {daysRemaining(t.leaseEnd) > 0 && (
-          <div className={`text-[10px] font-semibold ${daysRemaining(t.leaseEnd) <= 30 ? 'text-red-500' : 'text-slate-400'}`}>
+          <div className={`text-[10px] font-semibold ${daysRemaining(t.leaseEnd) <= 30 ? 'text-red-600' : 'text-slate-500'}`}>
             {daysRemaining(t.leaseEnd)} days remaining
           </div>
         )}
@@ -484,11 +484,11 @@ const AdminTenants = () => {
       <div>
         <div>Scheduled Out: {t.requestedMoveOutDate}</div>
         {daysRemaining(t.requestedMoveOutDate) > 0 ? (
-          <div className="text-[10px] text-amber-600 font-semibold">
+          <div className="text-[10px] text-amber-700 font-semibold">
             {daysRemaining(t.requestedMoveOutDate)} days notice
           </div>
         ) : (
-          <div className="text-[10px] text-red-500 font-semibold">Notice expired / due today</div>
+          <div className="text-[10px] text-red-600 font-semibold">Notice expired / due today</div>
         )}
       </div>
     ) : (
@@ -515,7 +515,7 @@ const AdminTenants = () => {
       {t.status === 'archived' && (
         <button
           onClick={() => handleRestoreTenant(t.id)}
-          className="flex items-center gap-1.5 text-emerald-600 font-semibold border-0 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+          className="flex items-center gap-1.5 text-emerald-700 font-semibold border-0 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
         >
           <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Restore Tenant
         </button>
@@ -523,7 +523,7 @@ const AdminTenants = () => {
       {t.status === 'active' && (
         <button
           onClick={() => handleInitiateMoveOutClick(t)}
-          className="flex items-center gap-1.5 text-amber-600 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+          className="flex items-center gap-1.5 text-amber-700 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
         >
           <FontAwesomeIcon icon={faSignOutAlt} className="text-[10px]" /> Move Out
         </button>
@@ -550,15 +550,15 @@ const AdminTenants = () => {
             {/* Search Bar */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
-                <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search tenants, units, emails..." className="flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
+                <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
+                <input aria-label="Search tenants" maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search tenants, units, emails..." className="flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
               </div>
 
               {/* Sorting Filters */}
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500">Sort by:</span>
-                  <select 
+                  <select aria-label="Sort tenants by" 
                     value={sortBy} 
                     onChange={e => setSortBy(e.target.value)} 
                     className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-700 focus:border-indigo-500 cursor-pointer shadow-sm"
@@ -569,7 +569,7 @@ const AdminTenants = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500">Order:</span>
-                  <select 
+                  <select aria-label="Sort order" 
                     value={sortOrder} 
                     onChange={e => setSortOrder(e.target.value)} 
                     className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-700 focus:border-indigo-500 cursor-pointer shadow-sm"
@@ -584,23 +584,23 @@ const AdminTenants = () => {
             {/* Stats Summary */}
             <div className="stagger-children grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Records</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Records</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1 m-0">{counts.all}</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active</p>
-                <p className="text-2xl font-bold text-emerald-600 mt-1 m-0">{counts.active}</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active</p>
+                <p className="text-2xl font-bold text-emerald-700 mt-1 m-0">{counts.active}</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Pending Move-Out</p>
-                <p className="text-2xl font-bold text-amber-500 mt-1 m-0">{counts['pending-move-out']}</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Pending Move-Out</p>
+                <p className="text-2xl font-bold text-amber-700 mt-1 m-0">{counts['pending-move-out']}</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-slate-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Moved Out</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Moved Out</p>
                 <p className="text-2xl font-bold text-slate-500 mt-1 m-0">{counts['moved-out']}</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-violet-500 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Archived</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Archived</p>
                 <p className="text-2xl font-bold text-violet-600 mt-1 m-0">{counts.archived}</p>
               </div>
             </div>
@@ -628,7 +628,7 @@ const AdminTenants = () => {
                 </thead>
                 <tbody>
                   {displayed.length === 0 && (
-                    <tr><td colSpan="5" className="text-center py-12 text-slate-400 text-sm">No tenants found matching your criteria.</td></tr>
+                    <tr><td colSpan="5" className="text-center py-12 text-slate-500 text-sm">No tenants found matching your criteria.</td></tr>
                   )}
                   {displayed.map((t, idx) => (
                     <tr key={t.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -641,7 +641,7 @@ const AdminTenants = () => {
                           </div>
                           <div>
                             <div className="font-medium text-slate-800">{t.name}</div>
-                            <div className="text-[11px] text-slate-400">{t.email}</div>
+                            <div className="text-[11px] text-slate-500">{t.email}</div>
                           </div>
                         </div>
                       </td>
@@ -661,7 +661,7 @@ const AdminTenants = () => {
             {/* Tenant Cards (phones) */}
             <div className="md:hidden space-y-3">
               {displayed.length === 0 && (
-                <div className="bg-white border border-slate-200 rounded-xl text-center py-12 text-slate-400 text-sm">No tenants found matching your criteria.</div>
+                <div className="bg-white border border-slate-200 rounded-xl text-center py-12 text-slate-500 text-sm">No tenants found matching your criteria.</div>
               )}
               {displayed.map((t, idx) => (
                 <div key={t.id || idx} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-3">
@@ -674,7 +674,7 @@ const AdminTenants = () => {
                       </div>
                       <div className="min-w-0">
                         <div className="font-medium text-slate-800 truncate">{t.name}</div>
-                        <div className="text-[11px] text-slate-400 truncate">{t.email}</div>
+                        <div className="text-[11px] text-slate-500 truncate">{t.email}</div>
                       </div>
                     </div>
                     <div className="shrink-0">{getOccupancyBadge(t.status)}</div>
@@ -721,7 +721,7 @@ const AdminTenants = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 m-0">{selectedTenant.name}</h3>
-                  <p className="text-xs text-slate-400 m-0 mt-0.5">
+                  <p className="text-xs text-slate-500 m-0 mt-0.5">
                     Unit {selectedTenant.unit} · {getOccupancyBadge(selectedTenant.status)}
                     {selectedTenant.status === 'archived' && (
                       <span className="ml-2 text-[10px] text-violet-500 font-semibold">Read-Only</span>
@@ -729,7 +729,7 @@ const AdminTenants = () => {
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowProfileModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+              <button onClick={() => setShowProfileModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} className="text-base" />
               </button>
             </div>
@@ -745,7 +745,7 @@ const AdminTenants = () => {
                 <button
                   key={tab.key} onClick={() => setProfileTab(tab.key)}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer ${
-                    profileTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-400 border-b-transparent hover:text-slate-600'
+                    profileTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-500 border-b-transparent hover:text-slate-600'
                   }`}
                 >
                   <FontAwesomeIcon icon={tab.icon} className="text-xs" /> {tab.label}
@@ -761,28 +761,28 @@ const AdminTenants = () => {
                 <div className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Full Name</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Full Name</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.name}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Unit</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Unit</p>
                       <p className="text-sm font-medium text-indigo-600 m-0">{selectedTenant.unit}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Email</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Email</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.email || '—'}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Phone</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Phone</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.phone || '—'}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Monthly Rent</p>
-                      <p className="text-sm font-bold text-emerald-600 m-0">{selectedTenant.rent || '—'}</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Monthly Rent</p>
+                      <p className="text-sm font-bold text-emerald-700 m-0">{selectedTenant.rent || '—'}</p>
                     </div>
                     {selectedTenant.status !== 'Pending Review' && (
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Move-in Date</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Move-in Date</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.moveIn || '—'}</p>
                     </div>
                     )}
@@ -795,7 +795,7 @@ const AdminTenants = () => {
                   {/* Verification Documents */}
                   {selectedTenant.previousAddress && (
                     <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Previous Address</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Previous Address</p>
                       <p className="text-sm font-medium text-slate-700 m-0 wrap-break-word">{selectedTenant.previousAddress}</p>
                     </div>
                   )}
@@ -812,7 +812,7 @@ const AdminTenants = () => {
                            <a key={doc.id} href={fileUrl(doc.file_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {doc.label}</a>
                          ))}
                          {!selectedTenant.documentsVerifiedAt && (selectedTenant.missingDocuments || []).map((label) => (
-                           <span key={`missing-${label}`} className="flex items-center gap-2 text-slate-400 text-sm p-2 bg-slate-50 border border-dashed border-slate-200 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {label} <span className="ml-auto text-[10px] font-bold uppercase">Missing</span></span>
+                           <span key={`missing-${label}`} className="flex items-center gap-2 text-slate-500 text-sm p-2 bg-slate-50 border border-dashed border-slate-200 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {label} <span className="ml-auto text-[10px] font-bold uppercase">Missing</span></span>
                          ))}
                        </div>
                     </div>
@@ -888,7 +888,7 @@ const AdminTenants = () => {
                           <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 ml-2">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-bold text-slate-800">{entry.event}</span>
-                              <span className="text-[10px] text-slate-400 font-semibold">{entry.date}</span>
+                              <span className="text-[10px] text-slate-500 font-semibold">{entry.date}</span>
                             </div>
                             <p className="text-[11px] text-slate-500 m-0">{entry.detail}</p>
                           </div>
@@ -898,7 +898,7 @@ const AdminTenants = () => {
                   ) : (
                     <div className="text-center py-12">
                       <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                      <p className="text-sm text-slate-400 m-0">No rent timeline data available for this tenant.</p>
+                      <p className="text-sm text-slate-500 m-0">No rent timeline data available for this tenant.</p>
                       {selectedTenant.moveIn && (
                         <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100 text-xs text-slate-500 inline-block">
                           Rent started: {selectedTenant.moveIn} {selectedTenant.leaseEnd ? `→ Ends: ${selectedTenant.leaseEnd}` : ''}
@@ -915,7 +915,7 @@ const AdminTenants = () => {
                   <div className="stagger-children grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="card-interactive bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-emerald-700 m-0">₱{totalPaid.toLocaleString()}</p>
-                      <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Total Paid</p>
+                      <p className="text-[10px] text-emerald-700 font-semibold m-0 mt-0.5">Total Paid</p>
                     </div>
                     <div className="card-interactive bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-indigo-700 m-0">{monthsPaid}</p>
@@ -938,7 +938,7 @@ const AdminTenants = () => {
                         <div key={idx} className="flex items-start justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
                           <div className="flex items-start gap-2.5">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
-                              entry.status === 'paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                              entry.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
                             }`}>
                               ₱
                             </div>
@@ -951,12 +951,12 @@ const AdminTenants = () => {
                                   {entry.status.toUpperCase()}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-slate-400 m-0 mt-0.5">
+                              <p className="text-[10px] text-slate-500 m-0 mt-0.5">
                                 {entry.billing_period || 'Initial Rent Payment'} · Due: {entry.due_date}
                               </p>
                             </div>
                           </div>
-                          <div className="text-right text-[10px] text-slate-400">
+                          <div className="text-right text-[10px] text-slate-500">
                             <div className="font-mono text-indigo-600">{entry.invoice_number}</div>
                             {entry.paid_at && <div className="mt-0.5">Paid: {entry.paid_at.split(' ')[0]}</div>}
                           </div>
@@ -964,7 +964,7 @@ const AdminTenants = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-slate-400 text-sm">No payments recorded.</div>
+                    <div className="text-center py-8 text-slate-500 text-sm">No payments recorded.</div>
                   )}
                 </div>
               )}
@@ -976,23 +976,23 @@ const AdminTenants = () => {
                     tenantMaintenance.map((req, idx) => (
                       <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs ${
-                          req.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                          req.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                         }`}>
                           <FontAwesomeIcon icon={faWrench} />
                         </div>
                         <div className="flex-1 text-left">
                           <p className="text-sm font-medium text-slate-800 m-0">{req.category} - {req.description}</p>
-                          <p className="text-[11px] text-slate-400 m-0 mt-0.5">
+                          <p className="text-[11px] text-slate-500 m-0 mt-0.5">
                             Status: {req.status} {req.estimatedCost ? `· Cost: ₱${req.estimatedCost.toLocaleString()}` : ''}
                           </p>
                         </div>
-                        <span className="text-[11px] text-slate-400 shrink-0">{req.dateSubmitted}</span>
+                        <span className="text-[11px] text-slate-500 shrink-0">{req.dateSubmitted}</span>
                       </div>
                     ))
                   ) : (
                     <div className="text-center py-12">
                       <FontAwesomeIcon icon={faWrench} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                      <p className="text-sm text-slate-400 m-0">No maintenance requests recorded for this tenant.</p>
+                      <p className="text-sm text-slate-500 m-0">No maintenance requests recorded for this tenant.</p>
                     </div>
                   )}
                 </div>
@@ -1013,10 +1013,10 @@ const AdminTenants = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 m-0">Archive Tenant</h3>
-                  <p className="text-xs text-slate-400 m-0 mt-0.5">Preserve tenant history and remove from active list</p>
+                  <p className="text-xs text-slate-500 m-0 mt-0.5">Preserve tenant history and remove from active list</p>
                 </div>
               </div>
-              <button onClick={() => setShowArchiveModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+              <button onClick={() => setShowArchiveModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} className="text-base" />
               </button>
             </div>
@@ -1030,7 +1030,7 @@ const AdminTenants = () => {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-800 m-0">{archiveTarget.name}</p>
-                    <p className="text-[11px] text-slate-400 m-0">Unit {archiveTarget.unit} · {archiveTarget.rent}</p>
+                    <p className="text-[11px] text-slate-500 m-0">Unit {archiveTarget.unit} · {archiveTarget.rent}</p>
                   </div>
                 </div>
               </div>
@@ -1068,7 +1068,7 @@ const AdminTenants = () => {
 
               {/* Warning */}
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-                <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-500 mt-0.5 text-xs" />
+                <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-700 mt-0.5 text-xs" />
                 <p className="text-[11px] text-amber-700 m-0">
                   This will archive the tenant's record. Their rent history, payment records, and maintenance requests will be preserved for reference. This action cannot be undone.
                 </p>
@@ -1090,15 +1090,15 @@ const AdminTenants = () => {
             <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
                     <FontAwesomeIcon icon={faSignOutAlt} />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-slate-800 m-0">Schedule Move-Out</h3>
-                    <p className="text-xs text-slate-400 m-0 mt-0.5">Set planned move-out date for tenant</p>
+                    <p className="text-xs text-slate-500 m-0 mt-0.5">Set planned move-out date for tenant</p>
                   </div>
                 </div>
-                <button onClick={() => setShowMoveOutModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+                <button onClick={() => setShowMoveOutModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                   <FontAwesomeIcon icon={faTimes} className="text-base" />
                 </button>
               </div>
@@ -1107,12 +1107,12 @@ const AdminTenants = () => {
                 {/* Tenant Summary */}
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-left">
                   <p className="text-sm font-bold text-slate-800 m-0">{moveOutTarget.name}</p>
-                  <p className="text-xs text-slate-400 m-0 mt-0.5">Unit {moveOutTarget.unit} · {moveOutTarget.rent}</p>
+                  <p className="text-xs text-slate-500 m-0 mt-0.5">Unit {moveOutTarget.unit} · {moveOutTarget.rent}</p>
                 </div>
 
                 {/* Policy alert */}
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 text-left">
-                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-500 mt-0.5 text-xs shrink-0" />
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-700 mt-0.5 text-xs shrink-0" />
                   <p className="text-[11px] text-amber-700 m-0">
                     Prior notice of at least <strong>15 days</strong> but less than <strong>30 days</strong> is required before the Tenant's actual move-out date.
                   </p>
@@ -1156,10 +1156,10 @@ const AdminTenants = () => {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-slate-800 m-0">Move-Out Inspection & Clearance</h3>
-                    <p className="text-xs text-slate-400 m-0 mt-0.5">Physical inspection, deposit deductions, & utility settlement</p>
+                    <p className="text-xs text-slate-500 m-0 mt-0.5">Physical inspection, deposit deductions, & utility settlement</p>
                   </div>
                 </div>
-                <button onClick={() => setShowClearanceModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+                <button onClick={() => setShowClearanceModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                   <FontAwesomeIcon icon={faTimes} className="text-base" />
                 </button>
               </div>
@@ -1169,9 +1169,9 @@ const AdminTenants = () => {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-bold text-slate-800 m-0">{clearanceTarget.name}</p>
-                    <p className="text-xs text-slate-400 m-0 mt-0.5">Unit {clearanceTarget.unit} · {clearanceTarget.rent}/mo</p>
+                    <p className="text-xs text-slate-500 m-0 mt-0.5">Unit {clearanceTarget.unit} · {clearanceTarget.rent}/mo</p>
                   </div>
-                  <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
                     Pending Clearance
                   </span>
                 </div>
@@ -1189,20 +1189,20 @@ const AdminTenants = () => {
                     const err = deductionErrors[i] || {};
                     return (
                       <div key={line.key} className="grid grid-cols-12 gap-2 rounded-xl border border-slate-200 p-2.5">
-                        <label className="col-span-12 sm:col-span-4 text-[10px] font-bold text-slate-400 uppercase">Category
+                        <label className="col-span-12 sm:col-span-4 text-[10px] font-bold text-slate-500 uppercase">Category
                           <select value={line.category} onChange={(e) => editDeduction(i, { category: e.target.value })}
                             className={`mt-1 w-full px-2 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500 text-slate-800 normal-case font-normal ${err.category ? 'border-rose-400' : 'border-slate-200'}`}>
                             {DEDUCTION_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                           </select>
                         </label>
-                        <label className="col-span-12 sm:col-span-8 text-[10px] font-bold text-slate-400 uppercase">Reason
+                        <label className="col-span-12 sm:col-span-8 text-[10px] font-bold text-slate-500 uppercase">Reason
                           <input type="text" value={line.reason} maxLength={255} autoComplete="off" aria-invalid={!!err.reason}
                             onChange={(e) => editDeduction(i, { reason: e.target.value })}
                             onBlur={() => editDeduction(i, { reason: line.reason.trim() }, true)}
                             placeholder="e.g. Broken window, final Meralco bill"
                             className={`mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500 text-slate-800 normal-case font-normal ${err.reason ? 'border-rose-400' : 'border-slate-200'}`} />
                         </label>
-                        <label className="col-span-8 sm:col-span-5 text-[10px] font-bold text-slate-400 uppercase">Amount (₱)
+                        <label className="col-span-8 sm:col-span-5 text-[10px] font-bold text-slate-500 uppercase">Amount (₱)
                           <input type="number" inputMode="decimal" min="0.01" max="1000000" step="0.01" value={line.amount} aria-invalid={!!err.amount}
                             onKeyDown={blockNonNumericKeys}
                             onChange={(e) => editDeduction(i, { amount: e.target.value })}
@@ -1264,7 +1264,7 @@ const AdminTenants = () => {
                     </div>
                     <div className="border-t border-indigo-200 pt-2 flex justify-between font-bold text-sm text-indigo-950">
                       <span>{deductionTotal > clearanceDeposit ? 'Balance still due from the tenant:' : 'Deposit left after deductions:'}</span>
-                      <span className={deductionTotal > clearanceDeposit ? 'text-rose-600 font-black' : 'text-emerald-600 font-black'}>
+                      <span className={deductionTotal > clearanceDeposit ? 'text-rose-600 font-black' : 'text-emerald-700 font-black'}>
                         ₱{Math.abs(clearanceDeposit - deductionTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                     </div>

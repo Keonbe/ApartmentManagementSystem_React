@@ -355,7 +355,7 @@ const AdminAnnouncements = () => {
                     ) : null}
                   </div>
                   <div className="text-right">
-                    <span className="text-slate-400">{form.body.length} / {LIMITS.message} characters</span>
+                    <span className="text-slate-500">{form.body.length} / {LIMITS.message} characters</span>
                     {isSmsActive && (
                       <span className={isSmsOverLimit ? 'font-semibold text-rose-600 ml-1.5' : 'text-slate-500 ml-1.5'}>
                         · SMS: {smsLength}/160 {isSmsOverLimit ? `(+${smsLength - 160} over)` : ''}
@@ -388,7 +388,7 @@ const AdminAnnouncements = () => {
                   aria-describedby="announcement-attachment-hint"
                   className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
-                <p id="announcement-attachment-hint" className="text-[11px] text-slate-400 m-0 mt-1">
+                <p id="announcement-attachment-hint" className="text-[11px] text-slate-500 m-0 mt-1">
                   One file: {FILE_RULES.announcement.label}, up to {FILE_RULES.announcement.maxMB} MB. Tenants open it from the announcement in their notifications; it is not sent with the SMS or email. "Save draft" keeps it with the draft.
                 </p>
                 {attachmentError && <p role="alert" className="text-xs text-red-600 m-0 mt-1">{attachmentError}</p>}
@@ -405,7 +405,7 @@ const AdminAnnouncements = () => {
                   <div className="mt-2 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
                     {attachmentIsImage
                       ? <img ref={attachmentImgRef} alt="Attachment preview" className="max-h-40 max-w-full object-contain" />
-                      : <div className="flex items-center gap-2 px-4 py-3 text-xs text-slate-600"><FontAwesomeIcon icon={faFilePdf} className="text-red-500 text-base" /> PDF attached</div>}
+                      : <div className="flex items-center gap-2 px-4 py-3 text-xs text-slate-600"><FontAwesomeIcon icon={faFilePdf} className="text-red-600 text-base" /> PDF attached</div>}
                   </div>
                 )}
               </div>
@@ -423,7 +423,7 @@ const AdminAnnouncements = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-400 m-0 mt-2">
+                <p className="text-[11px] text-slate-500 m-0 mt-2">
                   SMS and email reach only tenants who have them enabled and not opted out. SMS is capped at 160 characters (1 segment) per announcement.
                 </p>
               </div>
@@ -465,7 +465,7 @@ const AdminAnnouncements = () => {
               <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-3 m-0">Announcement History</h4>
               <div className="stagger-children space-y-3 mt-2">
                 {announcements.length === 0 && (
-                  <p className="text-xs text-slate-400 m-0">No announcements yet.</p>
+                  <p className="text-xs text-slate-500 m-0">No announcements yet.</p>
                 )}
                 {announcements.map(item => (
                   <div key={item.id} className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-all hover:border-indigo-400">
@@ -487,7 +487,7 @@ const AdminAnnouncements = () => {
                         {form.draftId === item.id ? 'Open in composer' : 'Open draft'}
                       </button>
                     )}
-                    <div className="flex items-center flex-wrap gap-3 text-[10px] text-slate-400">
+                    <div className="flex items-center flex-wrap gap-3 text-[10px] text-slate-500">
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faCalendarAlt} /> {item.date}</span>
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faUsers} /> {item.send_to} · {item.recipients} recipients</span>
                       <div className="flex items-center gap-1">

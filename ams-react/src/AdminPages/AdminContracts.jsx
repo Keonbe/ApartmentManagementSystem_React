@@ -264,9 +264,23 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     try {
       const res = await fetchContractTemplate(contract.templateVersionId);
       setPreviewTemplate(res.template);
+      return true;
     } catch (e) {
       console.error('Failed to load contract template for preview:', e);
+      return false;
     }
+  };
+
+  // Row "download": opens the preview (the document only renders there) and hands
+  // the agreement to the print dialog, where it can be saved as a PDF.
+  const handleDownloadContract = async (contract) => {
+    if (!(await openPreview(contract))) {
+      alert('Could not load the contract template. Try again.');
+      return;
+    }
+    setTimeout(() => {
+      if (contractDocRef.current) printElement(contractDocRef.current, { variant: 'document' });
+    }, 100);
   };
 
   const handleSignatureUpload = async (contractId, docType, file) => {
@@ -496,9 +510,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const getDocumentStatus = (contract) => {
     const signed = contract.signedLease?.uploaded || false;
     const notarized = contract.notarizedLease?.uploaded || false;
-    if (signed && notarized) return { label: 'Complete', color: 'text-emerald-600', icon: faCheckCircle };
-    if (signed || notarized) return { label: 'Partial', color: 'text-amber-600', icon: faClock };
-    return { label: 'Missing', color: 'text-red-500', icon: faExclamationTriangle };
+    if (signed && notarized) return { label: 'Complete', color: 'text-emerald-700', icon: faCheckCircle };
+    if (signed || notarized) return { label: 'Partial', color: 'text-amber-700', icon: faClock };
+    return { label: 'Missing', color: 'text-red-600', icon: faExclamationTriangle };
   };
 
   return (
@@ -559,7 +573,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-red-800 m-0">⚠ Eviction Threshold Exceeded</h3>
-                    <p className="text-xs text-red-600 m-0 mt-0.5">{evictionAlertContracts.length} tenant(s) have exceeded the {overdueThresholdDays}-day overdue payment threshold. Review and take action.</p>
+                    <p className="text-xs text-red-700 m-0 mt-0.5">{evictionAlertContracts.length} tenant(s) have exceeded the {overdueThresholdDays}-day overdue payment threshold. Review and take action.</p>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -569,7 +583,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                         <div className="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-xs font-bold">{c.tenant.charAt(0)}</div>
                         <div>
                           <p className="text-sm font-semibold text-slate-800 m-0">{c.tenant} · Unit {c.unit}</p>
-                          <p className="text-[11px] text-red-500 m-0 mt-0.5">{c.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(c.overdueInfo.outstandingAmount)}</p>
+                          <p className="text-[11px] text-red-600 m-0 mt-0.5">{c.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(c.overdueInfo.outstandingAmount)}</p>
                         </div>
                       </div>
                       <button onClick={() => handleFlagEviction(c.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 border-0 cursor-pointer transition-colors">
@@ -585,27 +599,27 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
             <div className="stagger-children grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><FontAwesomeIcon icon={faCheckCircle} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'active').length}</p></div>
+                  <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faCheckCircle} /></div>
+                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'active').length}</p></div>
                 </div>
               </div>
               <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Expired</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'expired').length}</p></div>
+                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Expired</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'expired').length}</p></div>
                 </div>
               </div>
               <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><FontAwesomeIcon icon={faGavel} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Eviction Pending</p><p className="text-2xl font-bold text-red-600 m-0">{contracts.filter(c => c.status === 'eviction-pending').length}</p></div>
+                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Eviction Pending</p><p className="text-2xl font-bold text-red-600 m-0">{contracts.filter(c => c.status === 'eviction-pending').length}</p></div>
                 </div>
               </div>
               <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center"><FontAwesomeIcon icon={faFileUpload} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Docs Incomplete</p><p className="text-2xl font-bold text-amber-600 m-0">{contracts.filter(c => !c.signedLease?.uploaded || !c.notarizedLease?.uploaded).length}</p></div>
+                  <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center"><FontAwesomeIcon icon={faFileUpload} /></div>
+                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Docs Incomplete</p><p className="text-2xl font-bold text-amber-700 m-0">{contracts.filter(c => !c.signedLease?.uploaded || !c.notarizedLease?.uploaded).length}</p></div>
                 </div>
               </div>
             </div>
@@ -620,10 +634,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm focus-within:border-indigo-500 transition-all max-w-xs w-full">
-                  <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                  <input maxLength={LIMITS.search} type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
+                  <input aria-label="Search contracts" maxLength={LIMITS.search} type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
                 </div>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
+                <select aria-label="Filter by status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
                   <option value="all">All Status</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="eviction-pending">Eviction Pending</option>
                 </select>
               </div>
@@ -659,10 +673,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-slate-800">{c.tenant}</span>
-                            {c.evictionStatus === 'flagged' && <FontAwesomeIcon icon={faGavel} className="text-red-500 text-[10px]" title="Eviction Pending" />}
+                            {c.evictionStatus === 'flagged' && <FontAwesomeIcon icon={faGavel} className="text-red-600 text-[10px]" title="Eviction Pending" />}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-600">{c.unit} <span className="text-slate-400 text-xs">({c.type})</span></td>
+                        <td className="py-3 px-4 text-slate-600">{c.unit} <span className="text-slate-500 text-xs">({c.type})</span></td>
                         <td className="py-3 px-4 text-xs text-slate-600">{c.leaseStart} → {c.leaseEnd}</td>
                         <td className="py-3 px-4 font-semibold text-slate-800">{formatCurrency(c.rent)}/mo</td>
                         <td className="py-3 px-4">
@@ -672,14 +686,14 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                         </td>
                         <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span></td>
                         <td className="py-3 px-4 text-right">
-                          <button onClick={() => openPreview(c)} className="w-7 h-7 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
-                          <button className="w-7 h-7 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
+                          <button type="button" aria-label={`View contract ${c.id} for ${c.tenant}`} title="View contract" onClick={() => openPreview(c)} className="w-7 h-7 rounded text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
+                          <button type="button" aria-label={`Download contract ${c.id} for ${c.tenant} as PDF`} title="Download as PDF" onClick={() => handleDownloadContract(c)} className="w-7 h-7 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
                         </td>
                       </tr>
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan="8" className="py-10 text-center text-slate-400 text-sm">No contracts found.</td></tr>
+                    <tr><td colSpan="8" className="py-10 text-center text-slate-500 text-sm">No contracts found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -700,7 +714,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 <h2 className="text-lg font-bold text-slate-800 m-0">Create New Contract</h2>
                 <p className="text-xs text-slate-500 m-0 mt-0.5">Step {createStep} of 3</p>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
             </div>
 
             {/* Step indicators */}
@@ -736,7 +750,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       <label htmlFor="contract-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
                       {/* Read-only: rent is the application's; create_contract.php takes no rent. */}
                       <input type="text" id="contract-rent" name="rent" readOnly aria-describedby="contract-rent-hint" value={formatCurrency(form.rent)} className={`${DATE_INPUT} bg-slate-50 text-slate-600 cursor-default`} />
-                      <p id="contract-rent-hint" className="m-0 mt-1 text-[11px] text-slate-400">Rent comes from the tenant's application.</p>
+                      <p id="contract-rent-hint" className="m-0 mt-1 text-[11px] text-slate-500">Rent comes from the tenant's application.</p>
                     </div>
                     <div>
                       <label htmlFor="contract-deposit" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Security Deposit *</label>
@@ -773,17 +787,17 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
                   <div className="text-center border-b border-slate-200 pb-4">
                     <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
-                    <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Rent Agreement</p>
+                    <p className="text-[10px] text-slate-500 m-0 mt-1 uppercase tracking-widest">Rent Agreement</p>
                   </div>
                   <div className="space-y-2 text-xs text-slate-700">
-                    <div className="flex justify-between"><span className="text-slate-400">Tenant:</span><span className="font-semibold">{form.tenant}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Unit:</span><span className="font-semibold">{form.unit} ({form.type})</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Monthly Rent:</span><span className="font-semibold">{formatCurrency(form.rent)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Security Deposit:</span><span className="font-semibold">{formatCurrency(form.deposit)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Rent Period:</span><span className="font-semibold">{form.leaseStart} → {form.leaseEnd}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Tenant:</span><span className="font-semibold">{form.tenant}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Unit:</span><span className="font-semibold">{form.unit} ({form.type})</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Monthly Rent:</span><span className="font-semibold">{formatCurrency(form.rent)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Security Deposit:</span><span className="font-semibold">{formatCurrency(form.deposit)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Rent Period:</span><span className="font-semibold">{form.leaseStart} → {form.leaseEnd}</span></div>
                   </div>
                   <div className="border-t border-slate-200 pt-3">
-                    <p className="text-[10px] text-slate-400 leading-relaxed m-0">
+                    <p className="text-[10px] text-slate-500 leading-relaxed m-0">
                       This Rent Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                       The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
                       will be charged for payments made after the due date. The security deposit shall be refunded upon 
@@ -906,7 +920,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </div>
                 )}
 
-                <button onClick={() => setShowPreviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
+                <button onClick={() => setShowPreviewModal(false)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
                   <FontAwesomeIcon icon={faTimes} className="text-lg" />
                 </button>
               </div>
@@ -990,16 +1004,16 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       <>
                         <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
                           <div>
-                            <span className="text-slate-400">Tenant:</span> <strong className="text-slate-800">{selectedContract.tenant}</strong>
+                            <span className="text-slate-500">Tenant:</span> <strong className="text-slate-800">{selectedContract.tenant}</strong>
                           </div>
                           <div>
-                            <span className="text-slate-400">Unit:</span> <strong className="text-slate-800">{selectedContract.unit} ({selectedContract.type})</strong>
+                            <span className="text-slate-500">Unit:</span> <strong className="text-slate-800">{selectedContract.unit} ({selectedContract.type})</strong>
                           </div>
                           <div>
-                            <span className="text-slate-400">Rent:</span> <strong className="text-slate-800">{formatCurrency(selectedContract.rent)}/mo</strong>
+                            <span className="text-slate-500">Rent:</span> <strong className="text-slate-800">{formatCurrency(selectedContract.rent)}/mo</strong>
                           </div>
                           <div>
-                            <span className="text-slate-400">Period:</span> <strong className="text-slate-800">{selectedContract.leaseStart} → {selectedContract.leaseEnd}</strong>
+                            <span className="text-slate-500">Period:</span> <strong className="text-slate-800">{selectedContract.leaseStart} → {selectedContract.leaseEnd}</strong>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -1089,7 +1103,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                               {selectedContract.signedLease?.uploaded ? (
                                 <div className="flex items-center gap-2 mt-1">
                                   <p className="text-[11px] text-slate-500 m-0 font-sans">
-                                    <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
+                                    <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-500" />
                                     {selectedContract.signedLease.fileName}
                                   </p>
                                   <a 
@@ -1102,12 +1116,12 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                                   </a>
                                 </div>
                               ) : (
-                                <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
+                                <p className="text-[11px] text-amber-700 m-0 mt-0.5">Not yet uploaded</p>
                               )}
                             </div>
                           </div>
                           {selectedContract.signedLease?.uploaded ? (
-                            <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
+                            <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faTimesCircle} /> Remove
                             </button>
                           ) : (
@@ -1130,7 +1144,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                               {selectedContract.notarizedLease?.uploaded ? (
                                 <div className="flex items-center gap-2 mt-1">
                                   <p className="text-[11px] text-slate-500 m-0 font-sans">
-                                    <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
+                                    <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-500" />
                                     {selectedContract.notarizedLease.fileName}
                                   </p>
                                   <a 
@@ -1143,12 +1157,12 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                                   </a>
                                 </div>
                               ) : (
-                                <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
+                                <p className="text-[11px] text-amber-700 m-0 mt-0.5">Not yet uploaded</p>
                               )}
                             </div>
                           </div>
                           {selectedContract.notarizedLease?.uploaded ? (
-                            <button onClick={() => handleRemoveFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
+                            <button onClick={() => handleRemoveFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faTimesCircle} /> Remove
                             </button>
                           ) : (
@@ -1166,7 +1180,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                           <div className={`flex items-center gap-2 text-xs font-semibold ${ds.color} bg-slate-50 border border-slate-100 rounded-lg p-2.5`}>
                             <FontAwesomeIcon icon={ds.icon} />
                             Document Status: {ds.label}
-                            {ds.label !== 'Complete' && <span className="text-slate-400 font-normal ml-1">— Please upload all required physical/notarized documents.</span>}
+                            {ds.label !== 'Complete' && <span className="text-slate-500 font-normal ml-1">— Please upload all required physical/notarized documents.</span>}
                           </div>
                         );
                       })()}
@@ -1177,7 +1191,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   {selectedContract.overdueInfo && (
                     <div className={`rounded-xl border-2 p-5 space-y-3 ${selectedContract.status === 'eviction-pending' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
                       <div className="flex items-center gap-3">
-                        <FontAwesomeIcon icon={faGavel} className={`text-xl ${selectedContract.status === 'eviction-pending' ? 'text-red-600' : 'text-amber-600'}`} />
+                        <FontAwesomeIcon icon={faGavel} className={`text-xl ${selectedContract.status === 'eviction-pending' ? 'text-red-600' : 'text-amber-700'}`} />
                         <div>
                           <h4 className="text-sm font-bold text-slate-800 m-0">
                             {selectedContract.status === 'eviction-pending' ? '🚨 Eviction Flagged' : '⚠ Overdue Payment Detected'}
