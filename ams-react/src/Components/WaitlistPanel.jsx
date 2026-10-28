@@ -52,7 +52,7 @@ export default function WaitlistPanel({ onOpenInquiry }) {
       </div>
       {error && <p className="px-5 py-3 text-xs font-semibold text-rose-600 m-0">{error}</p>}
       {entries.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-slate-400 text-center m-0">
+        <p className="px-5 py-6 text-sm text-slate-500 text-center m-0">
           Nobody is waiting. Open an inquiry for an occupied unit and choose “Add to waitlist”.
         </p>
       ) : (
@@ -73,7 +73,7 @@ export default function WaitlistPanel({ onOpenInquiry }) {
                 <tr key={e.id} className={e.status === 'Notified' ? 'bg-amber-50/60' : ''}>
                   <td className="px-5 py-3 font-bold text-slate-800">
                     {e.roomName}
-                    <span className="ml-2 text-[10px] font-semibold uppercase text-slate-400">{e.roomStatus || '—'}</span>
+                    <span className="ml-2 text-[11px] font-semibold uppercase text-slate-500">{e.roomStatus || '—'}</span>
                   </td>
                   <td className="px-5 py-3">
                     {e.status === 'Notified' ? (

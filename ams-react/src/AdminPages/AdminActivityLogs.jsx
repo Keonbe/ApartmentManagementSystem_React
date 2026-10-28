@@ -234,12 +234,14 @@ export default function AdminActivityLogs() {
                 {[['all', 'All Logs', allCount], ...Object.entries(categories).map(([key, label]) => [key, label, categoryCounts[key] || 0])].map(([key, label, count]) => (
                   <button
                     key={key}
+                    type="button"
+                    aria-pressed={category === key}
                     onClick={() => setFilter(setCategory)(key)}
                     className={`btn-interactive px-3 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer border-0 ${
-                      category === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'
+                      category === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800 bg-transparent'
                     }`}
                   >
-                    {label} <span className="text-[11px] text-slate-500 font-semibold">({count})</span>
+                    {label} <span className="text-[11px] text-slate-600 font-semibold">({count})</span>
                   </button>
                 ))}
               </div>

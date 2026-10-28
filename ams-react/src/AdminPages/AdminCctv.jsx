@@ -4,7 +4,7 @@ import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faVideo, faCheck, faTimes, faSearch, faSync, 
-  faClock, faCheckCircle, faTimesCircle, faBuilding, faCalendarAlt
+  faBuilding, faCalendarAlt
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
@@ -75,6 +75,8 @@ export default function AdminCctv() {
   const pendingCount = requests.filter(r => r.status === 'Pending').length;
   const approvedCount = requests.filter(r => r.status === 'Approved').length;
   const rejectedCount = requests.filter(r => r.status === 'Rejected').length;
+  // The tabs carry the counts (a row of count cards used to repeat them).
+  const tabCounts = { all: requests.length, pending: pendingCount, approved: approvedCount, rejected: rejectedCount };
 
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
@@ -84,53 +86,6 @@ export default function AdminCctv() {
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
-
-            {/* Top Stat Cards */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Filings</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                    <FontAwesomeIcon icon={faVideo} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-indigo-950 m-0">{requests.length}</p>
-                <p className="mt-1 text-xs text-indigo-600 font-medium m-0">All submitted requests</p>
-              </div>
-
-              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                    <FontAwesomeIcon icon={faClock} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-amber-950 m-0">{pendingCount}</p>
-                <p className="mt-1 text-xs text-amber-700 font-medium m-0">Awaiting footage review</p>
-              </div>
-
-              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Approved</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                    <FontAwesomeIcon icon={faCheckCircle} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-emerald-950 m-0">{approvedCount}</p>
-                <p className="mt-1 text-xs text-emerald-700 font-medium m-0">Footage granted</p>
-              </div>
-
-              <div className="card-interactive rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-rose-700">Rejected</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                    <FontAwesomeIcon icon={faTimesCircle} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-rose-950 m-0">{rejectedCount}</p>
-                <p className="mt-1 text-xs text-rose-600 font-medium m-0">Declined requests</p>
-              </div>
-            </div>
 
             {/* Filter and Search Bar */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
@@ -152,6 +107,7 @@ export default function AdminCctv() {
                       <button
                         key={tab}
                         type="button"
+                        aria-pressed={statusFilter === tab}
                         onClick={() => setStatusFilter(tab)}
                         className={`btn-interactive rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
                           statusFilter === tab
@@ -159,7 +115,7 @@ export default function AdminCctv() {
                             : 'bg-transparent text-slate-600 hover:text-slate-900'
                         }`}
                       >
-                        {tab}
+                        {tab} ({tabCounts[tab]})
                       </button>
                     ))}
                   </div>

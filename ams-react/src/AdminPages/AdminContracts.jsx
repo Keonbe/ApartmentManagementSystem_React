@@ -507,6 +507,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   };
 
   // Lease completeness checker
+  // The status filter shows each count and the documents notice says how many are
+  // incomplete (a row of count cards used to repeat them).
+  const statusCount = (status) => contracts.filter(c => c.status === status).length;
+  const docsIncompleteCount = contracts.filter(c => !c.signedLease?.uploaded || !c.notarizedLease?.uploaded).length;
+
   const getDocumentStatus = (contract) => {
     const signed = contract.signedLease?.uploaded || false;
     const notarized = contract.notarizedLease?.uploaded || false;
@@ -595,39 +600,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               </div>
             )}
 
-            {/* Summary Cards */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faCheckCircle} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'active').length}</p></div>
-                </div>
-              </div>
-              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Expired</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'expired').length}</p></div>
-                </div>
-              </div>
-              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><FontAwesomeIcon icon={faGavel} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Eviction Pending</p><p className="text-2xl font-bold text-red-600 m-0">{contracts.filter(c => c.status === 'eviction-pending').length}</p></div>
-                </div>
-              </div>
-              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center"><FontAwesomeIcon icon={faFileUpload} /></div>
-                  <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Docs Incomplete</p><p className="text-2xl font-bold text-amber-700 m-0">{contracts.filter(c => !c.signedLease?.uploaded || !c.notarizedLease?.uploaded).length}</p></div>
-                </div>
-              </div>
-            </div>
-
             {/* Doc completeness notice */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
               <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
-              <span>All contracts require <strong>signed rent agreement</strong> and <strong>notarized copy</strong> to be uploaded. Eviction threshold: <strong>{overdueThresholdDays} days</strong> overdue.</span>
+              <span>All contracts require <strong>signed rent agreement</strong> and <strong>notarized copy</strong> to be uploaded. Eviction threshold: <strong>{overdueThresholdDays} days</strong> overdue.{docsIncompleteCount > 0 && <> <strong>{docsIncompleteCount} contract{docsIncompleteCount === 1 ? ' is' : 's are'} still missing documents.</strong></>}</span>
             </div>
 
             {/* Toolbar */}
@@ -638,7 +614,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   <input aria-label="Search contracts" maxLength={LIMITS.search} type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
                 </div>
                 <select aria-label="Filter by status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
-                  <option value="all">All Status</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="eviction-pending">Eviction Pending</option>
+                  <option value="all">All Status ({contracts.length})</option><option value="active">Active ({statusCount('active')})</option><option value="expired">Expired ({statusCount('expired')})</option><option value="draft">Draft ({statusCount('draft')})</option><option value="eviction-pending">Eviction Pending ({statusCount('eviction-pending')})</option>
                 </select>
               </div>
               <div className="flex items-center gap-2">

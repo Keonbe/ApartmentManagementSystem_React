@@ -4,7 +4,7 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faEnvelopeOpenText, faSearch, faSync, faTimes, faClock, faCheckCircle,
+  faEnvelopeOpenText, faSearch, faSync, faTimes, faCheckCircle,
   faBuilding, faCalendarAlt, faPhone, faEnvelope, faBookmark, faPlus,
   faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl
 } from '@fortawesome/free-solid-svg-icons';
@@ -353,9 +353,6 @@ export default function AdminInquiries() {
     return matchesStatus && matchesSearch;
   });
 
-  const newCount = inquiries.filter(i => i.status === 'New').length;
-  const activeHolds = reservations.filter(r => r.status === 'Active').length;
-  const convertedCount = inquiries.filter(i => i.status === 'Converted').length;
 
   const inquiryBadge = (status) => {
     const map = {
@@ -383,6 +380,9 @@ export default function AdminInquiries() {
   const fmtDateTime = (v) => v ? new Date(v).toLocaleString() : '—';
 
   const tabs = view === 'inquiries' ? INQUIRY_TABS : RESERVATION_TABS;
+  // The status tabs carry the counts (a row of count cards used to repeat some of them).
+  const tabSource = view === 'inquiries' ? inquiries : reservations;
+  const tabCount = (tab) => (tab === 'all' ? tabSource.length : tabSource.filter(x => (x.status || '').toLowerCase() === tab).length);
 
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
@@ -391,53 +391,6 @@ export default function AdminInquiries() {
         <Header title="Inquiries & Reservations" />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
-
-            {/* Stat Cards */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Inquiries</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                    <FontAwesomeIcon icon={faEnvelopeOpenText} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-indigo-950 m-0">{inquiries.length}</p>
-                <p className="mt-1 text-xs text-indigo-600 font-medium m-0">All time</p>
-              </div>
-
-              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Needs Response</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                    <FontAwesomeIcon icon={faClock} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-amber-950 m-0">{newCount}</p>
-                <p className="mt-1 text-xs text-amber-700 font-medium m-0">Not yet contacted</p>
-              </div>
-
-              <div className="card-interactive rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-violet-700">Units on Hold</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
-                    <FontAwesomeIcon icon={faBookmark} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-violet-950 m-0">{activeHolds}</p>
-                <p className="mt-1 text-xs text-violet-600 font-medium m-0">Active reservations</p>
-              </div>
-
-              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Converted</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                    <FontAwesomeIcon icon={faCheckCircle} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-emerald-950 m-0">{convertedCount}</p>
-                <p className="mt-1 text-xs text-emerald-700 font-medium m-0">Became applications</p>
-              </div>
-            </div>
 
             {/* View switch + actions */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -495,12 +448,16 @@ export default function AdminInquiries() {
                       <button
                         key={tab}
                         type="button"
+                        aria-pressed={statusFilter === tab}
                         onClick={() => setStatusFilter(tab)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
                           statusFilter === tab ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-600 hover:text-slate-900'
                         }`}
                       >
-                        {tab}
+                        {view === 'inquiries' && tab === 'new' && tabCount('new') > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                        )}
+                        {tab} ({tabCount(tab)})
                       </button>
                     ))}
                   </div>

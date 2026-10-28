@@ -382,28 +382,6 @@ const AdminUnits = () => {
               </button>
             </div>
 
-            {/* Stats Summary */}
-            <div className="stagger-children grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Units</p>
-                <p className="text-2xl font-bold text-slate-800 mt-1 m-0">{counts.all}</p>
-              </div>
-              <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupied</p>
-                <p className="text-2xl font-bold text-emerald-700 mt-1 m-0">{counts.occupied}</p>
-                <p className="text-[11px] text-slate-500 m-0 mt-0.5">{counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupancy</p>
-              </div>
-              <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Vacant</p>
-                <p className="text-2xl font-bold text-amber-700 mt-1 m-0">{counts.vacant}</p>
-                <p className="text-[11px] text-slate-500 m-0 mt-0.5">Available now</p>
-              </div>
-              <div className="card-interactive bg-white border-l-4 border-l-red-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Under Repair</p>
-                <p className="text-2xl font-bold text-red-600 mt-1 m-0">{counts.repair}</p>
-              </div>
-            </div>
-
             {/* Min Lease Duration Notice */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
               <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
@@ -416,10 +394,12 @@ const AdminUnits = () => {
                 {unitActionError}
               </div>
             )}
-            <div className="flex items-center gap-3 flex-wrap">
+            {/* Filter pills carry the counts; occupancy, the one figure they do not show,
+                sits beside them (a row of count cards used to repeat the pills). */}
+            <div className="flex items-center gap-3 flex-wrap" role="group" aria-label="Filter units by status">
               {filters.map(f => (
                 <button
-                  key={f.key} onClick={() => setActiveFilter(f.key)}
+                  key={f.key} type="button" aria-pressed={activeFilter === f.key} onClick={() => setActiveFilter(f.key)}
                   className={`btn-interactive px-4 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
                     activeFilter === f.key
                       ? 'bg-indigo-600 text-white border-indigo-600'
@@ -429,6 +409,9 @@ const AdminUnits = () => {
                   {f.label}
                 </button>
               ))}
+              <span className="ml-auto text-xs font-semibold text-slate-600">
+                {counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupied
+              </span>
             </div>
 
             {/* Units Grid */}
@@ -492,7 +475,7 @@ const AdminUnits = () => {
                           disabled={removingUnitId !== null}
                           onClick={() => handleRemoveUnit(unit)}
                           title={`Remove Unit ${unit.id} from active listings`}
-                          className="flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <FontAwesomeIcon icon={faBoxArchive} className="text-[9px]" />
                           {removingUnitId === unit.id ? 'Removing…' : 'Remove'}
@@ -524,7 +507,7 @@ const AdminUnits = () => {
             </div>
             <div className="p-6 space-y-4">
               {addUnitError && (
-                <div role="alert" className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{addUnitError}</div>
+                <div role="alert" className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{addUnitError}</div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[['id', 'Unit Number *', 'e.g. 6A'], ['floor', 'Floor *', 'e.g. 6F']].map(([key, label, placeholder]) => (

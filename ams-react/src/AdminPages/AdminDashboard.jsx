@@ -5,13 +5,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faDollarSign, faUsers, faBuilding, faExclamationTriangle, 
   faCheckCircle, faClock, faChartLine, faChartPie, faWrench, faKey,
-  faChartBar, faTable, faArrowUp, faArrowDown, faUserPlus, faInfoCircle,
+  faChartBar, faTable, faUserPlus, faInfoCircle,
   faDownload, faHistory, faFileInvoiceDollar, faCogs, faFileSignature,
   faClipboardList, faArrowRight, faBullhorn, faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { clickable } from '../utils/clickable';
+import StatCard from '../Components/admin/StatCard';
 
 // Keyed on the 12 activity-log categories (LOG_CATEGORIES in config.php). The
 // widget used to key on legacy names (invoice, payment, rent_application), so
@@ -166,7 +167,6 @@ const AdminDashboard = () => {
                 subtext={stats.overdue_count > 0 ? `${stats.overdue_count} overdue invoice${stats.overdue_count > 1 ? 's' : ''}` : 'No overdue accounts'}
                 tooltip="Outstanding tenant balances across all units" 
                 onClick={() => navigate('/admin-payments')} 
-                hoverable 
               />
               <StatCard 
                 icon={faChartPie} 
@@ -174,7 +174,6 @@ const AdminDashboard = () => {
                 value={`${stats.occupancy_rate}%`} 
                 subtext={`${stats.occupied_rooms} / ${stats.total_rooms} Units Occupied`} 
                 color="blue" 
-                showProgress 
                 progress={stats.occupancy_rate} 
                 tooltip="Percentage of building units currently occupied"
               />
@@ -185,7 +184,6 @@ const AdminDashboard = () => {
                 subtext="Available for Rent" 
                 color="slate" 
                 onClick={() => navigate('/admin-units')} 
-                hoverable 
                 tooltip="Vacant apartment units ready for occupancy"
               />
               <StatCard 
@@ -195,7 +193,6 @@ const AdminDashboard = () => {
                 subtext={stats.pending_applications > 0 ? "Review required" : "All reviewed"} 
                 color={stats.pending_applications > 0 ? "amber" : "indigo"} 
                 onClick={() => navigate('/admin-applications')} 
-                hoverable 
                 tooltip="Prospective tenant applications awaiting approval"
               />
               <StatCard 
@@ -206,7 +203,6 @@ const AdminDashboard = () => {
                 color={stats.urgent_maintenance > 0 ? "red" : "amber"} 
                 isBadTrend={stats.urgent_maintenance > 0}
                 onClick={() => navigate('/admin-maintenance')} 
-                hoverable 
                 tooltip="Open maintenance tickets submitted by tenants"
               />
             </div>
@@ -932,55 +928,6 @@ const AdminDashboard = () => {
           </div>
         </div>
       </main>
-    </div>
-  );
-};
-
-/* --- StatCard Helper --- */
-const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showProgress, progress, onClick, hoverable, tooltip }) => {
-  const colorMap = {
-    emerald: 'bg-emerald-50 text-emerald-700',
-    red: 'bg-red-50 text-red-600',
-    indigo: 'bg-indigo-50 text-indigo-600',
-    blue: 'bg-blue-50 text-blue-600',
-    amber: 'bg-amber-50 text-amber-700',
-    slate: 'bg-slate-50 text-slate-600',
-  };
-
-  const trendColor = isBadTrend ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700';
-
-  return (
-    <div 
-      className={`card-interactive bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${hoverable || onClick ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all' : ''}`}
-      {...(onClick ? clickable(onClick) : {})}
-    >
-      {tooltip && (
-        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1.5 rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity whitespace-normal w-44 text-center pointer-events-none z-50 flex items-center justify-center gap-1">
-          <FontAwesomeIcon icon={faInfoCircle} className="shrink-0 text-slate-400" /> 
-          <span>{tooltip}</span>
-        </div>
-      )}
-      <div className="flex justify-between items-start mb-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${colorMap[color] || colorMap.slate} group-hover:scale-110 transition-transform`}>
-          <FontAwesomeIcon icon={icon} />
-        </div>
-        {trend && (
-          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${trendColor}`}>
-            {trend.includes('+') ? <FontAwesomeIcon icon={faArrowUp} className="text-[8px]" /> : <FontAwesomeIcon icon={faArrowDown} className="text-[8px]" />}
-            {trend}
-          </span>
-        )}
-      </div>
-      <div>
-        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0 mb-1">{title}</p>
-        <p className="text-2xl font-bold text-slate-800 m-0 leading-none">{value}</p>
-        {subtext && <p className="text-[11px] text-slate-500 m-0 mt-2 font-medium">{subtext}</p>}
-        {showProgress && progress !== undefined && (
-          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
-            <div className={`h-1.5 rounded-full ${(colorMap[color] || '').split(' ')[0].replace('50', '500')}`} style={{ width: `${progress}%` }}></div>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

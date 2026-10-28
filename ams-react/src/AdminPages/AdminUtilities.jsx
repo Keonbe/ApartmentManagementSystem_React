@@ -5,10 +5,11 @@ import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faBolt, faTint, faPlus, faSync, faSearch, faCheckCircle, 
-  faReceipt, faFileInvoiceDollar, faClock,
+  faReceipt, faClock,
   faTimes, faCalendarAlt, faChartLine, faTrash, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import StatCard from '../Components/admin/StatCard';
 import { LIMITS, MAX_AMOUNT, addDays, checkAmount, checkDate, checkText, localDateString } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import fileUrl from '../api/fileUrl';
@@ -333,57 +334,12 @@ export default function AdminUtilities() {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" style={{ backgroundColor: '#f8fafc' }}>
           <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* Top KPI Summary Metric Cards */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              {/* Water Card */}
-              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 text-xl">
-                  <FontAwesomeIcon icon={faTint} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Water Consumption</p>
-                  <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">{stats.waterM3} m³</p>
-                  <p className="text-xs font-semibold text-blue-600 m-0 mt-0.5">₱{stats.waterPHP} billed</p>
-                </div>
-              </div>
-
-              {/* Electric Card */}
-              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 text-xl">
-                  <FontAwesomeIcon icon={faBolt} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Electricity Usage</p>
-                  <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">{stats.elecKWh} kWh</p>
-                  <p className="text-xs font-semibold text-amber-700 m-0 mt-0.5">₱{stats.elecPHP} billed</p>
-                </div>
-              </div>
-
-              {/* Pending Sync Card */}
-              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 text-xl">
-                  <FontAwesomeIcon icon={faFileInvoiceDollar} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Pending Invoice Sync</p>
-                  <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">{stats.pendingSyncCount}</p>
-                  <p className="text-xs font-semibold text-slate-500 m-0 mt-0.5">Ready to invoice</p>
-                </div>
-              </div>
-
-              {/* Total Utility Card */}
-              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 text-xl">
-                  <FontAwesomeIcon icon={faReceipt} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0">Total Utility (₱)</p>
-                  <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">₱{stats.totalUtilityPHP}</p>
-                  <p className="text-xs font-semibold text-emerald-700 m-0 mt-0.5">Combined Billed</p>
-                </div>
-              </div>
-
+            {/* Usage and money totals; pending sync is on its filter pill. These add up
+                every recorded reading, not the period picked in the filters below. */}
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatCard icon={faTint} color="blue" title="Water consumption" value={`${stats.waterM3} m³`} subtext={`₱${stats.waterPHP} billed · all records`} />
+              <StatCard icon={faBolt} color="amber" title="Electricity usage" value={`${stats.elecKWh} kWh`} subtext={`₱${stats.elecPHP} billed · all records`} />
+              <StatCard icon={faReceipt} color="emerald" title="Total utility billed" value={`₱${stats.totalUtilityPHP}`} subtext="Water and electricity · all records" />
             </div>
 
             {/* Filter & Action Control Toolbar */}

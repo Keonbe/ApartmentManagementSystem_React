@@ -435,26 +435,8 @@ const AdminServicePage = () => {
                   <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">Admin Control Center</p>
                   <h2 className="text-xl md:text-2xl font-semibold">Manage optional tenant modules and review incoming requests.</h2>
                   <p className="mt-2 text-sm text-indigo-100">
-                    Enable or disable modular features for tenant portals in real-time.
+                    Enable or disable modular features for tenant portals in real-time. {loading ? '' : `${activeCatalogCount} catalog item${activeCatalogCount === 1 ? '' : 's'} bookable.`}
                   </p>
-                </div>
-                <div className="stagger-children grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Active Modules</p>
-                    <p className="mt-1 text-2xl font-semibold">{activeServiceCount}</p>
-                  </div>
-                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Catalog Items</p>
-                    <p className="mt-1 text-2xl font-semibold">{loading ? '…' : activeCatalogCount}</p>
-                  </div>
-                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Pending Bookings</p>
-                    <p className="mt-1 text-2xl font-semibold">{loading ? '…' : pendingServiceCount}</p>
-                  </div>
-                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Pending CCTV / Parking</p>
-                    <p className="mt-1 text-2xl font-semibold">{loading ? '…' : pendingCctvCount + pendingParkingCount}</p>
-                  </div>
                 </div>
               </div>
             </section>
@@ -609,6 +591,9 @@ const AdminServicePage = () => {
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors border-0 cursor-pointer ${activeTab === 'cctv' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
                   >
                     CCTV Requests
+                    {pendingCctvCount > 0 && (
+                      <span className="ml-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">{pendingCctvCount}</span>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -617,7 +602,7 @@ const AdminServicePage = () => {
                   >
                     Parking Reservations
                     {pendingParkingCount > 0 && (
-                      <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold text-white">{pendingParkingCount}</span>
+                      <span className="ml-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">{pendingParkingCount}</span>
                     )}
                   </button>
                   <button

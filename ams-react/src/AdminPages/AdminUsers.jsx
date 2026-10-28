@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faEdit, faKey, faTrash, faTimes, faUserShield, faUser,
   faCheck, faExclamationTriangle,
-  faUsers, faFilter
+  faFilter
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { LIMITS, checkEmail, checkNewPassword, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
@@ -224,6 +224,9 @@ const AdminUsers = () => {
     user: users.filter(u => u.role === 'user' && !u.is_archived).length,
     admin: users.filter(u => u.role === 'admin' && !u.is_archived).length
   };
+  // Role buttons filter inside the open status tab, so their counts follow it.
+  const inStatus = users.filter(u => (statusFilter === 'archived' ? u.is_archived : !u.is_archived));
+  const roleCounts = { all: inStatus.length, user: inStatus.filter(u => u.role === 'user').length, admin: inStatus.filter(u => u.role === 'admin').length };
 
   // Row actions, shared by the table (md and up) and the phone cards; iconSize keeps
   // the table compact and gives phones 44px targets.
@@ -274,25 +277,6 @@ const AdminUsers = () => {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-6xl mx-auto space-y-6">
 
-            {/* Stats Row */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[
-                { label: 'Total Accounts', value: counts.all, color: 'bg-indigo-500' },
-                { label: 'Regular Users', value: counts.user, color: 'bg-slate-500' },
-                { label: 'Admins', value: counts.admin, color: 'bg-violet-500' },
-              ].map(s => (
-                <div key={s.label} className="card-interactive bg-white rounded-xl shadow-sm border border-slate-200 px-5 py-4 flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center`}>
-                    <FontAwesomeIcon icon={faUsers} className="text-white text-sm" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-slate-800 m-0 leading-none">{s.value}</p>
-                    <p className="text-xs text-slate-500 m-0 mt-0.5">{s.label}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
             {/* Toolbar */}
             <div className="flex items-center gap-3 flex-wrap justify-between">
               <div className="flex items-center gap-3 flex-wrap flex-1">
@@ -308,9 +292,9 @@ const AdminUsers = () => {
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
                   <FontAwesomeIcon icon={faFilter} className="text-slate-500 text-xs" />
                   {ROLES.map(r => (
-                    <button key={r} onClick={() => setRoleFilter(r)}
+                    <button key={r} type="button" aria-pressed={roleFilter === r} onClick={() => setRoleFilter(r)}
                       className={`btn-interactive px-3 py-1 rounded-md text-xs font-semibold border-0 cursor-pointer transition-colors ${roleFilter === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 bg-transparent'}`}>
-                      {r === 'all' ? `All` : r === 'admin' ? `Admin` : `User`}
+                      {r === 'all' ? `All (${roleCounts.all})` : r === 'admin' ? `Admin (${roleCounts.admin})` : `User (${roleCounts.user})`}
                     </button>
                   ))}
                 </div>

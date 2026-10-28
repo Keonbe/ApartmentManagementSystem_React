@@ -5,8 +5,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faIdBadge, faUserPlus, faCheck, faTimes, faSignOutAlt, 
   faExclamationTriangle, faClock, faSearch, faCar,
-  faBuilding, faSync, faSlidersH, faPhone, faUserCheck, faUserClock,
-  faDoorOpen, faEye
+  faBuilding, faSync, faSlidersH, faPhone,
+  faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { LIMITS, addDays, checkDate, checkIntRange, checkPersonName, checkPhMobile, checkText, localDateString, localTimeString, toPhE164 } from '../utils/validation';
@@ -371,7 +371,7 @@ export default function AdminVisitors() {
     { key: 'all', label: 'All Records', count: stats.total_count },
     { key: 'pending_approval', label: 'Pending Review', count: stats.pending_count, color: 'text-amber-700 bg-amber-50' },
     { key: 'checked_in', label: 'Checked In', count: stats.active_count, color: 'text-emerald-700 bg-emerald-50' },
-    { key: 'overstayed', label: 'Overstayed', count: stats.overstay_count, color: 'text-rose-600 bg-rose-50' },
+    { key: 'overstayed', label: 'Overstayed', count: stats.overstay_count, color: 'text-rose-700 bg-rose-50' },
     { key: 'checked_out', label: 'Checked Out' },
     { key: 'denied', label: 'Denied' },
     { key: 'cancelled', label: 'Cancelled' },
@@ -386,67 +386,18 @@ export default function AdminVisitors() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
 
-            {/* Top KPI Metrics Banner */}
-            <div className="admin-visitors-metrics-grid stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-              {/* Checked In */}
-              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Currently On-Premise</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                    <FontAwesomeIcon icon={faDoorOpen} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-emerald-950 m-0">{stats.active_count}</p>
-                <p className="mt-1 text-xs text-emerald-700 font-medium m-0">Active visitor passes</p>
-              </div>
-
-              {/* Pending Review */}
-              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                    <FontAwesomeIcon icon={faUserClock} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-amber-950 m-0">{stats.pending_count}</p>
-                <p className="mt-1 text-xs text-amber-700 font-medium m-0">Tenant registered visitors</p>
-              </div>
-
-              {/* Today's Check-ins */}
-              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Today's Check-Ins</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                    <FontAwesomeIcon icon={faUserCheck} />
-                  </div>
-                </div>
-                <p className="mt-2 text-3xl font-extrabold text-indigo-950 m-0">{stats.today_count}</p>
-                <p className="mt-1 text-xs text-indigo-600 font-medium m-0">Logged visits today</p>
-              </div>
-
-              {/* Overstay Alerts */}
-              <div className="card-interactive rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-rose-700">Overstay Alerts</span>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                    <FontAwesomeIcon icon={faExclamationTriangle} />
-                  </div>
-                </div>
-                <div className="flex items-baseline justify-between mt-2">
-                  <p className="text-3xl font-extrabold text-rose-950 m-0">{stats.overstay_count}</p>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowThresholdModal(true)}
-                    className="btn-interactive text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline bg-transparent border-0 cursor-pointer p-0 flex items-center gap-1"
-                  >
-                    <FontAwesomeIcon icon={faSlidersH} className="text-[10px]" />
-                    <span>&gt; {stats.overstay_threshold_hours >= 24 ? `${Math.round(stats.overstay_threshold_hours / 24)}d (${stats.overstay_threshold_hours}h)` : `${stats.overstay_threshold_hours}h`}</span>
-                  </button>
-                </div>
-                <p className="mt-1 text-xs text-rose-600 font-medium m-0">Exceeding configured threshold</p>
-              </div>
-
+            {/* Today's check-ins and the overstay rule, the two things the status pills
+                below do not show (a row of count cards used to repeat the pills). */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+              <span><strong className="text-slate-800">{stats.today_count}</strong> check-in{stats.today_count === 1 ? '' : 's'} today</span>
+              <button
+                type="button"
+                onClick={() => setShowThresholdModal(true)}
+                className="btn-interactive inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 cursor-pointer"
+              >
+                <FontAwesomeIcon icon={faSlidersH} className="text-[10px]" aria-hidden="true" />
+                Overstay after {stats.overstay_threshold_hours >= 24 ? `${Math.round(stats.overstay_threshold_hours / 24)} day${Math.round(stats.overstay_threshold_hours / 24) === 1 ? '' : 's'}` : `${stats.overstay_threshold_hours} hours`}
+              </button>
             </div>
 
             {/* Action & Filter Control Bar */}

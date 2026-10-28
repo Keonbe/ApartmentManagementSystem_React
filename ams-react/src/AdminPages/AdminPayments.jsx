@@ -20,6 +20,7 @@ import { ADMIN_PAYMENTS_EVENT } from '../config/notificationLinks';
 import { daysPastDue, formatCoveredPeriod, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import { printElement } from '../utils/print';
 import { clickable } from '../utils/clickable';
+import StatCard from '../Components/admin/StatCard';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -871,27 +872,25 @@ const handleMarkAsPaid = async () => {
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Summary Cards */}
-            <div className="stagger-children grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faDollarSign} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Collected</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{formatCurrency(totalCollected)}</p></div>
-              </div>
-              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p>{overdueInvoiceCount > 0 && <p className="text-[11px] text-slate-500 m-0 mt-0.5">across {overdueInvoiceCount} invoice{overdueInvoiceCount === 1 ? '' : 's'}</p>}</div>
-              </div>
-              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faCalendarAlt} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Pending Payments</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{pendingCount}</p></div>
-              </div>
-              <div className="card-interactive bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-sm flex items-center gap-4 text-white">
-                <div className="w-12 h-12 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faMoneyBillWave} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Outstanding</p><p className="text-xl lg:text-2xl font-bold text-white m-0 mt-0.5">{formatCurrency(totalOutstanding)}</p>{advanceAwaitingTotal > 0 && <p className="text-[11px] text-slate-300 m-0 mt-0.5">Excludes {formatCurrency(advanceAwaitingTotal)} advance rent awaiting payment</p>}</div>
-              </div>
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <StatCard icon={faDollarSign} color="emerald" title="Total Collected" value={formatCurrency(totalCollected)} />
+              <StatCard
+                icon={faExclamationTriangle}
+                color={overdueCount > 0 ? 'red' : 'slate'}
+                title="Overdue Accounts"
+                value={overdueCount}
+                subtext={overdueInvoiceCount > 0 ? `across ${overdueInvoiceCount} invoice${overdueInvoiceCount === 1 ? '' : 's'}` : null}
+              />
+              <StatCard icon={faCalendarAlt} color="amber" title="Pending Payments" value={pendingCount} />
+              <StatCard
+                icon={faMoneyBillWave}
+                color={totalOutstanding > 0 ? 'red' : 'slate'}
+                title="Total Outstanding"
+                value={formatCurrency(totalOutstanding)}
+                subtext={advanceAwaitingTotal > 0 ? `Excludes ${formatCurrency(advanceAwaitingTotal)} advance rent awaiting payment` : null}
+              />
             </div>
-            
+
             {/* Due Date Indicator Bar with Batch Reminder Button */}
             {(dueWithin5DaysCount > 0 || overdueCount > 0) && (
               <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
@@ -1629,29 +1628,9 @@ const handleMarkAsPaid = async () => {
               <div className="p-6 space-y-6">
                 {/* Deposit metrics summary cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide m-0">Total Deposits Held</p>
-                      <p className="text-2xl font-extrabold text-emerald-800 m-0 mt-1">{formatCurrency(totalDepositsHeld)}</p>
-                    </div>
-                    <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-600/30 text-3xl" />
-                  </div>
-                  
-                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide m-0">Total Billing Deductions Applied</p>
-                      <p className="text-2xl font-extrabold text-amber-800 m-0 mt-1">{formatCurrency(totalDepositDeductions)}</p>
-                    </div>
-                    <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600/30 text-3xl" />
-                  </div>
-
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wide m-0">Total Applied to Last Rent Month</p>
-                      <p className="text-2xl font-extrabold text-indigo-800 m-0 mt-1">{formatCurrency(totalAppliedToRent)}</p>
-                    </div>
-                    <FontAwesomeIcon icon={faCheckCircle} className="text-indigo-600/30 text-3xl" />
-                  </div>
+                  <StatCard icon={faShieldAlt} color="emerald" title="Total Deposits Held" value={formatCurrency(totalDepositsHeld)} />
+                  <StatCard icon={faExclamationTriangle} color="amber" title="Total Billing Deductions Applied" value={formatCurrency(totalDepositDeductions)} />
+                  <StatCard icon={faCheckCircle} color="indigo" title="Total Applied to Last Rent Month" value={formatCurrency(totalAppliedToRent)} />
                 </div>
 
                 {/* Ledger search, filter and sort */}
