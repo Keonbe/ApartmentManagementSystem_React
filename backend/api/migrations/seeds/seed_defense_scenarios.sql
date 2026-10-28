@@ -1,6 +1,6 @@
 -- Defense scenario data. Local dev / scratch only, never prod.
--- Run on a database seeded with seed_mock_data.sql (+ seed_panelist_gaps.sql for
--- the extra refund rows), preferably a scratch DB:
+-- Run on a database seeded with seed_mock_data.sql (it relies on that file's ids;
+-- seed_demo_full.sql covers the same states without fixed ids), preferably a scratch DB:
 --   bash .claude/skills/db-snapshot/snapshot.sh scratch defense --seed
 --   sed 's/\bams_db\b/defense/g' backend/api/migrations/seeds/seed_defense_scenarios.sql | mysql -uroot defense
 -- or on dev after `/db-snapshot save`, then `/db-snapshot restore`.

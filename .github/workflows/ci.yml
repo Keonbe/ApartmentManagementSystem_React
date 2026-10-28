@@ -183,6 +183,27 @@ jobs:
           fi
           echo "✅ clear_and_seed.sql restores exactly the SetupDB.sql defaults."
 
+      - name: Demo seed and its reset (seed_demo_full.sql / seed_demo_reset.sql)
+        run: |
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_demo_full.sql
+          DEMO=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users WHERE email_address LIKE '%@demo.example.com';")
+          STATES=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(DISTINCT status) FROM ams_db.invoices WHERE id LIKE 'INV-DEMO-%';")
+          ORPHANS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.payment_transactions p LEFT JOIN ams_db.invoices i ON i.id = p.invoice_id WHERE i.id IS NULL;")
+          if [ "$DEMO" -ne 16 ] || [ "$STATES" -lt 7 ] || [ "$ORPHANS" -ne 0 ]; then
+            echo "❌ Demo seed: expected 16 demo users, 7+ invoice states and no orphan payments; got $DEMO / $STATES / $ORPHANS."
+            exit 1
+          fi
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_demo_reset.sql
+          USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
+          BUSY=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.rooms WHERE status <> 'vacant';")
+          if [ "$USERS" -ne 1 ] || [ "$BUSY" -ne 0 ]; then
+            echo "❌ Demo reset should leave only the admin and vacant rooms, got $USERS users / $BUSY busy rooms."
+            exit 1
+          fi
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_demo_full.sql
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_demo_reset.sql
+          echo "✅ seed_demo_full.sql loads, covers every invoice state, and seed_demo_reset.sql removes it."
+
       - name: Apply upgrade migrations (idempotency check)
         run: |
           # The current dated migrations (older ones are deleted once applied

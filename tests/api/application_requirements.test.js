@@ -205,9 +205,8 @@ describe('rent_application.php documents and previous address', () => {
     const res = await submit(liza, { docs: { ...allRequired(), [retiredId]: PNG, 99999: PNG } });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    const app = await one("SELECT id, previous_address, valid_id_front_path, valid_id_back_path, nbi_clearance_path FROM rent_applications WHERE user_id = 17 AND status = 'Pending Review'");
+    const app = await one("SELECT id, previous_address FROM rent_applications WHERE user_id = 17 AND status = 'Pending Review'");
     expect(app.previous_address).toBe('Blk 4 Lot 2, Brgy. Biga, Silang, Cavite');
-    expect([app.valid_id_front_path, app.valid_id_back_path, app.nbi_clearance_path]).toEqual([null, null, null]);
     const docs = await q('SELECT requirement_id, label_snapshot, file_path FROM application_documents WHERE rent_application_id = ? ORDER BY requirement_id', [app.id]);
     expect(docs.map((d) => d.requirement_id).sort((a, b) => a - b)).toEqual([FRONT, BACK, barangayId].sort((a, b) => a - b));
     for (const d of docs) {
