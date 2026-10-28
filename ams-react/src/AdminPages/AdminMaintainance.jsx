@@ -19,6 +19,7 @@ import {
   faShieldAlt, faChartBar, faInfoCircle, faFileContract, faBan, faUndo, faChevronDown
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
+import Modal from '../Components/admin/Modal';
 import {
   MAINTENANCE_CATEGORIES, MAINTENANCE_URGENCIES, MAINTENANCE_DEFAULT_URGENCY, MAINTENANCE_TRANSITIONS, MAINTENANCE_STATUS_STYLES,
   urgencyWeight, urgencyColor
@@ -225,10 +226,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
   const FIELD = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
-      {/* max-h + flex column keeps the modal within the viewport instead of
-          growing to the height of its content; only the body scrolls. */}
-      <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={handleSubmit} noValidate>
+    <Modal title="Create New Request" onClose={onClose} busy={isSubmitting} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onSubmit={handleSubmit} noValidate>
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 m-0">Create New Request</h2>
           <button type="button" aria-label="Close" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
@@ -330,8 +328,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
             {isSubmitting ? 'Creating...' : 'Create Request'}
           </button>
         </div>
-      </form>
-    </div>
+      </Modal>
   );
 }
 
@@ -377,8 +374,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
-      <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden flex flex-col md:flex-row max-h-[90vh]" onClick={e => e.stopPropagation()}>
+    <Modal title={`${req.title}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
 
         {/* Left side: Detail & Timeline */}
         <div className="flex-1 flex flex-col border-r border-slate-200 max-h-[90vh]">
@@ -409,7 +405,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                 <p className="text-sm font-bold text-emerald-700 m-0 mt-2">Actual Cost: {formatCurrency(req.actualCost)}</p>
               )}
             </div>
-            <button onClick={onClose} className="p-1 md:hidden text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 md:hidden text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
           </div>
 
           <div className="p-6 overflow-y-auto flex-1 space-y-6">
@@ -435,6 +431,9 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={!!req.tenantResponsible}
+                  aria-label="Tenant responsible"
                   disabled={saving || isClosed}
                   onClick={onToggleTenantResponsible}
                   className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 border-0 cursor-pointer disabled:opacity-50 ${req.tenantResponsible ? 'bg-violet-600' : 'bg-slate-300'}`}
@@ -526,7 +525,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
         {/* Right side: Assignment, Cost & Notes */}
         <div className="w-full md:w-80 flex flex-col bg-slate-50 shrink-0">
           <div className="px-6 py-4 border-b border-slate-200 hidden md:flex justify-end bg-slate-50">
-            <button onClick={onClose} className="p-1 text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-xl" /></button>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-xl" /></button>
           </div>
 
           <div className="p-6 flex-1 flex flex-col overflow-hidden">
@@ -607,8 +606,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
           </div>
         </div>
 
-      </div>
-    </div>
+      </Modal>
   );
 }
 
@@ -648,8 +646,7 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
-      <div className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+    <Modal busy={saving} title={`${type === 'start' ? 'Start Work' : type === 'complete' ? 'Mark as Completed' : 'Reject Request'}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto p-6">
         <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">
           {type === 'start' ? 'Start Work' : type === 'complete' ? 'Mark as Completed' : 'Reject Request'}
         </h3>
@@ -716,8 +713,7 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
           </button>
           <button onClick={onClose} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 cursor-pointer transition-colors">Cancel</button>
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }
 

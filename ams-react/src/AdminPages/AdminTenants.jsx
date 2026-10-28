@@ -30,6 +30,7 @@ const deductionLabel = (c) => (DEDUCTION_CATEGORIES.find(([v]) => v === c) || [c
 import { fileUrl } from '../api/fileUrl';
 import AdminHouseholdList from '../Components/AdminHouseholdList';
 import DepositOutcome from '../Components/DepositOutcome';
+import Modal from '../Components/admin/Modal';
 
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
@@ -682,8 +683,7 @@ const AdminTenants = () => {
 
       {/* ─── TENANT PROFILE MODAL ─── */}
       {showProfileModal && selectedTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowProfileModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <Modal title={`${selectedTenant.name}`} onClose={() => setShowProfileModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
@@ -709,7 +709,7 @@ const AdminTenants = () => {
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowProfileModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+              <button aria-label="Close" onClick={() => setShowProfileModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} className="text-base" />
               </button>
             </div>
@@ -978,14 +978,12 @@ const AdminTenants = () => {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* ─── ARCHIVE CONFIRMATION MODAL ─── */}
       {showArchiveModal && archiveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowArchiveModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <Modal busy={!!savingAction} title="Archive Tenant" onClose={() => setShowArchiveModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
@@ -996,7 +994,7 @@ const AdminTenants = () => {
                   <p className="text-xs text-slate-500 m-0 mt-0.5">Preserve tenant history and remove from active list</p>
                 </div>
               </div>
-              <button onClick={() => setShowArchiveModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+              <button aria-label="Close" onClick={() => setShowArchiveModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} className="text-base" />
               </button>
             </div>
@@ -1061,13 +1059,11 @@ const AdminTenants = () => {
                 <FontAwesomeIcon icon={faArchive} className="mr-1.5" /> Confirm Archive
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
         {/* ─── ADMIN MOVE OUT SCHEDULING MODAL ─── */}
         {showMoveOutModal && moveOutTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowMoveOutModal(false)}>
-            <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+          <Modal busy={!!savingAction} title="Schedule Move-Out" onClose={() => setShowMoveOutModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
@@ -1078,7 +1074,7 @@ const AdminTenants = () => {
                     <p className="text-xs text-slate-500 m-0 mt-0.5">Set planned move-out date for tenant</p>
                   </div>
                 </div>
-                <button onClick={() => setShowMoveOutModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+                <button aria-label="Close" onClick={() => setShowMoveOutModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                   <FontAwesomeIcon icon={faTimes} className="text-base" />
                 </button>
               </div>
@@ -1122,13 +1118,11 @@ const AdminTenants = () => {
                   {savingAction === 'moveout' ? 'Saving…' : 'Confirm Schedule'}
                 </button>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
         {/* ─── MOVE-OUT INSPECTION & CLEARANCE MODAL ─── */}
         {showClearanceModal && clearanceTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowClearanceModal(false)}>
-            <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+          <Modal busy={!!savingAction} title="Move-Out Inspection & Clearance" onClose={() => setShowClearanceModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold">
@@ -1139,7 +1133,7 @@ const AdminTenants = () => {
                     <p className="text-xs text-slate-500 m-0 mt-0.5">Physical inspection, deposit deductions, & utility settlement</p>
                   </div>
                 </div>
-                <button onClick={() => setShowClearanceModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+                <button aria-label="Close" onClick={() => setShowClearanceModal(false)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
                   <FontAwesomeIcon icon={faTimes} className="text-base" />
                 </button>
               </div>
@@ -1259,8 +1253,7 @@ const AdminTenants = () => {
                   <FontAwesomeIcon icon={faCheckCircle} /> Confirm Clearance & Complete Move Out
                 </button>
               </div>
-            </div>
-          </div>
+            </Modal>
         )}
     </div>
   );

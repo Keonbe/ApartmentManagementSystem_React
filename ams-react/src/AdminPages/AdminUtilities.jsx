@@ -17,6 +17,7 @@ import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+import Modal from '../Components/admin/Modal';
 
 // sync_utility_to_invoice.php: a separate invoice's due date is today to +10 days.
 const SYNC_DUE_MAX_DAYS = 10;
@@ -822,11 +823,10 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 modal-overlay-anim" onClick={onClose}>
-      <div className="modal-card-anim bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+    <Modal busy={busy} title="Sync Utility to Invoice" onClose={onClose} overlayClassName="flex items-center justify-center p-4 bg-slate-900/60" className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-slate-800 m-0 text-sm">Sync Utility to Invoice</h3>
-          <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-lg">
+          <button aria-label="Close" type="button" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-lg">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
@@ -882,8 +882,7 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
             <button type="submit" disabled={busy} className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{busy ? 'Syncing…' : 'Confirm Sync'}</button>
           </div>
         </form>
-      </div>
-    </div>
+      </Modal>
   );
 }
 
@@ -1099,15 +1098,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/70 overflow-y-auto modal-overlay-anim"
-      onClick={onClose}
-    >
-      <div
-        className="modal-card-anim bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto"
-        style={{ transform: 'translateZ(0)' }}
-        onClick={e => e.stopPropagation()}
-      >
+    <Modal title="Record Unit Utility Bill" onClose={onClose} overlayClassName="flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/70 overflow-y-auto" className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto" style={{ transform: 'translateZ(0)' }}>
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -1116,7 +1107,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
             </div>
             <h3 className="text-base font-bold text-slate-900 m-0">Record Unit Utility Bill</h3>
           </div>
-          <button 
+          <button aria-label="Close" 
             type="button" 
             onClick={onClose}
             className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-base transition-colors"
@@ -1539,7 +1530,6 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
         </form>
 
-      </div>
-    </div>
+      </Modal>
   );
 }

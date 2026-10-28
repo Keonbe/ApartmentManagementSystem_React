@@ -6,6 +6,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from './form/FieldError';
 import CharCount from './form/CharCount';
 import { blockNonIntegerKeys, blockNonNumericKeys, invalidCls } from './form/formHelpers';
+import Modal from './admin/Modal';
 
 const CATEGORIES = [
     { value: 'cleaning', label: 'Cleaning' },
@@ -147,14 +148,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
     const error = (field) => <FieldError id={`catalog-${field}`} error={fields.errors[field]} />;
 
     return (
-        <div
-            onClick={onClose}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md modal-overlay-anim"
-        >
-            <div
-                onClick={(e) => e.stopPropagation()}
-                className="modal-card-anim max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
-            >
+        <Modal busy={saving} title={`${service ? 'Edit Service' : 'Add Service'}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
                 {/*ModalHeader*/}
                 <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                     <div>
@@ -339,7 +333,6 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </Modal>
     );
 }

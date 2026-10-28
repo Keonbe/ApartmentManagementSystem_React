@@ -421,7 +421,7 @@ const AdminAccountSettings = () => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-sm font-bold text-slate-800 m-0 tracking-tight">{toast.title}</h4>
-                <button
+                <button aria-label="Dismiss"
                   type="button"
                   onClick={() => setToast(null)}
                   className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"

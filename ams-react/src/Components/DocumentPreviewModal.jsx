@@ -1,4 +1,5 @@
-import { FileText, Image as ImageIcon, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, X } from 'lucide-react';
+import Modal from './admin/Modal';
 
 /**
  * Reusable modal dialog for document and image previews (PDFs, images).
@@ -12,14 +13,7 @@ export default function DocumentPreviewModal({ isOpen, onClose, title = 'Documen
         : /\.(png|jpe?g|webp|gif)$/i.test(fileUrl) || fileUrl.startsWith('data:image/');
 
     return (
-        <div 
-            onClick={onClose} 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in"
-        >
-            <div 
-                onClick={(e) => e.stopPropagation()} 
-                className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-scale-in text-left"
-            >
+        <Modal title={`${title}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in" className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-scale-in text-left">
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white z-10 shrink-0">
                     <h3 className="text-lg font-black text-slate-900 m-0 flex items-center gap-2 truncate pr-2">
                         {isImg ? (
@@ -53,8 +47,7 @@ export default function DocumentPreviewModal({ isOpen, onClose, title = 'Documen
                         />
                     )}
                 </div>
-            </div>
-        </div>
+            </Modal>
     );
 }
 

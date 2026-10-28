@@ -15,6 +15,7 @@ import FieldError from '../Components/form/FieldError';
 import ChatAttachmentPreview from '../Components/form/ChatAttachmentPreview';
 import useFilePreview from '../hooks/useFilePreview';
 import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
+import Modal from '../Components/admin/Modal';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
@@ -152,15 +153,6 @@ const AdminMessages = () => {
     const timer = window.setInterval(loadGuests, 6000);
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    if (!mediaPreview) return undefined;
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setMediaPreview(null);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mediaPreview]);
 
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -526,14 +518,14 @@ const AdminMessages = () => {
         </div>
       </main>
       {mediaPreview && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label="Full-size message attachment" onClick={() => setMediaPreview(null)}>
-          <button type="button" onClick={() => setMediaPreview(null)} aria-label="Close full-size preview" className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/15 text-white hover:bg-white/25 cursor-pointer">
+        <Modal title="Full-size message attachment" onClose={() => setMediaPreview(null)} overlayClassName="flex items-center justify-center bg-black/90 p-4" className="relative flex items-center justify-center max-h-full max-w-full">
+          <button type="button" onClick={() => setMediaPreview(null)} aria-label="Close full-size preview" className="absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/15 text-white hover:bg-white/25 cursor-pointer">
             <span aria-hidden="true" className="text-2xl leading-none">×</span>
           </button>
           {mediaPreview.isVideo
-            ? <video controls autoPlay src={mediaPreview.src} className="max-h-full max-w-full rounded-lg" onClick={(event) => event.stopPropagation()} />
-            : <img src={mediaPreview.src} alt="Full-size message attachment" className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} />}
-        </div>
+            ? <video controls autoPlay src={mediaPreview.src} className="max-h-[90vh] max-w-full rounded-lg" />
+            : <img src={mediaPreview.src} alt="Full-size message attachment" className="max-h-[90vh] max-w-full object-contain" />}
+        </Modal>
       )}
     </div>
   );

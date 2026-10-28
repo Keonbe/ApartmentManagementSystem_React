@@ -12,6 +12,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import { LIMITS } from '../utils/validation';
 import CharCount from '../Components/form/CharCount';
 import { fileUrl } from '../api/fileUrl';
+import Modal from '../Components/admin/Modal';
 
 const STATUS_BADGE = {
   Pending: 'bg-amber-100 text-amber-700',
@@ -374,8 +375,7 @@ export default function AdminParking() {
 
       {/* Assign / Reject / Release dialog */}
       {dialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 modal-overlay-anim" onClick={() => busyId === null && setDialog(null)}>
-          <div className="modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <Modal title={`${dialog.mode === 'assign' ? 'Assign a parking slot' : dialog.mode === 'reject' ? 'Reject parking request' : 'Release parking slot'}`} onClose={() => setDialog(null)} busy={!(busyId === null)} overlayClassName="flex items-center justify-center bg-black/40 p-4" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
             <h3 className="text-lg font-bold text-slate-800 m-0">
               {dialog.mode === 'assign' ? 'Assign a parking slot' : dialog.mode === 'reject' ? 'Reject parking request' : 'Release parking slot'}
             </h3>
@@ -439,8 +439,7 @@ export default function AdminParking() {
                 {busyId !== null ? 'Saving…' : dialog.mode === 'assign' ? `Assign slot${dialog.slot ? ` #${dialog.slot}` : ''}` : dialog.mode === 'reject' ? 'Reject request' : 'Release slot'}
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

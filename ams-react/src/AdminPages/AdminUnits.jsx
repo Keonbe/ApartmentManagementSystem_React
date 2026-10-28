@@ -33,6 +33,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+import Modal from '../Components/admin/Modal';
 
 const UNIT_TYPES = ['Studio', '1BR', '2BR'];
 const FIELD_CLS = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white';
@@ -493,8 +494,7 @@ const AdminUnits = () => {
 
       {/* Add New Unit Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={closeAddModal}>
-          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()} onSubmit={handleAddUnit} noValidate>
+        <Modal busy={addUnitSubmitting} title="Add New Unit" onClose={closeAddModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onSubmit={handleAddUnit} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
@@ -549,14 +549,12 @@ const AdminUnits = () => {
               <button type="button" onClick={closeAddModal} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
               <button type="submit" disabled={addUnitSubmitting} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{addUnitSubmitting ? 'Adding...' : 'Add Unit'}</button>
             </div>
-          </form>
-        </div>
+          </Modal>
       )}
 
       {/* Assign Tenant Modal */}
       {showAssignModal && selectedUnit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={closeAssignModal}>
-          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()} onSubmit={handleAssignTenant} noValidate>
+        <Modal busy={assigning} title={`Assign Tenant to Unit ${selectedUnit.id}`} onClose={closeAssignModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onSubmit={handleAssignTenant} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
@@ -646,8 +644,7 @@ const AdminUnits = () => {
               <button type="button" onClick={closeAssignModal} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
               <button type="submit" disabled={assigning} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{assigning ? 'Assigning…' : 'Assign Tenant'}</button>
             </div>
-          </form>
-        </div>
+          </Modal>
       )}
 
       {/* Unit Detail Modal */}
@@ -800,8 +797,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
   const progressPct = totalDays > 0 ? Math.min(100, Math.max(0, (elapsed / totalDays) * 100)) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
-      <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+    <Modal title={`Unit ${unit.id}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-slate-50">
           <div className="flex items-center gap-4">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md ${unit.status === 'occupied' ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' : 'bg-gradient-to-br from-amber-400 to-amber-600'}`}>
@@ -812,7 +808,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               <p className="text-xs text-slate-500 m-0 mt-0.5">{unit.type} · {unit.floor} · {formatCurrency(unit.rent)}/mo</p>
             </div>
           </div>
-          <button onClick={onClose} className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+          <button aria-label="Close" onClick={onClose} className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
         </div>
 
         <div className="flex border-b border-slate-200 px-3 shrink-0 bg-white overflow-x-auto">
@@ -1224,8 +1220,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
           )}
 
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 };
 

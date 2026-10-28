@@ -5,6 +5,7 @@ import { LIMITS, checkText } from '../../utils/validation';
 import FieldError from './FieldError';
 import CharCount from './CharCount';
 import { invalidCls } from './formHelpers';
+import Modal from '../admin/Modal';
 
 // Replaces window.prompt() for reasons (reject, deny, close, terminate).
 // Render it only while open, so each opening starts empty. onConfirm(reason, file)
@@ -109,15 +110,7 @@ export default function ReasonModal({
   const btn = tone === 'red' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700';
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 modal-overlay-anim animate-fade-in" onClick={close}>
-      <form
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl modal-card-anim border border-slate-100 max-h-[90vh] overflow-y-auto"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="reason-modal-title"
-      >
+    <Modal busy={busy} title={`${title}`} onClose={close} as="form" overlayClassName="flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in" onSubmit={submit} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto" labelledBy="reason-modal-title">
         <h3 id="reason-modal-title" className="text-lg font-bold text-slate-800">{title}</h3>
         {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
         {hasOptions && (
@@ -216,7 +209,7 @@ export default function ReasonModal({
                     <p className="text-[10px] text-slate-400 m-0">{(attachment.size / 1024).toFixed(1)} KB</p>
                   </div>
                 </div>
-                <button
+                <button aria-label="Close"
                   type="button"
                   onClick={removeAttachment}
                   className="text-slate-400 hover:text-rose-500 p-1.5 bg-transparent border-0 cursor-pointer transition-colors"
@@ -246,7 +239,6 @@ export default function ReasonModal({
             {busy ? 'Saving…' : confirmLabel}
           </button>
         </div>
-      </form>
-    </div>
+      </Modal>
   );
 }

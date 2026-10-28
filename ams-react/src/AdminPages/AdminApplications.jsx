@@ -15,6 +15,7 @@ import ReasonModal from '../Components/form/ReasonModal';
 import { fileUrl } from '../api/fileUrl';
 import { LIMITS } from '../utils/validation';
 import { clickable } from '../utils/clickable';
+import Modal from '../Components/admin/Modal';
 
 const STATUS_OPTIONS = [
   { 
@@ -855,8 +856,7 @@ const AdminApplications = () => {
 
       {/* ─── APPLICANT REVIEW MODAL ─── */}
       {showProfileModal && selectedApp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowProfileModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <Modal title={`${selectedApp.name}`} onClose={() => setShowProfileModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
             
             {/* Modal Header */}
             <div className={`px-8 py-6 flex items-center justify-between shrink-0 text-white ${
@@ -890,7 +890,7 @@ const AdminApplications = () => {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setShowProfileModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer transition-colors">
+              <button aria-label="Close" onClick={() => setShowProfileModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer transition-colors">
                 <FontAwesomeIcon icon={faTimes} className="text-xl" />
               </button>
             </div>
@@ -1048,8 +1048,7 @@ const AdminApplications = () => {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {rejectTarget && (
@@ -1067,8 +1066,7 @@ const AdminApplications = () => {
       )}
       
       {approveTarget && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => !isApproving && setApproveTarget(null)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <Modal title="Approve this application?" onClose={() => setApproveTarget(null)} busy={isApproving} overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="m-0 text-lg font-bold text-slate-800">Approve this application?</h3>
             <p className="mt-2 text-sm text-slate-500">This reserves Unit {approveTarget.unit} for {approveTarget.name} and creates their initial payment request. It does not mark them as moved in.</p>
             <div className="mt-6 flex justify-end gap-3">
@@ -1096,29 +1094,25 @@ const AdminApplications = () => {
                 )}
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {scheduleTarget && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => !scheduling && setScheduleTarget(null)}>
-          <form onSubmit={scheduleMoveIn} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4" onClick={e => e.stopPropagation()}>
+        <Modal title="Send move-in date" onClose={() => setScheduleTarget(null)} busy={scheduling} as="form" overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" onSubmit={scheduleMoveIn} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
             <div><h3 className="m-0 text-lg font-bold text-slate-800">Send move-in date</h3><p className="mt-1 text-sm text-slate-500">Payment is confirmed. Tell {scheduleTarget.name} when they can move in.</p></div>
             <label className="block text-sm font-semibold text-slate-700">Move-in date<input required type="date" min={new Date().toISOString().slice(0, 10)} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" /></label>
             <label className="block text-sm font-semibold text-slate-700">Message (optional)<textarea value={scheduleMessage} onChange={e => setScheduleMessage(e.target.value)} rows="3" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Arrival instructions, office hours, etc." /></label>
             <label className="block text-sm font-semibold text-slate-700">Attachment (optional)<input type="file" accept="image/jpeg,image/png,application/pdf" onChange={e => setScheduleAttachment(e.target.files?.[0] || null)} className="mt-1 block w-full text-xs" /></label>
             <div className="flex justify-end gap-3"><button type="button" onClick={() => setScheduleTarget(null)} disabled={scheduling} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold">Cancel</button><button type="submit" disabled={scheduling} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{scheduling ? 'Sending…' : 'Send notice'}</button></div>
-          </form>
-        </div>
+          </Modal>
       )}
 
 
       {preview && (
-        <div onClick={() => setPreview(null)} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in">
-          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-scale-in">
+        <Modal title={`${preview.title}`} onClose={() => setPreview(null)} overlayClassName="flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in" className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-scale-in">
             <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
               <h3 className="text-lg font-bold text-slate-800 m-0">{preview.title}</h3>
-              <button onClick={() => setPreview(null)} className="text-slate-500 hover:text-slate-600 bg-white hover:bg-slate-100 rounded-lg p-2 transition-colors border border-slate-200 cursor-pointer flex items-center justify-center">
+              <button aria-label="Close" onClick={() => setPreview(null)} className="text-slate-500 hover:text-slate-600 bg-white hover:bg-slate-100 rounded-lg p-2 transition-colors border border-slate-200 cursor-pointer flex items-center justify-center">
                 <FontAwesomeIcon icon={faTimes} className="text-lg" />
               </button>
             </div>
@@ -1129,8 +1123,7 @@ const AdminApplications = () => {
                 <iframe src={preview.url} className="w-full h-[75vh] rounded-lg shadow-sm border-0 bg-white" title="Document Preview" />
               )}
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

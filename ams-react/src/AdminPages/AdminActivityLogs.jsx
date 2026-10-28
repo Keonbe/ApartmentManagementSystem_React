@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { LIMITS } from '../utils/validation';
 import { clickable } from '../utils/clickable';
+import Modal from '../Components/admin/Modal';
 
 // Icon and colour per category. Keys match LOG_CATEGORIES in backend/config.php;
 // labels come from the server so the two can't drift apart.
@@ -332,8 +333,7 @@ export default function AdminActivityLogs() {
       </main>
 
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setSelectedLog(null)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200" onClick={(e) => e.stopPropagation()}>
+        <Modal title={`Log details ${selectedLog.id ?? ""}`.trim()} onClose={() => setSelectedLog(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
@@ -386,8 +386,7 @@ export default function AdminActivityLogs() {
                 Close Details
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

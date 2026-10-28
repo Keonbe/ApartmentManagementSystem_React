@@ -8,7 +8,8 @@ import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from './form/FieldError';
 import CharCount from './form/CharCount';
-import { blockNonNumericKeys, invalidCls } from './form/formHelpers';
+import { blockNonNumericKeys, invalidCls } from './form/formHelpers';
+import Modal from './admin/Modal';
 
 // Building expenses entered by an admin (manage_expenses.php). The report adds
 // these to the maintenance costs it already derives, so repairs don't go here.
@@ -111,8 +112,7 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
   const inputCls = 'focus-glow w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
   return (
-    <div onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 print:hidden modal-overlay-anim">
-      <div onClick={(e) => e.stopPropagation()} className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden text-left">
+    <Modal title="Building Expenses" onClose={onClose} overlayClassName="bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print:hidden" className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden text-left">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h3 className="text-lg font-bold m-0 text-slate-800">Building Expenses</h3>
@@ -217,7 +217,6 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
             </table>
           )}
         </div>
-      </div>
-    </div>
+      </Modal>
   );
 }

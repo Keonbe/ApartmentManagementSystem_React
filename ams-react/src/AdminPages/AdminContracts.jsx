@@ -24,6 +24,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import ReasonModal from '../Components/form/ReasonModal';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+import Modal from '../Components/admin/Modal';
 
 const MAX_LEASE_MONTHS = 24;
 const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500';
@@ -683,14 +684,13 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
       {/* Create Contract Modal — Multi-Step */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <Modal busy={generating} title="Create New Contract" onClose={() => setShowCreateModal(false)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-bold text-slate-800 m-0">Create New Contract</h2>
                 <p className="text-xs text-slate-500 m-0 mt-0.5">Step {createStep} of 3</p>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+              <button aria-label="Close" onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
             </div>
 
             {/* Step indicators */}
@@ -813,8 +813,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 </button>
               )}
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {terminateTarget && (
@@ -830,8 +829,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
       {/* Preview Modal — Enhanced with Official Contract Document & File Tracking */}
       {showPreviewModal && selectedContract && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowPreviewModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <Modal title={`Contract ${selectedContract.id}, ${selectedContract.tenant}`} onClose={() => setShowPreviewModal(false)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden max-h-[92vh] flex flex-col">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-3 shrink-0">
               <div className="flex items-center gap-2.5">
@@ -896,7 +894,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </div>
                 )}
 
-                <button onClick={() => setShowPreviewModal(false)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
+                <button aria-label="Close" onClick={() => setShowPreviewModal(false)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
                   <FontAwesomeIcon icon={faTimes} className="text-lg" />
                 </button>
               </div>
@@ -1241,8 +1239,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

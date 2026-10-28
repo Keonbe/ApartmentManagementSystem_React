@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axiosConfig';
 import { apiErrorMessage } from '../../utils/apiError';
+import Modal from '../../Components/admin/Modal';
 
 const EMPTY = { name: '', unit_label: '', billing_mode: 'flat', default_rate: '', is_active: 1 };
 
@@ -86,8 +87,7 @@ export default function UtilityTypesPanel() {
         </table>
       </div>
       {editing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setEditing(null); }}>
-          <form onSubmit={save} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+        <Modal title={editing.id ? 'Edit utility' : 'Add utility'} onClose={() => setEditing(null)} busy={saving} as="form" onSubmit={save} overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
             <h3 className="m-0 text-lg font-extrabold text-slate-800">{editing.id ? 'Edit utility' : 'Add utility'}</h3>
             <label className="block text-sm font-semibold text-slate-700">Name
               <input required maxLength={60} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
@@ -110,8 +110,7 @@ export default function UtilityTypesPanel() {
               <button type="button" disabled={saving} onClick={() => setEditing(null)} className="cursor-pointer rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
               <button type="submit" disabled={saving} className="cursor-pointer rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
             </div>
-          </form>
-        </div>
+        </Modal>
       )}
     </section>
   );

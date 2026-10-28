@@ -30,6 +30,7 @@ const draftInvoiceId = (year, month) =>
 import ExpensesModal from '../Components/ExpensesModal';
 import { expenseCategoryLabel } from '../config/expenseCategories';
 import { fetchContractTemplate, pick } from '../Components/contract/contractTemplate';
+import Modal from '../Components/admin/Modal';
 
 const monthsList = [
   { value: 1, label: 'January' },
@@ -2301,8 +2302,7 @@ const AdminReports = () => {
       )}
 
       {showInvoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print:static print:p-0 print:bg-transparent print:block print:overflow-visible" onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }}>
-          <div className={`bg-white rounded-2xl shadow-2xl w-full ${showInvoicePreview ? 'max-w-3xl' : 'max-w-xl'} mx-auto overflow-hidden transition-all duration-200 print:shadow-none print:border-none print:max-w-none print:w-full`} onClick={e => e.stopPropagation()}>
+        <Modal title={`${showInvoicePreview ? 'Official Rental Invoice Preview' : (invoiceMode === 'adjust' ? 'Adjust Existing Invoice' : 'Generate Tenant Invoice')}`} onClose={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print:static print:p-0 print:bg-transparent print:block print:overflow-visible" className={`bg-white rounded-2xl shadow-2xl w-full ${showInvoicePreview ? 'max-w-3xl' : 'max-w-xl'} mx-auto overflow-hidden transition-all duration-200 print:shadow-none print:border-none print:max-w-none print:w-full`}>
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center print:hidden">
@@ -2319,7 +2319,7 @@ const AdminReports = () => {
                   </p>
                 </div>
               </div>
-              <button 
+              <button aria-label="Close" 
                 onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }} 
                 className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-slate-200/50 transition-colors"
               >
@@ -2779,8 +2779,7 @@ const AdminReports = () => {
                 </div>
               </div>
             )}
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

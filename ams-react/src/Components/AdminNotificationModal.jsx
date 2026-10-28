@@ -13,6 +13,7 @@ import {
   formatRelativeTime
 } from '../config/notificationLinks';
 import DocumentPreviewModal from './DocumentPreviewModal';
+import Modal from './admin/Modal';
 
 const TYPE_CONFIG = {
   occupancy_request: { label: 'Occupancy Request', icon: faUsers, color: 'bg-purple-100 text-purple-600', badge: 'bg-purple-100 text-purple-700' },
@@ -86,14 +87,7 @@ export default function AdminNotificationModal({
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in select-none"
-        onClick={handleIgnore}
-      >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[88vh] overflow-hidden animate-scale-in text-left border border-slate-100 relative"
-        >
+      <Modal title={`${notification.title}`} onClose={handleIgnore} overlayClassName="flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in select-none" className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[88vh] overflow-hidden animate-scale-in text-left border border-slate-100 relative">
           {/* Header */}
           <div className="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between gap-3 bg-slate-50/70">
             <div className="flex items-start gap-3 min-w-0">
@@ -230,8 +224,7 @@ export default function AdminNotificationModal({
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </Modal>
 
       {/* Full preview modal if user clicks attachment */}
       {previewAttachment && fullAttachmentUrl && (

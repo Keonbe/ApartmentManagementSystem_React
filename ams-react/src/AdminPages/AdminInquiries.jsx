@@ -22,6 +22,7 @@ const MAX_HOLD_DAYS = 90;
 const EMPTY_LOG = { full_name: '', contact_no: '', email: '', room_name: '', message: '', source: 'walk-in' };
 import { getSystemSettings } from '../config/systemSettings';
 import WaitlistPanel from '../Components/WaitlistPanel';
+import Modal from '../Components/admin/Modal';
 
 const INQUIRY_TABS = ['all', 'new', 'contacted', 'scheduled', 'reserved', 'converted', 'closed'];
 const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
@@ -654,8 +655,7 @@ export default function AdminInquiries() {
 
       {/* ─── INQUIRY DETAIL MODAL ─── */}
       {showDetail && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowDetail(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <Modal title={`${selected.fullName}`} onClose={() => setShowDetail(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
             <div className="px-6 py-5 flex items-center justify-between shrink-0 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
               <div>
@@ -668,7 +668,7 @@ export default function AdminInquiries() {
                   </span>
                 </div>
               </div>
-              <button onClick={() => setShowDetail(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer transition-colors">
+              <button aria-label="Close" onClick={() => setShowDetail(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer transition-colors">
                 <FontAwesomeIcon icon={faTimes} className="text-lg" />
               </button>
             </div>
@@ -852,14 +852,12 @@ export default function AdminInquiries() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* ─── RESERVE UNIT MODAL ─── */}
       {showReserveModal && selected && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowReserveModal(false)}>
-          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={submitReservation} noValidate>
+        <Modal busy={!!busy} title="Reserve a Unit" onClose={() => setShowReserveModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onSubmit={submitReservation} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-violet-600 to-violet-800">
               <h3 className="text-lg font-bold m-0">Reserve a Unit</h3>
               <button type="button" aria-label="Close" onClick={() => setShowReserveModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
@@ -961,14 +959,12 @@ export default function AdminInquiries() {
                 {busy === 'reserve' ? 'Placing hold…' : 'Place Hold'}
               </button>
             </div>
-          </form>
-        </div>
+          </Modal>
       )}
 
       {/* ─── LOG WALK-IN / PHONE INQUIRY MODAL ─── */}
       {showLogModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowLogModal(false)}>
-          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={submitLoggedInquiry} noValidate>
+        <Modal busy={!!busy} title="Log an Inquiry" onClose={() => setShowLogModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onSubmit={submitLoggedInquiry} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
               <h3 className="text-lg font-bold m-0">Log an Inquiry</h3>
               <button type="button" aria-label="Close" onClick={() => setShowLogModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
@@ -1080,8 +1076,7 @@ export default function AdminInquiries() {
                 {busy === 'log' ? 'Saving…' : 'Save Inquiry'}
               </button>
             </div>
-          </form>
-        </div>
+          </Modal>
       )}
 
       {reasonFor && (

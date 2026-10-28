@@ -40,6 +40,7 @@ const DENY_REASON_OPTIONS = [
 ];
 import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
+import Modal from '../Components/admin/Modal';
 
 // Preset checkout notes; "Other" lets the desk type a short one instead. The
 // chosen text is stored as-is in visitor_logs.checkout_notes.
@@ -723,8 +724,7 @@ export default function AdminVisitors() {
 
       {/* Check-In / Register Visitor Modal */}
       {showCheckInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowCheckInModal(false)}>
-          <div className="admin-visitors-modal modal-card-anim w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <Modal busy={submitting} title="Log Visitor Check-In" onClose={() => setShowCheckInModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 text-base">
@@ -732,7 +732,7 @@ export default function AdminVisitors() {
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 m-0">Log Visitor Check-In</h3>
               </div>
-              <button
+              <button aria-label="Close"
                 type="button"
                 onClick={() => setShowCheckInModal(false)}
                 className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-lg"
@@ -963,17 +963,15 @@ export default function AdminVisitors() {
               </div>
 
             </form>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* Check Out Modal */}
       {showCheckoutModal && selectedVisitorForCheckout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowCheckoutModal(false)}>
-          <div className="admin-visitors-modal modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <Modal busy={submitting} title="Confirm Visitor Checkout" onClose={() => setShowCheckoutModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h3 className="text-lg font-bold text-slate-800 m-0">Confirm Visitor Checkout</h3>
-              <button
+              <button aria-label="Close"
                 type="button"
                 onClick={() => setShowCheckoutModal(false)}
                 className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
@@ -1046,20 +1044,18 @@ export default function AdminVisitors() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* Configurable Overstay Threshold Modal */}
       {showThresholdModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowThresholdModal(false)}>
-          <div className="admin-visitors-modal modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <Modal busy={submitting} title="Set Overstay Threshold" onClose={() => setShowThresholdModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faSlidersH} className="text-indigo-600" />
                 <h3 className="text-lg font-bold text-slate-800 m-0">Set Overstay Threshold</h3>
               </div>
-              <button
+              <button aria-label="Close"
                 type="button"
                 onClick={() => setShowThresholdModal(false)}
                 className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
@@ -1135,8 +1131,7 @@ export default function AdminVisitors() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {denyTarget && (

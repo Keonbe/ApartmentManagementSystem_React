@@ -6,6 +6,7 @@ import { apiErrorMessage } from '../../utils/apiError';
 import { checkText } from '../../utils/validation';
 import useFieldErrors from '../../hooks/useFieldErrors';
 import FieldError from '../../Components/form/FieldError';
+import Modal from '../../Components/admin/Modal';
 
 // Mirrors manage_application_requirements.php.
 const REQUIREMENT_LIMITS = { labelMin: 2, labelMax: 60, maxActive: 12 };
@@ -172,8 +173,7 @@ export default function RequirementsPanel() {
       <p className="m-0 text-xs text-slate-500">Deactivating removes a document from the form and from the approval check; files applicants already uploaded for it are kept and stay visible on their application.</p>
 
       {editing && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setEditing(null); }}>
-          <form onSubmit={save} noValidate className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+        <Modal title={editing.id ? 'Edit requirement' : 'Add requirement'} onClose={() => setEditing(null)} busy={busy} as="form" onSubmit={save} noValidate overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
             <h3 className="m-0 text-lg font-extrabold text-slate-800">{editing.id ? 'Edit requirement' : 'Add requirement'}</h3>
             <div>
               <label htmlFor="req-label" className="block text-sm font-semibold text-slate-700">Document name</label>
@@ -208,8 +208,7 @@ export default function RequirementsPanel() {
               <button type="button" disabled={busy} onClick={() => setEditing(null)} className="cursor-pointer rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
               <button type="submit" disabled={busy} className="cursor-pointer rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-60">{busy ? 'Saving…' : 'Save'}</button>
             </div>
-          </form>
-        </div>
+        </Modal>
       )}
     </section>
   );

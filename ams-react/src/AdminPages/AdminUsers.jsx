@@ -16,6 +16,7 @@ import FieldError from '../Components/form/FieldError';
 import PasswordField from '../Components/form/PasswordField';
 import PasswordChecklist from '../Components/form/PasswordChecklist';
 import { invalidCls } from '../Components/form/formHelpers';
+import Modal from '../Components/admin/Modal';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
@@ -403,11 +404,10 @@ const AdminUsers = () => {
 
       {/* Edit Modal */}
       {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setEditUser(null)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <Modal busy={saving} title={`Edit User — ${editUser.first_name} ${editUser.last_name}`} onClose={() => setEditUser(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
-              <button onClick={() => setEditUser(null)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
+              <button aria-label="Close" onClick={() => setEditUser(null)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
@@ -467,14 +467,12 @@ const AdminUsers = () => {
               </button>
             </div>
             </form>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* Reset Password Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={closeReset}>
-          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={handleResetPassword} noValidate>
+        <Modal busy={saving} title="Reset Password" onClose={closeReset} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onSubmit={handleResetPassword} noValidate>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faKey} className="text-amber-700" /> Reset Password
@@ -506,14 +504,12 @@ const AdminUsers = () => {
                 {saving ? 'Saving...' : 'Reset Password'}
               </button>
             </div>
-          </form>
-        </div>
+          </Modal>
       )}
 
       {/* Archive Confirm Modal */}
       {archiveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setArchiveTarget(null)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <Modal busy={saving} title="Archive User" onClose={() => setArchiveTarget(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200">
               <h3 className="text-base font-bold text-amber-700 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faExclamationTriangle} /> Archive User
@@ -532,8 +528,7 @@ const AdminUsers = () => {
                 {saving ? 'Archiving...' : 'Archive User'}
               </button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
     </div>
   );

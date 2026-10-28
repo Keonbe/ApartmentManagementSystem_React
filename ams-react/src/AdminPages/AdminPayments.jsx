@@ -21,6 +21,7 @@ import { daysPastDue, formatCoveredPeriod, isBundleKey, isPastDue } from '../uti
 import { printElement } from '../utils/print';
 import { clickable } from '../utils/clickable';
 import StatCard from '../Components/admin/StatCard';
+import Modal from '../Components/admin/Modal';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -1752,8 +1753,7 @@ const handleMarkAsPaid = async () => {
 
       {/* Adjust Invoice Modal — adjust_invoice.php */}
       {adjustForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => !adjusting && setAdjustForm(null)}>
-          <form className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={submitAdjust} noValidate>
+        <Modal title="Adjust Invoice" onClose={() => setAdjustForm(null)} busy={adjusting} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onSubmit={submitAdjust} noValidate>
             <div className="p-6">
               <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">Adjust Invoice</h3>
               <p className="text-xs text-slate-500 m-0 mb-4"><span className="font-mono">{adjustForm.invoiceId}</span> · {adjustForm.period}. The change is logged and the tenant is notified of the new total.</p>
@@ -1801,14 +1801,12 @@ const handleMarkAsPaid = async () => {
                 <button type="button" disabled={adjusting} onClick={() => setAdjustForm(null)} className="flex-1 disabled:opacity-50 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
               </div>
             </div>
-          </form>
-        </div>
+          </Modal>
       )}
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => !recording && setShowConfirmModal(false)}>
-          <div className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <Modal title="Confirm Payment" onClose={() => setShowConfirmModal(false)} busy={recording} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
             <div className="p-6">
               <h3 className="text-lg font-bold text-slate-800 mb-2 mt-0">Confirm Payment</h3>
               <p className="text-sm text-slate-600 mb-4">Are you sure you want to process this payment? This action will generate an official receipt record row.</p>
@@ -1834,14 +1832,12 @@ const handleMarkAsPaid = async () => {
                 <button type="button" disabled={recording} onClick={() => setShowConfirmModal(false)} className="flex-1 disabled:opacity-50 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
               </div>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* Receipt Modal */}
       {showReceipt && receiptData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowReceipt(false)}>
-          <div ref={receiptRef} className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt" onClick={e => e.stopPropagation()}>
+        <Modal title="Official receipt" onClose={() => setShowReceipt(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm" cardRef={receiptRef} className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt">
             <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
               <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
               <div className="mt-4 pt-4 border-t border-slate-700/50 print:border-slate-300">
@@ -1887,14 +1883,12 @@ const handleMarkAsPaid = async () => {
               <button onClick={() => printElement(receiptRef.current)} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
               <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors">Close</button>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {/* Proof of Payment Preview Modal */}
       {previewProof && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setPreviewProof(null)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <Modal title={`${previewProof.title || 'Uploaded Proof of Payment'}`} onClose={() => setPreviewProof(null)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 m-0">{previewProof.title || 'Uploaded Proof of Payment'}</h3>
@@ -1914,7 +1908,7 @@ const handleMarkAsPaid = async () => {
                 >
                   <FontAwesomeIcon icon={faExternalLinkAlt} /> Open in New Tab
                 </a>
-                <button
+                <button aria-label="Close"
                   onClick={() => setPreviewProof(null)}
                   className="text-slate-500 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
                 >
@@ -1942,8 +1936,7 @@ const handleMarkAsPaid = async () => {
                 <p className="text-xs mt-1">Please use the "Open in New Tab" link above to view or download.</p>
               </div>
             </div>
-          </div>
-        </div>
+          </Modal>
       )}
 
       {rejectModal && (

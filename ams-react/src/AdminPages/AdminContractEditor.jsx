@@ -580,7 +580,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               className="bg-transparent border-0 outline-none text-xs w-full text-slate-700"
             />
             {clauseSearch && (
-              <button type="button" onClick={() => setClauseSearch('')} className="bg-transparent border-0 text-slate-500 hover:text-slate-600 cursor-pointer p-0 text-xs">
+              <button aria-label="Clear search" type="button" onClick={() => setClauseSearch('')} className="bg-transparent border-0 text-slate-500 hover:text-slate-600 cursor-pointer p-0 text-xs">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             )}
@@ -594,7 +594,7 @@ const AdminContractEditor = ({ embedded = false }) => {
           <div key={section.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all">
             <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                <button
+                <button aria-label={isCollapsed ? 'Expand section' : 'Collapse section'} aria-expanded={!isCollapsed}
                   type="button"
                   onClick={() => toggleSectionCollapse(section.id)}
                   className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-0 text-xs"
@@ -611,13 +611,13 @@ const AdminContractEditor = ({ embedded = false }) => {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <button type="button" className={SMALL_BTN} disabled={si === 0} onClick={() => update((d) => move(d.terms.sections, si, si - 1))}>
+                <button aria-label="Move section up" type="button" className={SMALL_BTN} disabled={si === 0} onClick={() => update((d) => move(d.terms.sections, si, si - 1))}>
                   <FontAwesomeIcon icon={faArrowUp} className="text-[10px]" />
                 </button>
-                <button type="button" className={SMALL_BTN} disabled={si === draft.terms.sections.length - 1} onClick={() => update((d) => move(d.terms.sections, si, si + 1))}>
+                <button aria-label="Move section down" type="button" className={SMALL_BTN} disabled={si === draft.terms.sections.length - 1} onClick={() => update((d) => move(d.terms.sections, si, si + 1))}>
                   <FontAwesomeIcon icon={faArrowDown} className="text-[10px]" />
                 </button>
-                <button
+                <button aria-label="Delete section"
                   type="button"
                   className={DANGER_BTN}
                   onClick={() => {
@@ -649,13 +649,13 @@ const AdminContractEditor = ({ embedded = false }) => {
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-600">Clause #{ci + 1}</span>
                         <div className="flex items-center gap-1">
-                          <button type="button" className={SMALL_BTN} disabled={ci === 0} onClick={() => update((d) => move(d.terms.sections[si].clauses, ci, ci - 1))}>
+                          <button aria-label="Move clause up" type="button" className={SMALL_BTN} disabled={ci === 0} onClick={() => update((d) => move(d.terms.sections[si].clauses, ci, ci - 1))}>
                             <FontAwesomeIcon icon={faArrowUp} className="text-[10px]" />
                           </button>
-                          <button type="button" className={SMALL_BTN} disabled={ci === section.clauses.length - 1} onClick={() => update((d) => move(d.terms.sections[si].clauses, ci, ci + 1))}>
+                          <button aria-label="Move clause down" type="button" className={SMALL_BTN} disabled={ci === section.clauses.length - 1} onClick={() => update((d) => move(d.terms.sections[si].clauses, ci, ci + 1))}>
                             <FontAwesomeIcon icon={faArrowDown} className="text-[10px]" />
                           </button>
-                          <button
+                          <button aria-label="Delete clause"
                             type="button"
                             className={DANGER_BTN}
                             onClick={() => {
@@ -762,13 +762,13 @@ const AdminContractEditor = ({ embedded = false }) => {
                   <span className="text-xs font-bold text-slate-700">{a.label || `Account #${i + 1}`}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button type="button" className={SMALL_BTN} disabled={i === 0} onClick={() => update((d) => move(d.payment_accounts, i, i - 1))}>
+                  <button aria-label="Move account up" type="button" className={SMALL_BTN} disabled={i === 0} onClick={() => update((d) => move(d.payment_accounts, i, i - 1))}>
                     <FontAwesomeIcon icon={faArrowUp} className="text-[10px]" />
                   </button>
-                  <button type="button" className={SMALL_BTN} disabled={i === draft.payment_accounts.length - 1} onClick={() => update((d) => move(d.payment_accounts, i, i + 1))}>
+                  <button aria-label="Move account down" type="button" className={SMALL_BTN} disabled={i === draft.payment_accounts.length - 1} onClick={() => update((d) => move(d.payment_accounts, i, i + 1))}>
                     <FontAwesomeIcon icon={faArrowDown} className="text-[10px]" />
                   </button>
-                  <button
+                  <button aria-label="Delete account"
                     type="button"
                     className={DANGER_BTN}
                     onClick={() => {
@@ -1203,7 +1203,7 @@ const AdminContractEditor = ({ embedded = false }) => {
             <h4 className="text-xs font-bold text-slate-800 m-0">{toast.title}</h4>
             <p className="text-xs text-slate-500 mt-0.5 m-0 leading-relaxed">{toast.message}</p>
           </div>
-          <button type="button" onClick={() => setToast(null)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
+          <button aria-label="Dismiss" type="button" onClick={() => setToast(null)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
