@@ -470,8 +470,8 @@ const AdminAnnouncements = () => {
                 {announcements.map(item => (
                   <div key={item.id} className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-all hover:border-indigo-400">
                     <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold ${item.tagStyle}`}>{item.tag}</span>
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${statusConfig[item.status].color}`}>{statusConfig[item.status].label}</span>
+                      <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-semibold ${item.tagStyle}`}>{item.tag}</span>
+                      <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold ${statusConfig[item.status].color}`}>{statusConfig[item.status].label}</span>
                       <span className="text-sm font-semibold text-slate-800">{item.title}</span>
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed m-0 mb-3">{item.body}</p>
@@ -487,7 +487,7 @@ const AdminAnnouncements = () => {
                         {form.draftId === item.id ? 'Open in composer' : 'Open draft'}
                       </button>
                     )}
-                    <div className="flex items-center flex-wrap gap-3 text-[10px] text-slate-500">
+                    <div className="flex items-center flex-wrap gap-3 text-[11px] text-slate-500">
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faCalendarAlt} /> {item.date}</span>
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faUsers} /> {item.send_to} · {item.recipients} recipients</span>
                       <div className="flex items-center gap-1">

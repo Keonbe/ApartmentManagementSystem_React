@@ -240,7 +240,7 @@ export default function AdminCctv() {
                           </td>
 
                           <td className="px-4 py-4 text-center">
-                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
                               req.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
                               req.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' :
                               'bg-red-100 text-red-700'

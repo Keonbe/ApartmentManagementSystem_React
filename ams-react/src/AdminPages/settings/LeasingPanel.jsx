@@ -93,7 +93,7 @@ export default function LeasingPanel({ settings, updateSetting }) {
 
       <Callout tone="violet" icon={faFileSignature} title="Rent contract details moved">
         The owner's name, address and contact number, the payment accounts and every clause of the contract
-        are now edited in <Link to="/admin-contract-editor" className="font-bold text-violet-700 underline">Edit Contract</Link>.
+        are now edited in <Link to="/admin-contracts?tab=editor" className="font-bold text-violet-700 underline">Contracts → Contract Template Editor</Link>.
       </Callout>
     </>
   );

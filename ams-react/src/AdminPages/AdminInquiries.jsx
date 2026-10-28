@@ -573,11 +573,11 @@ export default function AdminInquiries() {
                             </td>
                             <td className="px-4 py-4 text-xs text-slate-600">{fmtDate(inq.preferredMoveIn)}</td>
                             <td className="px-4 py-4">
-                              <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600 capitalize">{inq.source}</span>
+                              <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 capitalize">{inq.source}</span>
                             </td>
                             <td className="px-4 py-4 text-xs text-slate-500">{fmtDate(inq.createdAt)}</td>
                             <td className="px-4 py-4 text-center">
-                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${inquiryBadge(inq.status)}`}>
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${inquiryBadge(inq.status)}`}>
                                 {inq.status}
                               </span>
                             </td>
@@ -651,7 +651,7 @@ export default function AdminInquiries() {
                               {Number(res.reservationFee) > 0 ? `₱${Number(res.reservationFee).toLocaleString()}` : '—'}
                             </td>
                             <td className="px-4 py-4 text-center">
-                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${reservationBadge(res.status)}`}>
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${reservationBadge(res.status)}`}>
                                 {res.status}
                               </span>
                             </td>
@@ -726,26 +726,26 @@ export default function AdminInquiries() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
                   <p className="text-sm font-semibold text-slate-800 m-0 break-all">{selected.email}</p>
                 </div>
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selected.contactNo}</p>
                 </div>
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{fmtDate(selected.preferredMoveIn)}</p>
                 </div>
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1" /> Occupants</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1" /> Occupants</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selected.occupants || '—'}</p>
                 </div>
               </div>
 
               {selected.message && (
                 <div className="bg-white rounded-xl p-4 border border-slate-200">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 m-0"><FontAwesomeIcon icon={faComment} className="mr-1" /> Message</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 m-0"><FontAwesomeIcon icon={faComment} className="mr-1" /> Message</p>
                   <p className="text-sm text-slate-700 m-0 whitespace-pre-wrap">{selected.message}</p>
                 </div>
               )}
@@ -757,7 +757,7 @@ export default function AdminInquiries() {
               )}
 
               <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3">
-                <label htmlFor="inquiry-detail-admin_notes" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Notes</label>
+                <label htmlFor="inquiry-detail-admin_notes" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Admin Notes</label>
                 <textarea
                   rows="3"
                   {...detailErrors.fieldA11y('admin_notes')}
@@ -771,7 +771,7 @@ export default function AdminInquiries() {
                 <FieldError id="inquiry-detail-admin_notes" error={detailErrors.errors.admin_notes} />
                 <CharCount value={notes} max={LIMITS.notes} />
 
-                <label htmlFor="inquiry-detail-viewing_date" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Viewing Schedule</label>
+                <label htmlFor="inquiry-detail-viewing_date" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Viewing Schedule</label>
                 <input
                   type="datetime-local"
                   {...detailErrors.fieldA11y('viewing_date')}
@@ -841,7 +841,7 @@ export default function AdminInquiries() {
 
               {!['Converted', 'Closed'].includes(selected.status) && (
                 <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                     <FontAwesomeIcon icon={faListOl} className="mr-1" /> Waitlist for an occupied unit
                   </label>
                   <div className="flex gap-2">
@@ -923,7 +923,7 @@ export default function AdminInquiries() {
               </p>
 
               <div>
-                <label htmlFor="reserve-room_name" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit (vacant only)</label>
+                <label htmlFor="reserve-room_name" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit (vacant only)</label>
                 <select
                   {...reserveErrors.fieldA11y('room_name')}
                   value={resRoom}
@@ -943,7 +943,7 @@ export default function AdminInquiries() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="reserve-hold_days" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
+                  <label htmlFor="reserve-hold_days" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
                   {/* Kept as typed: Number('') used to turn an empty field into 0. */}
                   <input
                     type="number"
@@ -961,7 +961,7 @@ export default function AdminInquiries() {
                   <FieldError id="reserve-hold_days" error={reserveErrors.errors.hold_days} />
                 </div>
                 <div>
-                  <label htmlFor="reserve-reservation_fee" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Reservation Fee (₱)</label>
+                  <label htmlFor="reserve-reservation_fee" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Reservation Fee (₱)</label>
                   <input
                     type="number"
                     {...reserveErrors.fieldA11y('reservation_fee')}
@@ -981,7 +981,7 @@ export default function AdminInquiries() {
               </div>
 
               <div>
-                <label htmlFor="reserve-notes" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Notes</label>
+                <label htmlFor="reserve-notes" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Notes</label>
                 <textarea
                   rows="2"
                   {...reserveErrors.fieldA11y('notes')}
@@ -1029,7 +1029,7 @@ export default function AdminInquiries() {
               <p className="text-sm text-slate-600 m-0">Record an inquiry that came in by phone or at the office.</p>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Source</label>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Source</label>
                 <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
                   {['walk-in', 'phone'].map(s => (
                     <button
@@ -1052,7 +1052,7 @@ export default function AdminInquiries() {
                 { key: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. juan@email.com', max: LIMITS.email },
               ].map(field => (
                 <div key={field.key}>
-                  <label htmlFor={`log-${field.key}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">{field.label}</label>
+                  <label htmlFor={`log-${field.key}`} className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">{field.label}</label>
                   {field.type === 'tel' ? (
                     <PhoneInput
                       id="log-contact_no"
@@ -1084,7 +1084,7 @@ export default function AdminInquiries() {
               ))}
 
               <div>
-                <label htmlFor="log-room_name" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit of Interest</label>
+                <label htmlFor="log-room_name" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit of Interest</label>
                 <select
                   {...logErrors.fieldA11y('room_name')}
                   value={logForm.room_name}
@@ -1100,7 +1100,7 @@ export default function AdminInquiries() {
               </div>
 
               <div>
-                <label htmlFor="log-message" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">What did they ask?</label>
+                <label htmlFor="log-message" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">What did they ask?</label>
                 <textarea
                   rows="3"
                   {...logErrors.fieldA11y('message')}

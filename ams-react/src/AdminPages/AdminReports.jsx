@@ -705,7 +705,7 @@ const AdminReports = () => {
 
               {/* Summary Stats Line */}
               <div className="flex items-center justify-end border-t border-slate-100 pt-3">
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[11px] text-slate-500">
                   Gross: {formatCurrency(data.payments.totalCollected)} • {data.payments.records.length} paid invoices • {data.unitIncome?.length || 0} revenue-generating units
                 </span>
               </div>
@@ -753,11 +753,11 @@ const AdminReports = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faDollarSign} /></div>
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Gross Revenue</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Gross Revenue</p>
                         <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(data.payments.totalCollected)}</p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 flex items-center gap-1 w-fit">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 flex items-center gap-1 w-fit">
                       Net Income: {formatCurrency(data.payments.netIncome)}
                     </span>
                   </div>
@@ -766,11 +766,11 @@ const AdminReports = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupancy Rate</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupancy Rate</p>
                         <p className="text-lg font-bold text-slate-800 m-0">{data.occupancy.occupancyRate}%</p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 flex items-center gap-1 w-fit">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 flex items-center gap-1 w-fit">
                       {data.occupancy.occupiedUnits} / {data.occupancy.totalUnits} Units Renting
                     </span>
                   </div>
@@ -779,11 +779,11 @@ const AdminReports = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center"><FontAwesomeIcon icon={faWrench} /></div>
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active Maintenance</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active Maintenance</p>
                         <p className="text-lg font-bold text-slate-800 m-0">{data.maintenance.pending + data.maintenance.inProgress}</p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 flex items-center gap-1 w-fit">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 flex items-center gap-1 w-fit">
                       {data.maintenance.completed} Completed Tickets
                     </span>
                   </div>
@@ -792,11 +792,11 @@ const AdminReports = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center"><FontAwesomeIcon icon={faSquareParking} /></div>
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Reservations Value</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Reservations Value</p>
                         <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(data.reservations.parkingRevenue)}</p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 flex items-center gap-1 w-fit">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 flex items-center gap-1 w-fit">
                       {data.reservations.parkingCount} Vehicles Registered
                     </span>
                   </div>
@@ -807,10 +807,10 @@ const AdminReports = () => {
               {activeModule === 'income' && (
                 <>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Gross Revenue Collected</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Gross Revenue Collected</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{formatCurrency(data.incomeStatement.grossRevenue)}</p>
                     <div className="mt-2 flex items-center gap-1.5">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${data.incomeStatement.revenueGrowthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${data.incomeStatement.revenueGrowthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                         <FontAwesomeIcon icon={data.incomeStatement.revenueGrowthPct >= 0 ? faArrowUp : faArrowDown} />
                         {Math.abs(data.incomeStatement.revenueGrowthPct)}% vs prior period
                       </span>
@@ -818,25 +818,25 @@ const AdminReports = () => {
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Net Operating Income (NOI)</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Net Operating Income (NOI)</p>
                     <p className="text-xl font-bold text-emerald-700 m-0 mt-1">{formatCurrency(data.incomeStatement.netOperatingIncome)}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">
+                    <span className="text-[11px] text-slate-500 mt-2 block">
                       Operating Margin: <strong>{data.incomeStatement.netMarginPct}%</strong>
                     </span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Operating Deductions</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Operating Deductions</p>
                     <p className="text-xl font-bold text-red-600 m-0 mt-1">{formatCurrency(data.incomeStatement.operatingExpenses)}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">
+                    <span className="text-[11px] text-slate-500 mt-2 block">
                       Maint: {formatCurrency(data.incomeStatement.maintenanceExpenses)} • Other: {formatCurrency(data.incomeStatement.otherExpenses)} • Ops: {formatCurrency(data.incomeStatement.operatingOverhead)}
                     </span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Collection Efficiency</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Collection Efficiency</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.incomeStatement.collectionEfficiency}%</p>
-                    <span className="text-[9px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
+                    <span className="text-[11px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
                       Outstanding: {formatCurrency(data.incomeStatement.totalOutstanding)}
                     </span>
                   </div>
@@ -847,27 +847,27 @@ const AdminReports = () => {
               {activeModule === 'streams' && (
                 <>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Core Base Rent Share</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Core Base Rent Share</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.diversification.coreRentPct}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.rentCollected)} from unit rentals</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">{formatCurrency(data.payments.rentCollected)} from unit rentals</span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Utility Recovery Share</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Utility Recovery Share</p>
                     <p className="text-xl font-bold text-amber-700 m-0 mt-1">{data.diversification.utilitiesPct}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.waterCollected + data.payments.electricCollected)} electricity & water</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">{formatCurrency(data.payments.waterCollected + data.payments.electricCollected)} electricity & water</span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Ancillary & Parking Share</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Ancillary & Parking Share</p>
                     <p className="text-xl font-bold text-pink-600 m-0 mt-1">{data.diversification.ancillaryPct}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.parkingCollected + data.payments.servicesCollected + data.payments.lateFeesCollected)} parking, services & late fees</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">{formatCurrency(data.payments.parkingCollected + data.payments.servicesCollected + data.payments.lateFeesCollected)} parking, services & late fees</span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active Streams Count</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active Streams Count</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.revenueStreams.filter(s => s.amount > 0).length} Categories</p>
-                    <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">100% Diversified Tracking</span>
+                    <span className="text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">100% Diversified Tracking</span>
                   </div>
                 </>
               )}
@@ -876,29 +876,29 @@ const AdminReports = () => {
               {activeModule === 'occupancy' && (
                 <>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupancy Rate</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupancy Rate</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.occupancy.occupancyRate}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Rate relative to {data.occupancy.totalUnits} unit building</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Rate relative to {data.occupancy.totalUnits} unit building</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupied Units</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupied Units</p>
                     <p className="text-xl font-bold text-emerald-700 m-0 mt-1">{data.occupancy.occupiedUnits}</p>
-                    <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Active Tenants</span>
+                    <span className="text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Active Tenants</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Vacant Units</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Vacant Units</p>
                     <p className="text-xl font-bold text-slate-600 m-0 mt-1">{data.occupancy.vacantUnits}</p>
-                    <span className="text-[9px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Available for Rent</span>
+                    <span className="text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Available for Rent</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Move-Ins / Move-Outs</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Move-Ins / Move-Outs</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">+{data.occupancy.moveIns} / -{data.occupancy.moveOuts}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Contract modifications</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Contract modifications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Average Rent Term</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Average Rent Term</p>
                     <p className="text-xl font-bold text-emerald-700 m-0 mt-1">{data.occupancy.avgStayDuration} Mos</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Contracted months across all tenancies</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Contracted months across all tenancies</span>
                   </div>
                 </>
               )}
@@ -907,24 +907,24 @@ const AdminReports = () => {
               {activeModule === 'payments' && (
                 <>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Gross Collection</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Gross Collection</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{formatCurrency(data.payments.totalCollected)}</p>
-                    <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Rent & Utilities Combined</span>
+                    <span className="text-[11px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Rent & Utilities Combined</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Operating Expenses</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Operating Expenses</p>
                     <p className="text-xl font-bold text-red-600 m-0 mt-1">{formatCurrency(data.payments.expenses)}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Maintenance & Facilities</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Maintenance & Facilities</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Net Income</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Net Income</p>
                     <p className="text-xl font-bold text-emerald-700 m-0 mt-1">{formatCurrency(data.payments.netIncome)}</p>
-                    <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Operating Profit</span>
+                    <span className="text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Operating Profit</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Collection Efficiency</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Collection Efficiency</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.payments.collectionEfficiency}%</p>
-                    <span className="text-[9px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
+                    <span className="text-[11px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
                       Outstanding: {formatCurrency(data.payments.totalOutstanding)}
                     </span>
                   </div>
@@ -935,26 +935,26 @@ const AdminReports = () => {
               {activeModule === 'maintenance' && (
                 <>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Tickets</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Tickets</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.maintenance.total}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Requests submitted</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Requests submitted</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Completed Tasks</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Completed Tasks</p>
                     <p className="text-xl font-bold text-emerald-700 m-0 mt-1">{data.maintenance.completed}</p>
-                    <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
+                    <span className="text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
                       Completion: {Math.round((data.maintenance.completed / (data.maintenance.total || 1)) * 100)}%
                     </span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Pending / In-Progress</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Pending / In-Progress</p>
                     <p className="text-xl font-bold text-amber-700 m-0 mt-1">{data.maintenance.pending} / {data.maintenance.inProgress}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Work orders assigned</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Work orders assigned</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Maintenance Cost</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Maintenance Cost</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{formatCurrency(data.maintenance.totalCost)}</p>
-                    <span className={`text-[9px] mt-2 block font-semibold ${data.maintenance.budget > 0 && data.maintenance.totalCost > data.maintenance.budget ? 'text-red-600' : 'text-slate-500'}`}>
+                    <span className={`text-[11px] mt-2 block font-semibold ${data.maintenance.budget > 0 && data.maintenance.totalCost > data.maintenance.budget ? 'text-red-600' : 'text-slate-500'}`}>
                       of {formatCurrency(data.maintenance.budget)} budget
                       {data.maintenance.avgResolutionTime !== null && ` • Avg resolution ${data.maintenance.avgResolutionTime}h`}
                     </span>
@@ -966,26 +966,26 @@ const AdminReports = () => {
               {activeModule === 'reservations' && (
                 <>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Room Rent Applications</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Room Rent Applications</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.reservations.roomApps}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Total rent applications</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Total rent applications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Room App Statuses</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Room App Statuses</p>
                     <p className="text-sm font-semibold text-indigo-600 m-0 mt-1">
                       {data.reservations.roomApproved} Approved • {data.reservations.roomPending} Pending
                     </p>
-                    <span className="text-[9px] text-red-600 mt-2 block">{data.reservations.roomRejected} Rejected Applications</span>
+                    <span className="text-[11px] text-red-600 mt-2 block">{data.reservations.roomRejected} Rejected Applications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Parking Slot Reservations</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Parking Slot Reservations</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.reservations.parkingCount}</p>
-                    <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Active assignments</span>
+                    <span className="text-[11px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Active assignments</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Parking Revenue</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Parking Revenue</p>
                     <p className="text-xl font-bold text-emerald-700 m-0 mt-1">{formatCurrency(data.reservations.parkingRevenue)}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Collected from vehicle permits</span>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Collected from vehicle permits</span>
                   </div>
                 </>
               )}
@@ -997,11 +997,11 @@ const AdminReports = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><FontAwesomeIcon icon={faTint} /></div>
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Water Consumed</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Water Consumed</p>
                         <p className="text-lg font-bold text-slate-800 m-0">{utilityData.water.totalM3} m³</p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 flex items-center gap-1 w-fit">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 flex items-center gap-1 w-fit">
                       Avg: {utilityData.water.avgM3} m³ / unit-month • Billed: {formatCurrency(utilityData.water.totalBilled)}
                     </span>
                   </div>
@@ -1010,38 +1010,38 @@ const AdminReports = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center"><FontAwesomeIcon icon={faBolt} /></div>
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Electricity Consumed</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Electricity Consumed</p>
                         <p className="text-lg font-bold text-slate-800 m-0">{utilityData.electric.totalKwh} kWh</p>
                       </div>
                     </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 flex items-center gap-1 w-fit">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 flex items-center gap-1 w-fit">
                       Avg: {utilityData.electric.avgKwh} kWh / unit-month • Billed: {formatCurrency(utilityData.electric.totalBilled)}
                     </span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Financial Recovery</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Financial Recovery</p>
                     {utilityData.financials.totalBilled > 0 ? (
                       <>
                         <p className="text-xl font-bold text-slate-800 m-0 mt-1">{utilityData.financials.recoveryRate}%</p>
-                        <span className={`text-[9px] font-semibold w-fit mt-2 block px-1.5 py-0.5 rounded ${utilityData.financials.recoveryRate >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                        <span className={`text-[11px] font-semibold w-fit mt-2 block px-1.5 py-0.5 rounded ${utilityData.financials.recoveryRate >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                           Collected {formatCurrency(utilityData.financials.totalCollected)} of {formatCurrency(utilityData.financials.totalBilled)}
                         </span>
                       </>
                     ) : (
                       <>
                         <p className="text-xl font-bold text-slate-500 m-0 mt-1">—</p>
-                        <span className="text-[9px] text-slate-500 mt-2 block">No utility charges invoiced this period</span>
+                        <span className="text-[11px] text-slate-500 mt-2 block">No utility charges invoiced this period</span>
                       </>
                     )}
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Units Read</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Units Read</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">
                       {utilityData.coverage ? `${utilityData.coverage.unitsRead} / ${utilityData.coverage.occupiedUnits}` : utilityData.water.totalUnits}
                     </p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">
+                    <span className="text-[11px] text-slate-500 mt-2 block">
                       {utilityData.coverage ? 'Occupied units with a reading this month' : 'Units with readings this period'}
                       {utilityData.spikeCount > 0 && <strong className="text-rose-600"> • {utilityData.spikeCount} usage spike{utilityData.spikeCount === 1 ? '' : 's'}</strong>}
                     </span>
@@ -1154,7 +1154,7 @@ const AdminReports = () => {
                             <button
                               type="button"
                               onClick={() => setShowExpensesModal(true)}
-                              className="print:hidden text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 cursor-pointer"
+                              className="print:hidden text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 cursor-pointer"
                             >
                               Manage
                             </button>
@@ -1184,7 +1184,7 @@ const AdminReports = () => {
                         <div className="mt-4 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex justify-between items-center">
                           <div>
                             <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-800 block">Net Operating Income (NOI)</span>
-                            <span className="text-[10px] text-emerald-700 font-medium">Profit Margin: {data.incomeStatement.netMarginPct}%</span>
+                            <span className="text-[11px] text-emerald-700 font-medium">Profit Margin: {data.incomeStatement.netMarginPct}%</span>
                           </div>
                           <span className="text-lg font-black text-emerald-700">{formatCurrency(data.incomeStatement.netOperatingIncome)}</span>
                         </div>
@@ -1212,7 +1212,7 @@ const AdminReports = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="bg-slate-100/75 border-b border-slate-200">
-                          <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                             <th className="py-3 px-4 font-extrabold">Unit</th>
                             <th className="py-3 px-4">Type / Floor</th>
                             <th className="py-3 px-4 text-right">Rent</th>
@@ -1230,7 +1230,7 @@ const AdminReports = () => {
                               <td className="py-3 px-4 font-bold text-indigo-600">{u.unit}</td>
                               <td className="py-3 px-4 text-slate-600 font-medium">
                                 <div>{u.roomType}</div>
-                                <div className="text-[10px] text-slate-500">Floor {u.floor}</div>
+                                <div className="text-[11px] text-slate-500">Floor {u.floor}</div>
                               </td>
                               <td className="py-3 px-4 text-right text-slate-700 font-semibold">{formatCurrency(u.rent)}</td>
                               <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.water)}</td>
@@ -1243,7 +1243,7 @@ const AdminReports = () => {
                                   <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
                                     <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${Math.min(100, u.pct * 4)}%` }}></div>
                                   </div>
-                                  <span className="font-bold text-[10px] text-slate-700">{u.pct}%</span>
+                                  <span className="font-bold text-[11px] text-slate-700">{u.pct}%</span>
                                 </div>
                               </td>
                             </tr>
@@ -1286,7 +1286,7 @@ const AdminReports = () => {
                               {stream.category}
                             </span>
                             <span className="text-slate-800 font-bold">
-                              {formatCurrency(stream.amount)} <span className="text-slate-500 text-[10px] font-normal">({stream.pct}%)</span>
+                              {formatCurrency(stream.amount)} <span className="text-slate-500 text-[11px] font-normal">({stream.pct}%)</span>
                             </span>
                           </div>
                           <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
@@ -1301,15 +1301,15 @@ const AdminReports = () => {
 
                     <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-slate-100 text-center">
                       <div className="p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
-                        <span className="text-[9px] text-slate-500 uppercase font-bold block">Core Rentals</span>
+                        <span className="text-[11px] text-slate-500 uppercase font-bold block">Core Rentals</span>
                         <span className="text-xs font-bold text-indigo-700">{data.diversification.coreRentPct}%</span>
                       </div>
                       <div className="p-2 bg-amber-50/50 rounded-lg border border-amber-100">
-                        <span className="text-[9px] text-slate-500 uppercase font-bold block">Utilities</span>
+                        <span className="text-[11px] text-slate-500 uppercase font-bold block">Utilities</span>
                         <span className="text-xs font-bold text-amber-700">{data.diversification.utilitiesPct}%</span>
                       </div>
                       <div className="p-2 bg-pink-50/50 rounded-lg border border-pink-100">
-                        <span className="text-[9px] text-slate-500 uppercase font-bold block">Ancillary</span>
+                        <span className="text-[11px] text-slate-500 uppercase font-bold block">Ancillary</span>
                         <span className="text-xs font-bold text-pink-700">{data.diversification.ancillaryPct}%</span>
                       </div>
                     </div>
@@ -1325,7 +1325,7 @@ const AdminReports = () => {
                     {/* SVG Multi-Stream Grouped Bar Chart */}
                     <div className="relative h-48 flex items-end gap-2 pb-5 pt-3">
                       {/* Y-Axis Guidelines */}
-                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[8px] text-slate-500 select-none border-l border-slate-100 pl-1">
+                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[11px] text-slate-500 select-none border-l border-slate-100 pl-1">
                         <div className="border-t border-slate-100 pt-0.5">{formatCurrency(maxRevenueTrend)}</div>
                         <div className="border-t border-slate-100 pt-0.5">{formatCurrency(maxRevenueTrend * 0.5)}</div>
                         <div className="border-t border-slate-200">₱0</div>
@@ -1343,7 +1343,7 @@ const AdminReports = () => {
                           return (
                             <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
                               {/* Tooltip */}
-                              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-all z-50 w-32 pointer-events-none">
+                              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-all z-50 w-32 pointer-events-none">
                                 <p className="font-bold text-slate-300 border-b border-slate-600 pb-0.5 mb-1 text-center">{p.label}</p>
                                 <div className="flex justify-between"><span className="text-indigo-300">Rent:</span><span>{formatCurrency(p.rent)}</span></div>
                                 <div className="flex justify-between"><span className="text-amber-300">Elec:</span><span>{formatCurrency(p.electric)}</span></div>
@@ -1362,14 +1362,14 @@ const AdminReports = () => {
                                   <div className="w-full bg-slate-200 h-0.5 rounded"></div>
                                 )}
                               </div>
-                              <span className="text-[9px] font-semibold text-slate-500">{p.label}</span>
+                              <span className="text-[11px] font-semibold text-slate-500">{p.label}</span>
                             </div>
                           );
                         })}
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] text-slate-500 border-t border-slate-50 pt-3">
+                    <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-slate-500 border-t border-slate-50 pt-3">
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-indigo-500"></span> Base Rent</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-500"></span> Electricity</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-500"></span> Water</span>
@@ -1398,7 +1398,7 @@ const AdminReports = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="bg-slate-100/75 border-b border-slate-200">
-                          <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                             <th className="py-3 px-4 font-extrabold">Revenue Stream</th>
                             <th className="py-3 px-4 text-right">Current Revenue</th>
                             <th className="py-3 px-4 text-center">% of Total</th>
@@ -1411,7 +1411,7 @@ const AdminReports = () => {
                           {data.revenueStreams.map((s, idx) => (
                             <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                               <td className="py-3 px-4 font-semibold text-slate-800 flex items-center gap-2.5">
-                                <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px]" style={{ backgroundColor: s.color }}>
+                                <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[11px]" style={{ backgroundColor: s.color }}>
                                   <FontAwesomeIcon icon={s.id === 'rent' ? faBuilding : s.id === 'electric' ? faBolt : s.id === 'water' ? faTint : s.id === 'parking' ? faSquareParking : s.id === 'services' ? faConciergeBell : s.id === 'late_fees' ? faExclamationTriangle : faShieldAlt} />
                                 </div>
                                 {s.category}
@@ -1420,7 +1420,7 @@ const AdminReports = () => {
                               <td className="py-3 px-4 text-center font-bold text-indigo-600">{s.pct}%</td>
                               <td className="py-3 px-4 text-right text-slate-500">{formatCurrency(s.prevAmount)}</td>
                               <td className="py-3 px-4 text-center">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${s.growthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${s.growthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                                   <FontAwesomeIcon icon={s.growthPct >= 0 ? faArrowUp : faArrowDown} className="mr-1" />
                                   {Math.abs(s.growthPct)}%
                                 </span>
@@ -1438,7 +1438,7 @@ const AdminReports = () => {
                                           ? ['Growing', 'bg-emerald-50 text-emerald-700 border-emerald-100']
                                           : ['Stable', 'bg-slate-50 text-slate-700 border-slate-200'];
                                   return (
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide ${cls}`}>
+                                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border uppercase tracking-wide ${cls}`}>
                                       {label}
                                     </span>
                                   );
@@ -1470,7 +1470,7 @@ const AdminReports = () => {
                   {/* Custom SVG Bar Chart */}
                   <div className="relative h-48 flex items-end gap-2 pb-5 pt-3">
                     {/* Y-Axis Guidelines */}
-                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[8px] text-slate-500 select-none border-l border-slate-100 pl-1">
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[11px] text-slate-500 select-none border-l border-slate-100 pl-1">
                       <div className="border-t border-slate-100 pt-0.5">{formatCurrency(maxRevenueTrend)}</div>
                       <div className="border-t border-slate-100 pt-0.5">{formatCurrency(maxRevenueTrend * 0.75)}</div>
                       <div className="border-t border-slate-100 pt-0.5">{formatCurrency(maxRevenueTrend * 0.5)}</div>
@@ -1483,7 +1483,7 @@ const AdminReports = () => {
                       {trendPoints.map((p, idx) => (
                         <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
                           {/* Tooltip */}
-                          <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-all z-50 w-24 pointer-events-none">
+                          <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-all z-50 w-24 pointer-events-none">
                             <p className="font-bold text-slate-300 border-b border-slate-600 pb-0.5 mb-1 text-center">{p.label}</p>
                             <div className="flex justify-between"><span className="text-slate-400">Rev:</span><span className="font-bold text-emerald-400">{formatCurrency(p.revenue)}</span></div>
                             <div className="flex justify-between"><span className="text-slate-400">Exp:</span><span className="font-bold text-red-400">{formatCurrency(p.expenses)}</span></div>
@@ -1500,13 +1500,13 @@ const AdminReports = () => {
                               style={{ height: `${(p.expenses / maxRevenueTrend) * 100}%` }}
                             ></div>
                           </div>
-                          <span className="text-[9px] font-semibold text-slate-500">{p.label}</span>
+                          <span className="text-[11px] font-semibold text-slate-500">{p.label}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 mt-2 text-[10px] text-slate-500 border-t border-slate-50 pt-3">
+                  <div className="flex items-center gap-4 mt-2 text-[11px] text-slate-500 border-t border-slate-50 pt-3">
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-500"></span> Total Revenue</span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-400"></span> Operating Expenses</span>
                   </div>
@@ -1597,12 +1597,12 @@ const AdminReports = () => {
                     </svg>
                     
                     {/* X-axis Text labels */}
-                    <div className="absolute left-10 right-0 bottom-0 flex justify-between px-1 text-[8px] font-bold text-slate-500">
+                    <div className="absolute left-10 right-0 bottom-0 flex justify-between px-1 text-[11px] font-bold text-slate-500">
                       {trendPoints.map((p, i) => <span key={i}>{p.label}</span>)}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-500 border-t border-slate-50 pt-3">
+                  <div className="flex items-center gap-1.5 mt-2 text-[11px] text-slate-500 border-t border-slate-50 pt-3">
                     <span className="w-3.5 h-1 bg-emerald-600 inline-block rounded-full"></span> 
                     Active Rent Occupancy Percentage Trend Line
                   </div>
@@ -1668,7 +1668,7 @@ const AdminReports = () => {
                       </svg>
                       <div className="absolute flex flex-col items-center justify-center text-center">
                         <span className="text-2xl font-bold text-slate-800">{data.maintenance.total}</span>
-                        <span className="text-[8px] uppercase tracking-wider text-slate-500 font-semibold">Total Tickets</span>
+                        <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Total Tickets</span>
                       </div>
                     </div>
 
@@ -1700,7 +1700,7 @@ const AdminReports = () => {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
                     <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider m-0 mb-2">Open now, by priority</p>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0 mb-2">Open now, by priority</p>
                       {['Needs Triage', 'Urgent', 'High', 'Medium', 'Low'].map(p => (
                         <div key={p} className="flex justify-between py-1.5 border-b border-slate-100">
                           <span className={p === 'Urgent' || p === 'High' ? 'text-red-600 font-semibold' : p === 'Needs Triage' ? 'text-amber-700 font-semibold' : 'text-slate-600'}>{p}</span>
@@ -1709,7 +1709,7 @@ const AdminReports = () => {
                       ))}
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider m-0 mb-2">Filed this period, by category</p>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider m-0 mb-2">Filed this period, by category</p>
                       {Object.keys(data.maintenance.categoryCounts).length === 0 ? (
                         <p className="text-slate-500 m-0">No requests filed in this period.</p>
                       ) : Object.entries(data.maintenance.categoryCounts).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
@@ -1798,12 +1798,12 @@ const AdminReports = () => {
                     {data.payments.outstandingBalances.map((b, idx) => (
                       <div key={idx} className="flex items-center justify-between p-3 bg-red-50/50 rounded-lg border border-red-100 text-xs">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-[10px]">
+                          <div className="w-7 h-7 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-[11px]">
                             {b.tenant.charAt(0)}
                           </div>
                           <div>
                             <p className="font-semibold text-slate-800 m-0">{b.tenant} (Unit {b.unit})</p>
-                            <p className="text-[9px] text-red-600 font-bold m-0 mt-0.5">{b.daysOverdue} Days overdue</p>
+                            <p className="text-[11px] text-red-600 font-bold m-0 mt-0.5">{b.daysOverdue} Days overdue</p>
                           </div>
                         </div>
                         <span className="font-bold text-red-600">{formatCurrency(b.balance)}</span>
@@ -1837,7 +1837,7 @@ const AdminReports = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-100/75 border-b border-slate-200">
-                      <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="py-3 px-4 font-extrabold">Unit</th>
                         <th className="py-3 px-4">Tenant Name</th>
                         <th className="py-3 px-4">Contact Info</th>
@@ -1853,12 +1853,12 @@ const AdminReports = () => {
                           <td className="py-3 px-4 font-semibold text-slate-800">{t.name}</td>
                           <td className="py-3 px-4 text-slate-500">
                             <div>{t.email}</div>
-                            <div className="text-[10px]">{t.phone}</div>
+                            <div className="text-[11px]">{t.phone}</div>
                           </td>
                           <td className="py-3 px-4 text-slate-600 font-semibold">{t.moveIn}</td>
                           <td className="py-3 px-4 text-slate-700 font-bold">{formatCurrency(t.rent)}</td>
                           <td className="py-3 px-4 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
                               t.status === 'active' 
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -1887,7 +1887,7 @@ const AdminReports = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-100/75 border-b border-slate-200">
-                      <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="py-3 px-4">Receipt ID</th>
                         <th className="py-3 px-4">Tenant Name</th>
                         <th className="py-3 px-4 text-center">Unit</th>
@@ -1908,7 +1908,7 @@ const AdminReports = () => {
                           <td className="py-3 px-4 text-emerald-700 font-extrabold">{formatCurrency(r.amount)}</td>
                           <td className="py-3 px-4 text-slate-600 font-medium">{r.method}</td>
                           <td className="py-3 px-4 text-slate-500 font-semibold">{r.datePaid}</td>
-                          <td className="py-3 px-4 text-[10px] text-slate-500 italic max-w-xs truncate" title={r.breakdown}>
+                          <td className="py-3 px-4 text-[11px] text-slate-500 italic max-w-xs truncate" title={r.breakdown}>
                             {r.breakdown}
                           </td>
                         </tr>
@@ -1932,7 +1932,7 @@ const AdminReports = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-100/75 border-b border-slate-200">
-                      <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="py-3 px-4">Ticket ID</th>
                         <th className="py-3 px-4 text-center">Unit</th>
                         <th className="py-3 px-4">Tenant</th>
@@ -1951,7 +1951,7 @@ const AdminReports = () => {
                           <td className="py-3 px-4 font-semibold text-slate-800">{m.tenant}</td>
                           <td className="py-3 px-4 text-slate-600 font-semibold">{m.category}</td>
                           <td className="py-3 px-4">
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${
+                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-extrabold uppercase tracking-wide ${
                               m.urgency === 'Urgent' || m.urgency === 'High' ? 'bg-red-50 text-red-700' : m.urgency === 'Needs Triage' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
                             }`}>
                               {m.urgency}
@@ -1960,7 +1960,7 @@ const AdminReports = () => {
                           <td className="py-3 px-4 text-slate-500 font-medium">{m.dateSubmitted}</td>
                           <td className="py-3 px-4 text-slate-700 font-bold">{formatCurrency(m.cost)}</td>
                           <td className="py-3 px-4 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${
                               m.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                               m.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
                               'bg-red-50 text-red-700 border border-red-100'
@@ -1982,23 +1982,23 @@ const AdminReports = () => {
                 <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2 m-0 mb-4">
                   <FontAwesomeIcon icon={faHandshake} className="text-indigo-600" />
                   Inquiry Conversion
-                  <span className="text-[10px] font-medium text-slate-500">(inquiries received this period)</span>
+                  <span className="text-[11px] font-medium text-slate-500">(inquiries received this period)</span>
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Received</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Received</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.reservations.inquiryConversion.received}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Converted</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Converted</p>
                     <p className="text-xl font-bold text-emerald-700 m-0 mt-1">{data.reservations.inquiryConversion.converted}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Conversion Rate</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Conversion Rate</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.reservations.inquiryConversion.conversionRatePct}%</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide m-0">Holds Converted / Expired</p>
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Holds Converted / Expired</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">
                       {data.reservations.inquiryConversion.reservations.Converted} / {data.reservations.inquiryConversion.reservations.Expired}
                     </p>
@@ -2034,7 +2034,7 @@ const AdminReports = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead className="bg-slate-100/75 border-b border-slate-200">
-                        <tr className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                        <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                           <th className="py-2.5 px-3">App ID</th>
                           <th className="py-2.5 px-3">Applicant</th>
                           <th className="py-2.5 px-3">Room</th>
@@ -2052,7 +2052,7 @@ const AdminReports = () => {
                             <td className="py-2.5 px-3 text-slate-700 font-bold">{formatCurrency(r.rent)}</td>
                             <td className="py-2.5 px-3 text-slate-500">{r.dateSubmitted}</td>
                             <td className="py-2.5 px-3 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${
                                 ['Approved', 'active', 'pending-move-out', 'moved-out', 'archived'].includes(r.status) ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                                 r.status === 'Pending Review' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
                                 'bg-red-50 text-red-700 border border-red-100'
@@ -2081,7 +2081,7 @@ const AdminReports = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead className="bg-slate-100/75 border-b border-slate-200">
-                        <tr className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                        <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                           <th className="py-2.5 px-3">Reserve ID</th>
                           <th className="py-2.5 px-3">Tenant Name</th>
                           <th className="py-2.5 px-3">Vehicle Details</th>
@@ -2097,15 +2097,15 @@ const AdminReports = () => {
                             <td className="py-2.5 px-3 font-semibold text-slate-800">{p.tenant}</td>
                             <td className="py-2.5 px-3 text-slate-600 font-medium">
                               <div>{p.vehicleModel}</div>
-                              <div className="text-[9px] text-slate-500 font-semibold">{p.vehicleType}</div>
+                              <div className="text-[11px] text-slate-500 font-semibold">{p.vehicleType}</div>
                             </td>
                             <td className="py-2.5 px-3 font-mono text-slate-500">{p.plateNumber}</td>
                             <td className="py-2.5 px-3 text-slate-700">
                               <span className="font-bold">{formatCurrency(p.totalCost)}</span>
-                              <span className="text-[9px] text-slate-500 font-semibold block">({p.duration} Months)</span>
+                              <span className="text-[11px] text-slate-500 font-semibold block">({p.duration} Months)</span>
                             </td>
                             <td className="py-2.5 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-pink-50 text-pink-700 border border-pink-100 tracking-wider">
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase bg-pink-50 text-pink-700 border border-pink-100 tracking-wider">
                                 {p.status}
                               </span>
                             </td>
@@ -2133,7 +2133,7 @@ const AdminReports = () => {
                 <div className="overflow-x-auto p-4">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-100/75 border-b border-slate-200">
-                      <tr className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         <th className="py-2.5 px-3">Unit</th>
                         <th className="py-2.5 px-3">Water (m³)</th>
                         <th className="py-2.5 px-3">Electricity (kWh)</th>
@@ -2147,7 +2147,7 @@ const AdminReports = () => {
                           <td className="py-2.5 px-3 font-bold text-indigo-600">
                             {u.unit}
                             {u.hasSpike && (
-                              <span className="ml-1.5 text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-0.5" title={`Usage rose more than ${utilityData.spikeThresholdPct}% over the previous reading`}>
+                              <span className="ml-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-0.5" title={`Usage rose more than ${utilityData.spikeThresholdPct}% over the previous reading`}>
                                 Spike
                               </span>
                             )}
@@ -2202,7 +2202,7 @@ const AdminReports = () => {
                           <FontAwesomeIcon icon={faDollarSign} className="text-red-600" />
                           <span className="text-sm font-bold text-red-800">Payment Collection Gaps</span>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.payments.totalOutstanding > 0 ? 'bg-red-200 text-red-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${data.payments.totalOutstanding > 0 ? 'bg-red-200 text-red-900' : 'bg-emerald-100 text-emerald-800'}`}>
                           {data.payments.totalOutstanding > 0 ? `${data.payments.outstandingBalances.length} Overdue` : 'No Issues'}
                         </span>
                       </div>
@@ -2211,10 +2211,10 @@ const AdminReports = () => {
                           {data.payments.outstandingBalances.map((b, idx) => (
                             <div key={idx} className="flex items-center justify-between bg-red-50/40 rounded-lg p-2 border border-red-100">
                               <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-bold">{b.tenant.charAt(0)}</div>
+                                <div className="w-7 h-7 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[11px] font-bold">{b.tenant.charAt(0)}</div>
                                 <div>
                                   <span className="text-xs font-semibold text-slate-700">{b.tenant}</span>
-                                  <span className="text-[10px] text-slate-500 ml-2">Unit {b.unit}</span>
+                                  <span className="text-[11px] text-slate-500 ml-2">Unit {b.unit}</span>
                                 </div>
                               </div>
                               <span className="text-xs font-bold text-red-600">{formatCurrency(b.balance)}</span>
@@ -2282,7 +2282,7 @@ const AdminReports = () => {
                   <p className="mt-2 text-slate-500">Property Operations Finance Manager</p>
                 </div>
               </div>
-              <p className="text-[8px] text-slate-500 mt-10 text-center uppercase tracking-widest">
+              <p className="text-[11px] text-slate-500 mt-10 text-center uppercase tracking-widest">
                 Apartment AMS Performance Index Registry • Strict Confidential Business Document
               </p>
             </div>
@@ -2381,7 +2381,7 @@ const AdminReports = () => {
                       ))}
                     </select>
                     <FieldError id="inv-adjustInvoiceId" error={invoiceErrors.errors.adjustInvoiceId} />
-                    <p className="text-[10px] text-slate-500 mt-1 mb-0">Only invoices that are still open (not paid, cancelled, or mid-checkout) can be adjusted.</p>
+                    <p className="text-[11px] text-slate-500 mt-1 mb-0">Only invoices that are still open (not paid, cancelled, or mid-checkout) can be adjusted.</p>
                     <label htmlFor="inv-reason" className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1.5 mt-3">
                       Reason for the adjustment <span className="text-indigo-600">*</span>
                     </label>
@@ -2396,7 +2396,7 @@ const AdminReports = () => {
                       className={`w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl outline-none text-slate-800 bg-white focus:border-indigo-500 resize-y${invalidCls(invoiceErrors.errors.reason)}`}
                     />
                     <FieldError id="inv-reason" error={invoiceErrors.errors.reason} />
-                    <p className="text-[10px] text-slate-500 mt-1 mb-0">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>
+                    <p className="text-[11px] text-slate-500 mt-1 mb-0">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>
                   </div>
                 ) : (
                 <>
@@ -2509,38 +2509,38 @@ const AdminReports = () => {
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div>
-                      <label htmlFor="inv-rent" className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Base Rent (₱)</label>
+                      <label htmlFor="inv-rent" className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Base Rent (₱)</label>
                       <input {...amountProps('rent')} />
                       <FieldError id="inv-rent" error={invoiceErrors.errors.rent} />
                     </div>
                     <div>
-                      <label htmlFor="inv-water" className="text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                      <label htmlFor="inv-water" className="text-[11px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
                         <FontAwesomeIcon icon={faTint} className="text-blue-500" /> Water (₱)
                       </label>
                       <input {...amountProps('water')} />
                       <FieldError id="inv-water" error={invoiceErrors.errors.water} />
                     </div>
                     <div>
-                      <label htmlFor="inv-electric" className="text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                      <label htmlFor="inv-electric" className="text-[11px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
                         <FontAwesomeIcon icon={faBolt} className="text-amber-700" /> Electric (₱)
                       </label>
                       <input {...amountProps('electric')} />
                       <FieldError id="inv-electric" error={invoiceErrors.errors.electric} />
                     </div>
                     <div>
-                      <label htmlFor="inv-parking" className="text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                      <label htmlFor="inv-parking" className="text-[11px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
                         <FontAwesomeIcon icon={faSquareParking} className="text-pink-500" /> Parking (₱)
                       </label>
                       <input {...amountProps('parking')} />
                       <FieldError id="inv-parking" error={invoiceErrors.errors.parking} />
                     </div>
                     <div>
-                      <label htmlFor="inv-lateFee" className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Late / Arrears (₱)</label>
+                      <label htmlFor="inv-lateFee" className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Late / Arrears (₱)</label>
                       <input {...amountProps('lateFee')} />
                       <FieldError id="inv-lateFee" error={invoiceErrors.errors.lateFee} />
                     </div>
                     <div className="bg-indigo-50/70 border border-indigo-100 rounded-lg p-2 flex flex-col justify-center">
-                      <span className="text-[10px] uppercase font-bold text-indigo-700">Calculated Total</span>
+                      <span className="text-[11px] uppercase font-bold text-indigo-700">Calculated Total</span>
                       <span className="text-sm font-extrabold text-indigo-900">
                         {formatCurrency(
                           (Number(invoiceForm.rent) || 0) +
@@ -2554,7 +2554,7 @@ const AdminReports = () => {
                     </div>
                   </div>
                   {invoiceMode === 'adjust' && (
-                    <p className="text-[10px] text-slate-500 m-0">
+                    <p className="text-[11px] text-slate-500 m-0">
                       Already posted on this invoice (not editable here): Services {formatCurrency(invoiceForm.services)} · Maintenance {formatCurrency(invoiceForm.maintenance)} · Security Deposit {formatCurrency(invoiceForm.securityDeposit)}.
                     </p>
                   )}
@@ -2609,14 +2609,14 @@ const AdminReports = () => {
                         </div>
                         <div>
                           <h1 className="text-lg font-extrabold text-slate-900 tracking-tight uppercase m-0">APARTMENT MANAGEMENT SYSTEM</h1>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold m-0">Property Rental & Financial Administration</p>
+                          <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold m-0">Property Rental & Financial Administration</p>
                         </div>
                       </div>
                       <p className="text-xs text-slate-600 mt-2 m-0">Unit 101 Management Office, Metro Manila • Tel: +63 912 345 6789</p>
                     </div>
 
                     <div className="sm:text-right">
-                      <span className="inline-block px-2.5 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-extrabold uppercase tracking-wider mb-1.5">
+                      <span className="inline-block px-2.5 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold uppercase tracking-wider mb-1.5">
                         Statement / Invoice
                       </span>
                       <p className="text-xs font-mono font-bold text-slate-800 m-0">{invoiceForm.invoiceNumber}</p>
@@ -2627,14 +2627,14 @@ const AdminReports = () => {
                   {/* Billed To & Account Summary */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Billed To (Tenant)</span>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Billed To (Tenant)</span>
                       <p className="font-extrabold text-slate-800 text-sm m-0">{invoiceForm.tenant}</p>
                       <p className="text-slate-600 font-semibold m-0 mt-0.5">Assigned Unit: <span className="text-indigo-600 font-bold">{invoiceForm.unit}</span></p>
                       {invoiceForm.email && <p className="text-slate-500 m-0 mt-0.5">Email: {invoiceForm.email}</p>}
                       {invoiceForm.phone && <p className="text-slate-500 m-0 mt-0.5">Phone: {invoiceForm.phone}</p>}
                     </div>
                     <div className="sm:text-right">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Billing Overview</span>
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Billing Overview</span>
                       <p className="text-slate-700 m-0">Billing Period: <strong className="text-slate-900">{invoiceForm.billingPeriod}</strong></p>
                       <p className="text-rose-600 font-bold m-0 mt-0.5">Due Date: {invoiceForm.dueDate || 'Upon Receipt'}</p>
                       <p className="text-slate-500 m-0 mt-0.5">Status: <span className="font-bold text-amber-700">Pending Payment</span></p>
@@ -2645,7 +2645,7 @@ const AdminReports = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="border-b-2 border-slate-300 text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100">
+                        <tr className="border-b-2 border-slate-300 text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100">
                           <th className="py-2.5 px-3">#</th>
                           <th className="py-2.5 px-3">Item Description</th>
                           <th className="py-2.5 px-3">Period / Scope</th>
@@ -2740,13 +2740,13 @@ const AdminReports = () => {
                           {[acct.account_number, acct.account_name && `(${acct.account_name})`, !acct.account_number && pick(acct.note, 'en')].filter(Boolean).join(' ') || '—'}
                         </p>
                       ))}
-                      <p className="m-0 text-[10px] text-slate-500 pt-1 italic">Please reference <strong>{invoiceForm.invoiceNumber}</strong> upon payment.</p>
+                      <p className="m-0 text-[11px] text-slate-500 pt-1 italic">Please reference <strong>{invoiceForm.invoiceNumber}</strong> upon payment.</p>
                     </div>
 
                     <div className="flex flex-col justify-end items-end text-right space-y-1">
                       <div className="w-44 border-b border-slate-400 mb-1"></div>
                       <p className="font-bold text-slate-800 text-[11px] m-0">Authorized Property Administrator</p>
-                      <p className="text-[10px] text-slate-500 m-0 uppercase tracking-widest">Financial Operations Management</p>
+                      <p className="text-[11px] text-slate-500 m-0 uppercase tracking-widest">Financial Operations Management</p>
                     </div>
                   </div>
 

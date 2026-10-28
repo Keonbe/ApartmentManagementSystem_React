@@ -239,7 +239,7 @@ export default function AdminActivityLogs() {
                       category === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'
                     }`}
                   >
-                    {label} <span className="text-[10px] text-slate-500 font-semibold">({count})</span>
+                    {label} <span className="text-[11px] text-slate-500 font-semibold">({count})</span>
                   </button>
                 ))}
               </div>
@@ -281,7 +281,7 @@ export default function AdminActivityLogs() {
                         <tr key={log.id} {...clickable(() => setSelectedLog(log), { role: null })} className="hover:bg-slate-50/80 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
                           <td className="px-6 py-4 font-mono text-xs text-indigo-600 font-semibold">LOG-{String(log.id).padStart(4, '0')}</td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${style.color}`}>
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold border whitespace-nowrap ${style.color}`}>
                               <FontAwesomeIcon icon={style.icon} className="text-[9px]" />
                               {log.categoryLabel}
                             </span>
@@ -291,7 +291,7 @@ export default function AdminActivityLogs() {
                           <td className="px-6 py-4 text-xs text-slate-600 max-w-xs truncate">{log.details}</td>
                           <td className="px-6 py-4 text-xs text-slate-600 whitespace-nowrap">
                             <div className="font-semibold">{log.performerName}</div>
-                            <div className="text-[10px] text-slate-500 uppercase tracking-wide">{log.performerRole}</div>
+                            <div className="text-[11px] text-slate-500 uppercase tracking-wide">{log.performerRole}</div>
                           </td>
                         </tr>
                       );
@@ -347,34 +347,34 @@ export default function AdminActivityLogs() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Category</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Category</span>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border mt-1 ${(categoryStyle[selectedLog.category] || categoryStyle.system).color}`}>
                     <FontAwesomeIcon icon={(categoryStyle[selectedLog.category] || categoryStyle.system).icon} />
                     {selectedLog.categoryLabel}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Timestamp</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Timestamp</span>
                   <span className="text-sm font-semibold text-slate-700 block mt-1">{formatDateTime(selectedLog.createdAt)}</span>
                 </div>
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Action</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Action</span>
                 <span className="text-base font-bold text-slate-800 block mt-1">{selectedLog.action}</span>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Details</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Details</span>
                 <p className="m-0 text-sm text-slate-700 leading-relaxed font-mono whitespace-pre-wrap">{selectedLog.details || '—'}</p>
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Performed By</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Performed By</span>
                 <span className="text-sm font-semibold text-slate-700 block mt-1">
                   {selectedLog.performerName}
                   {selectedLog.performerEmail && <span className="text-slate-500 font-normal"> · {selectedLog.performerEmail}</span>}
-                  <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500">({selectedLog.performerRole})</span>
+                  <span className="ml-2 text-[11px] uppercase tracking-wide text-slate-500">({selectedLog.performerRole})</span>
                 </span>
               </div>
             </div>

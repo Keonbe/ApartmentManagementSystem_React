@@ -384,7 +384,7 @@ const AdminApplications = () => {
               <p className="m-0 text-[11px] text-slate-500">{new Date(app.created_at).toLocaleDateString()}</p>
             </div>
           </div>
-          <div className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md border border-slate-200 shrink-0">
+          <div className="bg-slate-100 text-slate-600 text-[11px] font-bold px-2 py-1 rounded-md border border-slate-200 shrink-0">
             Unit {app.unit}
           </div>
         </div>
@@ -460,7 +460,7 @@ const AdminApplications = () => {
                       </div>
 
                       <div className="flex items-center gap-2 ml-1">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                           !isAllStatusesSelected && !isNoStatusSelected
                             ? 'bg-indigo-600 text-white'
                             : isNoStatusSelected
@@ -525,7 +525,7 @@ const AdminApplications = () => {
                                     {opt.label}
                                   </span>
                                 </div>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                                   isChecked ? opt.countBadge : 'bg-slate-100 text-slate-500'
                                 }`}>
                                   {count}
@@ -661,7 +661,7 @@ const AdminApplications = () => {
                                 <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors flex items-center gap-2">
                                   <span className="truncate">{app.name}</span>
                                   {app.gender && app.gender !== 'Not Specified' && (
-                                    <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 shrink-0">
+                                    <span className="text-[11px] font-semibold px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 shrink-0">
                                       {app.gender}
                                     </span>
                                   )}
@@ -928,7 +928,7 @@ const AdminApplications = () => {
                               alt="Rejection Attachment" 
                               className="max-h-36 max-w-full rounded-lg border border-red-200 object-cover shadow-xs group-hover:opacity-90 transition-opacity bg-white" 
                             />
-                            <span className="absolute bottom-1 right-1 bg-slate-900/70 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">Click to enlarge</span>
+                            <span className="absolute bottom-1 right-1 bg-slate-900/70 text-white text-[11px] px-1.5 py-0.5 rounded font-medium">Click to enlarge</span>
                           </div>
                         )}
                       </div>
@@ -939,42 +939,42 @@ const AdminApplications = () => {
               
               <div className="stagger-children grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1"/> Occupants</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1"/> Occupants</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.occupants} Person(s)</p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Rent Term</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Rent Term</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.months_of_rent} Months</p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Move In By</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Move In By</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">
                     {getMoveInDisplay(selectedApp)}
                   </p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Monthly Rent</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Monthly Rent</p>
                   <p className="text-sm font-bold text-indigo-600 m-0">{selectedApp.rent}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1"/> Email Address</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1"/> Email Address</p>
                   <p className="text-sm font-semibold text-slate-800 m-0 truncate" title={selectedApp.email}>{selectedApp.email || '—'}</p>
                 </div>
                 <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1"/> Contact Number</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1"/> Contact Number</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.phone || '—'}</p>
                 </div>
                 <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faVenusMars} className="mr-1"/> Gender</p>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faVenusMars} className="mr-1"/> Gender</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.gender || 'Not Specified'}</p>
                 </div>
               </div>
 
               <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Previous Address</p>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Previous Address</p>
                 <p className="text-sm font-semibold text-slate-800 m-0 wrap-break-word">{selectedApp.previous_address || '—'}</p>
               </div>
 
@@ -1001,7 +1001,7 @@ const AdminApplications = () => {
                         className="flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-500">
                        <FontAwesomeIcon icon={faFileAlt} className="text-2xl text-slate-300" />
                        <span className="font-semibold text-center mt-1">{label}</span>
-                       <span className="text-[10px] uppercase">Missing</span>
+                       <span className="text-[11px] uppercase">Missing</span>
                      </div>
                    ))}
                  </div>

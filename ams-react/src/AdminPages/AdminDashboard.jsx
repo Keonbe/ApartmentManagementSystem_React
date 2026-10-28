@@ -322,7 +322,7 @@ const AdminDashboard = () => {
                               </div>
                               
                               {/* Amount Label above bar */}
-                              <span className="text-[10px] font-semibold text-slate-500 group-hover:text-slate-700 transition-colors whitespace-nowrap">
+                              <span className="text-[11px] font-semibold text-slate-500 group-hover:text-slate-700 transition-colors whitespace-nowrap">
                                 <span className="sm:hidden">{formatCompactCurrency(totalBilled)}</span>
                                 <span className="hidden sm:inline">{totalBilled > 0 ? formatCurrency(totalBilled) : '₱0'}</span>
                               </span>
@@ -385,7 +385,7 @@ const AdminDashboard = () => {
                                 style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
                                 onClick={() => setSelectedMonth(isSelected ? null : d.month)}
                               >
-                                <div className={`absolute -top-16 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg opacity-0 transition-all z-30 w-32 pointer-events-none ${isSelected ? 'opacity-100' : 'group-hover:opacity-100'}`}>
+                                <div className={`absolute -top-16 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-[11px] p-2 rounded shadow-lg opacity-0 transition-all z-30 w-32 pointer-events-none ${isSelected ? 'opacity-100' : 'group-hover:opacity-100'}`}>
                                   <p className="font-bold text-slate-200 m-0 mb-1">{d.full_month || d.month}</p>
                                   <div className="flex justify-between"><span className="text-slate-400">Collected</span><span className="font-bold text-emerald-400">{formatCurrency(d.collected)}</span></div>
                                   <div className="flex justify-between"><span className="text-slate-400">Pending</span><span className="font-bold text-amber-400">{formatCurrency(d.pending)}</span></div>
@@ -414,7 +414,7 @@ const AdminDashboard = () => {
                     <div className="overflow-x-auto max-h-56">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                          <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
                             <th className="py-2.5 px-3">Period</th>
                             <th className="py-2.5 px-3 text-right">Invoices</th>
                             <th className="py-2.5 px-3 text-right">Total Billed</th>
@@ -441,7 +441,7 @@ const AdminDashboard = () => {
                                 <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{formatCurrency(d.collected)}</td>
                                 <td className="py-2.5 px-3 text-right font-bold text-amber-700">{formatCurrency(d.pending)}</td>
                                 <td className="py-2.5 px-3 text-right">
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${rate >= 90 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${rate >= 90 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
                                     {rate}%
                                   </span>
                                 </td>
@@ -459,7 +459,7 @@ const AdminDashboard = () => {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-indigo-900">{activeMonthData.full_month || activeMonthData.month} Summary</span>
-                          <span className="bg-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                          <span className="bg-indigo-100 text-indigo-700 text-[11px] px-2 py-0.5 rounded-full font-semibold">
                             {activeMonthData.count || 0} Invoice{activeMonthData.count !== 1 ? 's' : ''}
                           </span>
                         </div>
@@ -509,7 +509,7 @@ const AdminDashboard = () => {
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${stats.occupancy_rate}%` }}></div>
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-1.5 m-0">{stats.occupied_rooms} occupied out of {stats.total_rooms} total building units</p>
+                      <p className="text-[11px] text-slate-500 mt-1.5 m-0">{stats.occupied_rooms} occupied out of {stats.total_rooms} total building units</p>
                     </div>
 
                     <div>
@@ -520,7 +520,7 @@ const AdminDashboard = () => {
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div className={`h-2 rounded-full transition-all ${rentCollectionRate >= 90 ? 'bg-emerald-500' : rentCollectionRate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${rentCollectionRate}%` }}></div>
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-1.5 m-0">
+                      <p className="text-[11px] text-slate-500 mt-1.5 m-0">
                         {stats.pending_dues > 0 ? `${formatCurrency(stats.pending_dues)} remaining balance` : 'All invoices settled'}
                       </p>
                     </div>
@@ -550,11 +550,11 @@ const AdminDashboard = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-slate-800 m-0 truncate">{t.name}</p>
-                          <p className="text-[10px] text-slate-500 m-0 flex items-center gap-1">
+                          <p className="text-[11px] text-slate-500 m-0 flex items-center gap-1">
                             <FontAwesomeIcon icon={faBuilding} className="text-[9px]" /> Unit {t.unit}
                           </p>
                         </div>
-                        <div className="text-[10px] font-medium text-slate-500 shrink-0 bg-slate-100 px-2 py-1 rounded">
+                        <div className="text-[11px] font-medium text-slate-500 shrink-0 bg-slate-100 px-2 py-1 rounded">
                           {t.date}
                         </div>
                       </div>
@@ -585,7 +585,7 @@ const AdminDashboard = () => {
                       <FontAwesomeIcon icon={faClipboardList} />
                       <span>Action Queue</span>
                       {totalPendingActions > 0 && (
-                        <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                        <span className="bg-amber-500 text-white text-[11px] px-1.5 py-0.2 rounded-full font-bold">
                           {totalPendingActions}
                         </span>
                       )}
@@ -597,7 +597,7 @@ const AdminDashboard = () => {
                     >
                       <FontAwesomeIcon icon={faBuilding} />
                       <span>Unit Matrix</span>
-                      <span className="text-[10px] text-slate-500 font-normal">
+                      <span className="text-[11px] text-slate-500 font-normal">
                         ({roomsSummary.length})
                       </span>
                     </button>
@@ -646,7 +646,7 @@ const AdminDashboard = () => {
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <p className="text-xs font-bold text-slate-800 m-0">{app.name}</p>
-                                    <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded font-semibold">Rent Application</span>
+                                    <span className="bg-amber-100 text-amber-800 text-[11px] px-1.5 py-0.2 rounded font-semibold">Rent Application</span>
                                   </div>
                                   <p className="text-[11px] text-slate-500 m-0 mt-0.5">
                                     Requested Unit <strong>{app.unit}</strong> • {formatCurrency(app.rent)}/mo • {app.date}
@@ -672,7 +672,7 @@ const AdminDashboard = () => {
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <p className="text-xs font-bold text-slate-800 m-0">{inv.tenant || 'Tenant'}</p>
-                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${inv.is_overdue ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                                    <span className={`text-[11px] px-1.5 py-0.2 rounded font-semibold ${inv.is_overdue ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
                                       {inv.is_overdue ? 'Overdue' : 'Pending Payment'}
                                     </span>
                                   </div>
@@ -700,7 +700,7 @@ const AdminDashboard = () => {
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <p className="text-xs font-bold text-slate-800 m-0">{maint.category || 'Maintenance'}</p>
-                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${maint.urgency?.toLowerCase() === 'emergency' || maint.urgency?.toLowerCase() === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
+                                    <span className={`text-[11px] px-1.5 py-0.2 rounded font-semibold ${maint.urgency?.toLowerCase() === 'emergency' || maint.urgency?.toLowerCase() === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
                                       {maint.urgency || 'Normal'}
                                     </span>
                                   </div>
@@ -762,7 +762,7 @@ const AdminDashboard = () => {
                             >
                               <div className="flex justify-between items-start">
                                 <span className="font-extrabold text-sm text-slate-800">{room.id}</span>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
                                   isOccupied 
                                     ? 'bg-emerald-100 text-emerald-800' 
                                     : isReserved
@@ -772,7 +772,7 @@ const AdminDashboard = () => {
                                   {isOccupied ? 'Occupied' : isReserved ? 'Reserved' : 'Vacant'}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-slate-500 m-0 mt-1">{room.floor} • {room.type}</p>
+                              <p className="text-[11px] text-slate-500 m-0 mt-1">{room.floor} • {room.type}</p>
                               <p className="text-xs font-semibold m-0 mt-2 truncate text-slate-700">
                                 {isOccupied || isReserved ? room.tenant || (isReserved ? 'Reserved' : 'Active Tenant') : formatCurrency(room.rent)}
                               </p>
@@ -798,7 +798,7 @@ const AdminDashboard = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-2">
                                   <p className="text-xs font-bold text-slate-800 m-0 truncate">{log.action}</p>
-                                  <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap shrink-0">
+                                  <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap shrink-0">
                                     {formatLogDate(log.created_at)}
                                   </span>
                                 </div>
@@ -845,7 +845,7 @@ const AdminDashboard = () => {
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-800 m-0">Create Rent Agreement</p>
-                          <p className="text-[10px] text-slate-500 m-0">Generate contract for approved tenant</p>
+                          <p className="text-[11px] text-slate-500 m-0">Generate contract for approved tenant</p>
                         </div>
                       </div>
                       <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-indigo-600 text-xs transition-colors" />
@@ -861,7 +861,7 @@ const AdminDashboard = () => {
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-800 m-0">Record / Verify Payment</p>
-                          <p className="text-[10px] text-slate-500 m-0">Log cash or verify bank transfer</p>
+                          <p className="text-[11px] text-slate-500 m-0">Log cash or verify bank transfer</p>
                         </div>
                       </div>
                       <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-emerald-600 text-xs transition-colors" />
@@ -877,7 +877,7 @@ const AdminDashboard = () => {
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-800 m-0">Broadcast Notice</p>
-                          <p className="text-[10px] text-slate-500 m-0">Notify all building tenants</p>
+                          <p className="text-[11px] text-slate-500 m-0">Notify all building tenants</p>
                         </div>
                       </div>
                       <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-amber-600 text-xs transition-colors" />
@@ -893,7 +893,7 @@ const AdminDashboard = () => {
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-800 m-0">Financial & Occupancy Reports</p>
-                          <p className="text-[10px] text-slate-500 m-0">Export income, billing & tenant data</p>
+                          <p className="text-[11px] text-slate-500 m-0">Export income, billing & tenant data</p>
                         </div>
                       </div>
                       <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-blue-600 text-xs transition-colors" />
@@ -905,8 +905,8 @@ const AdminDashboard = () => {
                 <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-xl shadow-sm p-5 text-white flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Property Overview</span>
-                      <span className="text-[10px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full font-semibold">ams_db</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300">Property Overview</span>
+                      <span className="text-[11px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full font-semibold">ams_db</span>
                     </div>
                     <h4 className="text-sm font-bold m-0 text-white">Apartment Building Portfolio</h4>
                     <p className="text-xs text-slate-400 mt-1 m-0">13 Total Units • 3 Floors • Studio Layouts</p>
@@ -914,7 +914,7 @@ const AdminDashboard = () => {
                   
                   <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
                     <div>
-                      <span className="text-[10px] text-slate-400">Total Rented</span>
+                      <span className="text-[11px] text-slate-400">Total Rented</span>
                       <p className="font-bold text-emerald-400 text-sm m-0">{stats.occupied_rooms} / {stats.total_rooms} Units</p>
                     </div>
                     <button 
@@ -955,7 +955,7 @@ const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showP
       {...(onClick ? clickable(onClick) : {})}
     >
       {tooltip && (
-        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1.5 rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity whitespace-normal w-44 text-center pointer-events-none z-50 flex items-center justify-center gap-1">
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1.5 rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity whitespace-normal w-44 text-center pointer-events-none z-50 flex items-center justify-center gap-1">
           <FontAwesomeIcon icon={faInfoCircle} className="shrink-0 text-slate-400" /> 
           <span>{tooltip}</span>
         </div>
@@ -965,7 +965,7 @@ const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showP
           <FontAwesomeIcon icon={icon} />
         </div>
         {trend && (
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${trendColor}`}>
+          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${trendColor}`}>
             {trend.includes('+') ? <FontAwesomeIcon icon={faArrowUp} className="text-[8px]" /> : <FontAwesomeIcon icon={faArrowDown} className="text-[8px]" />}
             {trend}
           </span>
@@ -974,7 +974,7 @@ const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showP
       <div>
         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0 mb-1">{title}</p>
         <p className="text-2xl font-bold text-slate-800 m-0 leading-none">{value}</p>
-        {subtext && <p className="text-[10px] text-slate-500 m-0 mt-2 font-medium">{subtext}</p>}
+        {subtext && <p className="text-[11px] text-slate-500 m-0 mt-2 font-medium">{subtext}</p>}
         {showProgress && progress !== undefined && (
           <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
             <div className={`h-1.5 rounded-full ${(colorMap[color] || '').split(' ')[0].replace('50', '500')}`} style={{ width: `${progress}%` }}></div>

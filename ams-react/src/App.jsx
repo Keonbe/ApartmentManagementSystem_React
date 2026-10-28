@@ -48,7 +48,6 @@ const AdminAnnouncements = lazy(() => import('./AdminPages/AdminAnnouncements'))
 const AdminReports = lazy(() => import('./AdminPages/AdminReports'));
 const AdminNotifications = lazy(() => import('./AdminPages/AdminNotifications'));
 const AdminContracts = lazy(() => import('./AdminPages/AdminContracts'));
-const AdminContractEditor = lazy(() => import('./AdminPages/AdminContractEditor'));
 const AdminServicePage = lazy(() => import('./AdminPages/AdminServicePage'));
 const AdminAccountSettings = lazy(() => import('./AdminPages/AdminAccountSettings'));
 const AdminActivityLogs = lazy(() => import('./AdminPages/AdminActivityLogs'));
@@ -257,7 +256,8 @@ function AppContent() {
         <Route path="/admin-reports" element={<AdminProtectedRoute><AdminReports /></AdminProtectedRoute>} />
         <Route path="/admin-notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
         <Route path="/admin-contracts" element={<AdminProtectedRoute><AdminContracts /></AdminProtectedRoute>} />
-        <Route path="/admin-contract-editor" element={<AdminProtectedRoute><AdminContractEditor /></AdminProtectedRoute>} />
+        {/* The template is edited on the Contracts page's Template Editor tab; old links land there. */}
+        <Route path="/admin-contract-editor" element={<AdminProtectedRoute><Navigate to="/admin-contracts?tab=editor" replace /></AdminProtectedRoute>} />
         <Route path="/admin-services" element={<AdminProtectedRoute><AdminServicePage /></AdminProtectedRoute>} />
         <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />

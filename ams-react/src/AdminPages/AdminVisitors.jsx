@@ -528,7 +528,7 @@ export default function AdminVisitors() {
                   >
                     <span>{pill.label}</span>
                     {pill.count !== undefined && pill.count > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${statusFilter === pill.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[11px] font-bold ${statusFilter === pill.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
                         {pill.count}
                       </span>
                     )}
@@ -599,7 +599,7 @@ export default function AdminVisitors() {
                                     <FontAwesomeIcon icon={faPhone} className="text-[10px] text-slate-500" />
                                     <span>{v.contactNumber}</span>
                                     {v.idNumber && (
-                                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                                      <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
                                         {v.idType}: {v.idNumber}
                                       </span>
                                     )}
@@ -608,7 +608,7 @@ export default function AdminVisitors() {
                                         href={fileUrl(v.idPhotoPath)}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline inline-flex items-center gap-1 bg-indigo-50 px-1.5 py-0.5 rounded"
+                                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline inline-flex items-center gap-1 bg-indigo-50 px-1.5 py-0.5 rounded"
                                       >
                                         <FontAwesomeIcon icon={faEye} className="text-[9px]" />
                                         <span>View ID</span>
@@ -639,7 +639,7 @@ export default function AdminVisitors() {
                                   <span className="font-mono uppercase font-bold text-indigo-600">{v.vehiclePlate}</span>
                                 </p>
                               ) : (
-                                <span className="text-[10px] text-slate-500">Pedestrian / Drop-off</span>
+                                <span className="text-[11px] text-slate-500">Pedestrian / Drop-off</span>
                               )}
                             </td>
 
@@ -652,7 +652,7 @@ export default function AdminVisitors() {
                                 {new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
                               {v.expectedCheckOutAt && (
-                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>
+                                <p className="text-[11px] text-slate-500 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>
                               )}
                             </td>
 

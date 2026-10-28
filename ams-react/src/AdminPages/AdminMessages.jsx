@@ -386,11 +386,11 @@ const AdminMessages = () => {
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                           </span>
-                          <span className="text-[10px] text-slate-500 shrink-0">{formatTime(conversation.last_message_time)}</span>
+                          <span className="text-[11px] text-slate-500 shrink-0">{formatTime(conversation.last_message_time)}</span>
                         </div>
                         <div className="mt-1 flex justify-between gap-2 items-center">
                     <span className="text-xs text-slate-500 truncate">{conversation.matched_message || getConversationPreview(conversation, userId)}</span>
-                          {unread > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
+                          {unread > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
                         </div>
                       </div>
                     </button>
@@ -478,12 +478,12 @@ const AdminMessages = () => {
                                 })()}
                               </div>
                               {expandedTimestampId === messageKey && (
-                                <p className={`pointer-events-none absolute top-full z-10 mt-1 w-max max-w-[min(80vw,20rem)] whitespace-normal break-words text-[10px] leading-3.5 text-slate-500 animate-fade-in-up ${isAdmin ? 'right-0 text-right' : 'left-0 text-left'}`}>
+                                <p className={`pointer-events-none absolute top-full z-10 mt-1 w-max max-w-[min(80vw,20rem)] whitespace-normal break-words text-[11px] leading-3.5 text-slate-500 animate-fade-in-up ${isAdmin ? 'right-0 text-right' : 'left-0 text-left'}`}>
                                   {formatExactMessageDateTime(message.created_at)}
                                 </p>
                               )}
                               {isLatestSentMessage && (
-                                <p className="m-0 mt-1 text-right text-[10px] text-slate-500 font-medium">
+                                <p className="m-0 mt-1 text-right text-[11px] text-slate-500 font-medium">
                                   {Number(message.is_read) === 1 ? 'Seen' : 'Sent'}
                                 </p>
                               )}

@@ -102,16 +102,16 @@ export default function AdminNotificationModal({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.badge}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${cfg.badge}`}>
                     {cfg.label}
                   </span>
                   {isPending && (
-                    <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-amber-200">
+                    <span className="bg-amber-100 text-amber-800 text-[11px] font-extrabold px-2 py-0.5 rounded-full border border-amber-200">
                       Pending Action
                     </span>
                   )}
                   {createdAt && (
-                    <span className="text-[10px] text-slate-500 font-medium">
+                    <span className="text-[11px] text-slate-500 font-medium">
                       {formatRelativeTime(createdAt)}
                     </span>
                   )}

@@ -207,7 +207,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
           >
             <FontAwesomeIcon icon={faBell} className="text-lg sm:text-xl" />
             {unreadCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-0.5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border border-white">
+              <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-0.5 bg-red-600 text-white text-[11px] font-black rounded-full flex items-center justify-center border border-white">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -239,11 +239,11 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
                         <p className={`text-xs font-bold m-0 leading-snug ${!Number(notif.is_read) ? 'text-slate-800' : 'text-slate-600'}`}>
                           {notif.title}
                           {isNew && (
-                            <span className="ml-1.5 align-middle text-[9px] font-black uppercase tracking-wider text-white bg-indigo-500 px-1.5 py-0.5 rounded-full">New</span>
+                            <span className="ml-1.5 align-middle text-[11px] font-black uppercase tracking-wider text-white bg-indigo-500 px-1.5 py-0.5 rounded-full">New</span>
                           )}
                         </p>
                         <p className="text-[11px] text-slate-500 m-0 leading-normal">{notif.message}</p>
-                        <p className="text-[9px] text-slate-500 font-medium m-0 mt-1">{formatRelativeTime(notif.created_at)}</p>
+                        <p className="text-[11px] text-slate-500 font-medium m-0 mt-1">{formatRelativeTime(notif.created_at)}</p>
                         {isNew && (
                           <p className="text-[11px] font-bold text-indigo-700 m-0 mt-1">Review payment →</p>
                         )}

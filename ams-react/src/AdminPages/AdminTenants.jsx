@@ -446,15 +446,15 @@ const AdminTenants = () => {
   const renderPaymentStanding = (t) => (t.status !== 'archived' && t.paymentStatus) ? (
     <div className="mt-1">
       {t.paymentStatus === 'overdue' ? (
-        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200" title={`${t.daysOverdue} day(s) past due`}>
+        <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200" title={`${t.daysOverdue} day(s) past due`}>
           Overdue ₱{Number(t.overdueBalance).toLocaleString()}
         </span>
       ) : t.paymentStatus === 'due' ? (
-        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+        <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
           Due ₱{Number(t.outstandingBalance).toLocaleString()}
         </span>
       ) : (
-        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
           Paid up
         </span>
       )}
@@ -465,7 +465,7 @@ const AdminTenants = () => {
     t.status === 'archived' ? (
       <div>
         <div>Archived: {t.archiveDate}</div>
-        <div className="text-[10px] text-violet-500 font-semibold">{t.archiveReason}</div>
+        <div className="text-[11px] text-violet-500 font-semibold">{t.archiveReason}</div>
       </div>
     ) : t.status === 'Pending Review' ? (
       <span className="text-slate-500">Move-in date pending</span>
@@ -475,7 +475,7 @@ const AdminTenants = () => {
       <div>
         <div>Rent ends: {t.leaseEnd}</div>
         {daysRemaining(t.leaseEnd) > 0 && (
-          <div className={`text-[10px] font-semibold ${daysRemaining(t.leaseEnd) <= 30 ? 'text-red-600' : 'text-slate-500'}`}>
+          <div className={`text-[11px] font-semibold ${daysRemaining(t.leaseEnd) <= 30 ? 'text-red-600' : 'text-slate-500'}`}>
             {daysRemaining(t.leaseEnd)} days remaining
           </div>
         )}
@@ -484,11 +484,11 @@ const AdminTenants = () => {
       <div>
         <div>Scheduled Out: {t.requestedMoveOutDate}</div>
         {daysRemaining(t.requestedMoveOutDate) > 0 ? (
-          <div className="text-[10px] text-amber-700 font-semibold">
+          <div className="text-[11px] text-amber-700 font-semibold">
             {daysRemaining(t.requestedMoveOutDate)} days notice
           </div>
         ) : (
-          <div className="text-[10px] text-red-600 font-semibold">Notice expired / due today</div>
+          <div className="text-[11px] text-red-600 font-semibold">Notice expired / due today</div>
         )}
       </div>
     ) : (
@@ -581,34 +581,14 @@ const AdminTenants = () => {
               </div>
             </div>
 
-            {/* Stats Summary */}
-            <div className="stagger-children grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Total Records</p>
-                <p className="text-2xl font-bold text-slate-800 mt-1 m-0">{counts.all}</p>
-              </div>
-              <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Active</p>
-                <p className="text-2xl font-bold text-emerald-700 mt-1 m-0">{counts.active}</p>
-              </div>
-              <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Pending Move-Out</p>
-                <p className="text-2xl font-bold text-amber-700 mt-1 m-0">{counts['pending-move-out']}</p>
-              </div>
-              <div className="card-interactive bg-white border-l-4 border-l-slate-400 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Moved Out</p>
-                <p className="text-2xl font-bold text-slate-500 mt-1 m-0">{counts['moved-out']}</p>
-              </div>
-              <div className="card-interactive bg-white border-l-4 border-l-violet-500 border border-slate-200 rounded-xl p-4 shadow-sm">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Archived</p>
-                <p className="text-2xl font-bold text-violet-600 mt-1 m-0">{counts.archived}</p>
-              </div>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-3 flex-wrap">
+            {/* Filter pills: each shows its count, so there is no separate row of count
+                cards repeating them. A pending move-out needs action, so its pill gets a dot. */}
+            <div className="flex items-center gap-3 flex-wrap" role="group" aria-label="Filter tenants by status">
               {filters.map(f => (
-                <button key={f.key} onClick={() => setActiveFilter(f.key)} className={`btn-interactive px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-all ${activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+                <button key={f.key} type="button" aria-pressed={activeFilter === f.key} onClick={() => setActiveFilter(f.key)} className={`btn-interactive inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-all ${activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+                  {f.key === 'pending-move-out' && counts['pending-move-out'] > 0 && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                  )}
                   {f.label}
                 </button>
               ))}
@@ -724,7 +704,7 @@ const AdminTenants = () => {
                   <p className="text-xs text-slate-500 m-0 mt-0.5">
                     Unit {selectedTenant.unit} · {getOccupancyBadge(selectedTenant.status)}
                     {selectedTenant.status === 'archived' && (
-                      <span className="ml-2 text-[10px] text-violet-500 font-semibold">Read-Only</span>
+                      <span className="ml-2 text-[11px] text-violet-500 font-semibold">Read-Only</span>
                     )}
                   </p>
                 </div>
@@ -761,28 +741,28 @@ const AdminTenants = () => {
                 <div className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Full Name</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Full Name</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.name}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Unit</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Unit</p>
                       <p className="text-sm font-medium text-indigo-600 m-0">{selectedTenant.unit}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Email</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Email</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.email || '—'}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Phone</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Phone</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.phone || '—'}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Monthly Rent</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Monthly Rent</p>
                       <p className="text-sm font-bold text-emerald-700 m-0">{selectedTenant.rent || '—'}</p>
                     </div>
                     {selectedTenant.status !== 'Pending Review' && (
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Move-in Date</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Move-in Date</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.moveIn || '—'}</p>
                     </div>
                     )}
@@ -795,7 +775,7 @@ const AdminTenants = () => {
                   {/* Verification Documents */}
                   {selectedTenant.previousAddress && (
                     <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Previous Address</p>
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Previous Address</p>
                       <p className="text-sm font-medium text-slate-700 m-0 wrap-break-word">{selectedTenant.previousAddress}</p>
                     </div>
                   )}
@@ -812,7 +792,7 @@ const AdminTenants = () => {
                            <a key={doc.id} href={fileUrl(doc.file_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {doc.label}</a>
                          ))}
                          {!selectedTenant.documentsVerifiedAt && (selectedTenant.missingDocuments || []).map((label) => (
-                           <span key={`missing-${label}`} className="flex items-center gap-2 text-slate-500 text-sm p-2 bg-slate-50 border border-dashed border-slate-200 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {label} <span className="ml-auto text-[10px] font-bold uppercase">Missing</span></span>
+                           <span key={`missing-${label}`} className="flex items-center gap-2 text-slate-500 text-sm p-2 bg-slate-50 border border-dashed border-slate-200 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {label} <span className="ml-auto text-[11px] font-bold uppercase">Missing</span></span>
                          ))}
                        </div>
                     </div>
@@ -888,7 +868,7 @@ const AdminTenants = () => {
                           <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 ml-2">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-bold text-slate-800">{entry.event}</span>
-                              <span className="text-[10px] text-slate-500 font-semibold">{entry.date}</span>
+                              <span className="text-[11px] text-slate-500 font-semibold">{entry.date}</span>
                             </div>
                             <p className="text-[11px] text-slate-500 m-0">{entry.detail}</p>
                           </div>
@@ -915,19 +895,19 @@ const AdminTenants = () => {
                   <div className="stagger-children grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="card-interactive bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-emerald-700 m-0">₱{totalPaid.toLocaleString()}</p>
-                      <p className="text-[10px] text-emerald-700 font-semibold m-0 mt-0.5">Total Paid</p>
+                      <p className="text-[11px] text-emerald-700 font-semibold m-0 mt-0.5">Total Paid</p>
                     </div>
                     <div className="card-interactive bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-indigo-700 m-0">{monthsPaid}</p>
-                      <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">Invoices Paid</p>
+                      <p className="text-[11px] text-indigo-600 font-semibold m-0 mt-0.5">Invoices Paid</p>
                     </div>
                     <div className="card-interactive bg-red-50 border border-red-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-red-700 m-0">{overdueCount}</p>
-                      <p className="text-[10px] text-red-600 font-semibold m-0 mt-0.5">Overdue Invoices</p>
+                      <p className="text-[11px] text-red-600 font-semibold m-0 mt-0.5">Overdue Invoices</p>
                     </div>
                     <div className="card-interactive bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
                       <p className="text-sm font-bold text-slate-700 m-0 truncate">{lastPayment}</p>
-                      <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Last Payment</p>
+                      <p className="text-[11px] text-slate-500 font-semibold m-0 mt-0.5">Last Payment</p>
                     </div>
                   </div>
 
@@ -945,18 +925,18 @@ const AdminTenants = () => {
                             <div className="text-left">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-bold text-slate-800 m-0">₱{Number(entry.total_amount).toLocaleString()}</p>
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${
+                                <span className={`text-[11px] px-1.5 py-0.5 rounded font-semibold ${
                                   entry.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                                 }`}>
                                   {entry.status.toUpperCase()}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-slate-500 m-0 mt-0.5">
+                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">
                                 {entry.billing_period || 'Initial Rent Payment'} · Due: {entry.due_date}
                               </p>
                             </div>
                           </div>
-                          <div className="text-right text-[10px] text-slate-500">
+                          <div className="text-right text-[11px] text-slate-500">
                             <div className="font-mono text-indigo-600">{entry.invoice_number}</div>
                             {entry.paid_at && <div className="mt-0.5">Paid: {entry.paid_at.split(' ')[0]}</div>}
                           </div>
@@ -1189,20 +1169,20 @@ const AdminTenants = () => {
                     const err = deductionErrors[i] || {};
                     return (
                       <div key={line.key} className="grid grid-cols-12 gap-2 rounded-xl border border-slate-200 p-2.5">
-                        <label className="col-span-12 sm:col-span-4 text-[10px] font-bold text-slate-500 uppercase">Category
+                        <label className="col-span-12 sm:col-span-4 text-[11px] font-bold text-slate-500 uppercase">Category
                           <select value={line.category} onChange={(e) => editDeduction(i, { category: e.target.value })}
                             className={`mt-1 w-full px-2 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500 text-slate-800 normal-case font-normal ${err.category ? 'border-rose-400' : 'border-slate-200'}`}>
                             {DEDUCTION_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                           </select>
                         </label>
-                        <label className="col-span-12 sm:col-span-8 text-[10px] font-bold text-slate-500 uppercase">Reason
+                        <label className="col-span-12 sm:col-span-8 text-[11px] font-bold text-slate-500 uppercase">Reason
                           <input type="text" value={line.reason} maxLength={255} autoComplete="off" aria-invalid={!!err.reason}
                             onChange={(e) => editDeduction(i, { reason: e.target.value })}
                             onBlur={() => editDeduction(i, { reason: line.reason.trim() }, true)}
                             placeholder="e.g. Broken window, final Meralco bill"
                             className={`mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500 text-slate-800 normal-case font-normal ${err.reason ? 'border-rose-400' : 'border-slate-200'}`} />
                         </label>
-                        <label className="col-span-8 sm:col-span-5 text-[10px] font-bold text-slate-500 uppercase">Amount (₱)
+                        <label className="col-span-8 sm:col-span-5 text-[11px] font-bold text-slate-500 uppercase">Amount (₱)
                           <input type="number" inputMode="decimal" min="0.01" max="1000000" step="0.01" value={line.amount} aria-invalid={!!err.amount}
                             onKeyDown={blockNonNumericKeys}
                             onChange={(e) => editDeduction(i, { amount: e.target.value })}

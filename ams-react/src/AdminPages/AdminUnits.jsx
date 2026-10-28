@@ -166,7 +166,7 @@ const AdminUnits = () => {
       repair: { style: 'bg-red-100 text-red-800', label: '✕ Under Repair' },
     };
     const { style, label } = map[status] || map.vacant;
-    return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${style}`}>{label}</span>;
+    return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${style}`}>{label}</span>;
   };
 
   const validateLeaseDuration = (startDate, endDate) => {
@@ -391,12 +391,12 @@ const AdminUnits = () => {
               <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Occupied</p>
                 <p className="text-2xl font-bold text-emerald-700 mt-1 m-0">{counts.occupied}</p>
-                <p className="text-[10px] text-slate-500 m-0 mt-0.5">{counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupancy</p>
+                <p className="text-[11px] text-slate-500 m-0 mt-0.5">{counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupancy</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Vacant</p>
                 <p className="text-2xl font-bold text-amber-700 mt-1 m-0">{counts.vacant}</p>
-                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Available now</p>
+                <p className="text-[11px] text-slate-500 m-0 mt-0.5">Available now</p>
               </div>
               <div className="card-interactive bg-white border-l-4 border-l-red-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Under Repair</p>
@@ -454,10 +454,10 @@ const AdminUnits = () => {
 
                     {unit.status === 'occupied' ? (
                       <>
-                        <div className="text-[10px] text-slate-500 mt-2">{unit.tenant}</div>
+                        <div className="text-[11px] text-slate-500 mt-2">{unit.tenant}</div>
                         <div className="text-xs font-bold text-indigo-600 mt-1">{formatCurrency(unit.rent)}/mo</div>
                         {remaining !== null && (
-                          <div className={`text-[10px] font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
+                          <div className={`text-[11px] font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
                             <FontAwesomeIcon icon={faClock} className="text-[9px]" />
                             {remaining > 0 ? `${remaining} days left` : 'Rent expired'}
                           </div>
@@ -465,23 +465,23 @@ const AdminUnits = () => {
                       </>
                     ) : (
                       <>
-                        <div className="text-[10px] text-amber-700 mt-2">Available now</div>
+                        <div className="text-[11px] text-amber-700 mt-2">Available now</div>
                         <div className="text-xs font-bold text-emerald-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
-                        {unit.lastTenant && <div className="text-[10px] text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
+                        {unit.lastTenant && <div className="text-[11px] text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
                       </>
                     )}
 
                     <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
                       <button
                         onClick={() => { setSelectedUnit(unit); setShowDetailModal(true); setLeaseError(''); }}
-                        className="flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
                       >
                         <FontAwesomeIcon icon={faEye} className="text-[9px]" /> Details
                       </button>
                       {unit.status === 'vacant' && (
                         <button
                           onClick={() => openAssignTenant(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal)}
-                          className="flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
+                          className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
                         >
                           <FontAwesomeIcon icon={faUserPlus} className="text-[9px]" /> Assign
                         </button>
@@ -492,7 +492,7 @@ const AdminUnits = () => {
                           disabled={removingUnitId !== null}
                           onClick={() => handleRemoveUnit(unit)}
                           title={`Remove Unit ${unit.id} from active listings`}
-                          className="flex items-center justify-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <FontAwesomeIcon icon={faBoxArchive} className="text-[9px]" />
                           {removingUnitId === unit.id ? 'Removing…' : 'Remove'}
@@ -893,7 +893,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                     
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Room Condition</label>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Room Condition</label>
                         <select 
                           value={editCondition} 
                           onChange={e => setEditCondition(e.target.value)}
@@ -908,7 +908,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Furnishing Status</label>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Furnishing Status</label>
                         <select 
                           value={editFurnishing} 
                           onChange={e => setEditFurnishing(e.target.value)}
@@ -921,7 +921,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       </div>
 
                       <div>
-                        <label htmlFor="monitor-inspection" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Last Inspection Date</label>
+                        <label htmlFor="monitor-inspection" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Last Inspection Date</label>
                         <input
                           type="date"
                           id="monitor-inspection"
@@ -1050,7 +1050,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       <div><p className={`text-xl font-bold m-0 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-emerald-700'}`}>{remaining > 0 ? remaining : 0}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Days Left</p></div>
                     </div>
                     <div>
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-1"><span>{unit.leaseStart}</span><span>{unit.leaseEnd}</span></div>
+                      <div className="flex justify-between text-[11px] text-slate-500 mb-1"><span>{unit.leaseStart}</span><span>{unit.leaseEnd}</span></div>
                       <div className="w-full h-2 bg-white rounded-full overflow-hidden shadow-inner"><div className={`h-full rounded-full transition-all ${remaining <= 30 ? 'bg-red-500' : remaining <= 90 ? 'bg-amber-400' : 'bg-indigo-500'}`} style={{ width: `${progressPct}%` }} /></div>
                     </div>
                   </div>
@@ -1107,7 +1107,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                                   <span className="text-slate-600 font-semibold">{ext.oldEnd} → {ext.newEnd}</span>
                                   <span className="text-slate-500 ml-2">({ext.detail})</span>
                                 </div>
-                                <span className="text-[10px] text-slate-500">{ext.date}</span>
+                                <span className="text-[11px] text-slate-500">{ext.date}</span>
                               </div>
                             ))}
                           </div>
@@ -1145,10 +1145,10 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                             </div>
                             <div>
                               <p className="text-sm font-semibold text-slate-800 m-0">{occ.tenant}</p>
-                              <p className="text-[10px] text-slate-500 m-0">{occ.status === 'current' ? 'Current Tenant' : 'Past Tenant'}</p>
+                              <p className="text-[11px] text-slate-500 m-0">{occ.status === 'current' ? 'Current Tenant' : 'Past Tenant'}</p>
                             </div>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
                             {occ.status === 'current' ? 'Active' : 'Ended'}
                           </span>
                         </div>
@@ -1164,10 +1164,10 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                         )}
                         {occ.extensions?.length > 0 && (
                           <div className="mt-2 bg-white rounded-lg px-2.5 py-2 border border-slate-100">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 m-0 mb-1">Extensions</p>
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700 m-0 mb-1">Extensions</p>
                             <div className="space-y-1">
                               {occ.extensions.map((ext, i) => (
-                                <div key={i} className="flex flex-wrap items-center gap-2 text-[10px]">
+                                <div key={i} className="flex flex-wrap items-center gap-2 text-[11px]">
                                   <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{ext.oldEnd}</span>
                                   <FontAwesomeIcon icon={faChevronRight} className="text-slate-500 text-[8px]" />
                                   <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">{ext.newEnd}</span>
@@ -1248,7 +1248,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
 
 const DetailField = ({ label, value }) => (
   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">{label}</p>
+    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">{label}</p>
     <p className="text-sm font-medium text-slate-700 m-0 mt-0.5">{value || '—'}</p>
   </div>
 );

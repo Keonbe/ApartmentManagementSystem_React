@@ -39,7 +39,7 @@
 body {
   margin: 0;
   padding: 0;
-  min-width: 100vw;
+  min-width: 100%;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -49,7 +49,7 @@ body {
    of the viewer screen real estate.
 */
 #root {
-  width: 100vw !important;
+  width: 100% !important;
   max-width: 100% !important;
   min-height: 100svh;
   margin: 0 !important;
@@ -59,30 +59,34 @@ body {
   box-sizing: border-box;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  margin: 0;
-}
+/* In @layer base so Tailwind utilities (mb-3, space-y-*, font-bold) still
+   apply to these elements; unlayered rules would override every utility. */
+@layer base {
+  h1,
+  h2 {
+    font-family: var(--heading);
+    font-weight: 500;
+    margin: 0;
+  }
 
-p {
-  margin: 0;
-}
+  p {
+    margin: 0;
+  }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
+  code,
+  .counter {
+    font-family: var(--mono);
+    display: inline-flex;
+    border-radius: 4px;
+    color: var(--text-h);
+  }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  code {
+    font-size: 15px;
+    line-height: 135%;
+    padding: 4px 8px;
+    background: var(--code-bg);
+  }
 }
 
 /* Isolated printing (utils/print.js): only the copy in #print-root prints */

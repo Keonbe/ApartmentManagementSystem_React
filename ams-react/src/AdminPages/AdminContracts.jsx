@@ -542,7 +542,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               >
                 <FontAwesomeIcon icon={faFileContract} />
                 <span>Contracts Management</span>
-                <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab !== 'editor' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-300/80 text-slate-600'}`}>
+                <span className={`ml-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${activeTab !== 'editor' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-300/80 text-slate-600'}`}>
                   {contracts.length}
                 </span>
               </button>
@@ -684,7 +684,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                             <FontAwesomeIcon icon={docStatus.icon} className="text-[10px]" /> {docStatus.label}
                           </span>
                         </td>
-                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span></td>
+                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span></td>
                         <td className="py-3 px-4 text-right">
                           <button type="button" aria-label={`View contract ${c.id} for ${c.tenant}`} title="View contract" onClick={() => openPreview(c)} className="w-7 h-7 rounded text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
                           <button type="button" aria-label={`Download contract ${c.id} for ${c.tenant} as PDF`} title="Download as PDF" onClick={() => handleDownloadContract(c)} className="w-7 h-7 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
@@ -787,7 +787,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
                   <div className="text-center border-b border-slate-200 pb-4">
                     <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
-                    <p className="text-[10px] text-slate-500 m-0 mt-1 uppercase tracking-widest">Rent Agreement</p>
+                    <p className="text-[11px] text-slate-500 m-0 mt-1 uppercase tracking-widest">Rent Agreement</p>
                   </div>
                   <div className="space-y-2 text-xs text-slate-700">
                     <div className="flex justify-between"><span className="text-slate-500">Tenant:</span><span className="font-semibold">{form.tenant}</span></div>
@@ -797,7 +797,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     <div className="flex justify-between"><span className="text-slate-500">Rent Period:</span><span className="font-semibold">{form.leaseStart} → {form.leaseEnd}</span></div>
                   </div>
                   <div className="border-t border-slate-200 pt-3">
-                    <p className="text-[10px] text-slate-500 leading-relaxed m-0">
+                    <p className="text-[11px] text-slate-500 leading-relaxed m-0">
                       This Rent Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                       The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
                       will be charged for payments made after the due date. The security deposit shall be refunded upon 
@@ -860,9 +860,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-3 shrink-0">
               <div className="flex items-center gap-2.5">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{selectedContract.id}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusOf(selectedContract.status).color}`}>{statusOf(selectedContract.status).label}</span>
+                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${statusOf(selectedContract.status).color}`}>{statusOf(selectedContract.status).label}</span>
                 {selectedContract.evictionStatus === 'flagged' && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-200 text-red-900 border border-red-300">🚨 Eviction Flagged</span>
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-200 text-red-900 border border-red-300">🚨 Eviction Flagged</span>
                 )}
                 <span className="text-xs font-semibold text-slate-700 hidden sm:inline ml-1">
                   {selectedContract.tenant} · Unit {selectedContract.unit}

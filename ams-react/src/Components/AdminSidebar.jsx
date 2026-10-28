@@ -5,48 +5,65 @@ import {
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
   faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt,
-  faEnvelopeOpenText, faEnvelope, faFileSignature, faMoneyBillTransfer
+  faEnvelopeOpenText, faEnvelope, faMoneyBillTransfer, faChartBar
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
 // Phone rules for every admin page (.admin-shell): every page renders this sidebar.
 import '../assets/styles/responsive/admin/admin-shell.responsive.css';
 
+// Grouped by the job the admin is doing, 2-5 links each, so the list scans in
+// chunks. The contract template is edited on the Contracts page (its Template
+// Editor tab); /admin-contract-editor redirects there.
 const defaultNavSections = [
   {
-    title: 'Main',
+    title: 'Overview',
     items: [
       { to: '/admin-dashboard', icon: faHome, label: 'Dashboard' },
+    ],
+  },
+  {
+    title: 'Leasing',
+    items: [
       { to: '/admin-inquiries', icon: faEnvelopeOpenText, label: 'Inquiries' },
       { to: '/admin-applications', icon: faFileAlt, label: 'Applications' },
       { to: '/admin-units', icon: faBuilding, label: 'Units' },
       { to: '/admin-tenants', icon: faUsers, label: 'Tenants' },
-      { to: '/admin-users', icon: faUsersCog, label: 'Users' },
+      { to: '/admin-contracts', icon: faFileContract, label: 'Contracts' },
+    ],
+  },
+  {
+    title: 'Money',
+    items: [
       { to: '/admin-payments', icon: faCreditCard, label: 'Payments' }, // Core service: always visible
       { to: '/admin-refunds', icon: faMoneyBillTransfer, label: 'Refunds' },
+      { to: '/admin-utilities', icon: faBolt, label: 'Utilities' },
     ],
   },
   {
-    title: 'Operations',
+    title: 'Building',
     items: [
-      { to: '/admin-messages', icon: faEnvelope, label: 'Messages' },
+      { to: '/admin-maintenance', icon: faWrench, label: 'Maintenance', serviceKey: 'service_maintenance_active' },
       { to: '/admin-visitors', icon: faIdBadge, label: 'Visitors', serviceKey: 'service_visitor_management_active' },
       { to: '/admin-parking', icon: faCar, label: 'Parking', serviceKey: 'service_parking_active' },
-      { to: '/admin-maintenance', icon: faWrench, label: 'Maintenance', serviceKey: 'service_maintenance_active' },
       { to: '/admin-cctv', icon: faVideo, label: 'CCTV', serviceKey: 'service_cctv_active' },
-      { to: '/admin-utilities', icon: faBolt, label: 'Utilities' },
       { to: '/admin-services', icon: faConciergeBell, label: 'Services' },
-      { to: '/admin-announcements', icon: faBullhorn, label: 'Announcements' },
-      { to: '/admin-notifications', icon: faBell, label: 'Notifications' },
-      { to: '/admin-activity-logs', icon: faHistory, label: 'Activity Log' },
     ],
   },
   {
-    title: 'Reports',
+    title: 'Communication',
     items: [
-      { to: '/admin-reports', icon: faFileAlt, label: 'Reports' },
-      { to: '/admin-contracts', icon: faFileContract, label: 'Contracts' },
-      { to: '/admin-contract-editor', icon: faFileSignature, label: 'Edit Contract' },
+      { to: '/admin-messages', icon: faEnvelope, label: 'Messages' },
+      { to: '/admin-announcements', icon: faBullhorn, label: 'Announcements' },
+      { to: '/admin-notifications', icon: faBell, label: 'Notifications' },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
+      { to: '/admin-users', icon: faUsersCog, label: 'Users' },
+      { to: '/admin-reports', icon: faChartBar, label: 'Reports' },
+      { to: '/admin-activity-logs', icon: faHistory, label: 'Activity Log' },
     ],
   },
 ];
@@ -163,14 +180,14 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-8 min-h-0 admin-sidebar-nav-scroll">
+      <nav className="flex-1 overflow-y-auto py-5 px-4 space-y-5 min-h-0 admin-sidebar-nav-scroll">
         {defaultNavSections.map((section) => {
           const visibleItems = section.items.filter(isItemVisible);
           if (visibleItems.length === 0) return null;
 
           return (
             <div key={section.title}>
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2 m-0">{section.title}</h2>
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2 m-0">{section.title}</h2>
               <ul className="space-y-1 p-0 m-0 list-none">
                 {visibleItems.map((item) => (
                   <li key={item.to}>

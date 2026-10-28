@@ -321,7 +321,7 @@ export default function AdminParking() {
                             </td>
 
                             <td className="px-4 py-4 text-center">
-                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${STATUS_BADGE[r.status] || 'bg-slate-100 text-slate-600'}`}>{r.status}</span>
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${STATUS_BADGE[r.status] || 'bg-slate-100 text-slate-600'}`}>{r.status}</span>
                             </td>
 
                             <td className="px-5 py-4 text-right">

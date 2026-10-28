@@ -141,21 +141,21 @@ function BiInput({ id, label, value, onChange, multiline = false, rows = 3, max,
     return (
       <div className="flex flex-col gap-1 min-w-0">
         <div className="flex items-center justify-between">
-          <label htmlFor={props.id} className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <label htmlFor={props.id} className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
             {lang === 'en' ? 'English' : 'Tagalog'}
           </label>
           {lang === 'tl' && v.en && !v.tl && (
             <button
               type="button"
               onClick={copyToTl}
-              className="text-[10px] text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer font-semibold flex items-center gap-1"
+              className="text-[11px] text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer font-semibold flex items-center gap-1"
             >
               <FontAwesomeIcon icon={faCopy} /> Copy from English
             </button>
           )}
         </div>
         {multiline ? <textarea rows={rows} {...props} /> : <input type="text" autoComplete="off" {...props} />}
-        {max && len > max * 0.8 && <span className="text-[10px] text-slate-500 self-end">{len}/{max}</span>}
+        {max && len > max * 0.8 && <span className="text-[11px] text-slate-500 self-end">{len}/{max}</span>}
       </div>
     );
   };
@@ -193,7 +193,7 @@ function PlaceholderBar({ variables, onInsert }) {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-      <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px] mr-1">Insert dynamic value:</span>
+      <span className="font-bold text-slate-500 uppercase tracking-wider text-[11px] mr-1">Insert dynamic value:</span>
       {BUILTIN_PLACEHOLDERS.map((p) => chip(p.key, p.label, false))}
       {(variables || []).map((v) => chip(v.key, v.label, true))}
     </div>
@@ -756,7 +756,7 @@ const AdminContractEditor = ({ embedded = false }) => {
             <div key={a.id} className="rounded-xl border border-slate-200 p-4 space-y-3 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isGcash ? 'bg-blue-100 text-blue-700' : a.type === 'bank' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${isGcash ? 'bg-blue-100 text-blue-700' : a.type === 'bank' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
                     {a.type}
                   </span>
                   <span className="text-xs font-bold text-slate-700">{a.label || `Account #${i + 1}`}</span>
@@ -966,7 +966,7 @@ const AdminContractEditor = ({ embedded = false }) => {
         {showCustomDataEditor && (
           <div className="pt-3 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/50 p-3 rounded-xl animate-fadeIn">
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tenant Name</label>
+              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Tenant Name</label>
               <input
                 type="text"
                 value={customPreviewData.tenantName || ''}
@@ -975,7 +975,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Room / Unit</label>
+              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Room / Unit</label>
               <input
                 type="text"
                 value={customPreviewData.roomName || ''}
@@ -984,7 +984,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monthly Rent</label>
+              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Monthly Rent</label>
               <input
                 type="text"
                 value={customPreviewData.monthlyRent || ''}
@@ -993,7 +993,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tenant Phone</label>
+              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Tenant Phone</label>
               <input
                 type="text"
                 value={customPreviewData.tenantPhone || ''}
@@ -1035,7 +1035,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                 <p className="m-0 text-sm font-semibold text-slate-800">
                   {formatDateTime(v.created_at)}{v.created_by_name ? ` · ${v.created_by_name}` : ' · System'}
                   {v.version === meta?.version && (
-                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                    <span className="ml-2 text-[11px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
                       In Force
                     </span>
                   )}
@@ -1119,7 +1119,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                 <FontAwesomeIcon icon={t.icon} className="text-xs" />
                 <span>{t.label}</span>
                 {t.id === 'terms' && (
-                  <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                  <span className={`ml-1 text-[11px] px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
                     {draft.terms.sections.length}
                   </span>
                 )}

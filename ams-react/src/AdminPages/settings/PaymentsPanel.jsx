@@ -21,7 +21,7 @@ function ChannelRow({ label, sublabel, checked, onChange, disabled = false }) {
     }`}>
       <span>
         <span className="text-xs font-medium text-slate-700 block">{label}</span>
-        {sublabel && <span className="text-[10px] text-slate-500">{sublabel}</span>}
+        {sublabel && <span className="text-[11px] text-slate-500">{sublabel}</span>}
       </span>
       <input
         type="checkbox"
@@ -36,8 +36,8 @@ function ChannelRow({ label, sublabel, checked, onChange, disabled = false }) {
 
 function ModeBadge({ active, mode }) {
   return active
-    ? <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-semibold">Active</span>
-    : <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-semibold">Off in {mode} mode</span>;
+    ? <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-semibold">Active</span>
+    : <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-semibold">Off in {mode} mode</span>;
 }
 
 export default function PaymentsPanel({ settings, updateSetting }) {

@@ -564,7 +564,7 @@ const AdminPayments = () => {
     </ul>
   );
   const depositStatusBadge = (status) => (
-    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
       status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
       status === 'Applied to Rent' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
       status === 'Not Collected' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
@@ -879,7 +879,7 @@ const handleMarkAsPaid = async () => {
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                 <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p>{overdueInvoiceCount > 0 && <p className="text-[10px] text-slate-500 m-0 mt-0.5">across {overdueInvoiceCount} invoice{overdueInvoiceCount === 1 ? '' : 's'}</p>}</div>
+                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p>{overdueInvoiceCount > 0 && <p className="text-[11px] text-slate-500 m-0 mt-0.5">across {overdueInvoiceCount} invoice{overdueInvoiceCount === 1 ? '' : 's'}</p>}</div>
               </div>
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
@@ -888,7 +888,7 @@ const handleMarkAsPaid = async () => {
               </div>
               <div className="card-interactive bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-sm flex items-center gap-4 text-white">
                 <div className="w-12 h-12 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faMoneyBillWave} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Outstanding</p><p className="text-xl lg:text-2xl font-bold text-white m-0 mt-0.5">{formatCurrency(totalOutstanding)}</p>{advanceAwaitingTotal > 0 && <p className="text-[10px] text-slate-300 m-0 mt-0.5">Excludes {formatCurrency(advanceAwaitingTotal)} advance rent awaiting payment</p>}</div>
+                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Outstanding</p><p className="text-xl lg:text-2xl font-bold text-white m-0 mt-0.5">{formatCurrency(totalOutstanding)}</p>{advanceAwaitingTotal > 0 && <p className="text-[11px] text-slate-300 m-0 mt-0.5">Excludes {formatCurrency(advanceAwaitingTotal)} advance rent awaiting payment</p>}</div>
               </div>
             </div>
             
@@ -999,7 +999,9 @@ const handleMarkAsPaid = async () => {
                         </div>
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <p className="text-xs text-slate-600 m-0 min-w-0 truncate">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
-                          <p className="text-sm font-bold text-slate-900 m-0 shrink-0">{t.status !== 'paid' ? formatCurrency(tenantTotalDue) : '₱0'}</p>
+                          {t.status !== 'paid'
+                            ? <p className="text-sm font-bold text-slate-900 m-0 shrink-0">{formatCurrency(tenantTotalDue)}</p>
+                            : <p className="text-xs font-medium text-slate-600 m-0 shrink-0">No balance</p>}
                         </div>
                       </div>
                     );
@@ -1069,31 +1071,31 @@ const handleMarkAsPaid = async () => {
                       date are changed with "Adjust invoice", never at the till. */}
                   <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-3 mb-2">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">Period</p>
+                      <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">Period</p>
                       <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.billingPeriod || '—'}</p>
                     </div>
                     {/* A past-due bill shows the period it covers (from move-in), not its lapsed due date. */}
                     {activeTenant.pastDue ? (
                       <div className="bg-rose-50 p-3 rounded-lg border border-rose-100">
-                        <p className="text-[10px] uppercase text-rose-700 font-semibold mb-1 m-0">Covers (overdue)</p>
+                        <p className="text-[11px] uppercase text-rose-700 font-semibold mb-1 m-0">Covers (overdue)</p>
                         <p className="text-sm font-medium text-rose-800 m-0">{activeTenant.coveredPeriod}</p>
                       </div>
                     ) : (
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">Due Date</p>
+                      <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">Due Date</p>
                       <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.dueDate || '—'}</p>
                     </div>
                     )}
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">Term</p>
+                      <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">Term</p>
                       <p className="text-sm font-medium text-slate-800 m-0">Monthly</p>
-                      <p className="text-[10px] leading-snug text-slate-500 m-0 mt-0.5">Due on the move-in day each month</p>
+                      <p className="text-[11px] leading-snug text-slate-500 m-0 mt-0.5">Due on the move-in day each month</p>
                     </div>
                     {[['Security Deposit', depositChip(activeTenant.account)], ['Prepaid Rent', prepaidChip(activeTenant.account)]].map(([label, chip]) => (
                       <div key={label} className="bg-white p-3 rounded-lg border border-slate-200">
-                        <p className="text-[10px] uppercase text-slate-500 font-semibold mb-1 m-0">{label}</p>
+                        <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">{label}</p>
                         <p className={`text-sm font-semibold m-0 ${CHIP_TONES[chip.tone]}`}>{chip.text}</p>
-                        {chip.sub && <p className="text-[10px] leading-snug text-slate-500 m-0 mt-0.5">{chip.sub}</p>}
+                        {chip.sub && <p className="text-[11px] leading-snug text-slate-500 m-0 mt-0.5">{chip.sub}</p>}
                       </div>
                     ))}
                   </div>
@@ -1210,9 +1212,9 @@ const handleMarkAsPaid = async () => {
                             <FieldError id="record-paymentMethod" error={recordForm.errors.paymentMethod} />
                           </>}
                           {activeTenant.methodLocked ? (
-                            <p className="text-[10px] text-slate-500 m-0 mt-1">Declared by the tenant with their proof ({activeTenant.declaredLabel}). To record another method, reject the proof.</p>
+                            <p className="text-[11px] text-slate-500 m-0 mt-1">Declared by the tenant with their proof ({activeTenant.declaredLabel}). To record another method, reject the proof.</p>
                           ) : activeTenant.declaredLabel && (
-                            <p className="text-[10px] text-slate-500 m-0 mt-1">Tenant chose: {activeTenant.declaredLabel}</p>
+                            <p className="text-[11px] text-slate-500 m-0 mt-1">Tenant chose: {activeTenant.declaredLabel}</p>
                           )}
                         </div>
                         <div>
@@ -1223,7 +1225,7 @@ const handleMarkAsPaid = async () => {
                             onBlur={() => amountTendered !== '' && blurRecord('amountPaid')}
                             className={AMOUNT_INPUT + invalidCls(recordForm.errors.amountPaid)} placeholder="0" />}
                           {splitMode && <div className="w-full min-w-0 space-y-3">
-                            <div className="hidden grid-cols-12 gap-3 px-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:grid"><div className="col-span-3">Method</div><div className="col-span-4">Bank / Reference No.</div><div className="col-span-4">Amount (PHP)</div><div className="col-span-1 text-center">Action</div></div>
+                            <div className="hidden grid-cols-12 gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:grid"><div className="col-span-3">Method</div><div className="col-span-4">Bank / Reference No.</div><div className="col-span-4">Amount (PHP)</div><div className="col-span-1 text-center">Action</div></div>
                             {paymentParts.map((part, index) => {
                               const updatePart = (changes) => setPaymentParts(parts => parts.map((p, i) => i === index ? { ...p, ...changes } : p));
                               const amountValue = Number(part.amount);
@@ -1247,7 +1249,7 @@ const handleMarkAsPaid = async () => {
                               Record part-payment (the rest stays due)
                             </label>
                           )}
-                          {declaredPart !== null && partMode && <p className="m-0 mt-1 text-[10px] text-indigo-600">The tenant paid part of the bill: {formatCurrency(declaredPart)} of {formatCurrency(activeTenant.pendingAmount)}. It is recorded as a part-payment.</p>}
+                          {declaredPart !== null && partMode && <p className="m-0 mt-1 text-[11px] text-indigo-600">The tenant paid part of the bill: {formatCurrency(declaredPart)} of {formatCurrency(activeTenant.pendingAmount)}. It is recorded as a part-payment.</p>}
                           {(activeTenant.paidSoFar || 0) > 0 && (
                             <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 p-2 text-[11px] text-slate-600">
                               <p className="m-0 font-semibold text-emerald-700">Paid so far {formatCurrency(activeTenant.paidSoFar)} of {formatCurrency(activeTenant.invoiceTotal)} · balance {formatCurrency(activeTenant.pendingAmount)}</p>
@@ -1287,7 +1289,7 @@ const handleMarkAsPaid = async () => {
                               <FontAwesomeIcon icon={faInfoCircle} /> E-Receipt Metadata Verification
                             </h5>
                             {activeTenant.status === 'pending-verification' && (
-                              <span className="text-[10px] bg-indigo-200/70 text-indigo-900 px-2 py-0.5 rounded-full font-bold">Verification Needed</span>
+                              <span className="text-[11px] bg-indigo-200/70 text-indigo-900 px-2 py-0.5 rounded-full font-bold">Verification Needed</span>
                             )}
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-indigo-950 font-medium">
@@ -1306,7 +1308,7 @@ const handleMarkAsPaid = async () => {
                           )}
                           {activeTenant.splitParts?.length > 0 && (
                             <div className="space-y-1.5 border-t border-indigo-100 pt-2">
-                              <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Split payment portions submitted by the tenant</div>
+                              <div className="text-[11px] font-bold uppercase tracking-wide text-indigo-500">Split payment portions submitted by the tenant</div>
                               {activeTenant.splitParts.map((p, i) => (
                                 <div key={i} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
                                   <span>
@@ -1511,7 +1513,7 @@ const handleMarkAsPaid = async () => {
                   <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all duration-500 ${collectionPct >= 80 ? 'bg-emerald-500' : collectionPct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${collectionPct}%` }}></div>
                   </div>
-                  <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                  <div className="flex justify-between text-[11px] text-slate-500 mt-1">
                     <span>Collected: {formatCurrency(monthlyCollected)}</span>
                     <span>Target: {formatCurrency(monthlyTarget)}</span>
                   </div>
@@ -1523,19 +1525,19 @@ const handleMarkAsPaid = async () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-emerald-700 m-0">{formatCurrency(agingData.current)}</p>
-                      <p className="text-[10px] text-emerald-700 font-semibold m-0 mt-0.5">Current</p>
+                      <p className="text-[11px] text-emerald-700 font-semibold m-0 mt-0.5">Current</p>
                     </div>
                     <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-amber-700 m-0">{formatCurrency(agingData.days15)}</p>
-                      <p className="text-[10px] text-amber-700 font-semibold m-0 mt-0.5">1–15 Days</p>
+                      <p className="text-[11px] text-amber-700 font-semibold m-0 mt-0.5">1–15 Days</p>
                     </div>
                     <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-orange-700 m-0">{formatCurrency(agingData.days30)}</p>
-                      <p className="text-[10px] text-orange-600 font-semibold m-0 mt-0.5">16–30 Days</p>
+                      <p className="text-[11px] text-orange-600 font-semibold m-0 mt-0.5">16–30 Days</p>
                     </div>
                     <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-red-700 m-0">{formatCurrency(agingData.days60plus)}</p>
-                      <p className="text-[10px] text-red-600 font-semibold m-0 mt-0.5">60+ Days</p>
+                      <p className="text-[11px] text-red-600 font-semibold m-0 mt-0.5">60+ Days</p>
                     </div>
                   </div>
                   {/* Aging visual bar */}
@@ -1561,7 +1563,7 @@ const handleMarkAsPaid = async () => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-medium text-slate-700 truncate">{t.name} · Unit {t.unit}</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
                                 t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
                                 t.status === 'pending-verification' ? 'bg-indigo-100 text-indigo-800' : 
                                 t.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 
@@ -1570,8 +1572,8 @@ const handleMarkAsPaid = async () => {
                               }`}>{t.status.toUpperCase()}</span>
                             </div>
                             <div className="flex justify-between mt-0.5">
-                              <span className="text-[9px] text-slate-500">{paidCount} payments recorded</span>
-                              {(t.outstandingBalance || 0) > 0 && <span className="text-[9px] text-red-600 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
+                              <span className="text-[11px] text-slate-500">{paidCount} payments recorded</span>
+                              {(t.outstandingBalance || 0) > 0 && <span className="text-[11px] text-red-600 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
                             </div>
                           </div>
                         </div>
@@ -1629,7 +1631,7 @@ const handleMarkAsPaid = async () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide m-0">Total Deposits Held</p>
+                      <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide m-0">Total Deposits Held</p>
                       <p className="text-2xl font-extrabold text-emerald-800 m-0 mt-1">{formatCurrency(totalDepositsHeld)}</p>
                     </div>
                     <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-600/30 text-3xl" />
@@ -1637,7 +1639,7 @@ const handleMarkAsPaid = async () => {
                   
                   <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide m-0">Total Billing Deductions Applied</p>
+                      <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide m-0">Total Billing Deductions Applied</p>
                       <p className="text-2xl font-extrabold text-amber-800 m-0 mt-1">{formatCurrency(totalDepositDeductions)}</p>
                     </div>
                     <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600/30 text-3xl" />
@@ -1645,7 +1647,7 @@ const handleMarkAsPaid = async () => {
 
                   <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wide m-0">Total Applied to Last Rent Month</p>
+                      <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wide m-0">Total Applied to Last Rent Month</p>
                       <p className="text-2xl font-extrabold text-indigo-800 m-0 mt-1">{formatCurrency(totalAppliedToRent)}</p>
                     </div>
                     <FontAwesomeIcon icon={faCheckCircle} className="text-indigo-600/30 text-3xl" />
@@ -1673,7 +1675,7 @@ const handleMarkAsPaid = async () => {
                 <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-xl">
                   <table className="w-full text-left text-xs whitespace-nowrap">
                     <thead>
-                      <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-50">
+                      <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wide bg-slate-50">
                         <th className="py-3 px-4">Tenant Name</th>
                         <th className="py-3 px-4 text-center">Unit</th>
                         <th className="py-3 px-4">Rent Term</th>
@@ -1700,13 +1702,13 @@ const handleMarkAsPaid = async () => {
                             <td className={`py-3.5 px-4 font-semibold ${dmg > 0 ? 'text-red-600' : 'text-slate-500'}`}>{dmg > 0 ? formatCurrency(dmg) : '—'}</td>
                             <td className={`py-3.5 px-4 font-semibold ${utl > 0 ? 'text-red-600' : 'text-slate-500'}`}>{utl > 0 ? formatCurrency(utl) : '—'}</td>
                             <td className="py-3.5 px-4 font-bold text-indigo-600">{appliedRent > 0 ? formatCurrency(appliedRent) : '—'}</td>
-                            <td className="py-3.5 px-4 text-slate-500 font-medium">₱0.00 <span className="text-[9px] text-slate-500 italic font-normal">(Non-Refundable)</span></td>
+                            <td className="py-3.5 px-4 text-slate-500 font-medium">₱0.00 <span className="text-[11px] text-slate-500 italic font-normal">(Non-Refundable)</span></td>
                           </tr>
                           {items.length > 0 && (
                             <tr className="border-t-0">
                               <td colSpan="9" className="px-4 pb-3 pt-0">
                                 <div className="ml-4 max-w-xl bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
+                                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
                                   {depositItemsList(items)}
                                 </div>
                               </td>
@@ -1750,7 +1752,7 @@ const handleMarkAsPaid = async () => {
                         </dl>
                         {items.length > 0 && (
                           <div className="pt-2 border-t border-slate-100">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
                             {depositItemsList(items)}
                           </div>
                         )}
@@ -1870,26 +1872,26 @@ const handleMarkAsPaid = async () => {
             </div>
             <div className="p-6 space-y-4 font-mono text-sm">
               <div className="flex justify-between border-b border-slate-200 pb-4">
-                <div><p className="text-slate-500 text-[10px] uppercase m-0">Date</p><p className="font-semibold m-0 mt-0.5">{receiptData.date}</p></div>
-                <div className="text-right"><p className="text-slate-500 text-[10px] uppercase m-0">Status</p><p className="font-bold text-emerald-700 m-0 mt-0.5">{receiptData.status}</p></div>
+                <div><p className="text-slate-500 text-[11px] uppercase m-0">Date</p><p className="font-semibold m-0 mt-0.5">{receiptData.date}</p></div>
+                <div className="text-right"><p className="text-slate-500 text-[11px] uppercase m-0">Status</p><p className="font-bold text-emerald-700 m-0 mt-0.5">{receiptData.status}</p></div>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-4">
-                <div><p className="text-slate-500 text-[10px] uppercase m-0">Received From</p><p className="font-bold text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-xs">Unit {receiptData.unit}</p></div>
+                <div><p className="text-slate-500 text-[11px] uppercase m-0">Received From</p><p className="font-bold text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-xs">Unit {receiptData.unit}</p></div>
                 <div className="text-right">
-                  <p className="text-slate-500 text-[10px] uppercase m-0">Method</p>
+                  <p className="text-slate-500 text-[11px] uppercase m-0">Method</p>
                   <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p>
-                  {receiptData.paymentTransactions?.map(tx => <p key={tx.id} className="text-[10px] text-slate-700 m-0 mt-1">{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</p>)}
-                  {!receiptData.paymentTransactions?.length && receiptData.paymentReference && <p className="text-[10px] text-indigo-600 m-0 mt-1">Ref: {receiptData.paymentReference}</p>}
+                  {receiptData.paymentTransactions?.map(tx => <p key={tx.id} className="text-[11px] text-slate-700 m-0 mt-1">{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</p>)}
+                  {!receiptData.paymentTransactions?.length && receiptData.paymentReference && <p className="text-[11px] text-indigo-600 m-0 mt-1">Ref: {receiptData.paymentReference}</p>}
                   {receiptData.gateway && (
                     <>
-                      <p className="text-slate-500 text-[10px] uppercase m-0 mt-2">Gateway</p>
+                      <p className="text-slate-500 text-[11px] uppercase m-0 mt-2">Gateway</p>
                       <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.gateway}</p>
                     </>
                   )}
                 </div>
               </div>
               <div>
-                <p className="text-slate-500 text-[10px] uppercase m-0 mb-1">Payment Breakdown ({receiptData.period})</p>
+                <p className="text-slate-500 text-[11px] uppercase m-0 mb-1">Payment Breakdown ({receiptData.period})</p>
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed text-xs text-slate-700">{receiptData.breakdown}</div>
               </div>
               <div className="flex justify-between items-center pt-4 border-t-2 border-dashed border-slate-200">
@@ -1899,7 +1901,7 @@ const handleMarkAsPaid = async () => {
               {/* Signature placeholder */}
               <div className="pt-6 flex flex-col items-end text-right">
                 <div className="border-b border-slate-400 w-36 h-8 mb-1"></div>
-                <p className="text-[9px] uppercase text-slate-500 font-bold tracking-widest m-0">Authorized Admin Signature</p>
+                <p className="text-[11px] uppercase text-slate-500 font-bold tracking-widest m-0">Authorized Admin Signature</p>
               </div>
             </div>
             <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">

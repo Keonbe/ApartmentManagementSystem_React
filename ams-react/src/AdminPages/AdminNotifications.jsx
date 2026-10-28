@@ -306,7 +306,7 @@ const AdminNotifications = () => {
                         className={`btn-interactive px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap border-0 cursor-pointer transition-colors ${activeFilter === f.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>
                         {f.label}
                         {count > 0 && (
-                          <span className="ml-1.5 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
+                          <span className="ml-1.5 bg-red-600 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
                         )}
                       </button>
                     );
@@ -344,10 +344,10 @@ const AdminNotifications = () => {
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="text-sm font-bold text-slate-800 m-0">{n.title}</h4>
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${cfg.badge}`}>{cfg.label}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${cfg.badge}`}>{cfg.label}</span>
                               {!n.read && <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>}
                             </div>
-                            <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap shrink-0" title={n.createdAt}>{formatRelativeTime(n.createdAt)}</span>
+                            <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap shrink-0" title={n.createdAt}>{formatRelativeTime(n.createdAt)}</span>
                           </div>
 
                           <p className="text-xs text-slate-600 m-0 leading-relaxed">{n.message}</p>
@@ -386,7 +386,7 @@ const AdminNotifications = () => {
                                 <span>Review Request</span>
                                 <FontAwesomeIcon icon={faArrowRight} />
                               </button>
-                              <span className="text-[10px] text-slate-500">Clears from this list once decided.</span>
+                              <span className="text-[11px] text-slate-500">Clears from this list once decided.</span>
                             </div>
                           )}
                         </div>
@@ -418,7 +418,7 @@ const AdminNotifications = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-700 m-0">Rent Due Reminders</p>
-                        <p className="text-[10px] text-slate-500 m-0 mt-0.5">Sent before the due date</p>
+                        <p className="text-[11px] text-slate-500 m-0 mt-0.5">Sent before the due date</p>
                       </div>
                       <button onClick={() => toggleSetting('rentDueEnabled')} className="bg-transparent border-0 cursor-pointer text-2xl" aria-label="Toggle rent due reminders">
                         <FontAwesomeIcon icon={settings.rentDueEnabled ? faToggleOn : faToggleOff} className={settings.rentDueEnabled ? 'text-indigo-600' : 'text-slate-300'} />
@@ -437,7 +437,7 @@ const AdminNotifications = () => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-700 m-0">Overdue Alerts</p>
-                        <p className="text-[10px] text-slate-500 m-0 mt-0.5">Repeated while unpaid</p>
+                        <p className="text-[11px] text-slate-500 m-0 mt-0.5">Repeated while unpaid</p>
                       </div>
                       <button onClick={() => toggleSetting('overdueEnabled')} className="bg-transparent border-0 cursor-pointer text-2xl" aria-label="Toggle overdue alerts">
                         <FontAwesomeIcon icon={settings.overdueEnabled ? faToggleOn : faToggleOff} className={settings.overdueEnabled ? 'text-indigo-600' : 'text-slate-300'} />
@@ -466,7 +466,7 @@ const AdminNotifications = () => {
                     <button onClick={handleRunSweep} disabled={runningSweep} className="w-full py-2 bg-white text-indigo-700 rounded-lg text-xs font-bold border border-indigo-200 hover:bg-indigo-50 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
                       <FontAwesomeIcon icon={faPlay} /> {runningSweep ? 'Running…' : 'Run reminder check now'}
                     </button>
-                    <p className="text-[10px] text-slate-500 m-0 flex gap-2">
+                    <p className="text-[11px] text-slate-500 m-0 flex gap-2">
                       <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5" />
                       These automatic reminders go out in-app and by email, not by SMS. To text a tenant, use Send Due Reminder on the Payments page.
                     </p>

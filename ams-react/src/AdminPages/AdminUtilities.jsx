@@ -57,7 +57,7 @@ function ChangeBadge({ pct }) {
   if (pct === null || pct === undefined) return null;
   const tone = pct > SPIKE_THRESHOLD_PCT ? 'text-rose-600' : 'text-slate-500';
   return (
-    <div className={`text-[10px] font-semibold ${tone}`}>
+    <div className={`text-[11px] font-semibold ${tone}`}>
       {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {Math.abs(pct)}% vs previous
     </div>
   );
@@ -501,7 +501,7 @@ export default function AdminUtilities() {
                         <FontAwesomeIcon icon={faTimes} />
                       </button>
                     ) : (
-                      <span className="absolute right-2.5 text-[10px] text-slate-500 pointer-events-none">▼</span>
+                      <span className="absolute right-2.5 text-[11px] text-slate-500 pointer-events-none">▼</span>
                     )}
 
                     {/* Hidden Native Month Input for visual calendar picking */}
@@ -569,7 +569,7 @@ export default function AdminUtilities() {
                     }`}
                   >
                     <span>{pill.label}</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
                       statusFilter === pill.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                     }`}>
                       {pill.count}
@@ -647,7 +647,7 @@ export default function AdminUtilities() {
                                   )}
                                   {r.has_spike && (
                                     <p
-                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-2 py-0.5 m-0 mt-0.5"
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-2 py-0.5 m-0 mt-0.5"
                                       title={`Usage rose more than ${SPIKE_THRESHOLD_PCT}% over the previous reading`}
                                     >
                                       <FontAwesomeIcon icon={faExclamationTriangle} className="text-[9px]" />
@@ -655,7 +655,7 @@ export default function AdminUtilities() {
                                     </p>
                                   )}
                                   {r.reading_date && (
-                                    <p className="text-[10px] text-slate-500 m-0 font-normal">
+                                    <p className="text-[11px] text-slate-500 m-0 font-normal">
                                       Read: {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                     </p>
                                   )}
@@ -670,7 +670,7 @@ export default function AdminUtilities() {
 
                             {r.entry_mode === 'total' ? (
                               <td colSpan={2} className="px-4 py-4 text-xs text-slate-600">
-                                <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700">Total only</span>
+                                <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">Total only</span>
                                 <span className="ml-2">{r.notes || 'No meter readings; the tenant paid the full amount.'}</span>
                               </td>
                             ) : r.entry_mode === 'bill' ? (<>
@@ -685,7 +685,7 @@ export default function AdminUtilities() {
                                     <FontAwesomeIcon icon={icon} className={`${tone} text-[10px]`} />
                                     <span>{peso(r[`${key}_amount`])}</span>
                                   </div>
-                                  <div className="text-[10px] font-semibold text-indigo-600">{label}</div>
+                                  <div className="text-[11px] font-semibold text-indigo-600">{label}</div>
                                   {hasValue(r[`${key}_consumption`]) ? (
                                     <div className="text-[11px] text-slate-500 font-medium">
                                       {r[`${key}_consumption`]} {unit}
@@ -713,7 +713,7 @@ export default function AdminUtilities() {
                                 </div>
                                 <ChangeBadge pct={r.water_change_pct} />
                                 {parseFloat(r.water_other_fees || 0) > 0 && (
-                                  <div className="text-[10px] text-blue-600 font-semibold">+ ₱{parseFloat(r.water_other_fees).toFixed(2)} fees</div>
+                                  <div className="text-[11px] text-blue-600 font-semibold">+ ₱{parseFloat(r.water_other_fees).toFixed(2)} fees</div>
                                 )}
                               </div>
                             </td>
@@ -732,7 +732,7 @@ export default function AdminUtilities() {
                                 </div>
                                 <ChangeBadge pct={r.electric_change_pct} />
                                 {parseFloat(r.electric_other_fees || 0) > 0 && (
-                                  <div className="text-[10px] text-amber-700 font-semibold">+ ₱{parseFloat(r.electric_other_fees).toFixed(2)} fees</div>
+                                  <div className="text-[11px] text-amber-700 font-semibold">+ ₱{parseFloat(r.electric_other_fees).toFixed(2)} fees</div>
                                 )}
                               </div>
                             </td>
@@ -757,7 +757,7 @@ export default function AdminUtilities() {
                                 {isInvoiced ? 'Invoiced' : 'Pending Sync'}
                               </span>
                               {isInvoiced && r.invoice_id && (
-                                <span className="block text-[10px] text-slate-500 font-medium mt-1">{r.invoice_id}</span>
+                                <span className="block text-[11px] text-slate-500 font-medium mt-1">{r.invoice_id}</span>
                               )}
                             </td>
 
@@ -917,7 +917,7 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
                 className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500${invalidCls(dueError)}`}
               />
               <FieldError id="sync-due_date" error={dueError} />
-              <p className="text-[10px] text-slate-500 mt-1">Due date cannot exceed {SYNC_DUE_MAX_DAYS} days from today.</p>
+              <p className="text-[11px] text-slate-500 mt-1">Due date cannot exceed {SYNC_DUE_MAX_DAYS} days from today.</p>
             </div>
           )}
 

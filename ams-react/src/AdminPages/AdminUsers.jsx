@@ -45,7 +45,7 @@ const RESET_VALIDATORS = { new_password: (v) => checkNewPassword(v) };
 const EDIT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white';
 
 const RoleBadge = ({ role }) => (
-  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
     <FontAwesomeIcon icon={role === 'admin' ? faUserShield : faUser} className="text-[9px]" />
     {role}
   </span>
@@ -230,7 +230,7 @@ const AdminUsers = () => {
   const renderUserActions = (u, iconSize, layout) => (
     <div className={`flex items-center ${layout}`}>
       {u.is_self ? (
-        <span className="text-[10px] font-semibold text-slate-500" title="Your own details and password are managed from Account Settings">
+        <span className="text-[11px] font-semibold text-slate-500" title="Your own details and password are managed from Account Settings">
           You · Account Settings
         </span>
       ) : statusFilter === 'active' ? (
@@ -358,7 +358,7 @@ const AdminUsers = () => {
                             </div>
                             <div>
                               <p className="font-semibold text-slate-800 m-0">{u.first_name} {u.middle_name ? u.middle_name.charAt(0) + '. ' : ''}{u.last_name}{u.suffix ? ' ' + u.suffix : ''}</p>
-                              <p className="text-[10px] text-slate-500 m-0">ID #{u.id}</p>
+                              <p className="text-[11px] text-slate-500 m-0">ID #{u.id}</p>
                             </div>
                           </div>
                         </td>
@@ -385,7 +385,7 @@ const AdminUsers = () => {
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-800 m-0 truncate">{u.first_name} {u.middle_name ? u.middle_name.charAt(0) + '. ' : ''}{u.last_name}{u.suffix ? ' ' + u.suffix : ''}</p>
-                            <p className="text-[10px] text-slate-500 m-0">ID #{u.id}</p>
+                            <p className="text-[11px] text-slate-500 m-0">ID #{u.id}</p>
                           </div>
                         </div>
                         <RoleBadge role={u.role} />

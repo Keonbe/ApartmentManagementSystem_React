@@ -16,7 +16,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faTableCells, faList, faClock, faWrench, faCheckCircle, faExclamationTriangle,
   faTimes, faMapPin, faCalendarAlt, faImage, faArrowRight, faUser, faFilter, faUpload, faPaperPlane,
-  faShieldAlt, faChartBar, faInfoCircle, faFileContract, faBan, faUndo
+  faShieldAlt, faChartBar, faInfoCircle, faFileContract, faBan, faUndo, faChevronDown
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import {
@@ -91,6 +91,9 @@ const toViewModel = (r) => ({
   attachment: attachmentFor(r.attachmentPath),
 });
 
+// localStorage flag: the budget panel's details are expanded ('1') or not.
+const BUDGET_OPEN_KEY = 'ams_admin_maint_budget_open';
+
 const COLUMNS = [
   { key: 'Pending', statuses: ['Pending'], icon: faClock, iconClass: 'text-amber-700' },
   { key: 'In Progress', statuses: ['In Progress'], icon: faWrench, iconClass: 'text-indigo-500' },
@@ -123,16 +126,16 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
     <div {...clickable(() => onOpen(req))} className="card-interactive bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
       <div className="flex justify-between items-start gap-2 mb-2">
         <div className="flex gap-1.5 flex-wrap min-w-0">
-          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-slate-50 text-slate-600">{req.category || 'Uncategorized'}</span>
+          <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
+          <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-600">{req.category || 'Uncategorized'}</span>
           {req.tenantResponsible && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Bill</span>
+            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Bill</span>
           )}
           {(req.status === 'Rejected' || req.status === 'Cancelled') && (
-            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status]}`}>{req.status}</span>
+            <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status]}`}>{req.status}</span>
           )}
         </div>
-        <span className="shrink-0 whitespace-nowrap text-[10px] text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
+        <span className="shrink-0 whitespace-nowrap text-[11px] text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
       </div>
       <h4 className="text-sm font-bold text-slate-800 m-0 leading-snug mb-3">{req.title}</h4>
       <div className="flex flex-col gap-2">
@@ -142,16 +145,16 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
         </div>
         <div className="flex justify-between items-center mt-1 border-t border-slate-100 pt-2">
           {req.assignedTo ? (
-            <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{req.assignedTo}</span>
+            <span className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{req.assignedTo}</span>
           ) : (
-            <span className="text-[10px] font-medium text-slate-500 italic">Unassigned</span>
+            <span className="text-[11px] font-medium text-slate-500 italic">Unassigned</span>
           )}
           <div className="flex items-center gap-2">
             {(req.actualCost ?? req.estimatedCost) > 0 && (
-              <span className="text-[10px] font-bold text-emerald-700">{formatCurrency(req.actualCost ?? req.estimatedCost)}</span>
+              <span className="text-[11px] font-bold text-emerald-700">{formatCurrency(req.actualCost ?? req.estimatedCost)}</span>
             )}
             {req.attachment && (
-              <span className="text-[10px] text-slate-500 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> 1</span>
+              <span className="text-[11px] text-slate-500 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> 1</span>
             )}
           </div>
         </div>
@@ -296,21 +299,21 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
               />
               <FontAwesomeIcon icon={faUpload} className="text-slate-500 mb-2 text-lg" />
               <p className="text-xs text-slate-600 m-0">Click or drag a file here to attach</p>
-              <p className="text-[10px] text-slate-500 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to {FILE_RULES.maintenance.maxMB}MB</p>
+              <p className="text-[11px] text-slate-500 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to {FILE_RULES.maintenance.maxMB}MB</p>
             </div>
             <FieldError id="newreq-photo" error={form.errors.photo} />
             {newPhoto && (
               <div className="flex items-center gap-3 mt-3 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
                 <div className="w-12 h-12 rounded bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 overflow-hidden">
                   {newPhoto.type.startsWith('video/') ? (
-                    <span className="text-[10px] font-bold text-indigo-700">VIDEO</span>
+                    <span className="text-[11px] font-bold text-indigo-700">VIDEO</span>
                   ) : (
                     <img src={photoUrl} alt="Thumbnail" className="w-full h-full object-cover" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-700 truncate m-0">{newPhoto.name}</p>
-                  <p className="text-[10px] text-emerald-700 font-semibold m-0">{formatFileSize(newPhoto.size)} · Ready for upload</p>
+                  <p className="text-[11px] text-emerald-700 font-semibold m-0">{formatFileSize(newPhoto.size)} · Ready for upload</p>
                 </div>
                 <button type="button" onClick={() => { setNewPhoto(null); form.clearError('photo'); }} className="text-xs text-red-600 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1">Remove</button>
               </div>
@@ -379,11 +382,11 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             <div>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{req.code}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-white text-slate-600">{req.category}</span>
+                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency}</span>
+                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span>
+                <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200 bg-white text-slate-600">{req.category}</span>
                 {req.tenantResponsible && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Responsible</span>
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Responsible</span>
                 )}
               </div>
               <h2 className="text-xl font-bold text-slate-800 m-0 leading-tight">{req.title}</h2>
@@ -472,7 +475,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                     </div>
                     <div className="flex-1 flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
                       <span className={`text-xs font-bold ${step.at ? 'text-slate-800' : 'text-slate-500'}`}>{step.label}</span>
-                      <time className="font-mono text-[10px] text-slate-500">{step.at ? formatDateTime(step.at) : 'Not yet'}</time>
+                      <time className="font-mono text-[11px] text-slate-500">{step.at ? formatDateTime(step.at) : 'Not yet'}</time>
                     </div>
                   </div>
                 ))}
@@ -583,7 +586,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
               {parseNotes(req.workNotes).map((note, idx) => (
                 <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
                   <p className="text-xs text-slate-700 m-0 leading-relaxed whitespace-pre-wrap">{note.text}</p>
-                  {note.timestamp && <p className="text-[9px] text-slate-500 font-medium m-0 mt-2 text-right">{note.timestamp}</p>}
+                  {note.timestamp && <p className="text-[11px] text-slate-500 font-medium m-0 mt-2 text-right">{note.timestamp}</p>}
                 </div>
               ))}
               {!req.workNotes && (
@@ -721,6 +724,17 @@ const AdminMaintainance = () => {
   const [loadingReqs, setLoadingReqs] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [viewMode, setViewMode] = useState('kanban');
+  // The budget breakdown is secondary to the task board: one summary line by
+  // default, remembered per browser. Storage can be blocked (private mode), so
+  // every access is guarded and the page works without it.
+  const [budgetOpen, setBudgetOpen] = useState(() => {
+    try { return localStorage.getItem(BUDGET_OPEN_KEY) === '1'; } catch { return false; }
+  });
+  const toggleBudget = () => {
+    const next = !budgetOpen;
+    setBudgetOpen(next);
+    try { localStorage.setItem(BUDGET_OPEN_KEY, next ? '1' : '0'); } catch { /* storage blocked */ }
+  };
   const [saving, setSaving] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -877,41 +891,62 @@ const AdminMaintainance = () => {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* Budget Panel */}
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
-                  <FontAwesomeIcon icon={faChartBar} className="text-amber-700" />
-                  Maintenance Budget — {monthLabel}
+            {/* Budget Panel: one summary line; the tiles and breakdowns open under Details. */}
+            <section aria-label="Maintenance budget" className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2 shrink-0">
+                  <FontAwesomeIcon icon={faChartBar} className="text-amber-700" aria-hidden="true" />
+                  Budget, {monthLabel}
                 </h3>
-                <span className="text-[11px] text-slate-500">Monthly Budget: <strong className="text-slate-700">{formatCurrency(monthlyBudget)}</strong> · Counts requests resolved this month</span>
+                <p className={`m-0 text-xs ${budgetData.isOverBudget ? 'text-red-700 font-semibold' : 'text-slate-600'}`}>
+                  {budgetData.isOverBudget ? (
+                    <>Over by {formatCurrency(Math.abs(budgetData.remaining))} · {formatCurrency(budgetData.totalSpent)} spent of {formatCurrency(monthlyBudget)}</>
+                  ) : (
+                    <><strong className="text-slate-800">{formatCurrency(budgetData.totalSpent)}</strong> of {formatCurrency(monthlyBudget)} spent · {formatCurrency(budgetData.tenantCharged)} billed to tenants · {formatCurrency(budgetData.remaining)} left</>
+                  )}
+                </p>
+                <div className="flex-1 min-w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden" aria-hidden="true">
+                  <div className={`h-full rounded-full transition-all duration-500 ${budgetData.isOverBudget ? 'bg-red-500' : budgetData.usedPct >= 80 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, budgetData.usedPct)}%` }}></div>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleBudget}
+                  aria-expanded={budgetOpen}
+                  aria-controls="maint-budget-details"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer shrink-0"
+                >
+                  Details
+                  <FontAwesomeIcon icon={faChevronDown} className={`text-[10px] transition-transform ${budgetOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                </button>
               </div>
-              <div className="p-6">
+              {budgetOpen && (
+              <div id="maint-budget-details" className="p-6 border-t border-slate-200">
+                <p className="text-[11px] text-slate-500 m-0 mb-4">Counts requests resolved this month. Monthly budget is set in Settings.</p>
                 <div className="stagger-children grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
                     <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(monthlyBudget)}</p>
-                    <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Monthly Budget</p>
+                    <p className="text-[11px] text-slate-500 font-semibold m-0 mt-0.5">Monthly Budget</p>
                   </div>
                   <div className={`rounded-lg p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-100'}`}>
                     <p className={`text-lg font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(budgetData.totalSpent)}</p>
-                    <p className={`text-[10px] font-semibold m-0 mt-0.5 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>Spent (Building)</p>
+                    <p className={`text-[11px] font-semibold m-0 mt-0.5 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>Spent (Building)</p>
                   </div>
                   <div className="bg-violet-50 rounded-lg p-3 border border-violet-100 text-center">
                     <p className="text-lg font-bold text-violet-700 m-0">{formatCurrency(budgetData.tenantCharged)}</p>
-                    <p className="text-[10px] text-violet-600 font-semibold m-0 mt-0.5">Tenant Responsible</p>
+                    <p className="text-[11px] text-violet-600 font-semibold m-0 mt-0.5">Tenant Responsible</p>
                   </div>
                   <div className={`rounded-lg p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'}`}>
                     <p className={`text-lg font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-slate-700'}`}>{formatCurrency(budgetData.remaining)}</p>
-                    <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Remaining</p>
+                    <p className="text-[11px] text-slate-500 font-semibold m-0 mt-0.5">Remaining</p>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
                     <p className="text-lg font-bold text-indigo-600 m-0">{budgetData.usedPct}%</p>
-                    <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Budget Used</p>
+                    <p className="text-[11px] text-slate-500 font-semibold m-0 mt-0.5">Budget Used</p>
                   </div>
                 </div>
 
                 <div className="mb-6">
-                  <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                  <div className="flex justify-between text-[11px] text-slate-500 mb-1">
                     <span>₱0</span>
                     <span>{formatCurrency(monthlyBudget)}</span>
                   </div>
@@ -961,7 +996,8 @@ const AdminMaintainance = () => {
                   </div>
                 </div>
               </div>
-            </div>
+              )}
+            </section>
 
             {/* View Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1047,19 +1083,19 @@ const AdminMaintainance = () => {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-slate-800">{req.title}</span>
-                            {req.tenantResponsible && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-violet-100 text-violet-700 rounded">T</span>}
+                            {req.tenantResponsible && <span className="px-1.5 py-0.5 text-[11px] font-bold bg-violet-100 text-violet-700 rounded">T</span>}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-slate-700">{req.tenant} <span className="text-slate-500 text-xs ml-1">({req.unit})</span></td>
                         <td className="py-3 px-4">
                           <div className="flex gap-1.5">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-white text-slate-600">{req.category}</span>
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200 bg-white text-slate-600">{req.category}</span>
                           </div>
                         </td>
                         <td className="py-3 px-4 text-xs font-semibold text-slate-600">{(req.actualCost ?? req.estimatedCost) !== null && (req.actualCost ?? req.estimatedCost) !== undefined ? formatCurrency(req.actualCost ?? req.estimatedCost) : '—'}</td>
                         <td className="py-3 px-4 text-xs font-medium text-slate-600">{req.assignedTo || '—'}</td>
-                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span></td>
+                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span></td>
                       </tr>
                     ))}
                     {filteredRequests.length === 0 && (

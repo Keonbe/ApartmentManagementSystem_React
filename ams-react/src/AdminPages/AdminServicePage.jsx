@@ -534,11 +534,11 @@ const AdminServicePage = () => {
                                 <p className="max-w-md truncate text-[11px] text-slate-500 m-0 mt-0.5" title={item.description}>{item.description}</p>
                               </td>
                               <td className="px-4 py-3">
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600">{item.category}</span>
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase text-slate-600">{item.category}</span>
                               </td>
                               <td className="px-4 py-3 font-semibold text-indigo-600">
                                 ₱{Number(item.price || 0).toLocaleString()}
-                                <span className="ml-1 text-[10px] font-medium text-slate-500">/ {item.pricingUnit}</span>
+                                <span className="ml-1 text-[11px] font-medium text-slate-500">/ {item.pricingUnit}</span>
                               </td>
                               <td className="px-4 py-3 text-slate-600">
                                 {item.pricingUnit === 'session'
@@ -600,7 +600,7 @@ const AdminServicePage = () => {
                   >
                     Service Bookings
                     {pendingServiceCount > 0 && (
-                      <span className="ml-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">{pendingServiceCount}</span>
+                      <span className="ml-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">{pendingServiceCount}</span>
                     )}
                   </button>
                   <button
@@ -617,7 +617,7 @@ const AdminServicePage = () => {
                   >
                     Parking Reservations
                     {pendingParkingCount > 0 && (
-                      <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{pendingParkingCount}</span>
+                      <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold text-white">{pendingParkingCount}</span>
                     )}
                   </button>
                   <button
@@ -673,7 +673,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.serviceName}
                                       <br />
-                                      <span className="text-[10px] uppercase text-slate-500">{req.category}</span>
+                                      <span className="text-[11px] uppercase text-slate-500">{req.category}</span>
                                     </td>
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.pricingUnit === 'session' ? '—' : `${req.quantity} ${req.pricingUnit}`}
@@ -682,7 +682,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.preferredDate}
                                       <br />
-                                      <span className="text-[10px] text-slate-500">{req.preferredTimeSlot}</span>
+                                      <span className="text-[11px] text-slate-500">{req.preferredTimeSlot}</span>
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       {req.attachmentPath ? (
@@ -700,7 +700,7 @@ const AdminServicePage = () => {
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       {req.isInvoiced ? (
-                                        <span className="text-[10px] font-semibold text-emerald-700" title={`Billed to ${req.invoiceId}`}>
+                                        <span className="text-[11px] font-semibold text-emerald-700" title={`Billed to ${req.invoiceId}`}>
                                           {req.invoiceId}
                                           <br />
                                           <span className="font-medium text-slate-500">{req.billingPeriod}</span>
@@ -709,7 +709,7 @@ const AdminServicePage = () => {
                                         <button
                                           type="button"
                                           onClick={() => handlePostCharge(req)}
-                                          className="rounded-lg border-0 bg-amber-100 px-2.5 py-1.5 text-[10px] font-bold text-amber-800 transition-colors hover:bg-amber-200 cursor-pointer"
+                                          className="rounded-lg border-0 bg-amber-100 px-2.5 py-1.5 text-[11px] font-bold text-amber-800 transition-colors hover:bg-amber-200 cursor-pointer"
                                         >
                                           Post charge
                                         </button>
@@ -718,7 +718,7 @@ const AdminServicePage = () => {
                                       )}
                                     </td>
                                     <td className="px-4 py-3 text-center">
-                                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
                                         req.status === 'Pending' ? 'bg-amber-100 text-amber-700'
                                           : req.status === 'Approved' ? 'bg-blue-100 text-blue-700'
                                           : req.status === 'In Progress' ? 'bg-indigo-100 text-indigo-700'
@@ -797,12 +797,12 @@ const AdminServicePage = () => {
                                   <td className="px-4 py-3 text-slate-600">
                                     {req.incidentDate}
                                     <br />
-                                    <span className="text-[10px] text-slate-500">{req.time}</span>
+                                    <span className="text-[11px] text-slate-500">{req.time}</span>
                                   </td>
                                   <td className="px-4 py-3 text-slate-600">{req.location}</td>
                                   <td className="max-w-xs px-4 py-3 truncate text-slate-500" title={req.reason}>{req.reason}</td>
                                   <td className="px-4 py-3 text-center">
-                                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${req.status === 'Pending' ? 'bg-amber-100 text-amber-700' : req.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${req.status === 'Pending' ? 'bg-amber-100 text-amber-700' : req.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                                       {req.status}
                                     </span>
                                   </td>
@@ -871,7 +871,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.model}
                                       <br />
-                                      <span className="text-[10px] text-slate-500 capitalize">{req.vehicleType} • {req.transmission}</span>
+                                      <span className="text-[11px] text-slate-500 capitalize">{req.vehicleType} • {req.transmission}</span>
                                     </td>
                                     <td className="px-4 py-3 uppercase font-mono text-xs text-slate-600">{req.plate}</td>
                                     <td className="px-4 py-3 text-slate-600">{req.slotNumber ? `#${req.slotNumber}` : '—'}</td>
@@ -893,7 +893,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-center">
                                       {/* Assigned is the only slot-holding status — shown green, same as elsewhere.
                                           Released is grey; only Pending, awaiting a decision, is amber. */}
-                                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
                                         req.status === 'Pending' ? 'bg-amber-100 text-amber-700'
                                         : req.status === 'Assigned' ? 'bg-emerald-100 text-emerald-700'
                                         : req.status === 'Released' ? 'bg-slate-100 text-slate-600'
@@ -946,7 +946,7 @@ const ServiceCard = ({ service, onToggle }) => {
           </div>
           <div>
             <h4 className="text-sm font-semibold text-slate-800 m-0">{service.title}</h4>
-            <div className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+            <div className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
               service.isLocked 
                 ? 'bg-indigo-100 text-indigo-700' 
                 : service.isActive 
@@ -989,7 +989,7 @@ const ServiceCard = ({ service, onToggle }) => {
       <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
         <p className={`text-xs font-semibold m-0 ${service.isActive ? 'text-indigo-600' : 'text-slate-500'}`}>
           {service.price}
-          <span className="ml-1 text-[10px] font-medium">{service.unit}</span>
+          <span className="ml-1 text-[11px] font-medium">{service.unit}</span>
         </p>
       </div>
     </div>
