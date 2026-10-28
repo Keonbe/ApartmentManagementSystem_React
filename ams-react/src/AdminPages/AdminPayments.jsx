@@ -86,6 +86,13 @@ const prepaidChip = (account) => {
 
 const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : '');
 
+// What a tenant owes: open invoices less parts received, advance rent excluded.
+// The billing sum is the old fallback for an account with no balance figure; it is
+// skipped when the only open invoice is an advance, or that prepayment would be
+// counted as a debt after all.
+const owedBalance = (t) => t.outstandingBalance
+  || (t.advanceAwaiting > 0 ? 0 : t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance);
+
 const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
@@ -169,6 +176,8 @@ const AdminPayments = () => {
               billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, maintenance: 0, addOns: 0 },
               history: [],
               outstandingBalance: 0,
+              advanceAwaiting: 0,
+              overdueInvoices: 0,
               pendingInvoiceId: null,
               lastReminderDate: inv.last_reminder_date || null,
               reminderCount: inv.reminder_count || 0
@@ -179,7 +188,17 @@ const AdminPayments = () => {
           
           if (inv.status === 'pending' || inv.status === 'overdue' || inv.status === 'pending-verification' || inv.status === 'scheduled' || inv.status === 'processing' || inv.status === 'payment-failed') {
             // Installments: only what is still owed (total less parts received).
-            t.outstandingBalance += Math.max(0, parseFloat(inv.total_amount || 0) - parseFloat(inv.amount_paid || 0));
+            const stillOwed = Math.max(0, parseFloat(inv.total_amount || 0) - parseFloat(inv.amount_paid || 0));
+            if (inv.advance_months) {
+              // A prepayment the tenant chose to open, not a debt: nothing is owed for
+              // those months until they are billed, and an unpaid one cancels itself.
+              // Still listed below so the desk can verify its proof, but kept out of
+              // "owed" like the Dashboard and Reports do.
+              t.advanceAwaiting += stillOwed;
+            } else {
+              t.outstandingBalance += stillOwed;
+              if (isPastDue(inv)) t.overdueInvoices += 1;
+            }
             (t.openInvoices = t.openInvoices || []).push(inv);
           } else if (inv.status === 'paid') {
             const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
@@ -459,9 +478,13 @@ const AdminPayments = () => {
 
   // Summaries
   const totalCollected = tenants.reduce((sum, t) => sum + t.history.filter(h => h.status === 'paid').reduce((s, h) => s + h.amount, 0), 0);
-  const overdueCount = tenants.filter(t => t.status === 'overdue' || t.status === 'payment-failed').length;
+  // Overdue while any bill is past due, even one whose proof is awaiting
+  // verification (the money is not confirmed yet), as the Dashboard counts it.
+  const overdueCount = tenants.filter(t => t.overdueInvoices > 0 || t.status === 'payment-failed').length;
+  const overdueInvoiceCount = tenants.reduce((sum, t) => sum + t.overdueInvoices, 0);
+  const advanceAwaitingTotal = tenants.reduce((sum, t) => sum + t.advanceAwaiting, 0);
   const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification' || t.status === 'scheduled' || t.status === 'processing').length;
-  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance)), 0);
+  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + owedBalance(t), 0);
 
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
@@ -558,7 +581,7 @@ const AdminPayments = () => {
     tenants.forEach(t => {
       if (t.status === 'paid') return;
       const daysOverdue = t.dueDate ? Math.max(0, Math.ceil((now - new Date(t.dueDate)) / (1000 * 60 * 60 * 24))) : 0;
-      const balance = t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance);
+      const balance = owedBalance(t);
       if (daysOverdue <= 0) result.current += balance;
       else if (daysOverdue <= 15) result.days15 += balance;
       else if (daysOverdue <= 30) result.days30 += balance;
@@ -586,7 +609,7 @@ const AdminPayments = () => {
   
   const dueWithin5DaysCount = tenants.filter(t => {
     const diff = getDaysUntilDue(t.dueDate);
-    return t.status !== 'paid' && diff !== null && diff >= 0 && diff <= 5;
+    return t.status !== 'paid' && owedBalance(t) > 0 && diff !== null && diff >= 0 && diff <= 5;
   }).length;
 
   // Keys match record_payment_admin.php's body.
@@ -856,7 +879,7 @@ const handleMarkAsPaid = async () => {
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                 <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p></div>
+                <div><p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p>{overdueInvoiceCount > 0 && <p className="text-[10px] text-slate-500 m-0 mt-0.5">across {overdueInvoiceCount} invoice{overdueInvoiceCount === 1 ? '' : 's'}</p>}</div>
               </div>
               <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
@@ -865,7 +888,7 @@ const handleMarkAsPaid = async () => {
               </div>
               <div className="card-interactive bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-sm flex items-center gap-4 text-white">
                 <div className="w-12 h-12 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faMoneyBillWave} /></div>
-                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Outstanding</p><p className="text-xl lg:text-2xl font-bold text-white m-0 mt-0.5">{formatCurrency(totalOutstanding)}</p></div>
+                <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Outstanding</p><p className="text-xl lg:text-2xl font-bold text-white m-0 mt-0.5">{formatCurrency(totalOutstanding)}</p>{advanceAwaitingTotal > 0 && <p className="text-[10px] text-slate-300 m-0 mt-0.5">Excludes {formatCurrency(advanceAwaitingTotal)} advance rent awaiting payment</p>}</div>
               </div>
             </div>
             
