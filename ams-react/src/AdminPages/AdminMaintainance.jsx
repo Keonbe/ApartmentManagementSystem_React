@@ -124,7 +124,7 @@ const timelineFor = (r) => {
 const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
   return (
     <div {...clickable(() => onOpen(req))} className="card-interactive bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-      <div className="flex justify-between items-start gap-2 mb-2">
+      <div className="mb-2">
         <div className="flex gap-1.5 flex-wrap min-w-0">
           <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
           <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-600">{req.category || 'Uncategorized'}</span>
@@ -135,9 +135,13 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
             <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status]}`}>{req.status}</span>
           )}
         </div>
+      </div>
+      {/* The code sits by the title so the tags above get the card's full width
+          (beside them, two tags no longer fit on one line in a board column). */}
+      <div className="flex items-baseline justify-between gap-2 mb-3">
+        <h4 className="text-sm font-bold text-slate-800 m-0 leading-snug min-w-0">{req.title}</h4>
         <span className="shrink-0 whitespace-nowrap text-[11px] text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
       </div>
-      <h4 className="text-sm font-bold text-slate-800 m-0 leading-snug mb-3">{req.title}</h4>
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between text-[11px] text-slate-500 gap-2">
           <span className="flex items-center gap-1.5 truncate"><FontAwesomeIcon icon={faUser} className="text-[10px]" /> {req.tenant} · {req.unit}</span>
@@ -1006,21 +1010,21 @@ const AdminMaintainance = () => {
                 <button onClick={() => setViewMode('list')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'list' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent hover:bg-slate-50'}`}><FontAwesomeIcon icon={faList} /> List</button>
               </div>
 
-              <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-all shadow-sm max-w-xs w-full">
+              <div className="flex items-center gap-3 flex-1 w-full md:w-auto md:justify-end flex-wrap">
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-all shadow-sm w-full md:max-w-xs">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
                   <input aria-label="Search maintenance requests" maxLength={LIMITS.search} type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
                 </div>
 
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-2 shadow-sm">
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-2 shadow-sm w-full sm:w-auto min-w-0">
                   <FontAwesomeIcon icon={faFilter} className="text-slate-500 text-xs ml-2" />
-                  <select aria-label="Filter by priority" value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
+                  <select aria-label="Filter by priority" value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="min-w-0 flex-1 sm:flex-none bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
                     <option value="All">All Priorities</option>
                     <option value={MAINTENANCE_DEFAULT_URGENCY}>{MAINTENANCE_DEFAULT_URGENCY}</option>
                     {[...MAINTENANCE_URGENCIES].reverse().map(u => <option key={u.value} value={u.value}>{u.value}</option>)}
                   </select>
                   <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                  <select aria-label="Filter by category" value={filterType} onChange={e => setFilterType(e.target.value)} className="bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
+                  <select aria-label="Filter by category" value={filterType} onChange={e => setFilterType(e.target.value)} className="min-w-0 flex-1 sm:flex-none bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
                     <option value="All">All Categories</option>
                     {MAINTENANCE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value}</option>)}
                   </select>
