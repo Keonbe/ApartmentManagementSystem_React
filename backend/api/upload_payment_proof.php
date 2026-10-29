@@ -34,6 +34,43 @@ if (preg_match('/bank|bdo|bpi|metrobank|landbank|rcbc|unionbank|security|maya ba
     $bank_name = '';
 }
 
+if (!$is_admin) {
+    if (get_setting($conn, 'service_pay_bills_active', 'true') === 'false') {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Payment service is currently disabled by management."]);
+        exit;
+    }
+    $pmode = get_setting($conn, 'payment_mode', 'manual');
+    if ($pmode === 'sandbox') {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Manual payment proof upload is currently disabled (Sandbox mode active)."]);
+        exit;
+    }
+    $method_lower = strtolower((string)$payment_method);
+    if (strpos($method_lower, 'qr') !== false) {
+        $ch_val = get_setting($conn, 'payment_ch_qrph_manual', 'true');
+        if ($ch_val === 'false' || $ch_val === '0') {
+            http_response_code(403);
+            echo json_encode(["success" => false, "message" => "QR Ph payment is currently disabled by management."]);
+            exit;
+        }
+    } elseif (strpos($method_lower, 'gcash') !== false) {
+        $ch_val = get_setting($conn, 'payment_ch_gcash_manual', 'true');
+        if ($ch_val === 'false' || $ch_val === '0') {
+            http_response_code(403);
+            echo json_encode(["success" => false, "message" => "GCash receipt upload is currently disabled by management."]);
+            exit;
+        }
+    } elseif (preg_match('/bank|bdo|bpi/i', $method_lower)) {
+        $ch_val = get_setting($conn, 'payment_ch_bank_manual', 'true');
+        if ($ch_val === 'false' || $ch_val === '0') {
+            http_response_code(403);
+            echo json_encode(["success" => false, "message" => "Bank transfer receipt upload is currently disabled by management."]);
+            exit;
+        }
+    }
+}
+
 if (empty($invoice_id)) {
     echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
     exit;

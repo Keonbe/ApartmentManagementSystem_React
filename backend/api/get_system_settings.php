@@ -72,6 +72,13 @@ if (isset($settings['floor_rates'])) {
     $decoded = json_decode($settings['floor_rates']);
     $settings['floor_rates'] = is_object($decoded) ? $decoded : new stdClass();
 }
+if (isset($settings['qrph_active_slot'])) {
+    $settings['qrph_active_slot'] = (int)$settings['qrph_active_slot'];
+}
+if (isset($settings['qrph_slots'])) {
+    $decoded = json_decode($settings['qrph_slots'], true);
+    $settings['qrph_slots'] = is_array($decoded) ? $decoded : [];
+}
 
 echo json_encode(["success" => true, "settings" => $settings]);
 $conn->close();

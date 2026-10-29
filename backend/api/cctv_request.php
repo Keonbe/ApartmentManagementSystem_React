@@ -20,6 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $auth = require_user($conn);
 $user_id = $auth['id'];
 
+if ($auth['role'] !== 'admin' && get_setting($conn, 'service_cctv_active', 'true') === 'false') {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "CCTV viewing request service is currently disabled by management."]);
+    exit;
+}
+
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
 $incident_date = trim($input['incidentDate'] ?? '');
 $incident_time = trim($input['incidentTime'] ?? '');

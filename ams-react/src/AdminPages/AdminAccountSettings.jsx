@@ -1,35 +1,14 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
-import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
+import { faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { LIMITS, checkEmail, checkNewPassword, checkPasswordMatch, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
-import { SETTINGS_TABS, SETTINGS_TAB_IDS, SELF_SAVING_TAB_IDS } from './settings/tabs';
-import SettingsNav from './settings/SettingsNav';
 import AccountPanel from './settings/AccountPanel';
-import LeasingPanel from './settings/LeasingPanel';
-import PaymentsPanel from './settings/PaymentsPanel';
-import ParkingPanel from './settings/ParkingPanel';
-import NotificationsPanel from './settings/NotificationsPanel';
-import MaintenancePanel from './settings/MaintenancePanel';
-import HouseRulesPanel from './settings/HouseRulesPanel';
-import FloorRentPanel from './settings/FloorRentPanel';
-import UtilityTypesPanel from './settings/UtilityTypesPanel';
-import MinorsPanel from './settings/MinorsPanel';
-import RequirementsPanel from './settings/RequirementsPanel';
-import { btn } from '../Components/admin/ui/styles';
-import LoadError from '../Components/admin/ui/LoadError';
-import { Skeleton, SkeletonBlock } from '../Components/admin/ui/Skeleton';
 
-const SETTINGS_FORM_ID = 'system-settings-form';
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-// Keys match profile.php / change_password.php bodies.
 const PROFILE_VALIDATORS = {
   firstName: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
   lastName: (v) => checkPersonName(v, { label: 'Last name', max: LIMITS.lastName }),
@@ -44,8 +23,6 @@ const PASSWORD_VALIDATORS = {
 };
 
 const AdminAccountSettings = () => {
-  // Loaded from the signed-in admin's real account. These used to be hardcoded
-  // placeholders ("Admin System", admin@system.com) that saving never touched.
   const storedUser = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
   const [firstName, setFirstName] = useState(storedUser.first_name || '');
   const [lastName, setLastName] = useState(storedUser.last_name || '');
@@ -54,57 +31,47 @@ const AdminAccountSettings = () => {
   const [profileExtras, setProfileExtras] = useState({ middle_name: '', suffix: '', gender: '' });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [profileState, setProfileState] = useState('loading'); // loading | error | ready
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [toast, setToast] = useState(null);
+
   const profileForm = useFieldErrors(PROFILE_VALIDATORS, { idPrefix: 'acct-' });
   const passwordForm = useFieldErrors(PASSWORD_VALIDATORS, { idPrefix: 'acctpw-' });
 
-  // System settings: the form's working copy, and the last copy the server
-  // accepted. The difference between the two is "unsaved changes".
-  const [settings, setSettings] = useState(null);
-  const [savedSettings, setSavedSettings] = useState(null);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [testingChannel, setTestingChannel] = useState(null);
-  const [smsBalance, setSmsBalance] = useState(null);
-  const [checkingBalance, setCheckingBalance] = useState(false);
-
-  // The open tab lives in the URL (?tab=payments) so refresh and back/forward
-  // keep the admin's place, and other pages can link straight to a section.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = searchParams.get('tab');
-  const activeTab = SETTINGS_TAB_IDS.includes(requestedTab) ? requestedTab : 'account';
-  const activeMeta = SETTINGS_TABS.find((t) => t.id === activeTab);
-  const scrollRef = useRef(null);
-  const invalidHandled = useRef(false);
-
-  const selectTab = (id) => {
-    setSearchParams(id === 'account' ? {} : { tab: id });
-    scrollRef.current?.scrollTo({ top: 0 });
-  };
-
-  // A failed load shows an error with a retry, never the built-in defaults or an
-  // empty profile: either could be saved over the real values.
-  const [settingsError, setSettingsError] = useState(null);
-  const [profileState, setProfileState] = useState('loading'); // loading | error | ready
-
-  const loadSettings = async () => {
-    setSettingsError(null);
-    try {
-      const data = await getSystemSettings({ strict: true });
-      setSettings(data);
-      setSavedSettings(data);
-    } catch (err) {
-      setSettingsError(apiErrorMessage(err, err.message || 'The settings did not load.'));
-    }
+  const showToast = (type, title, message) => {
+    setToast({ type, title, message });
+    setTimeout(() => setToast(null), 4500);
   };
 
   const loadProfile = async () => {
     setProfileState('loading');
     try {
+      const res = await api.get('profile.php');
+      if (res.data.success && res.data.data) {
+        const p = res.data.data;
+        setFirstName(p.first_name || '');
+        setLastName(p.last_name || '');
+        setPhone(toPhLocal10(p.contact_no));
+        setProfileExtras({ middle_name: p.middle_name || '', suffix: p.suffix || '', gender: p.gender || '' });
+        setProfileState('ready');
+      } else {
+        setProfileState('error');
+      }
+    } catch (err) {
+      console.error('Failed to load admin profile:', err);
+      setProfileState('error');
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
         const res = await api.get('profile.php');
+        if (!active) return;
         if (res.data.success && res.data.data) {
           const p = res.data.data;
           setFirstName(p.first_name || '');
@@ -116,38 +83,13 @@ const AdminAccountSettings = () => {
           setProfileState('error');
         }
       } catch (err) {
+        if (!active) return;
         console.error('Failed to load admin profile:', err);
         setProfileState('error');
       }
-  };
-
-  useEffect(() => {
-    const load = async () => { await Promise.all([loadSettings(), loadProfile()]); };
-    load();
+    })();
+    return () => { active = false; };
   }, []);
-
-  const dirtyTabs = useMemo(() => {
-    if (!settings || !savedSettings) return new Set();
-    return new Set(
-      SETTINGS_TABS
-        .filter((t) => t.keys?.some((k) => !same(settings[k], savedSettings[k])))
-        .map((t) => t.id)
-    );
-  }, [settings, savedSettings]);
-  const isDirty = dirtyTabs.size > 0;
-
-  // Leaving or reloading the page would silently drop the edits.
-  useEffect(() => {
-    if (!isDirty) return undefined;
-    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [isDirty]);
-
-  const showToast = (type, title, message) => {
-    setToast({ type, title, message });
-    setTimeout(() => setToast(null), 4500);
-  };
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -160,25 +102,33 @@ const AdminAccountSettings = () => {
     setSavingProfile(true);
     try {
       const res = await api.post('profile.php', {
-        ...clean, contactNo: toPhE164(phone),
-        middleName: profileExtras.middle_name, suffix: profileExtras.suffix, gender: profileExtras.gender
+        ...clean,
+        contactNo: toPhE164(phone),
+        middleName: profileExtras.middle_name,
+        suffix: profileExtras.suffix,
+        gender: profileExtras.gender,
       });
       if (!res.data.success) {
-        if (!profileForm.applyServerErrors(res)) showToast('error', 'Profile Not Saved', res.data.message || 'Failed to save your profile.');
+        if (!profileForm.applyServerErrors(res)) {
+          showToast('error', 'Profile Not Saved', res.data.message || 'Failed to save your profile.');
+        }
         return;
       }
-      // Keep the header and guards showing the new name/email without a re-login.
       const store = sessionStorage.getItem('loggedInUser') ? sessionStorage : localStorage;
-      store.setItem('loggedInUser', JSON.stringify({ ...storedUser, first_name: clean.firstName, last_name: clean.lastName, email_address: clean.email }));
+      store.setItem(
+        'loggedInUser',
+        JSON.stringify({ ...storedUser, first_name: clean.firstName, last_name: clean.lastName, email_address: clean.email })
+      );
       showToast('success', 'Profile Updated', 'Your administrator details have been saved.');
     } catch (err) {
-      if (!profileForm.applyServerErrors(err)) showToast('error', 'Profile Not Saved', apiErrorMessage(err, 'Failed to save your profile.'));
+      if (!profileForm.applyServerErrors(err)) {
+        showToast('error', 'Profile Not Saved', apiErrorMessage(err, 'Failed to save your profile.'));
+      }
     } finally {
       setSavingProfile(false);
     }
   };
 
-  // Calls the real endpoint. This form used to show "Password Changed" without sending anything.
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (savingPassword) return;
@@ -188,269 +138,83 @@ const AdminAccountSettings = () => {
     try {
       const res = await api.post('change_password.php', body);
       if (!res.data.success) {
-        if (!passwordForm.applyServerErrors(res)) showToast('error', 'Password Not Changed', res.data.message || 'Failed to change password.');
+        if (!passwordForm.applyServerErrors(res)) {
+          showToast('error', 'Password Not Changed', res.data.message || 'Failed to change password.');
+        }
         return;
       }
       const ended = res.data.sessions_ended || 0;
-      showToast('success', 'Password Changed', `Your password has been updated.${ended ? ` ${ended} other session(s) were signed out.` : ''}`);
+      showToast(
+        'success',
+        'Password Changed',
+        `Your password has been updated.${ended ? ` ${ended} other session(s) were signed out.` : ''}`
+      );
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      if (!passwordForm.applyServerErrors(err)) showToast('error', 'Password Not Changed', apiErrorMessage(err, 'Failed to change password.'));
+      if (!passwordForm.applyServerErrors(err)) {
+        showToast('error', 'Password Not Changed', apiErrorMessage(err, 'Failed to change password.'));
+      }
     } finally {
       setSavingPassword(false);
     }
   };
-
-  // Sends a real notification to the admin's own number/address through whatever
-  // driver is configured. The full rendered SMS text and email HTML go to the
-  // browser console: while the drivers are mocks that console output IS the
-  // message, and it stays useful afterwards for checking what a provider was
-  // actually handed. Reads the stored settings, so the panel disables it while
-  // there are unsaved changes.
-  const handleTestNotification = async (channel) => {
-    setTestingChannel(channel);
-    try {
-      const res = await api.post('send_test_notification.php', { channel });
-      const data = res.data;
-
-      console.groupCollapsed(
-        `%cAMS test notification (${channel})${data.dry_run ? ' — DRY RUN, nothing was sent' : ''}`,
-        'color:#2563eb;font-weight:bold'
-      );
-      console.log('Drivers:', data.drivers);
-      console.log('Channel switches:', data.channels);
-      console.log('Results:', data.results);
-      console.log(`SMS text (${data.rendered?.sms_length} chars):\n${data.rendered?.sms_text}`);
-      console.log('Email subject:', data.rendered?.subject);
-      console.log('Email HTML:\n' + data.rendered?.email_html);
-      console.groupEnd();
-
-      const outcomes = Object.entries(data.results || {});
-      const failed = outcomes.filter(([, r]) => r.status !== 'sent');
-      if (!outcomes.length) {
-        showToast('error', 'Nothing Sent', 'No channel was eligible. Check the SMS and Email switches.');
-      } else if (failed.length) {
-        showToast('error', 'Test Incomplete',
-          failed.map(([ch, r]) => `${ch}: ${r.reason || r.status}`).join(' · '));
-      } else {
-        showToast('success', data.dry_run ? 'Test Sent (Dry Run)' : 'Test Sent',
-          `${outcomes.map(([ch]) => ch).join(' and ')} delivered. Full message printed to the browser console (F12).`);
-      }
-    } catch (err) {
-      showToast('error', 'Test Failed', err?.response?.data?.message || err.message || 'Could not send the test notification.');
-    } finally {
-      setTestingChannel(null);
-    }
-  };
-
-  // Live Semaphore credits. Reads the stored key, so save first. Semaphore
-  // allows this call twice a minute, hence a button rather than polling on
-  // load; the server reuses an answer for 60 s and says so (cached/checked_at).
-  const handleCheckBalance = async () => {
-    setCheckingBalance(true);
-    try {
-      const res = await api.get('get_sms_balance.php');
-      setSmsBalance(res.data.success
-        ? {
-            credits: res.data.credit_balance,
-            account: res.data.account_name,
-            status: res.data.account_status,
-            cached: !!res.data.cached,
-            checkedAt: res.data.checked_at,
-          }
-        : { error: res.data.message || 'Could not read the balance.' });
-    } catch (err) {
-      setSmsBalance({ error: err?.response?.data?.message || err.message || 'Could not read the balance.' });
-    } finally {
-      setCheckingBalance(false);
-    }
-  };
-
-  const handleSettingsSave = async (e) => {
-    e.preventDefault();
-    setIsSavingSettings(true);
-    try {
-      await saveSystemSettings(settings);
-      setSavedSettings(settings);
-      showToast('success', 'Settings Saved', 'Your changes are saved and apply across the system.');
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      showToast('error', 'Save Failed',
-        error?.response?.data?.message || error?.message || 'Failed to save system settings. Please try again.');
-    } finally {
-      setIsSavingSettings(false);
-    }
-  };
-
-  const handleDiscard = () => setSettings(savedSettings);
-
-  // Every system-settings tab stays mounted (hidden) so the browser validates
-  // all of them on save. When the first invalid field sits in a hidden tab,
-  // open that tab and show the browser's message on the field.
-  const handleInvalid = (e) => {
-    if (invalidHandled.current) return;
-    invalidHandled.current = true;
-    setTimeout(() => { invalidHandled.current = false; }, 0);
-
-    const field = e.target;
-    const tabId = field.closest('[data-tab]')?.dataset.tab;
-    if (tabId && tabId !== activeTab) {
-      selectTab(tabId);
-      setTimeout(() => field.reportValidity(), 50);
-    }
-  };
-
-  const updateSetting = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  };
-
-  const panelProps = { settings, updateSetting };
-  const showSaveBar = activeTab !== 'account' && isDirty;
 
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
-        <Header title="Settings" />
+        <Header title="Account Settings" />
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="max-w-6xl mx-auto px-4 py-6 md:p-8 flex flex-col md:flex-row gap-6 md:gap-8">
-            <aside className="md:w-56 shrink-0 min-w-0">
-              <div className="md:sticky md:top-0">
-                <SettingsNav tabs={SETTINGS_TABS} active={activeTab} onSelect={selectTab} dirtyTabs={dirtyTabs} />
-              </div>
-            </aside>
-
-            <div className="flex-1 min-w-0 space-y-6">
-              <div>
-                <h2 className="text-section font-bold text-slate-800 m-0">{activeMeta.label}</h2>
-                <p className="text-body text-slate-500 m-0 mt-1">{activeMeta.description}</p>
-              </div>
-
-              {activeTab === 'account' && (
-                <AccountPanel
-                  firstName={firstName} setFirstName={setFirstName}
-                  lastName={lastName} setLastName={setLastName}
-                  email={email} setEmail={setEmail}
-                  phone={phone} setPhone={setPhone}
-                  savingProfile={savingProfile} onProfileSubmit={handleProfileSubmit}
-                  currentPassword={currentPassword} setCurrentPassword={setCurrentPassword}
-                  newPassword={newPassword} setNewPassword={setNewPassword}
-                  confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
-                  savingPassword={savingPassword} onPasswordSubmit={handlePasswordSubmit}
-                  profileForm={profileForm} passwordForm={passwordForm}
-                  profileState={profileState} onProfileRetry={loadProfile}
-                />
-              )}
-
-              {activeTab === 'house-rules' && <HouseRulesPanel />}
-              {activeTab === 'floor-rent' && <FloorRentPanel />}
-              {activeTab === 'utility-types' && <UtilityTypesPanel />}
-              {activeTab === 'parking-rules' && <HouseRulesPanel scope="parking" />}
-              {activeTab === 'minors' && <MinorsPanel />}
-              {activeTab === 'requirements' && <RequirementsPanel />}
-
-              {activeTab !== 'account' && !SELF_SAVING_TAB_IDS.includes(activeTab) && !settings && (
-                <div className="bg-white rounded-card border border-slate-200 shadow-card">
-                  {settingsError ? (
-                    <LoadError title="Couldn't load settings" message="Nothing is shown, so nothing can be saved over your real settings." detail={settingsError} onRetry={loadSettings} />
-                  ) : (
-                    <SkeletonBlock label="Loading settings…" className="p-6 space-y-5">
-                      <Skeleton className="h-5 w-1/3" />
-                      {[0, 1, 2].map((i) => (
-                        <div key={i} className="space-y-2"><Skeleton className="h-3 w-1/4" /><Skeleton className="h-10 w-full" /></div>
-                      ))}
-                    </SkeletonBlock>
-                  )}
-                </div>
-              )}
-
-              {settings && !SELF_SAVING_TAB_IDS.includes(activeTab) && (
-                <form
-                  id={SETTINGS_FORM_ID}
-                  onSubmit={handleSettingsSave}
-                  onInvalidCapture={handleInvalid}
-                  hidden={activeTab === 'account'}
-                >
-                  <div data-tab="leasing" hidden={activeTab !== 'leasing'} className="space-y-6">
-                    <LeasingPanel {...panelProps} />
-                  </div>
-                  <div data-tab="payments" hidden={activeTab !== 'payments'} className="space-y-6">
-                    <PaymentsPanel {...panelProps} />
-                  </div>
-                  <div data-tab="parking" hidden={activeTab !== 'parking'} className="space-y-6">
-                    <ParkingPanel {...panelProps} />
-                  </div>
-                  <div data-tab="notifications" hidden={activeTab !== 'notifications'} className="space-y-6">
-                    <NotificationsPanel
-                      {...panelProps}
-                      isDirty={isDirty}
-                      testingChannel={testingChannel}
-                      onTest={handleTestNotification}
-                      checkingBalance={checkingBalance}
-                      smsBalance={smsBalance}
-                      onCheckBalance={handleCheckBalance}
-                    />
-                  </div>
-                  <div data-tab="maintenance" hidden={activeTab !== 'maintenance'} className="space-y-6">
-                    <MaintenancePanel {...panelProps} />
-                  </div>
-                </form>
-              )}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-4 py-6 md:p-8 space-y-6">
+            <div>
+              <h2 className="text-section font-bold text-slate-800 m-0">Administrator Account</h2>
+              <p className="text-body text-slate-500 m-0 mt-1">
+                Manage your personal profile credentials and change your administrator password.
+              </p>
             </div>
+
+            <AccountPanel
+              firstName={firstName}
+              setFirstName={setFirstName}
+              lastName={lastName}
+              setLastName={setLastName}
+              email={email}
+              setEmail={setEmail}
+              phone={phone}
+              setPhone={setPhone}
+              savingProfile={savingProfile}
+              onProfileSubmit={handleProfileSubmit}
+              currentPassword={currentPassword}
+              setCurrentPassword={setCurrentPassword}
+              newPassword={newPassword}
+              setNewPassword={setNewPassword}
+              confirmPassword={confirmPassword}
+              setConfirmPassword={setConfirmPassword}
+              savingPassword={savingPassword}
+              onPasswordSubmit={handlePasswordSubmit}
+              profileForm={profileForm}
+              passwordForm={passwordForm}
+              profileState={profileState}
+              onProfileRetry={loadProfile}
+            />
           </div>
         </div>
 
-        {/* Save bar: only while there is something to save. Outside the scroll
-            area so it never moves; submits the form by id. */}
-        {showSaveBar && (
-          <div className="shrink-0 border-t border-slate-200 bg-white px-4 md:px-8 py-3 shadow-raised animate-fadeIn">
-            <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-body font-semibold text-slate-700">
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                Unsaved changes
-                {dirtyTabs.size > 1 && (
-                  <span className="font-normal text-slate-500">
-                    in {SETTINGS_TABS.filter((t) => dirtyTabs.has(t.id)).map((t) => t.label).join(', ')}
-                  </span>
-                )}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleDiscard}
-                  disabled={isSavingSettings}
-                  className={btn('secondary', 'md')}
-                >
-                  Discard
-                </button>
-                <button
-                  type="submit"
-                  form={SETTINGS_FORM_ID}
-                  disabled={isSavingSettings}
-                  className={btn('primary', 'md', 'btn-interactive')}
-                >
-                  <FontAwesomeIcon icon={isSavingSettings ? faSpinner : faSave} spin={isSavingSettings} />
-                  {isSavingSettings ? 'Saving…' : 'Save changes'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Floating Toast Notification */}
         {toast && (
-          <div className={`fixed right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-card shadow-dialog border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn ${showSaveBar ? 'bottom-24' : 'bottom-6'}`}>
-            <div className={`w-9 h-9 rounded-card flex items-center justify-center shrink-0 text-white shadow-card ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`}>
+          <div className="fixed right-6 bottom-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-card shadow-dialog border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn">
+            <div className={`w-9 h-9 rounded-card flex items-center justify-center shrink-0 text-white shadow-card ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
               <FontAwesomeIcon icon={toast.type === 'success' ? faCheckCircle : faExclamationTriangle} className="text-base" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-body font-bold text-slate-800 m-0 tracking-tight">{toast.title}</h4>
-                <button aria-label="Dismiss"
+                <button
+                  aria-label="Dismiss"
                   type="button"
                   onClick={() => setToast(null)}
                   className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-label"

@@ -12,7 +12,6 @@ import { SkeletonRows } from '../../Components/admin/ui/Skeleton';
 
 // Mirrors manage_application_requirements.php.
 const REQUIREMENT_LIMITS = { labelMin: 2, labelMax: 60, maxActive: 12 };
-const EMPTY = { label: '', label_fil: '', is_required: true };
 const ENDPOINT = 'manage_application_requirements.php';
 
 // Settings → Application Requirements: the documents an applicant uploads on
@@ -70,25 +69,14 @@ export default function RequirementsPanel() {
     }
   };
 
-  const openAdd = () => {
-    form.setErrors({});
-    if (activeCount >= REQUIREMENT_LIMITS.maxActive) {
-      setNotice({ ok: false, text: `At most ${REQUIREMENT_LIMITS.maxActive} requirements can be active. Deactivate one first.` });
-      return;
-    }
-    setEditing({ ...EMPTY });
-  };
-
   const save = async (e) => {
     e.preventDefault();
-    if (busy) return;
+    if (busy || !editing?.id) return;
     const values = { ...editing, label: editing.label.trim(), label_fil: (editing.label_fil || '').trim() };
     setEditing(values);
     if (!form.validateAll(values)) return;
     const body = { label: values.label, label_fil: values.label_fil || null, is_required: !!values.is_required };
-    const ok = values.id
-      ? await send({ action: 'update', id: values.id, ...body })
-      : await send({ action: 'create', ...body });
+    const ok = await send({ action: 'update', id: values.id, ...body });
     if (ok) setEditing(null);
   };
 
@@ -122,49 +110,96 @@ export default function RequirementsPanel() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-slate-200 bg-white p-5">
-        <div className="min-w-0">
-          <h3 className="m-0 text-title font-bold text-slate-800">Application Requirements</h3>
-          <p className="m-0 mt-1 text-body text-slate-500">
-            The documents an applicant uploads with the rent application. An application can be approved only when every active, required document is on file. {activeCount} of {REQUIREMENT_LIMITS.maxActive} active.
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-slate-200 bg-white p-6 shadow-card">
+        <div className="min-w-0 max-w-2xl">
+          <div className="flex items-center gap-2.5 mb-1">
+            <h3 className="m-0 text-title font-bold text-slate-800">Application Document Requirements</h3>
+            <span className={`px-2.5 py-0.5 rounded-full text-caption font-bold ${activeCount > 0 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+              {activeCount} of {items.length} Enabled
+            </span>
+          </div>
+          <p className="m-0 text-body text-slate-500 leading-relaxed font-normal">
+            Toggle which verification documents applicants must upload during rent onboarding. When disabled, applicants are not asked for that document.
           </p>
         </div>
-        <button type="button" disabled={busy} onClick={openAdd} className={btn('primary', 'md')}>Add requirement</button>
       </div>
 
-      {notice && <p role={notice.ok ? 'status' : 'alert'} className={`m-0 rounded-card p-3 text-body ${notice.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{notice.text}</p>}
+      {notice && <p role={notice.ok ? 'status' : 'alert'} className={`m-0 rounded-card p-3.5 text-body font-semibold ${notice.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{notice.text}</p>}
 
-      <div className="overflow-x-auto rounded-card border border-slate-200 bg-white">
+      {activeCount === 0 && !loading && items.length > 0 && (
+        <div className="p-4 rounded-card bg-amber-50 border border-amber-200 text-amber-800 text-label font-semibold flex items-center justify-between gap-3">
+          <span>⚠️ All document requirements are currently disabled. Tenants will not be asked for any verification documents on their rent application.</span>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-card border border-slate-200 bg-white shadow-card">
         <table className="w-full min-w-160 text-left text-body">
           <thead className={THEAD}>
-            <tr>{['Order', 'Document', 'Filipino name', 'Required', 'Status', ''].map((h) => <th key={h} className={TH}>{h}</th>)}</tr>
+            <tr>{['Order', 'Document Name', 'Filipino Name', 'Obligation', 'Active Toggle', 'Actions'].map((h) => <th key={h} className={TH}>{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <SkeletonRows cols={6} rows={5} label="Loading requirements…" />
+              <SkeletonRows cols={6} rows={3} label="Loading requirements…" />
             ) : items.length === 0 ? (
-              <tr><td colSpan="6" className="px-4 py-8 text-center text-slate-500">No requirements yet. Applicants will not be asked for any document.</td></tr>
+              <tr><td colSpan="6" className="px-4 py-8 text-center text-slate-500 font-medium">No requirements yet. Applicants will not be asked for any document.</td></tr>
             ) : items.map((r, i) => (
-              <tr key={r.id} className={r.is_active ? '' : 'bg-slate-50/60 text-slate-500'}>
-                <td className="px-4 py-3">
+              <tr key={r.id} className={`transition-colors ${r.is_active ? 'hover:bg-slate-50/70' : 'bg-slate-50/40 text-slate-500 hover:bg-slate-100/50'}`}>
+                <td className="px-4 py-3.5">
                   <div className="flex gap-1">
                     <button type="button" aria-label={`Move ${r.label} up`} disabled={busy || i === 0} onClick={() => move(i, -1)} className={rowBtn}><FontAwesomeIcon icon={faArrowUp} /></button>
                     <button type="button" aria-label={`Move ${r.label} down`} disabled={busy || i === items.length - 1} onClick={() => move(i, 1)} className={rowBtn}><FontAwesomeIcon icon={faArrowDown} /></button>
                   </div>
                 </td>
-                <td className="px-4 py-3 font-bold text-slate-800">{r.label}</td>
-                <td className="px-4 py-3 text-slate-600">{r.label_fil || <span className="text-slate-500">—</span>}</td>
-                <td className="px-4 py-3">
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-label font-semibold text-slate-600">
-                    <input type="checkbox" checked={!!r.is_required} disabled={busy} onChange={() => toggleRequired(r)} className="h-4 w-4 accent-indigo-600" />
-                    {r.is_required ? 'Required' : 'Optional'}
-                  </label>
+                <td className="px-4 py-3.5">
+                  <span className={`font-bold ${r.is_active ? 'text-slate-900' : 'text-slate-500'}`}>{r.label}</span>
                 </td>
-                <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${r.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{r.is_active ? 'Active' : 'Inactive'}</span></td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3.5 text-slate-600 font-medium">{r.label_fil || <span className="text-slate-400">—</span>}</td>
+                <td className="px-4 py-3.5">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={r.is_required}
+                    disabled={busy}
+                    onClick={() => toggleRequired(r)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-caption font-bold transition-all cursor-pointer border ${
+                      r.is_required
+                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                    }`}
+                    title={r.is_required ? 'Click to make optional' : 'Click to make required'}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${r.is_required ? 'bg-indigo-600' : 'bg-slate-400'}`} />
+                    <span>{r.is_required ? 'Required' : 'Optional'}</span>
+                  </button>
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={r.is_active}
+                      disabled={busy}
+                      onClick={() => toggleActive(r)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                        r.is_active ? 'bg-emerald-500' : 'bg-slate-300'
+                      } ${busy ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      title={r.is_active ? 'Click to disable' : 'Click to enable'}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-card transition duration-200 ease-in-out ${
+                          r.is_active ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className={`text-label font-bold ${r.is_active ? 'text-emerald-700' : 'text-slate-400'}`}>
+                      {r.is_active ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-4 py-3.5">
                   <div className="flex gap-2">
                     <button type="button" disabled={busy} onClick={() => { form.setErrors({}); setEditing({ ...r, label_fil: r.label_fil || '' }); }} className={rowBtn}>Edit</button>
-                    <button type="button" disabled={busy} onClick={() => toggleActive(r)} className={rowBtn}>{r.is_active ? 'Deactivate' : 'Activate'}</button>
                   </div>
                 </td>
               </tr>
@@ -172,11 +207,12 @@ export default function RequirementsPanel() {
           </tbody>
         </table>
       </div>
-      <p className="m-0 text-label text-slate-500">Deactivating removes a document from the form and from the approval check; files applicants already uploaded for it are kept and stay visible on their application.</p>
+
+      <p className="m-0 text-label text-slate-500">Disabling a document requirement removes it from the user rent application form. Any files previously uploaded by applicants for that document remain safely stored in the database.</p>
 
       {editing && (
-        <Modal title={editing.id ? 'Edit requirement' : 'Add requirement'} onClose={() => setEditing(null)} busy={busy} as="form" onSubmit={save} noValidate overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-card bg-white p-6 shadow-dialog">
-            <h3 className="m-0 text-title font-bold text-slate-800">{editing.id ? 'Edit requirement' : 'Add requirement'}</h3>
+        <Modal title="Edit requirement" onClose={() => setEditing(null)} busy={busy} as="form" onSubmit={save} noValidate overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-card bg-white p-6 shadow-dialog">
+            <h3 className="m-0 text-title font-bold text-slate-800">Edit requirement</h3>
             <div>
               <label htmlFor="req-label" className="block text-body font-semibold text-slate-700">Document name</label>
               <input

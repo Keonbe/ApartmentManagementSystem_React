@@ -5,7 +5,8 @@ import {
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
   faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt,
-  faEnvelopeOpenText, faEnvelope, faMoneyBillTransfer, faChartBar
+  faEnvelopeOpenText, faEnvelope, faMoneyBillTransfer, faChartBar, faSlidersH, faIdCard,
+  faCogs
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '@fontsource-variable/ibm-plex-sans';
@@ -37,6 +38,7 @@ const defaultNavSections = [
     title: 'Money',
     items: [
       { to: '/admin-payments', icon: faCreditCard, label: 'Payments' }, // Core service: always visible
+      { to: '/admin-payment-options', icon: faSlidersH, label: 'Payment Options' },
       { to: '/admin-refunds', icon: faMoneyBillTransfer, label: 'Refunds' },
       { to: '/admin-utilities', icon: faBolt, label: 'Utilities' },
     ],
@@ -65,6 +67,8 @@ const defaultNavSections = [
       { to: '/admin-users', icon: faUsersCog, label: 'Users' },
       { to: '/admin-reports', icon: faChartBar, label: 'Reports' },
       { to: '/admin-activity-logs', icon: faHistory, label: 'Activity Log' },
+      { to: '/admin-requirements', icon: faIdCard, label: 'Document Requirements' },
+      { to: '/admin-other-settings', icon: faCogs, label: 'Other Settings' },
     ],
   },
 ];
@@ -111,15 +115,16 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
 
   // Auto close the mobile drawer on navigation. The internal state is adjusted during
   // render; the parent's onClose is an external callback, so it stays in an effect.
-  const [seenPath, setSeenPath] = useState(location.pathname);
-  if (seenPath !== location.pathname) {
-    setSeenPath(location.pathname);
+  const currentRoute = location.pathname + location.search;
+  const [seenPath, setSeenPath] = useState(currentRoute);
+  if (seenPath !== currentRoute) {
+    setSeenPath(currentRoute);
     setInternalIsOpen(false);
   }
 
   useEffect(() => {
     if (propOnClose) propOnClose();
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const handleToggle = () => setInternalIsOpen(prev => !prev);
@@ -160,6 +165,25 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     return val === undefined || val === 'true' || val === true;
   };
 
+  const isItemActive = (item) => {
+    if (item.to.includes('?')) {
+      const [itemPath, itemQuery] = item.to.split('?');
+      if (location.pathname !== itemPath) return false;
+      const itemParams = new URLSearchParams(itemQuery);
+      const currentParams = new URLSearchParams(location.search);
+      const itemTab = itemParams.get('tab');
+      const currentTab = currentParams.get('tab');
+      if (itemTab === 'payments') {
+        return currentTab === 'payments' || currentTab === 'payment-options';
+      }
+      for (const [k, v] of itemParams.entries()) {
+        if (currentParams.get(k) !== v) return false;
+      }
+      return true;
+    }
+    return location.pathname === item.to;
+  };
+
   const renderNavContent = (isMobile = false) => (
     <>
       {/* Logo Area */}
@@ -190,26 +214,28 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
             <div key={section.title}>
               <h2 className="text-label font-medium text-slate-400 mb-2 px-2 m-0">{section.title}</h2>
               <ul className="space-y-1 p-0 m-0 list-none">
-                {visibleItems.map((item) => (
-                  <li key={item.to}>
-                    <NavLink
-                      to={item.to}
-                      onClick={isMobile ? handleClose : undefined}
-                      className={({ isActive }) =>
-                        `admin-sidebar-nav-link btn-interactive flex items-center gap-3 px-3 py-2 rounded-control transition-colors text-sm no-underline ${
-                          isActive
+                {visibleItems.map((item) => {
+                  const active = isItemActive(item);
+                  return (
+                    <li key={item.to}>
+                      <NavLink
+                        to={item.to}
+                        onClick={isMobile ? handleClose : undefined}
+                        className={`admin-sidebar-nav-link btn-interactive flex items-center gap-3 px-3 py-2 rounded-control transition-colors text-sm no-underline ${
+                          active
                             ? 'bg-indigo-600 text-white font-semibold shadow-card'
                             : 'text-slate-300 hover:bg-slate-800'
-                        }`
-                      }
-                    >
-                      <div className="w-5 text-center flex items-center justify-center">
-                        <FontAwesomeIcon icon={item.icon} className="text-sm" />
-                      </div>
-                      <span>{item.label}</span>
-                    </NavLink>
-                  </li>
-                ))}
+                        }`}
+                        aria-current={active ? 'page' : undefined}
+                      >
+                        <div className="w-5 text-center flex items-center justify-center">
+                          <FontAwesomeIcon icon={item.icon} className="text-sm" />
+                        </div>
+                        <span>{item.label}</span>
+                      </NavLink>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           );

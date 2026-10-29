@@ -26,17 +26,18 @@ export const SETTINGS_TABS = [
   },
   {
     id: 'payments',
-    label: 'Payments',
+    label: 'Payment Options',
     icon: faCreditCard,
-    description: 'Overdue and eviction policy, payment channels and the PayMongo gateway.',
+    description: 'Enable or disable payment options, configure QR Ph slots and active QR code, overdue policy, and gateway settings.',
     keys: [
       'paymentWindowDays',
       'overdueThresholdDays',
       'paymentMode', 'paymentSandboxEnabled',
-      'paymentChGcashManual', 'paymentChBankManual', 'paymentChInPerson',
+      'paymentChGcashManual', 'paymentChBankManual', 'paymentChQrphManual', 'paymentChInPerson',
       'paymentChGcashSandbox', 'paymentChBankSandbox', 'paymentChMaya',
       'duplicateReferencePolicy',
       'paymongoSecretKey', 'paymongoPublicKey', 'paymongoWebhookSecret',
+      'qrphSlots', 'qrphActiveSlot',
     ],
   },
   {
@@ -99,6 +100,32 @@ export const SETTINGS_TABS = [
 ];
 
 export const SETTINGS_TAB_IDS = SETTINGS_TABS.map((t) => t.id);
+
+export const OTHER_SETTINGS_TABS = SETTINGS_TABS.filter(
+  (t) => !['account', 'requirements', 'payments'].includes(t.id)
+);
+export const OTHER_SETTINGS_TAB_IDS = OTHER_SETTINGS_TABS.map((t) => t.id);
+
+export const OTHER_SETTINGS_GROUPS = [
+  {
+    key: 'leasing',
+    title: 'Leasing & Rates',
+    accentDot: 'bg-indigo-500',
+    tabIds: ['leasing', 'floor-rent', 'utility-types', 'parking'],
+  },
+  {
+    key: 'operations',
+    title: 'Operations',
+    accentDot: 'bg-sky-500',
+    tabIds: ['notifications', 'maintenance'],
+  },
+  {
+    key: 'policies',
+    title: 'Rules & Policies',
+    accentDot: 'bg-emerald-500',
+    tabIds: ['house-rules', 'parking-rules', 'minors'],
+  },
+];
 
 // Tabs that save on their own (their panel talks to its own endpoints), so the
 // shared settings form and its save bar stay out of the way.

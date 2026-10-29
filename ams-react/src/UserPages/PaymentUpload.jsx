@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye, faExpand, faDownload } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { publicAssetUrl } from '../api/fileUrl';
 import ApartmentPic from '../assets/Apartment_Pic.webp';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';
 import DocumentPreviewModal from '../Components/DocumentPreviewModal';
+import QrPreviewModal from '../Components/QrPreviewModal';
 import { LIMITS, checkPaymentReference, checkText, isBankMethod } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -27,6 +29,13 @@ const readSession = () => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null') || {}; } catch { return {}; }
 };
 
+const getQrTitle = (label) => {
+    if (!label || /^qr\s*ph(\s*slot\s*\d+)?$/i.test(label.trim()) || /^slot\s*\d+$/i.test(label.trim())) {
+        return 'QR Ph (Scan to Pay)';
+    }
+    return label.replace(/\s*\(?slot\s*\d+\)?/i, '').trim() || 'QR Ph (Scan to Pay)';
+};
+
 export default function PaymentUpload() {
     const location = useLocation();
     const navigate = useNavigate();
@@ -43,6 +52,11 @@ export default function PaymentUpload() {
     // paymentMethod is the channel label, e.g. 'GCash (Manual)' or 'BPI (Manual)'.
     const isGcash = /gcash/i.test(paymentMethod || '');
     const isBankTransfer = isBankMethod(paymentMethod);
+    const isQrPh = /qr/i.test(paymentMethod || '');
+    const [qrData, setQrData] = useState(null);
+    const [channelChecking, setChannelChecking] = useState(true);
+    const [channelDisabled, setChannelDisabled] = useState(false);
+    const [channelDisabledMessage, setChannelDisabledMessage] = useState('');
 
     const [senderName, setSenderName] = useState('');
     const [referenceNo, setReferenceNo] = useState('');
@@ -52,6 +66,7 @@ export default function PaymentUpload() {
     const [uploading, setUploading] = useState(false);
     const [fileAlert, setFileAlert] = useState('');
     const [showPreviewModal, setShowPreviewModal] = useState(false);
+    const [showQrModal, setShowQrModal] = useState(false);
     // Landlord's GCash/bank accounts, edited in Admin → Edit Contract.
     const [accounts, setAccounts] = useState([]);
     const [error, setError] = useState('');
@@ -65,10 +80,55 @@ export default function PaymentUpload() {
     }, { idPrefix: 'upload-' });
 
     useEffect(() => {
-        fetchContractTemplate()
-            .then((res) => setAccounts(accountsForMethod(res.template.payment_accounts, paymentMethod)))
-            .catch((err) => console.error('Failed to load payment accounts:', err));
-    }, [paymentMethod]);
+        let isMounted = true;
+        api.get('/get_payment_channels.php')
+            .then((res) => {
+                if (!isMounted) return;
+                const channels = res.data?.channels || [];
+                let isChannelActive = false;
+                if (isQrPh) {
+                    const qrCh = channels.find(c => c.icon === 'qr' || c.id === 'qrph_manual');
+                    if (qrCh) {
+                        isChannelActive = true;
+                        if (qrCh.qr_data) setQrData(qrCh.qr_data);
+                    }
+                } else if (isGcash) {
+                    isChannelActive = channels.some(c => c.family === 'manual' && /gcash/i.test(c.label || c.id));
+                } else if (isBankTransfer) {
+                    const norm = (paymentMethod || '').toLowerCase();
+                    isChannelActive = channels.some(c => {
+                        if (c.family !== 'manual') return false;
+                        if (norm.includes('bdo') && /bdo/i.test(c.label || c.id)) return true;
+                        if (norm.includes('bpi') && /bpi/i.test(c.label || c.id)) return true;
+                        return /bank/i.test(c.label || c.id);
+                    });
+                } else {
+                    isChannelActive = channels.some(c => (c.label === paymentMethod || c.id === paymentMethod) && c.family === 'manual');
+                }
+
+                if (!isChannelActive) {
+                    setChannelDisabled(true);
+                    setChannelDisabledMessage(`The selected payment method (${paymentMethod || 'Manual payment'}) is currently disabled or unavailable.`);
+                }
+                setChannelChecking(false);
+            })
+            .catch((err) => {
+                console.error('Failed to load payment channels:', err);
+                if (isMounted) setChannelChecking(false);
+            });
+
+        if (!isQrPh) {
+            fetchContractTemplate()
+                .then((res) => {
+                    if (isMounted) setAccounts(accountsForMethod(res?.template?.payment_accounts, paymentMethod));
+                })
+                .catch((err) => console.error('Failed to load payment accounts:', err));
+        }
+
+        return () => {
+            isMounted = false;
+        };
+    }, [paymentMethod, isQrPh, isGcash, isBankTransfer]);
 
     if (!invoiceId) {
         // Reached without choosing a bill (a bookmark, or the proof was already sent).
@@ -80,6 +140,42 @@ export default function PaymentUpload() {
                     <div className="mt-5 flex flex-wrap justify-center gap-3">
                         <button type="button" onClick={() => navigate('/pay-bills')} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-5 rounded-xl cursor-pointer border-0">{t('utilities.goPayBills')}</button>
                         <button type="button" onClick={() => navigate('/track-application')} className="min-h-[44px] bg-white border border-slate-300 text-slate-700 text-sm font-semibold px-5 rounded-xl cursor-pointer hover:bg-slate-50">{t('nav.trackApp')}</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (channelChecking) {
+        return (
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4">
+                <div className="flex flex-col items-center space-y-3 text-slate-500">
+                    <FontAwesomeIcon icon={faHourglassHalf} className="text-3xl text-indigo-500 animate-spin" />
+                    <p className="text-sm font-semibold m-0">Verifying payment method...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (channelDisabled) {
+        return (
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center max-w-md w-full">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-50 flex items-center justify-center text-rose-500">
+                        <FontAwesomeIcon icon={faTimesCircle} className="text-3xl" />
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800 m-0">Payment Option Unavailable</h2>
+                    <p className="m-0 mt-3 text-sm text-slate-600 leading-relaxed">
+                        {channelDisabledMessage || 'This payment option is currently disabled by apartment management. Please return to billing to select an available payment method.'}
+                    </p>
+                    <div className="mt-6 flex flex-wrap justify-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate(returnUrl || '/pay-bills')}
+                            className="btn-interactive min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-6 rounded-xl cursor-pointer border-0 transition-colors shadow-sm"
+                        >
+                            {returnUrl ? 'Return' : t('utilities.goPayBills')}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -208,16 +304,100 @@ export default function PaymentUpload() {
                     </div>
                     <div className="border-t border-slate-200 md:border-white/10 pt-4 mt-4">
                         <span className="text-xs font-bold text-slate-500 md:text-slate-300 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
-                        {accounts.length === 0 && (
-                            <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-300">{t('paymentUpload.noAccount')}</p>
-                        )}
-                        {accounts.map((acct) => (
-                            <div key={acct.id} className="flex flex-col gap-1.5 text-sm font-medium [&+&]:mt-3 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-200 md:[&+&]:border-white/10">
-                                {accounts.length > 1 && <span className="text-xs font-bold text-slate-500 md:text-slate-300">{acct.label}</span>}
-                                {acct.account_name && <span><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountName')}:</strong> {acct.account_name}</span>}
-                                <span className="flex items-center"><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{acct.account_number}</span></span>
+                        {isQrPh ? (
+                            <div>
+                                {qrData?.image_path ? (
+                                    <div className="flex flex-col items-center text-center py-2 space-y-4">
+                                        {/* Title & subtitle (Never say 'QR Ph Slot 1') */}
+                                        <div className="space-y-1">
+                                            <h3 className="m-0 text-base font-extrabold text-indigo-600 md:text-indigo-400">
+                                                {getQrTitle(qrData.label)}
+                                            </h3>
+                                            <p className="m-0 text-xs text-slate-500 md:text-slate-400">
+                                                Interoperable across GCash, Maya, BDO, BPI, and all Philippine bank apps
+                                            </p>
+                                        </div>
+
+                                        {/* Larger, centered QR card with hover-to-enlarge */}
+                                        <div
+                                            onClick={() => setShowQrModal(true)}
+                                            className="group relative cursor-pointer inline-block rounded-2xl p-3 bg-white border-2 border-indigo-100 md:border-white/20 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all"
+                                            title="Click to enlarge QR Code"
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowQrModal(true); }}
+                                        >
+                                            <img
+                                                src={publicAssetUrl(qrData.image_path)}
+                                                alt={getQrTitle(qrData.label)}
+                                                className="w-52 h-52 sm:w-60 sm:h-60 object-contain rounded-xl bg-white select-none block"
+                                            />
+                                            <div className="absolute inset-0 rounded-2xl bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1.5 font-bold text-xs backdrop-blur-[2px]">
+                                                <FontAwesomeIcon icon={faExpand} className="text-xl" />
+                                                <span>Click to Enlarge</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Action buttons: Enlarge & Download */}
+                                        <div className="flex items-center justify-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowQrModal(true)}
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 md:bg-indigo-500/20 text-indigo-700 md:text-indigo-300 hover:bg-indigo-100 text-xs font-bold border border-indigo-200 md:border-indigo-400/30 cursor-pointer transition-colors"
+                                            >
+                                                <FontAwesomeIcon icon={faExpand} className="text-[11px]" />
+                                                <span>Enlarge QR</span>
+                                            </button>
+                                            <a
+                                                href={publicAssetUrl(qrData.image_path)}
+                                                download="qr_ph_payment.png"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white md:bg-white/10 text-slate-700 md:text-slate-200 hover:bg-slate-100 text-xs font-semibold border border-slate-200 md:border-white/20 no-underline cursor-pointer transition-colors"
+                                            >
+                                                <FontAwesomeIcon icon={faDownload} className="text-[11px]" />
+                                                <span>Save Image</span>
+                                            </a>
+                                        </div>
+
+                                        {/* Account Details if provided */}
+                                        {(qrData.account_name || qrData.account_number) && (
+                                            <div className="w-full max-w-sm p-3.5 rounded-xl bg-white md:bg-slate-900/60 border border-slate-200 md:border-white/10 text-xs space-y-1.5 shadow-xs text-left">
+                                                {qrData.account_name && (
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-slate-500 md:text-slate-400 font-medium">Account Name:</span>
+                                                        <span className="font-bold text-slate-800 md:text-slate-100 truncate max-w-[200px]">{qrData.account_name}</span>
+                                                    </div>
+                                                )}
+                                                {qrData.account_number && (
+                                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 md:border-white/10">
+                                                        <span className="text-slate-500 md:text-slate-400 font-medium">Account / Mobile No:</span>
+                                                        <span className="font-mono font-bold text-indigo-600 md:text-indigo-400">{qrData.account_number}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <p className="text-[11px] text-slate-500 md:text-slate-400 max-w-sm m-0 leading-relaxed">
+                                            Scan using GCash, Maya, BDO, BPI, or any Philippine banking app, then enter the reference number and upload your receipt below.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-300 text-center py-4">No active QR code uploaded by management yet.</p>
+                                )}
                             </div>
-                        ))}
+                        ) : (
+                            <>
+                                {accounts.length === 0 && (
+                                    <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-300">{t('paymentUpload.noAccount')}</p>
+                                )}
+                                {accounts.map((acct) => (
+                                    <div key={acct.id} className="flex flex-col gap-1.5 text-sm font-medium [&+&]:mt-3 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-200 md:[&+&]:border-white/10">
+                                        {accounts.length > 1 && <span className="text-xs font-bold text-slate-500 md:text-slate-300">{acct.label}</span>}
+                                        {acct.account_name && <span><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountName')}:</strong> {acct.account_name}</span>}
+                                        <span className="flex items-center"><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{acct.account_number}</span></span>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -397,6 +577,18 @@ export default function PaymentUpload() {
                 fileUrl={previewUrl}
                 isImage={true}
             />
+
+            {/* QR Ph Enlarge Modal */}
+            {isQrPh && qrData?.image_path && (
+                <QrPreviewModal
+                    isOpen={showQrModal}
+                    onClose={() => setShowQrModal(false)}
+                    imagePath={qrData.image_path}
+                    title={getQrTitle(qrData.label)}
+                    accountName={qrData.account_name}
+                    accountNumber={qrData.account_number}
+                />
+            )}
         </div>
     );
 }

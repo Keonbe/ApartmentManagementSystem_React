@@ -8,12 +8,13 @@ import {
   faCheckCircle, faClock, faUsers, faVenusMars,
   faFileAlt, faExclamationTriangle, faHome,
   faList, faColumns, faEye, faFilter, faChevronDown,
-  faFilePdf, faPaperclip, faSpinner
+  faFilePdf, faPaperclip, faSpinner, faBolt
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import ReasonModal from '../Components/form/ReasonModal';
 import { fileUrl } from '../api/fileUrl';
+import { formatFileSize } from '../Components/form/formHelpers';
 import { LIMITS } from '../utils/validation';
 import { clickable } from '../utils/clickable';
 import Modal from '../Components/admin/Modal';
@@ -91,6 +92,8 @@ const AdminApplications = () => {
   const [loading, setLoading] = useState(true);
   const [approveTarget, setApproveTarget] = useState(null);
   const [isApproving, setIsApproving] = useState(false);
+  const [moveInTarget, setMoveInTarget] = useState(null);
+  const [isConfirmingMoveIn, setIsConfirmingMoveIn] = useState(false);
   const [scheduleTarget, setScheduleTarget] = useState(null);
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleMessage, setScheduleMessage] = useState('');
@@ -228,11 +231,23 @@ const AdminApplications = () => {
   const [rejectTarget, setRejectTarget] = useState(null);
   const [preview, setPreview] = useState(null);
   
-  const openPreview = (e, path, title) => {
-    e.preventDefault();
-    if (!path) return;
-    const isImage = /\.(jpe?g|png|gif)$/i.test(path);
-    setPreview({ url: fileUrl(path), title, isImage });
+  const openPreview = (e, target, title) => {
+    e?.preventDefault();
+    if (!target) return;
+    if (typeof target === 'object' && target instanceof File) {
+      const isImage = target.type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(target.name);
+      setPreview({ url: URL.createObjectURL(target), title: title || target.name, isImage, isLocalBlob: true });
+      return;
+    }
+    const isImage = /\.(jpe?g|png|gif|webp)$/i.test(String(target));
+    setPreview({ url: String(target).startsWith('blob:') || String(target).startsWith('http') ? target : fileUrl(target), title: title || 'Document Preview', isImage, isLocalBlob: false });
+  };
+
+  const closePreview = () => {
+    if (preview?.isLocalBlob && preview?.url) {
+      URL.revokeObjectURL(preview.url);
+    }
+    setPreview(null);
   };
 
   const confirmReject = async (reason, file) => {
@@ -294,10 +309,20 @@ const AdminApplications = () => {
     } finally { setScheduling(false); }
   };
 
-  const confirmMoveIn = async (app) => {
-    if (!window.confirm(`Confirm that ${app.name} has physically moved into Unit ${app.unit}?`)) return;
-    // Stay on the profile when the server refuses, so the reason can be acted on.
-    if (await updateStatus(app.id, 'active')) setShowProfileModal(false);
+  const handleConfirmMoveIn = async () => {
+    if (!moveInTarget) return;
+    setIsConfirmingMoveIn(true);
+    try {
+      // Stay on the profile when the server refuses, so the reason can be acted on.
+      if (await updateStatus(moveInTarget.id, 'active')) {
+        setMoveInTarget(null);
+        setShowProfileModal(false);
+      } else {
+        setMoveInTarget(null);
+      }
+    } finally {
+      setIsConfirmingMoveIn(false);
+    }
   };
 
   const openProfile = (app) => {
@@ -1074,7 +1099,7 @@ const AdminApplications = () => {
                   ) : (
                     <div className="flex gap-3">
                       <div className="flex-1 rounded-card border border-indigo-200 bg-indigo-50 p-4 text-body text-indigo-800">Move-in date sent: <strong>{new Date(selectedApp.move_in_date).toLocaleDateString()}</strong></div>
-                      <button onClick={() => confirmMoveIn(selectedApp)} className="rounded-card bg-teal-600 px-4 text-body font-bold text-white border-0 cursor-pointer hover:bg-teal-700">Confirm moved in</button>
+                      <button onClick={() => setMoveInTarget(selectedApp)} className="rounded-card bg-teal-600 px-4 text-body font-bold text-white border-0 cursor-pointer hover:bg-teal-700 transition-colors">Confirm moved in</button>
                     </div>
                   )}
                   <button onClick={() => setRejectTarget(selectedApp)} className="w-full bg-white text-red-600 border border-red-200 p-3 rounded-card cursor-pointer text-label font-bold hover:bg-red-50">Revoke approval / reject</button>
@@ -1082,6 +1107,57 @@ const AdminApplications = () => {
               )}
             </div>
           </Modal>
+      )}
+
+      {moveInTarget && (
+        <Modal
+          title="Confirm Physical Move-In"
+          onClose={() => !isConfirmingMoveIn && setMoveInTarget(null)}
+          busy={isConfirmingMoveIn}
+          overlayClassName="flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+          className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shrink-0">
+              <FontAwesomeIcon icon={faCheckCircle} className="text-lg" />
+            </div>
+            <div>
+              <h3 className="m-0 text-lg font-black text-slate-800">Confirm Move-In</h3>
+              <p className="mt-1 text-sm text-slate-600 leading-relaxed">
+                Confirm that <strong className="text-slate-800">{moveInTarget.name}</strong> has physically moved into <strong className="text-slate-800">Unit {moveInTarget.unit}</strong>?
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                This will officially activate their tenancy and mark the unit as occupied.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              type="button"
+              disabled={isConfirmingMoveIn}
+              onClick={() => setMoveInTarget(null)}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isConfirmingMoveIn}
+              onClick={handleConfirmMoveIn}
+              className="rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-75 disabled:cursor-not-allowed px-4 py-2 text-sm font-semibold text-white cursor-pointer transition-all flex items-center gap-2 shadow-sm"
+            >
+              {isConfirmingMoveIn ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin className="text-xs" />
+                  <span>Confirming...</span>
+                </>
+              ) : (
+                'Confirm moved in'
+              )}
+            </button>
+          </div>
+        </Modal>
       )}
 
       {rejectTarget && (
@@ -1130,22 +1206,237 @@ const AdminApplications = () => {
           </Modal>
       )}
 
-      {scheduleTarget && (
-        <Modal title="Send move-in date" onClose={() => setScheduleTarget(null)} busy={scheduling} as="form" overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" onSubmit={scheduleMoveIn} className="w-full max-w-md rounded-card bg-white p-6 shadow-raised space-y-4">
-            <div><h3 className="m-0 text-title font-bold text-slate-800">Send move-in date</h3><p className="mt-1 text-body text-slate-500">Payment is confirmed. Tell {scheduleTarget.name} when they can move in.</p></div>
-            <label className="block text-body font-semibold text-slate-700">Move-in date<input required type="date" min={new Date().toISOString().slice(0, 10)} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="mt-1 w-full rounded-card border border-slate-200 px-3 py-2" /></label>
-            <label className="block text-body font-semibold text-slate-700">Message (optional)<textarea value={scheduleMessage} onChange={e => setScheduleMessage(e.target.value)} rows="3" className="mt-1 w-full rounded-card border border-slate-200 px-3 py-2" placeholder="Arrival instructions, office hours, etc." /></label>
-            <label className="block text-body font-semibold text-slate-700">Attachment (optional)<input type="file" accept="image/jpeg,image/png,application/pdf" onChange={e => setScheduleAttachment(e.target.files?.[0] || null)} className="mt-1 block w-full text-label" /></label>
-            <div className="flex justify-end gap-3"><button type="button" onClick={() => setScheduleTarget(null)} disabled={scheduling} className="rounded-card border border-slate-200 px-4 py-2 text-body font-semibold">Cancel</button><button type="submit" disabled={scheduling} className={btn('primary', 'md')}>{scheduling ? 'Sending…' : 'Send notice'}</button></div>
-          </Modal>
+      {moveInTarget && (
+        <Modal
+          title="Confirm Physical Move-In"
+          onClose={() => !isConfirmingMoveIn && setMoveInTarget(null)}
+          busy={isConfirmingMoveIn}
+          overlayClassName="flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+          className="w-full max-w-md rounded-card bg-white p-6 shadow-dialog"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-card bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shrink-0">
+              <FontAwesomeIcon icon={faCheckCircle} className="text-lg" />
+            </div>
+            <div>
+              <h3 className="m-0 text-title font-bold text-slate-800">Confirm Move-In</h3>
+              <p className="mt-1 text-body text-slate-600 leading-relaxed">
+                Confirm that <strong className="text-slate-800">{moveInTarget.name}</strong> has physically moved into <strong className="text-slate-800">Unit {moveInTarget.unit}</strong>?
+              </p>
+              <p className="mt-2 text-label text-slate-500">
+                This will officially activate their tenancy and mark the unit as occupied.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              type="button"
+              disabled={isConfirmingMoveIn}
+              onClick={() => setMoveInTarget(null)}
+              className="rounded-control border border-slate-200 bg-white px-4 py-2 text-body font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isConfirmingMoveIn}
+              onClick={handleConfirmMoveIn}
+              className="rounded-control bg-teal-600 hover:bg-teal-700 disabled:opacity-75 disabled:cursor-not-allowed px-4 py-2 text-body font-semibold text-white cursor-pointer transition-all flex items-center gap-2 shadow-sm"
+            >
+              {isConfirmingMoveIn ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin className="text-xs" />
+                  <span>Confirming...</span>
+                </>
+              ) : (
+                'Confirm moved in'
+              )}
+            </button>
+          </div>
+        </Modal>
       )}
 
+      {scheduleTarget && (
+        <Modal
+          title="Send move-in date"
+          onClose={() => { setScheduleTarget(null); setScheduleAttachment(null); }}
+          busy={scheduling}
+          as="form"
+          overlayClassName="flex items-center justify-center bg-slate-900/50 p-4"
+          onSubmit={scheduleMoveIn}
+          className="w-full max-w-lg rounded-2xl bg-white p-6 sm:p-7 shadow-2xl space-y-5"
+        >
+          {/* Header */}
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="m-0 text-xl font-black text-slate-800">Send Move-In Notice</h3>
+            <p className="mt-1 text-xs text-slate-500 font-medium">
+              Initial payment confirmed. Set the official move-in date and send instructions to <strong className="text-slate-700">{scheduleTarget.name}</strong> (Unit {scheduleTarget.unit}).
+            </p>
+          </div>
+
+          {/* Move-in date with "Move in immediately" option */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label htmlFor="move-in-date-input" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Move-in Date <span className="text-rose-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  setScheduleDate(todayStr);
+                  if (!scheduleMessage || scheduleMessage.includes('collect your room keys') || scheduleMessage.includes('for your room keys')) {
+                    setScheduleMessage('You are cleared to move in immediately starting today! Please stay in touch or contact management for your room keys.');
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                  scheduleDate === new Date().toISOString().slice(0, 10)
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                }`}
+              >
+                <FontAwesomeIcon icon={faBolt} className="text-[11px]" />
+                <span>Move in immediately (Today)</span>
+              </button>
+            </div>
+
+            <input
+              id="move-in-date-input"
+              required
+              type="date"
+              min={new Date().toISOString().slice(0, 10)}
+              value={scheduleDate}
+              onChange={e => setScheduleDate(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+            />
+
+            {scheduleDate === new Date().toISOString().slice(0, 10) ? (
+              <p className="m-0 text-xs text-emerald-600 font-bold flex items-center gap-1.5">
+                <FontAwesomeIcon icon={faCheckCircle} className="text-xs" />
+                Move-in scheduled for immediately today
+              </p>
+            ) : scheduleDate ? (
+              <p className="m-0 text-xs text-slate-500 font-medium">
+                Scheduled move-in: <strong className="text-slate-700">{new Date(scheduleDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong>
+              </p>
+            ) : null}
+          </div>
+
+          {/* Message textarea */}
+          <div className="space-y-1.5">
+            <label htmlFor="move-in-message-input" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+              Message <span className="text-slate-400 font-normal lowercase">(optional)</span>
+            </label>
+            <textarea
+              id="move-in-message-input"
+              value={scheduleMessage}
+              onChange={e => setScheduleMessage(e.target.value)}
+              rows="3"
+              className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-400"
+              placeholder="Arrival instructions, office hours, key pickup details, etc."
+            />
+          </div>
+
+          {/* Attachment with File Preview & Actions */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+              Attachment <span className="text-slate-400 font-normal lowercase">(optional PDF, PNG, JPG up to 10MB)</span>
+            </label>
+
+            {scheduleAttachment ? (
+              <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 text-indigo-600 shadow-2xs">
+                    {scheduleAttachment.type === 'application/pdf' || scheduleAttachment.name.endsWith('.pdf') ? (
+                      <FontAwesomeIcon icon={faFilePdf} className="text-red-500 text-lg" />
+                    ) : (
+                      <FontAwesomeIcon icon={faPaperclip} className="text-indigo-600 text-base" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate m-0" title={scheduleAttachment.name}>
+                      {scheduleAttachment.name}
+                    </p>
+                    <p className="text-[11px] text-slate-500 m-0 font-medium">
+                      {formatFileSize(scheduleAttachment.size)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => openPreview(e, scheduleAttachment, scheduleAttachment.name)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <FontAwesomeIcon icon={faEye} className="text-[11px]" />
+                    <span>Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleAttachment(null)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                    title="Remove file"
+                  >
+                    <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 bg-slate-50/50 hover:bg-indigo-50/20 cursor-pointer transition-colors group">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,application/pdf"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) setScheduleAttachment(f);
+                    e.target.value = '';
+                  }}
+                  className="sr-only"
+                />
+                <FontAwesomeIcon icon={faPaperclip} className="text-slate-400 group-hover:text-indigo-600 text-lg mb-1 transition-colors" />
+                <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">
+                  Click to attach file <span className="font-normal text-slate-400">(PDF, JPG, PNG)</span>
+                </span>
+                <span className="text-[10px] text-slate-400 mt-0.5">Maximum size 10 MB</span>
+              </label>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => { setScheduleTarget(null); setScheduleAttachment(null); }}
+              disabled={scheduling}
+              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={scheduling || !scheduleDate}
+              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2 text-sm font-bold text-white transition-colors cursor-pointer shadow-md shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {scheduling ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
+                  <span>Sending…</span>
+                </>
+              ) : (
+                <span>Send notice</span>
+              )}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {preview && (
-        <Modal title={`${preview.title}`} onClose={() => setPreview(null)} overlayClassName="flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in" className="bg-white rounded-card w-full max-w-4xl max-h-[90vh] shadow-dialog flex flex-col overflow-hidden animate-scale-in">
+        <Modal title={`${preview.title}`} onClose={closePreview} overlayClassName="flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in" className="bg-white rounded-card w-full max-w-4xl max-h-[90vh] shadow-dialog flex flex-col overflow-hidden animate-scale-in">
             <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
               <h3 className="text-title font-bold text-slate-800 m-0">{preview.title}</h3>
-              <button aria-label="Close" onClick={() => setPreview(null)} className="text-slate-500 hover:text-slate-600 bg-white hover:bg-slate-100 rounded-control p-2 transition-colors border border-slate-200 cursor-pointer flex items-center justify-center">
+              <button aria-label="Close" onClick={closePreview} className="text-slate-500 hover:text-slate-600 bg-white hover:bg-slate-100 rounded-control p-2 transition-colors border border-slate-200 cursor-pointer flex items-center justify-center">
                 <FontAwesomeIcon icon={faTimes} className="text-lg" />
               </button>
             </div>
