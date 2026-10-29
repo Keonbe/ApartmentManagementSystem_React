@@ -12,6 +12,8 @@ import { LIMITS } from '../utils/validation';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
 export default function AdminCctv() {
   const [requests, setRequests] = useState([]);
@@ -140,17 +142,9 @@ export default function AdminCctv() {
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
-                      <tr>
-                        <td colSpan="6" className="px-5 py-12 text-center text-slate-500 font-medium">
-                          Loading CCTV requests...
-                        </td>
-                      </tr>
+                      <SkeletonRows cols={6} label="Loading CCTV requests…" />
                     ) : error ? (
-                      <tr>
-                        <td colSpan="6" className="px-5 py-12 text-center text-rose-500 font-medium">
-                          {error}
-                        </td>
-                      </tr>
+                      <LoadErrorRow cols={6} title="Couldn't load CCTV requests" detail={error} onRetry={fetchCctvRequests} />
                     ) : filteredRequests.length === 0 ? (
                       <tr>
                         <td colSpan="6" className="px-5 py-12 text-center">

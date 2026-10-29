@@ -22,6 +22,9 @@ import FieldError from '../Components/form/FieldError';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { btn } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
+import { SkeletonList } from '../Components/admin/ui/Skeleton';
+import LoadError from '../Components/admin/ui/LoadError';
 
 // update_system_settings.php: 0–30 days before due; every 1–30 days when overdue.
 const REMINDER_VALIDATORS = {
@@ -67,6 +70,8 @@ const AdminNotifications = () => {
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
+  // The list did not load: shown instead of "Nothing is waiting for you here."
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useUrlFilter('filter', 'all', FILTERS.map(f => f.key));
@@ -88,6 +93,7 @@ const AdminNotifications = () => {
     try {
       const response = await api.get('get_notifications.php');
       if (response.data.success) {
+        setLoadFailed(false);
         setNotifications(response.data.notifications.map(n => ({
           id: n.id,
           type: n.type,
@@ -103,8 +109,11 @@ const AdminNotifications = () => {
           // refused while it's above zero — extension_block_reason()).
           tenantOverdueTotal: Number(n.tenant_overdue_total || 0),
         })));
+      } else {
+        setLoadFailed(true);
       }
     } catch (e) {
+      setLoadFailed(true);
       setNotice({ ok: false, text: e.response?.data?.message || 'Could not load notifications.' });
     } finally {
       setLoading(false);
@@ -277,7 +286,7 @@ const AdminNotifications = () => {
 
             <div className="flex flex-col lg:flex-row gap-6">
 
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 min-w-0 space-y-4">
                 {/* Toolbar */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-control px-3 py-2 shadow-card focus-within:border-indigo-500 transition-all flex-1 max-w-sm">
@@ -299,26 +308,24 @@ const AdminNotifications = () => {
 
                 <FollowupMonitor onChanged={fetchNotifications} />
 
-                {/* Filter Tabs */}
-                <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1 overflow-x-auto">
-                  {FILTERS.map(f => {
-                    const count = f.types ? notifications.filter(n => f.types.includes(n.type) && n.status === 'Pending').length : openCount;
-                    return (
-                      <button key={f.key} onClick={() => setActiveFilter(f.key)}
-                        className={`btn-interactive px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap border-0 cursor-pointer transition-colors ${activeFilter === f.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>
-                        {f.label}
-                        {count > 0 && (
-                          <span className="ml-1.5 bg-red-600 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Filter tabs: they wrap onto a second line instead of forcing the page wider */}
+                <FilterTabs
+                  label="Filter notifications"
+                  value={activeFilter}
+                  onChange={setActiveFilter}
+                  options={FILTERS.map(f => ({
+                    value: f.key,
+                    label: f.label,
+                    count: loading || (loadFailed && notifications.length === 0) ? null : f.types ? notifications.filter(n => f.types.includes(n.type) && n.status === 'Pending').length : openCount,
+                  }))}
+                />
 
                 {/* Notification Cards */}
                 <div className="stagger-children space-y-2">
                   {loading ? (
-                    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-sm text-slate-500">Loading…</div>
+                    <div className="bg-white rounded-card border border-slate-200 overflow-hidden"><SkeletonList rows={5} label="Loading notifications…" /></div>
+                  ) : loadFailed && notifications.length === 0 ? (
+                    <div className="bg-white rounded-card border border-slate-200"><LoadError title="Couldn't load notifications" onRetry={() => { setLoading(true); fetchNotifications(); }} /></div>
                   ) : filtered.length === 0 && (
                     <div className="bg-white rounded-card border border-slate-200 p-12 text-center">
                       <FontAwesomeIcon icon={faBell} className="text-4xl text-slate-200 mb-3" />

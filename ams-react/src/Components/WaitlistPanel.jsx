@@ -47,7 +47,7 @@ export default function WaitlistPanel({ onOpenInquiry }) {
           <FontAwesomeIcon icon={faListOl} className="text-indigo-600" />
           Unit Waitlist ({entries.length})
         </h3>
-        <p className="text-[11px] text-slate-500 m-0 hidden sm:block">
+        <p className="text-caption text-slate-500 m-0 hidden sm:block">
           First come, first served. The first person is flagged when a unit frees up — no hold is placed automatically.
         </p>
       </div>

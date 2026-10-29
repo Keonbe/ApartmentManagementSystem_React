@@ -14,6 +14,9 @@ import { LIMITS } from '../utils/validation';
 import { clickable } from '../utils/clickable';
 import Modal from '../Components/admin/Modal';
 import { TH, btn } from '../Components/admin/ui/styles';
+import { LoadErrorRow } from '../Components/admin/ui/LoadError';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 // Icon and colour per category. Keys match LOG_CATEGORIES in backend/config.php;
 // labels come from the server so the two can't drift apart.
@@ -155,6 +158,8 @@ export default function AdminActivityLogs() {
 
   const setFilter = (setter) => (value) => { setter(value); setPage(1); };
   const allCount = Object.values(categoryCounts).reduce((a, b) => a + b, 0);
+  // No counts for a failed load, or before the first one (a refresh keeps the last counts).
+  const noCounts = !!error || (loading && logs.length === 0 && allCount === 0);
   const hasFilters = category !== 'all' || performer !== 'all' || search || from || to;
 
   return (
@@ -232,21 +237,12 @@ export default function AdminActivityLogs() {
                 )}
               </div>
 
-              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl overflow-x-auto select-none">
-                {[['all', 'All Logs', allCount], ...Object.entries(categories).map(([key, label]) => [key, label, categoryCounts[key] || 0])].map(([key, label, count]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={category === key}
-                    onClick={() => setFilter(setCategory)(key)}
-                    className={`btn-interactive px-3 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer border-0 ${
-                      category === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800 bg-transparent'
-                    }`}
-                  >
-                    {label} <span className="text-[11px] text-slate-600 font-semibold">({count})</span>
-                  </button>
-                ))}
-              </div>
+              <FilterTabs
+                label="Filter activity by category"
+                value={category}
+                onChange={setFilter(setCategory)}
+                options={[{ value: 'all', label: 'All Logs', count: noCounts ? null : allCount }, ...Object.entries(categories).map(([key, label]) => ({ value: key, label, count: noCounts ? null : categoryCounts[key] || 0 }))]}
+              />
 
               <div className="text-label text-slate-500 font-medium">
                 {loading ? 'Loading…' : error ? '' : `${total} matching entr${total === 1 ? 'y' : 'ies'}`}
@@ -268,7 +264,9 @@ export default function AdminActivityLogs() {
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100 text-body">
                     {error ? (
-                      <tr><td colSpan="6" className="text-center py-12 text-rose-600 text-sm">{error}</td></tr>
+                      <LoadErrorRow cols={6} title="Couldn't load activity logs" detail={error} onRetry={fetchLogs} />
+                    ) : loading && logs.length === 0 ? (
+                      <SkeletonRows cols={6} rows={8} label="Loading activity logs…" />
                     ) : !loading && logs.length === 0 ? (
                       <tr>
                         <td colSpan="6" className="text-center py-12 text-slate-500">

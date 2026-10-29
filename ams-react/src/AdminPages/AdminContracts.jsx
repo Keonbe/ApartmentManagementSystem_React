@@ -27,6 +27,9 @@ import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers'
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import { LoadErrorRow } from '../Components/admin/ui/LoadError';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import useLoadState from '../hooks/useLoadState';
 
 const MAX_LEASE_MONTHS = 24;
 const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500';
@@ -102,6 +105,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
   const [form, setForm] = useState({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
 
+  // loading | error | ready: until ready the table shows a skeleton or the error
+  // and the counts are hidden, never "No contracts found" and 0.
+  const contractsState = useLoadState();
+  const shownCount = (n) => (contractsState.isReady ? ` (${n})` : '');
+
   const fetchContracts = async () => {
     try {
       const res = await api.get('/get_contracts.php');
@@ -137,10 +145,14 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           } : null
         }));
         setContracts(fetched);
+        contractsState.ready();
         return fetched;
       }
+      contractsState.fail();
     } catch(err) {
       console.error(err);
+      // A failed refresh after an action keeps the table already shown.
+      contractsState.fail();
     }
     return null;
   };
@@ -166,6 +178,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   useEffect(() => {
     const load = async () => { await Promise.all([fetchContracts(), fetchTenants()]); };
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; the loaders only call stable useLoadState callbacks
   }, []);
 
   // Only an application the tenant has actually moved into can have a
@@ -568,8 +581,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               >
                 <FontAwesomeIcon icon={faFileContract} />
                 <span>Contracts Management</span>
-                <span className={`ml-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${activeTab !== 'editor' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-300/80 text-slate-600'}`}>
-                  {contracts.length}
+                <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ml-1 ${activeTab !== 'editor' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-300/80 text-slate-600'}`}>
+                  {contractsState.isReady ? contracts.length : '—'}
                 </span>
               </button>
               <button
@@ -634,8 +647,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
                   <input aria-label="Search contracts" maxLength={LIMITS.search} type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-body outline-none border-0 p-0 text-slate-800" />
                 </div>
-                <select aria-label="Filter by status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
-                  <option value="all">All Status ({contracts.length})</option><option value="active">Active ({statusCount('active')})</option><option value="expired">Expired ({statusCount('expired')})</option><option value="draft">Draft ({statusCount('draft')})</option><option value="eviction-pending">Eviction Pending ({statusCount('eviction-pending')})</option>
+                <select aria-label="Filter by status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-body border border-slate-200 rounded-control bg-white text-slate-700 outline-none cursor-pointer shadow-card">
+                  <option value="all">All Status{shownCount(contracts.length)}</option><option value="active">Active{shownCount(statusCount('active'))}</option><option value="expired">Expired{shownCount(statusCount('expired'))}</option><option value="draft">Draft{shownCount(statusCount('draft'))}</option><option value="eviction-pending">Eviction Pending{shownCount(statusCount('eviction-pending'))}</option><option value="docs-missing">Missing documents{shownCount(docsIncompleteCount)}</option><option value="ending">Ending in {endingDays} days{shownCount(contracts.filter(c => endingSoon(c, endingDays)).length)}</option>
                 </select>
               </div>
               <div className="flex items-center gap-2">
@@ -662,7 +675,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </tr>
                 </thead>
                 <tbody className="stagger-children">
-                  {filtered.map(c => {
+                  {contractsState.isLoading && <SkeletonRows cols={8} label="Loading contracts…" />}
+                  {contractsState.isError && <LoadErrorRow cols={8} title="Couldn't load contracts" onRetry={() => { contractsState.retry(); fetchContracts(); }} />}
+                  {contractsState.isReady && filtered.map(c => {
                     const docStatus = getDocumentStatus(c);
                     return (
                       <tr key={c.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${c.status === 'eviction-pending' ? 'bg-red-50/30' : ''}`}>
@@ -689,8 +704,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       </tr>
                     );
                   })}
-                  {filtered.length === 0 && (
-                    <tr><td colSpan="8" className="py-10 text-center text-slate-500 text-sm">No contracts found.</td></tr>
+                  {contractsState.isReady && filtered.length === 0 && (
+                    <tr><td colSpan="8" className="py-10 text-center text-slate-500 text-body">No contracts found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -704,7 +719,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
       {/* Create Contract Modal — Multi-Step */}
       {showCreateModal && (
-        <Modal busy={generating} title="Create New Contract" onClose={() => setShowCreateModal(false)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+        <Modal busy={generating} title="Create New Contract" onClose={() => setShowCreateModal(false)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div>
                 <h2 className="text-title font-bold text-slate-800 m-0">Create New Contract</h2>

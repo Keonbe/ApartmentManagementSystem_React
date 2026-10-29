@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
@@ -16,6 +16,9 @@ import ChatAttachmentPreview from '../Components/form/ChatAttachmentPreview';
 import useFilePreview from '../hooks/useFilePreview';
 import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
 import Modal from '../Components/admin/Modal';
+import LoadError from '../Components/admin/ui/LoadError';
+import { SkeletonList } from '../Components/admin/ui/Skeleton';
+import useLoadState from '../hooks/useLoadState';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
@@ -91,8 +94,10 @@ const AdminMessages = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     conversations = [], activeChat, setActiveChat, messages = [], sendMessage,
-    fetchChatHistory, userId, fetchConversations,
+    fetchChatHistory, userId, fetchConversations, conversationsStatus = 'ready',
   } = useChat();
+  // Guest threads: loading | error | ready (polled; a failed poll keeps the list).
+  const { state: guestStatus, ready: guestReady, fail: guestFail } = useLoadState();
   const [search, setSearch] = useState('');
   const [conversationFilter, setConversationFilter] = useState('all');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -142,17 +147,25 @@ const AdminMessages = () => {
     fetchConversations?.();
   }, [fetchConversations]);
 
+  const loadGuests = useCallback(async () => {
+    try {
+      const response = await api.get('get_guest_conversations.php');
+      if (response.data?.success) { setGuestThreads(response.data.conversations || []); guestReady(); }
+      else guestFail();
+    } catch (error) {
+      console.error('Unable to load guest inquiries', error);
+      guestFail();
+    }
+  }, [guestReady, guestFail]);
+
   useEffect(() => {
-    const loadGuests = async () => {
-      try {
-        const response = await api.get('get_guest_conversations.php');
-        if (response.data?.success) setGuestThreads(response.data.conversations || []);
-      } catch (error) { console.error('Unable to load guest inquiries', error); }
-    };
-    loadGuests();
+    const load = async () => { await loadGuests(); };
+    load();
     const timer = window.setInterval(loadGuests, 6000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [loadGuests]);
+
+  const retryConversations = () => { fetchConversations?.(); loadGuests(); };
 
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -175,6 +188,8 @@ const AdminMessages = () => {
     };
   }, [conversations, guestThreads]);
 
+  const listReady = conversationsStatus === 'ready' && guestStatus === 'ready';
+  const listFailed = conversationsStatus === 'error' || guestStatus === 'error';
   const visibleConversations = filteredConversations.filter((conversation) => (
     conversationFilter === 'all'
     || (conversationFilter === 'guest' && isGuestConversation(conversation))
@@ -339,8 +354,8 @@ const AdminMessages = () => {
               <div className="p-5 border-b border-slate-100">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 m-0">Tenant conversations</h2>
-                    <p className="text-xs text-slate-500 mt-1 mb-0">{visibleConversations.length} conversation{visibleConversations.length === 1 ? '' : 's'}</p>
+                    <h2 className="text-title font-bold text-slate-900 m-0">Tenant conversations</h2>
+                    {(listReady || visibleConversations.length > 0) && <p className="text-label text-slate-500 mt-1 mb-0">{visibleConversations.length} conversation{visibleConversations.length === 1 ? '' : 's'}</p>}
                   </div>
                   <FontAwesomeIcon icon={faComments} className="text-indigo-500 text-xl" />
                 </div>
@@ -361,9 +376,19 @@ const AdminMessages = () => {
                   ))}
                 </div>
               </div>
+              {!search && visibleConversations.length > 0 && listFailed && (
+                <p role="alert" className="m-0 flex items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-label text-amber-800">
+                  Some conversations did not load.
+                  <button type="button" onClick={retryConversations} className="bg-transparent border-0 p-0 font-semibold text-amber-900 underline cursor-pointer">Try again</button>
+                </p>
+              )}
               <div className="flex-1 overflow-y-auto">
-                {visibleConversations.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-slate-500">{search ? 'No matching conversations.' : 'No tenant conversations yet.'}</div>
+                {!search && visibleConversations.length === 0 && (conversationsStatus === 'loading' || guestStatus === 'loading') ? (
+                  <SkeletonList rows={6} label="Loading conversations…" />
+                ) : !search && visibleConversations.length === 0 && listFailed ? (
+                  <LoadError title="Couldn't load conversations" onRetry={retryConversations} />
+                ) : visibleConversations.length === 0 ? (
+                  <div className="p-8 text-center text-body text-slate-500">{search ? 'No matching conversations.' : 'No tenant conversations yet.'}</div>
                 ) : visibleConversations.map((conversation) => {
                   const convKey = conversation.thread_type === 'guest' ? `guest_${conversation.thread_id}` : `user_${conversation.other_user_id}`;
                   const selectedKey = activeChat?.thread_type === 'guest' ? `guest_${activeChat.thread_id}` : activeChat ? `user_${activeChat.other_user_id}` : null;
@@ -374,7 +399,7 @@ const AdminMessages = () => {
                       <TenantAvatar conversation={conversation} />
                       <div className="flex-1 min-w-0">
                         <div className="flex min-w-0 justify-between gap-2 items-center">
-                          <span className="flex min-w-0 items-center overflow-hidden font-semibold text-sm text-slate-900">
+                          <span className="flex min-w-0 items-center overflow-hidden font-semibold text-body text-slate-900">
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                           </span>
@@ -397,8 +422,8 @@ const AdminMessages = () => {
                   <header className="h-[72px] px-4 md:px-6 border-b border-slate-100 flex items-center gap-3 shrink-0">
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
                     <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
-                    <div className="min-w-0"><h3 className="m-0 text-sm font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
-                    {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" aria-live="polite">
+                    <div className="min-w-0"><h3 className="m-0 text-body font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
+                    {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-control border border-slate-200 bg-white px-2 py-1.5 text-label text-slate-600" aria-live="polite">
                       {activeMessageMatches.length ? <>
                         <span>Match {activeMatchIndex + 1} of {activeMessageMatches.length}</span>
                         <button type="button" onClick={() => navigateMatch(activeMatchIndex - 1)} aria-label="Previous message match" title="Previous match (Shift+Enter)" className="flex h-7 w-7 items-center justify-center rounded-control border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronUp} /></button>
@@ -487,7 +512,7 @@ const AdminMessages = () => {
                       );
                     })}
                   </div>
-                  {replyingTo && <div className="mx-3 mt-3 flex shrink-0 items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {activeChat.thread_type === 'guest' ? (String(replyingTo.sender_id) === 'guest' ? (activeChat.guest_name || 'Guest') : 'Admin User') : (String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name)}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
+                  {replyingTo && <div className="mx-3 mt-3 flex shrink-0 items-center justify-between rounded-control border-0 bg-white px-3 py-2 text-label text-slate-700"><div className="min-w-0"><strong>Replying to {activeChat.thread_type === 'guest' ? (String(replyingTo.sender_id) === 'guest' ? (activeChat.guest_name || 'Guest') : 'Admin User') : (String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name)}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                   {attachment && <div className="flex items-center justify-start p-2">
                     <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
                   </div>}
@@ -499,12 +524,12 @@ const AdminMessages = () => {
                     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
                     <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} /></button>
                     <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                    <div className="flex h-10 min-w-0 flex-1 items-center rounded-2xl bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
+                    <div className="flex h-10 min-w-0 flex-1 items-center rounded-card bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
                       <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
                         aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
                         maxLength={LIMITS.message} value={draft}
                         onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
-                        placeholder="Write a reply..." className="h-full w-full min-w-0 px-2 bg-transparent border-0 focus:outline-none text-sm" />
+                        placeholder="Write a reply..." className="h-full w-full min-w-0 px-2 bg-transparent border-0 focus:outline-none text-body" />
                     </div>
                     <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
                   </form>

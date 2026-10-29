@@ -20,6 +20,8 @@ import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers'
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 // sync_utility_to_invoice.php: a separate invoice's due date is today to +10 days.
@@ -545,18 +547,9 @@ export default function AdminUtilities() {
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
-                      <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">
-                          <FontAwesomeIcon icon={faSync} className="animate-spin text-lg mb-2 text-indigo-500" />
-                          <p className="m-0 text-xs">Loading utility readings...</p>
-                        </td>
-                      </tr>
+                      <SkeletonRows cols={7} label="Loading utility readings…" />
                     ) : error ? (
-                      <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-rose-500 font-medium">
-                          <p className="m-0 text-xs">{error}</p>
-                        </td>
-                      </tr>
+                      <LoadErrorRow cols={7} title="Couldn't load utility readings" detail={error} onRetry={() => { setError(null); setLoading(true); reloadData(); }} />
                     ) : filteredReadings.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center">
@@ -814,7 +807,7 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
   };
 
   return (
-    <Modal busy={busy} title="Sync Utility to Invoice" onClose={onClose} overlayClassName="flex items-center justify-center p-4 bg-slate-900/60" className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+    <Modal busy={busy} title="Sync Utility to Invoice" onClose={onClose} overlayClassName="flex items-center justify-center p-4 bg-slate-900/60" className="bg-white rounded-card w-full max-w-md overflow-hidden shadow-dialog">
         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-slate-800 m-0 text-body">Sync Utility to Invoice</h3>
           <button aria-label="Close" type="button" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-title">
@@ -1089,7 +1082,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
   };
 
   return (
-    <Modal title="Record Unit Utility Bill" onClose={onClose} overlayClassName="flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/70 overflow-y-auto" className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto" style={{ transform: 'translateZ(0)' }}>
+    <Modal busy={submitting} title="Record Unit Utility Bill" onClose={onClose} overlayClassName="flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/70 overflow-y-auto" className="bg-white rounded-dialog border border-slate-100 shadow-dialog w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto" style={{ transform: 'translateZ(0)' }}>
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-2.5">

@@ -16,6 +16,8 @@ import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
 const STATUS_BADGE = {
   Pending: 'bg-amber-100 text-amber-700',
@@ -238,9 +240,9 @@ export default function AdminParking() {
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
-                      <tr><td colSpan="8" className="px-5 py-12 text-center text-slate-500 font-medium">Loading parking reservations...</td></tr>
+                      <SkeletonRows cols={8} label="Loading parking reservations…" />
                     ) : error ? (
-                      <tr><td colSpan="8" className="px-5 py-12 text-center text-rose-500 font-medium">{error}</td></tr>
+                      <LoadErrorRow cols={8} title="Couldn't load parking reservations" detail={error} onRetry={fetchParkingReservations} />
                     ) : filteredReservations.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="px-5 py-12 text-center">
@@ -372,8 +374,8 @@ export default function AdminParking() {
 
       {/* Assign / Reject / Release dialog */}
       {dialog && (
-        <Modal title={`${dialog.mode === 'assign' ? 'Assign a parking slot' : dialog.mode === 'reject' ? 'Reject parking request' : 'Release parking slot'}`} onClose={() => setDialog(null)} busy={!(busyId === null)} overlayClassName="flex items-center justify-center bg-black/40 p-4" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-slate-800 m-0">
+        <Modal title={`${dialog.mode === 'assign' ? 'Assign a parking slot' : dialog.mode === 'reject' ? 'Reject parking request' : 'Release parking slot'}`} onClose={() => setDialog(null)} busy={!(busyId === null)} overlayClassName="flex items-center justify-center bg-black/40 p-4" className="w-full max-w-md rounded-card bg-white p-6 shadow-dialog space-y-4">
+            <h3 className="text-title font-bold text-slate-800 m-0">
               {dialog.mode === 'assign' ? 'Assign a parking slot' : dialog.mode === 'reject' ? 'Reject parking request' : 'Release parking slot'}
             </h3>
             <p className="text-body text-slate-500 m-0">

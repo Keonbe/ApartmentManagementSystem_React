@@ -24,6 +24,9 @@ import StatCard from '../Components/admin/StatCard';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, btn } from '../Components/admin/ui/styles';
+import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
+import { Skeleton, SkeletonBlock, SkeletonList, SkeletonRows } from '../Components/admin/ui/Skeleton';
+import useLoadState from '../hooks/useLoadState';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -110,6 +113,11 @@ const AdminPayments = () => {
   const [contracts, setContracts] = useState([]);
   const [activeTab, setActiveTab] = useUrlFilter('tab', 'billing', ['billing', 'deposits']);
   const [loading, setLoading] = useState(true);
+  // Why the invoices or the deposit ledger did not load. Shown instead of the
+  // "no ledgers" / "no deposits" messages, which would read as nothing owed.
+  const [loadError, setLoadError] = useState(null);
+  const invoicesLoadedRef = useRef(false);
+  const depositsState = useLoadState();
   const [previewProof, setPreviewProof] = useState(null);
   const [sendingReminder, setSendingReminder] = useState(false);
   const [batchSending, setBatchSending] = useState(false);
@@ -162,7 +170,10 @@ const AdminPayments = () => {
   const loadInvoices = async () => {
     try {
       const res = await api.get('/get_invoices.php');
+      if (!res.data.success) setLoadError(res.data.message || 'The server did not return the invoices.');
       if (res.data.success) {
+        invoicesLoadedRef.current = true;
+        setLoadError(null);
         const grouped = {};
         // Each tenant's deposit and prepaid-rent position (get_invoices.php).
         const accounts = res.data.accounts || {};
@@ -322,13 +333,17 @@ const AdminPayments = () => {
       }
     } catch(err) { 
       console.error(err); 
+      setLoadError(apiErrorMessage(err, 'The invoices did not load.'));
     } finally {
       setLoading(false);
     }
   };
 
+  // The page-wide skeleton only until a load has succeeded once (first load or Try
+  // again after a failure): a refresh after an action keeps the ledger and any open
+  // dialog. A ref, not `tenants`, so a stale closure or an empty ledger cannot flip it.
   const fetchInvoices = () => {
-    setLoading(true);
+    if (!invoicesLoadedRef.current) setLoading(true);
     return loadInvoices();
   };
 
@@ -337,9 +352,14 @@ const AdminPayments = () => {
       const res = await api.get('/get_contracts.php');
       if (res.data.success) {
         setContracts(res.data.contracts || []);
+        depositsState.ready();
+      } else {
+        depositsState.fail();
       }
     } catch (err) {
       console.error("Error fetching contracts for security deposit ledger:", err);
+      // A failed background refresh keeps the rows already shown.
+      depositsState.fail();
     }
   };
 
@@ -352,6 +372,7 @@ const AdminPayments = () => {
     // list in place, without the loading state, so open modals stay as they are.
     window.addEventListener(ADMIN_PAYMENTS_EVENT, loadInvoices);
     return () => window.removeEventListener(ADMIN_PAYMENTS_EVENT, loadInvoices);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; the loaders only call stable useLoadState callbacks
   }, []);
   
   // The till records a payment against the bill as issued: the period,
@@ -483,8 +504,9 @@ const AdminPayments = () => {
   // Summaries
   const totalCollected = tenants.reduce((sum, t) => sum + t.history.filter(h => h.status === 'paid').reduce((s, h) => s + h.amount, 0), 0);
   // Overdue while any bill is past due, even one whose proof is awaiting
-  // verification (the money is not confirmed yet), as the Dashboard counts it.
-  const overdueCount = tenants.filter(t => t.overdueInvoices > 0 || t.status === 'payment-failed').length;
+  // verification (the money is not confirmed yet). The Overdue filter and the
+  // Dashboard count the same way; a failed online payment has its own filter.
+  const overdueCount = tenants.filter(t => t.overdueInvoices > 0).length;
   const overdueInvoiceCount = tenants.reduce((sum, t) => sum + t.overdueInvoices, 0);
   const advanceAwaitingTotal = tenants.reduce((sum, t) => sum + t.advanceAwaiting, 0);
   const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification' || t.status === 'scheduled' || t.status === 'processing').length;
@@ -838,8 +860,33 @@ const handleMarkAsPaid = async () => {
         <Sidebar />
         <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
           <Header title="Payment Management" />
-          <div className="flex-1 flex items-center justify-center p-6 md:p-8">
-             <p className="text-slate-500 text-sm font-semibold animate-pulse">Loading active tenant ledger parameters safely...</p>
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-[20rem_1fr] gap-6 p-4 md:p-6 overflow-hidden">
+            <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
+              <SkeletonList rows={7} label="Loading tenant ledgers…" />
+            </div>
+            <SkeletonBlock className="hidden lg:block bg-white rounded-card border border-slate-200 shadow-card p-6 space-y-4">
+              <Skeleton className="h-6 w-1/3" />
+              <Skeleton className="h-4 w-1/2" />
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                <Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" />
+              </div>
+              <Skeleton className="h-40 w-full" />
+            </SkeletonBlock>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Nothing loaded at all: say so, never "No Active Tenant Ledgers".
+  if (loadError && tenants.length === 0) {
+    return (
+      <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
+        <Sidebar />
+        <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
+          <Header title="Payment Management" />
+          <div className="m-4 md:m-6 bg-white border border-slate-200 rounded-card shadow-card">
+            <LoadError title="Couldn't load payments" message="This is not an empty ledger: the invoices did not load." detail={loadError} onRetry={fetchInvoices} />
           </div>
         </main>
       </div>
@@ -982,7 +1029,7 @@ const handleMarkAsPaid = async () => {
                     return (
                       <div key={t.id} {...clickable(() => {setSelectedTenantId(t.id); setHistoryPage(1);})} aria-pressed={selectedTenantId === t.id} className={`p-3.5 border-b border-slate-100 border-l-4 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 ${selectedTenantId === t.id ? 'bg-indigo-50 border-l-indigo-600' : 'border-l-transparent hover:bg-slate-50'}`}>
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-800 m-0 flex items-center gap-2 min-w-0 truncate">
+                          <p className="text-body font-semibold text-slate-800 m-0 flex items-center gap-2 min-w-0 truncate">
                             <span className="truncate">{t.name}</span>
                             {t.status === 'overdue' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-600 animate-pulse" />}
                             {t.status === 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-600 animate-pulse" />}
@@ -1000,7 +1047,7 @@ const handleMarkAsPaid = async () => {
                           }`}>{t.status === 'pending-verification' ? 'VERIFY' : t.status}</span>
                         </div>
                         <div className="mt-1.5 flex items-center justify-between gap-2">
-                          <p className="text-xs text-slate-600 m-0 min-w-0 truncate">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
+                          <p className="text-label text-slate-600 m-0 min-w-0 truncate">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
                           {t.status !== 'paid'
                             ? <p className="text-body font-bold text-slate-900 m-0 shrink-0">{formatCurrency(tenantTotalDue)}</p>
                             : <p className="text-label font-medium text-slate-600 m-0 shrink-0">No balance</p>}
@@ -1233,13 +1280,13 @@ const handleMarkAsPaid = async () => {
                               const amountValue = Number(part.amount);
                               const amountError = part.amount !== '' && (!Number.isFinite(amountValue) || amountValue <= 0 || amountValue > totalDue);
                               const referenceError = part.method !== 'cash' && !part.reference_number.trim();
-                              return <div key={index} className="grid w-full min-w-0 grid-cols-12 items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                              return <div key={index} className="grid w-full min-w-0 grid-cols-12 items-start gap-3 rounded-card border border-slate-200 bg-slate-50/60 p-3">
                                 <select aria-label={`Portion ${index + 1} payment method`} className={`${AMOUNT_INPUT} col-span-12 w-full min-w-0 sm:col-span-3`} value={part.method} disabled={tenantSplit} onChange={e => { const method = e.target.value; const tenantRef = activeTenant.paymentReference || ''; const used = paymentParts.some((p, i) => i !== index && p.reference_number === tenantRef); updatePart({ method, bank_name: '', reference_number: method !== 'cash' && tenantRef && !used ? tenantRef : '' }); }}><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank Transfer</option></select>
                                 <div className="col-span-12 min-w-0 sm:col-span-4">
-                                  {part.method === 'cash' ? <div className="flex min-h-[38px] items-center rounded-lg border border-slate-200 bg-slate-100 px-3 text-xs text-slate-500">Physical Cash Over-the-counter</div> : part.method === 'bank_transfer' ? <div className="space-y-2"><select aria-label="Bank name" className={`${AMOUNT_INPUT} w-full min-w-0`} value={part.bank_name} onChange={e => updatePart({ bank_name: e.target.value })}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{part.bank_name === 'Other' && <input className={`${AMOUNT_INPUT} w-full min-w-0`} placeholder="Enter bank name" value={part.other_bank_name || ''} onChange={e => updatePart({ other_bank_name: e.target.value })} />}<input aria-label="Reference / transaction number" required className={`${AMOUNT_INPUT} w-full min-w-0${referenceError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Reference / Transaction No." value={part.reference_number} onChange={e => updatePart({ reference_number: e.target.value })} /><p className={`m-0 min-h-4 text-xs ${referenceError || (part.reference_number.trim() && checkPaymentReference(part.reference_number, part.method)) ? 'text-red-600' : 'invisible'}`}>{referenceError ? 'Reference number is required.' : checkPaymentReference(part.reference_number, part.method) || 'Validation message'}</p></div> : <div><input aria-label="Reference number" required className={`${AMOUNT_INPUT} w-full min-w-0${referenceError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Reference / Transaction No." value={part.reference_number} onChange={e => updatePart({ reference_number: e.target.value })} /><p className={`m-0 min-h-4 text-xs ${referenceError || (part.reference_number.trim() && checkPaymentReference(part.reference_number, part.method)) ? 'text-red-600' : 'invisible'}`}>{referenceError ? 'Reference number is required.' : checkPaymentReference(part.reference_number, part.method) || 'Validation message'}</p></div>}
+                                  {part.method === 'cash' ? <div className="flex min-h-[38px] items-center rounded-control border border-slate-200 bg-slate-100 px-3 text-label text-slate-600">Physical Cash Over-the-counter</div> : part.method === 'bank_transfer' ? <div className="space-y-2"><select aria-label="Bank name" className={`${AMOUNT_INPUT} w-full min-w-0`} value={part.bank_name} onChange={e => updatePart({ bank_name: e.target.value })}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{part.bank_name === 'Other' && <input className={`${AMOUNT_INPUT} w-full min-w-0`} placeholder="Enter bank name" value={part.other_bank_name || ''} onChange={e => updatePart({ other_bank_name: e.target.value })} />}<input aria-label="Reference / transaction number" required className={`${AMOUNT_INPUT} w-full min-w-0${referenceError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Reference / Transaction No." value={part.reference_number} onChange={e => updatePart({ reference_number: e.target.value })} /><p className={`m-0 min-h-4 text-label ${referenceError || (part.reference_number.trim() && checkPaymentReference(part.reference_number, part.method)) ? 'text-red-600' : 'invisible'}`}>{referenceError ? 'Reference number is required.' : checkPaymentReference(part.reference_number, part.method) || 'Validation message'}</p></div> : <div><input aria-label="Reference number" required className={`${AMOUNT_INPUT} w-full min-w-0${referenceError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Reference / Transaction No." value={part.reference_number} onChange={e => updatePart({ reference_number: e.target.value })} /><p className={`m-0 min-h-4 text-label ${referenceError || (part.reference_number.trim() && checkPaymentReference(part.reference_number, part.method)) ? 'text-red-600' : 'invisible'}`}>{referenceError ? 'Reference number is required.' : checkPaymentReference(part.reference_number, part.method) || 'Validation message'}</p></div>}
                                 </div>
-                                <div className="col-span-10 min-w-0 sm:col-span-4"><div className="flex min-w-0 items-center gap-2"><div className="relative min-w-0 flex-1"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-sm leading-none text-slate-500">₱</span><input aria-label="Portion amount" type="number" min="0.01" max={totalDue} step="0.01" inputMode="decimal" onKeyDown={blockNonNumericKeys} className={`${AMOUNT_INPUT} no-spinner w-full min-w-0 pl-8 pr-3${amountError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Amount" value={part.amount} onChange={e => { const value = e.target.value; updatePart({ amount: value === '' ? '' : String(Math.min(Number(value), totalDue)) }); }} /></div></div><p className={`m-0 min-h-4 pt-1 text-xs ${amountError ? 'text-red-600' : 'invisible'}`}>{amountError ? `Enter an amount greater than ₱0 and no more than ${formatCurrency(totalDue)}.` : 'Validation message'}</p></div>
-                                <div className="col-span-2 flex justify-center sm:col-span-1"><button type="button" aria-label={`Remove portion ${index + 1}`} disabled={paymentParts.length === 1 || tenantSplit} onClick={() => setPaymentParts(parts => parts.filter((_, i) => i !== index))} className="flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-slate-200 bg-white text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-35">✕</button></div>
+                                <div className="col-span-10 min-w-0 sm:col-span-4"><div className="flex min-w-0 items-center gap-2"><div className="relative min-w-0 flex-1"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-body leading-none text-slate-500">₱</span><input aria-label="Portion amount" type="number" min="0.01" max={totalDue} step="0.01" inputMode="decimal" onKeyDown={blockNonNumericKeys} className={`${AMOUNT_INPUT} no-spinner w-full min-w-0 pl-8 pr-3${amountError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Amount" value={part.amount} onChange={e => { const value = e.target.value; updatePart({ amount: value === '' ? '' : String(Math.min(Number(value), totalDue)) }); }} /></div></div><p className={`m-0 min-h-4 pt-1 text-label ${amountError ? 'text-red-600' : 'invisible'}`}>{amountError ? `Enter an amount greater than ₱0 and no more than ${formatCurrency(totalDue)}.` : 'Validation message'}</p></div>
+                                <div className="col-span-2 flex justify-center sm:col-span-1"><button type="button" aria-label={`Remove portion ${index + 1}`} disabled={paymentParts.length === 1 || tenantSplit} onClick={() => setPaymentParts(parts => parts.filter((_, i) => i !== index))} className="flex h-[38px] w-[38px] items-center justify-center rounded-control border border-slate-200 bg-white text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-35">✕</button></div>
                               </div>;
                             })}
                             <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center"><button type="button" disabled={paymentParts.length >= 2 || tenantSplit} title={paymentParts.length >= 2 ? 'Split payments use two methods at most' : undefined} onClick={() => setPaymentParts(parts => parts.length < 4 ? [...parts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }] : parts)} className="self-start text-label font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">+ Add payment portion ({paymentParts.length}/2)</button><div className="flex flex-wrap gap-2 text-label font-semibold"><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">Allocated: {formatCurrency(splitTotal)}</span><span className={`rounded-full px-3 py-1.5 ${remainingBalance === 0 ? 'bg-emerald-50 text-emerald-700' : remainingBalance > 0 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{remainingBalance === 0 ? '✓ Balanced' : remainingBalance > 0 ? `Remaining: ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div></div>
@@ -1388,7 +1435,7 @@ const handleMarkAsPaid = async () => {
                            <h5 className="text-label font-medium text-red-900 m-0 flex items-center gap-1.5 capitalize">
                             <FontAwesomeIcon icon={faExclamationTriangle} /> Payment Failed
                            </h5>
-                           <p className="text-xs text-red-800 m-0">The online payment attempt failed. You can record a manual payment here instead.</p>
+                           <p className="text-label text-red-800 m-0">The online payment attempt failed. You can record a manual payment here instead.</p>
                         </div>
                       )}
                     </div>
@@ -1699,7 +1746,9 @@ const handleMarkAsPaid = async () => {
                           </Fragment>
                         );
                       }) : (
-                        <tr><td colSpan="9" className="py-6 text-center text-slate-500">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
+                        depositsState.isLoading ? <SkeletonRows cols={9} rows={5} label="Loading deposits…" />
+                        : depositsState.isError ? <LoadErrorRow cols={9} title="Couldn't load deposits" onRetry={fetchContracts} />
+                        : <tr><td colSpan="9" className="py-6 text-center text-slate-500">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1741,7 +1790,9 @@ const handleMarkAsPaid = async () => {
                       </div>
                     );
                   }) : (
-                    <div className="py-6 text-center text-slate-500 text-sm">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</div>
+                    depositsState.isLoading ? <SkeletonList rows={4} label="Loading deposits…" />
+                    : depositsState.isError ? <LoadError title="Couldn't load deposits" onRetry={fetchContracts} />
+                    : <div className="py-6 text-center text-slate-500 text-body">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</div>
                   )}
                 </div>
             </div>
@@ -1755,7 +1806,7 @@ const handleMarkAsPaid = async () => {
 
       {/* Adjust Invoice Modal — adjust_invoice.php */}
       {adjustForm && (
-        <Modal title="Adjust Invoice" onClose={() => setAdjustForm(null)} busy={adjusting} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onSubmit={submitAdjust} noValidate>
+        <Modal title="Adjust Invoice" onClose={() => setAdjustForm(null)} busy={adjusting} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4 overflow-hidden" onSubmit={submitAdjust} noValidate>
             <div className="p-6">
               <h3 className="text-title font-bold text-slate-800 mb-1 mt-0">Adjust Invoice</h3>
               <p className="text-label text-slate-500 m-0 mb-4"><span className="font-mono">{adjustForm.invoiceId}</span> · {adjustForm.period}. The change is logged and the tenant is notified of the new total.</p>
@@ -1808,7 +1859,7 @@ const handleMarkAsPaid = async () => {
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <Modal title="Confirm Payment" onClose={() => setShowConfirmModal(false)} busy={recording} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+        <Modal title="Confirm Payment" onClose={() => setShowConfirmModal(false)} busy={recording} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-sm mx-4 overflow-hidden">
             <div className="p-6">
               <h3 className="text-title font-bold text-slate-800 mb-2 mt-0">Confirm Payment</h3>
               <p className="text-body text-slate-600 mb-4">Are you sure you want to process this payment? This action will generate an official receipt record row.</p>

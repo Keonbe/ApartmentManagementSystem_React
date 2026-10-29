@@ -963,7 +963,7 @@ export default function PayBills() {
                                 </div>
                             )}
                             {billDetails.lateFee > 0 && (
-                                <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 font-bold">
+                                <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-rose-700 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 font-bold">
                                     <span>{t('payBills.lateFee')}</span>
                                     <span>₱{billDetails.lateFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>

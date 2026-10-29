@@ -22,6 +22,9 @@ import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import MinorsPanel from './settings/MinorsPanel';
 import RequirementsPanel from './settings/RequirementsPanel';
+import { btn } from '../Components/admin/ui/styles';
+import LoadError from '../Components/admin/ui/LoadError';
+import { Skeleton, SkeletonBlock } from '../Components/admin/ui/Skeleton';
 
 const SETTINGS_FORM_ID = 'system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -82,16 +85,25 @@ const AdminAccountSettings = () => {
     scrollRef.current?.scrollTo({ top: 0 });
   };
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      const data = await getSystemSettings();
+  // A failed load shows an error with a retry, never the built-in defaults or an
+  // empty profile: either could be saved over the real values.
+  const [settingsError, setSettingsError] = useState(null);
+  const [profileState, setProfileState] = useState('loading'); // loading | error | ready
+
+  const loadSettings = async () => {
+    setSettingsError(null);
+    try {
+      const data = await getSystemSettings({ strict: true });
       setSettings(data);
       setSavedSettings(data);
-    };
-    loadSettings();
+    } catch (err) {
+      setSettingsError(apiErrorMessage(err, err.message || 'The settings did not load.'));
+    }
+  };
 
-    const loadProfile = async () => {
-      try {
+  const loadProfile = async () => {
+    setProfileState('loading');
+    try {
         const res = await api.get('profile.php');
         if (res.data.success && res.data.data) {
           const p = res.data.data;
@@ -99,12 +111,19 @@ const AdminAccountSettings = () => {
           setLastName(p.last_name || '');
           setPhone(toPhLocal10(p.contact_no));
           setProfileExtras({ middle_name: p.middle_name || '', suffix: p.suffix || '', gender: p.gender || '' });
+          setProfileState('ready');
+        } else {
+          setProfileState('error');
         }
       } catch (err) {
         console.error('Failed to load admin profile:', err);
+        setProfileState('error');
       }
-    };
-    loadProfile();
+  };
+
+  useEffect(() => {
+    const load = async () => { await Promise.all([loadSettings(), loadProfile()]); };
+    load();
   }, []);
 
   const dirtyTabs = useMemo(() => {
@@ -307,8 +326,8 @@ const AdminAccountSettings = () => {
 
             <div className="flex-1 min-w-0 space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-slate-800 m-0">{activeMeta.label}</h2>
-                <p className="text-sm text-slate-500 m-0 mt-1">{activeMeta.description}</p>
+                <h2 className="text-section font-bold text-slate-800 m-0">{activeMeta.label}</h2>
+                <p className="text-body text-slate-500 m-0 mt-1">{activeMeta.description}</p>
               </div>
 
               {activeTab === 'account' && (
@@ -323,6 +342,7 @@ const AdminAccountSettings = () => {
                   confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
                   savingPassword={savingPassword} onPasswordSubmit={handlePasswordSubmit}
                   profileForm={profileForm} passwordForm={passwordForm}
+                  profileState={profileState} onProfileRetry={loadProfile}
                 />
               )}
 
@@ -334,8 +354,17 @@ const AdminAccountSettings = () => {
               {activeTab === 'requirements' && <RequirementsPanel />}
 
               {activeTab !== 'account' && !SELF_SAVING_TAB_IDS.includes(activeTab) && !settings && (
-                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">
-                  <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading settings…
+                <div className="bg-white rounded-card border border-slate-200 shadow-card">
+                  {settingsError ? (
+                    <LoadError title="Couldn't load settings" message="Nothing is shown, so nothing can be saved over your real settings." detail={settingsError} onRetry={loadSettings} />
+                  ) : (
+                    <SkeletonBlock label="Loading settings…" className="p-6 space-y-5">
+                      <Skeleton className="h-5 w-1/3" />
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="space-y-2"><Skeleton className="h-3 w-1/4" /><Skeleton className="h-10 w-full" /></div>
+                      ))}
+                    </SkeletonBlock>
+                  )}
                 </div>
               )}
 
@@ -378,9 +407,9 @@ const AdminAccountSettings = () => {
         {/* Save bar: only while there is something to save. Outside the scroll
             area so it never moves; submits the form by id. */}
         {showSaveBar && (
-          <div className="shrink-0 border-t border-slate-200 bg-white px-4 md:px-8 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] animate-fadeIn">
+          <div className="shrink-0 border-t border-slate-200 bg-white px-4 md:px-8 py-3 shadow-raised animate-fadeIn">
             <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="flex items-center gap-2 text-body font-semibold text-slate-700">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 Unsaved changes
                 {dirtyTabs.size > 1 && (
@@ -394,7 +423,7 @@ const AdminAccountSettings = () => {
                   type="button"
                   onClick={handleDiscard}
                   disabled={isSavingSettings}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors disabled:opacity-60"
+                  className={btn('secondary', 'md')}
                 >
                   Discard
                 </button>
@@ -402,7 +431,7 @@ const AdminAccountSettings = () => {
                   type="submit"
                   form={SETTINGS_FORM_ID}
                   disabled={isSavingSettings}
-                  className="btn-interactive px-5 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 border-0 cursor-pointer shadow-sm flex items-center gap-2 transition-colors disabled:opacity-70"
+                  className={btn('primary', 'md', 'btn-interactive')}
                 >
                   <FontAwesomeIcon icon={isSavingSettings ? faSpinner : faSave} spin={isSavingSettings} />
                   {isSavingSettings ? 'Saving…' : 'Save changes'}
@@ -414,22 +443,22 @@ const AdminAccountSettings = () => {
 
         {/* Floating Toast Notification */}
         {toast && (
-          <div className={`fixed right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn ${showSaveBar ? 'bottom-24' : 'bottom-6'}`}>
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+          <div className={`fixed right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-card shadow-dialog border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn ${showSaveBar ? 'bottom-24' : 'bottom-6'}`}>
+            <div className={`w-9 h-9 rounded-card flex items-center justify-center shrink-0 text-white shadow-card ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`}>
               <FontAwesomeIcon icon={toast.type === 'success' ? faCheckCircle : faExclamationTriangle} className="text-base" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <h4 className="text-sm font-bold text-slate-800 m-0 tracking-tight">{toast.title}</h4>
+                <h4 className="text-body font-bold text-slate-800 m-0 tracking-tight">{toast.title}</h4>
                 <button aria-label="Dismiss"
                   type="button"
                   onClick={() => setToast(null)}
-                  className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"
+                  className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-label"
                 >
                   <FontAwesomeIcon icon={faTimes} />
                 </button>
               </div>
-              <p className="text-xs text-slate-500 mt-1 m-0 leading-relaxed font-normal">{toast.message}</p>
+              <p className="text-label text-slate-500 mt-1 m-0 leading-relaxed font-normal">{toast.message}</p>
             </div>
           </div>
         )}

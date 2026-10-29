@@ -35,6 +35,11 @@ import FieldError from '../Components/form/FieldError';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
 import { btn } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
+import EmptyState from '../Components/admin/ui/EmptyState';
+import LoadError from '../Components/admin/ui/LoadError';
+import { SkeletonCards } from '../Components/admin/ui/Skeleton';
+import useLoadState from '../hooks/useLoadState';
 
 const UNIT_TYPES = ['Studio', '1BR', '2BR'];
 const FIELD_CLS = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white';
@@ -64,6 +69,9 @@ const emptyAssignForm = { userId: '', tenantName: '', moveIn: '', leaseEnd: '', 
 
 const AdminUnits = () => {
   const [units, setUnits] = useState([]);
+  // loading | error | ready: until ready the grid shows a skeleton or the error
+  // and the counts are hidden, never an empty grid and "0% occupied".
+  const unitsState = useLoadState();
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -120,14 +128,19 @@ const AdminUnits = () => {
           paymentHistory: []
         }));
         setUnits(hydratedRooms);
+        unitsState.ready();
         // Refresh selected unit if open
         if (selectedUnit) {
            const updated = hydratedRooms.find(u => u.id === selectedUnit.id);
            if (updated) setSelectedUnit(updated);
         }
+      } else {
+        unitsState.fail();
       }
     } catch (error) {
       console.error('Failed to fetch rooms:', error);
+      // A failed refresh after an action keeps the grid already shown.
+      unitsState.fail();
     }
   };
 
@@ -396,28 +409,24 @@ const AdminUnits = () => {
                 {unitActionError}
               </div>
             )}
-            {/* Filter pills carry the counts; occupancy, the one figure they do not show,
-                sits beside them (a row of count cards used to repeat the pills). */}
-            <div className="flex items-center gap-3 flex-wrap" role="group" aria-label="Filter units by status">
-              {filters.map(f => (
-                <button
-                  key={f.key} type="button" aria-pressed={activeFilter === f.key} onClick={() => setActiveFilter(f.key)}
-                  className={`btn-interactive px-4 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
-                    activeFilter === f.key
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-              <span className="ml-auto text-xs font-semibold text-slate-600">
+            {/* Filter pills carry the counts; occupancy, the one figure they do not show, sits beside them. */}
+            <div className="flex flex-wrap items-center gap-3">
+              <FilterTabs
+                label="Filter units by status"
+                value={activeFilter}
+                onChange={setActiveFilter}
+                options={filters.map(f => ({ value: f.key, label: f.label, count: unitsState.isReady ? f.count : null }))}
+              />
+              {unitsState.isReady && <span className="ml-auto text-label font-semibold text-slate-600">
                 {counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupied
-              </span>
+              </span>}
             </div>
 
             {/* Units Grid */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {unitsState.isLoading && <SkeletonCards count={10} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4" label="Loading units…" />}
+            {unitsState.isError && <div className="bg-white border border-slate-200 rounded-card shadow-card"><LoadError title="Couldn't load units" onRetry={() => { unitsState.retry(); fetchRooms(); }} /></div>}
+            {unitsState.isReady && displayed.length === 0 && <div className="bg-white border border-slate-200 rounded-card shadow-card"><EmptyState title="No units here" message={units.length ? 'No unit matches this filter.' : 'Add the first unit with Add Unit.'} /></div>}
+            {unitsState.isReady && <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4">
               {displayed.map(unit => {
                 const remaining = daysRemaining(unit.leaseEnd);
                 return (
@@ -459,14 +468,14 @@ const AdminUnits = () => {
                     <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
                       <button
                         onClick={() => { setSelectedUnit(unit); setShowDetailModal(true); setLeaseError(''); }}
-                        className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
+                        className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
                       >
                         <FontAwesomeIcon icon={faEye} className="text-[9px]" /> Details
                       </button>
                       {unit.status === 'vacant' && (
                         <button
                           onClick={() => openAssignTenant(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal)}
-                          className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
+                          className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
                         >
                           <FontAwesomeIcon icon={faUserPlus} className="text-[9px]" /> Assign
                         </button>
@@ -477,7 +486,7 @@ const AdminUnits = () => {
                           disabled={removingUnitId !== null}
                           onClick={() => handleRemoveUnit(unit)}
                           title={`Remove Unit ${unit.id} from active listings`}
-                          className="flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-control px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <FontAwesomeIcon icon={faBoxArchive} className="text-[9px]" />
                           {removingUnitId === unit.id ? 'Removing…' : 'Remove'}
@@ -487,7 +496,7 @@ const AdminUnits = () => {
                   </div>
                 );
               })}
-            </div>
+            </div>}
 
           </div>
         </div>
@@ -495,7 +504,7 @@ const AdminUnits = () => {
 
       {/* Add New Unit Modal */}
       {showAddModal && (
-        <Modal busy={addUnitSubmitting} title="Add New Unit" onClose={closeAddModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onSubmit={handleAddUnit} noValidate>
+        <Modal busy={addUnitSubmitting} title="Add New Unit" onClose={closeAddModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4" onSubmit={handleAddUnit} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-card bg-indigo-100 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
@@ -555,7 +564,7 @@ const AdminUnits = () => {
 
       {/* Assign Tenant Modal */}
       {showAssignModal && selectedUnit && (
-        <Modal busy={assigning} title={`Assign Tenant to Unit ${selectedUnit.id}`} onClose={closeAssignModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onSubmit={handleAssignTenant} noValidate>
+        <Modal busy={assigning} title={`Assign Tenant to Unit ${selectedUnit.id}`} onClose={closeAssignModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4" onSubmit={handleAssignTenant} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-card bg-emerald-100 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>

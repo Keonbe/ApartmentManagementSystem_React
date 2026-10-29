@@ -17,6 +17,7 @@ const DEFAULTS = {
   moveOutMaxNoticeDays: 30,        // ...and at most this many
   moveInMinDays: 0,                // a preferred move-in date is at least this many days away (0 = today)
   moveInMaxDays: 365,              // ...and at most this many
+  leaseEndReminderDays: 30,        // a rent term counts as "ending soon" this many days before it ends
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
     'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
@@ -72,7 +73,10 @@ const parseCap = (value) => {
   return Number.isNaN(n) ? DEFAULTS.smsDailyCap : Math.max(0, n);
 };
 
-export const getSystemSettings = async () => {
+// On failure it returns the defaults, which suits pages that only read a value.
+// The Settings page passes { strict: true } and gets an error instead: showing
+// defaults there as if they were saved would let Save overwrite the real values.
+export const getSystemSettings = async ({ strict = false } = {}) => {
   try {
     const response = await api.get('get_system_settings.php');
     if (response.data.success && response.data.settings) {
@@ -88,6 +92,8 @@ export const getSystemSettings = async () => {
         // ?? not ||: 0 (today) is a real earliest day.
         moveInMinDays: parseInt(dbSettings.move_in_min_days ?? DEFAULTS.moveInMinDays) || 0,
         moveInMaxDays: parseInt(dbSettings.move_in_max_days || DEFAULTS.moveInMaxDays),
+        // ?? not ||: 0 ("only on the day") is a real lead time, as in the backend sweep.
+        leaseEndReminderDays: parseInt(dbSettings.lease_end_reminder_days ?? DEFAULTS.leaseEndReminderDays) || 0,
         maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || DEFAULTS.maintenanceMonthlyBudget),
         tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || DEFAULTS.tenantResponsibilityClause,
         paymentMode: (dbSettings.payment_mode === 'sandbox' || dbSettings.payment_mode === 'manual') ? dbSettings.payment_mode : DEFAULTS.paymentMode,
@@ -145,7 +151,9 @@ export const getSystemSettings = async () => {
         smsUnitCost: Number.isFinite(parseFloat(dbSettings.sms_unit_cost)) ? parseFloat(dbSettings.sms_unit_cost) : DEFAULTS.smsUnitCost,
       };
     }
+    if (strict) throw new Error(response.data?.message || 'The settings did not load.');
   } catch (e) {
+    if (strict) throw e;
     console.warn('Failed to load system settings from backend:', e);
   }
   return { ...DEFAULTS };

@@ -149,7 +149,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
     const error = (field) => <FieldError id={`catalog-${field}`} error={fields.errors[field]} />;
 
     return (
-        <Modal busy={saving} title={`${service ? 'Edit Service' : 'Add Service'}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <Modal busy={saving} title={`${service ? 'Edit Service' : 'Add Service'}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-card bg-white shadow-dialog">
                 {/*ModalHeader*/}
                 <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                     <div>

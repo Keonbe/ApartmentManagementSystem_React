@@ -26,6 +26,8 @@ import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
 const INQUIRY_TABS = ['all', 'new', 'contacted', 'scheduled', 'reserved', 'converted', 'closed'];
 const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
@@ -483,9 +485,9 @@ export default function AdminInquiries() {
                     </thead>
                     <tbody className="stagger-children divide-y divide-slate-100">
                       {loading ? (
-                        <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">Loading inquiries...</td></tr>
+                        <SkeletonRows cols={7} label="Loading inquiries…" />
                       ) : error ? (
-                        <tr><td colSpan="7" className="px-5 py-12 text-center text-rose-500 font-medium">{error}</td></tr>
+                        <LoadErrorRow cols={7} title="Couldn't load inquiries" detail={error} onRetry={fetchData} />
                       ) : filteredInquiries.length === 0 ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
@@ -559,9 +561,9 @@ export default function AdminInquiries() {
                     </thead>
                     <tbody className="stagger-children divide-y divide-slate-100">
                       {loading ? (
-                        <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">Loading reservations...</td></tr>
+                        <SkeletonRows cols={7} label="Loading reservations…" />
                       ) : error ? (
-                        <tr><td colSpan="7" className="px-5 py-12 text-center text-rose-500 font-medium">{error}</td></tr>
+                        <LoadErrorRow cols={7} title="Couldn't load reservations" detail={error} onRetry={fetchData} />
                       ) : filteredReservations.length === 0 ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
@@ -848,7 +850,7 @@ export default function AdminInquiries() {
 
       {/* ─── RESERVE UNIT MODAL ─── */}
       {showReserveModal && selected && (
-        <Modal busy={!!busy} title="Reserve a Unit" onClose={() => setShowReserveModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onSubmit={submitReservation} noValidate>
+        <Modal busy={!!busy} title="Reserve a Unit" onClose={() => setShowReserveModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-card shadow-dialog w-full max-w-md overflow-hidden" onSubmit={submitReservation} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-violet-600 to-violet-800">
               <h3 className="text-title font-bold m-0">Reserve a Unit</h3>
               <button type="button" aria-label="Close" onClick={() => setShowReserveModal(false)} className="text-white hover:bg-white/20 p-2 rounded-card border-0 bg-transparent cursor-pointer">
@@ -955,7 +957,7 @@ export default function AdminInquiries() {
 
       {/* ─── LOG WALK-IN / PHONE INQUIRY MODAL ─── */}
       {showLogModal && (
-        <Modal busy={!!busy} title="Log an Inquiry" onClose={() => setShowLogModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onSubmit={submitLoggedInquiry} noValidate>
+        <Modal busy={!!busy} title="Log an Inquiry" onClose={() => setShowLogModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-card shadow-dialog w-full max-w-md overflow-hidden" onSubmit={submitLoggedInquiry} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
               <h3 className="text-title font-bold m-0">Log an Inquiry</h3>
               <button type="button" aria-label="Close" onClick={() => setShowLogModal(false)} className="text-white hover:bg-white/20 p-2 rounded-card border-0 bg-transparent cursor-pointer">

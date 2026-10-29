@@ -33,6 +33,10 @@ import DepositOutcome from '../Components/DepositOutcome';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, btn } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
+import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
+import { SkeletonCards, SkeletonRows } from '../Components/admin/ui/Skeleton';
+import useLoadState from '../hooks/useLoadState';
 
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
@@ -48,6 +52,9 @@ const daysRemaining = (leaseEnd) => {
 
 const AdminTenants = () => {
   const [tenants, setTenants] = useState([]);
+  // loading | error | ready. Until ready the list shows a skeleton or the error,
+  // never "No tenants found" and "(0)" counts.
+  const tenantsState = useLoadState();
   const [archivedTenants, setArchivedTenants] = useState(initialArchivedTenants);
   const [activeFilter, setActiveFilter] = useUrlFilter('filter', 'all', ['all', 'active', 'pending-move-out', 'moved-out', 'archived']);
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,15 +128,26 @@ const AdminTenants = () => {
         const dbArchived = allApplications.filter(t => t.status === 'archived');
         setTenants(dbActive);
         setArchivedTenants(dbArchived);
+        tenantsState.ready();
+      } else {
+        tenantsState.fail();
       }
     } catch (err) {
       console.error("Error fetching tenants:", err);
+      // A failed refresh after an action keeps the list already shown.
+      tenantsState.fail();
     }
+  };
+
+  const retryTenants = () => {
+    tenantsState.retry();
+    Promise.all([fetchTenants(), fetchInvoices(), fetchContracts()]);
   };
 
   useEffect(() => {
     const load = async () => { await Promise.all([fetchTenants(), fetchInvoices(), fetchMaintenanceRequests(), fetchContracts()]); };
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; the loaders only call stable useLoadState callbacks
   }, []);
 
   const openClearanceModal = (tenant) => {
@@ -586,16 +604,12 @@ const AdminTenants = () => {
 
             {/* Filter pills: each shows its count, so there is no separate row of count
                 cards repeating them. A pending move-out needs action, so its pill gets a dot. */}
-            <div className="flex items-center gap-3 flex-wrap" role="group" aria-label="Filter tenants by status">
-              {filters.map(f => (
-                <button key={f.key} type="button" aria-pressed={activeFilter === f.key} onClick={() => setActiveFilter(f.key)} className={`btn-interactive inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-all ${activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
-                  {f.key === 'pending-move-out' && counts['pending-move-out'] > 0 && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-                  )}
-                  {f.label}
-                </button>
-              ))}
-            </div>
+            <FilterTabs
+              label="Filter tenants by status"
+              value={activeFilter}
+              onChange={setActiveFilter}
+              options={filters.map(f => ({ value: f.key, label: f.label, count: tenantsState.isReady ? f.count : null, dot: f.key === 'pending-move-out' && counts['pending-move-out'] > 0 }))}
+            />
 
             {/* Tenant Table */}
             <div className="hidden md:block bg-white border border-slate-200 rounded-card overflow-hidden shadow-card table-scroll-x">
@@ -610,10 +624,12 @@ const AdminTenants = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayed.length === 0 && (
-                    <tr><td colSpan="5" className="text-center py-12 text-slate-500 text-sm">No tenants found matching your criteria.</td></tr>
+                  {tenantsState.isLoading && <SkeletonRows cols={5} label="Loading tenants…" />}
+                  {tenantsState.isError && <LoadErrorRow cols={5} title="Couldn't load tenants" onRetry={retryTenants} />}
+                  {tenantsState.isReady && displayed.length === 0 && (
+                    <tr><td colSpan="5" className="text-center py-12 text-slate-500 text-body">No tenants found matching your criteria.</td></tr>
                   )}
-                  {displayed.map((t, idx) => (
+                  {tenantsState.isReady && displayed.map((t, idx) => (
                     <tr key={t.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -643,11 +659,13 @@ const AdminTenants = () => {
 
             {/* Tenant Cards (phones) */}
             <div className="md:hidden space-y-3">
-              {displayed.length === 0 && (
-                <div className="bg-white border border-slate-200 rounded-xl text-center py-12 text-slate-500 text-sm">No tenants found matching your criteria.</div>
+              {tenantsState.isLoading && <SkeletonCards count={3} className="space-y-3" label="Loading tenants…" />}
+              {tenantsState.isError && <div className="bg-white border border-slate-200 rounded-card"><LoadError title="Couldn't load tenants" onRetry={retryTenants} /></div>}
+              {tenantsState.isReady && displayed.length === 0 && (
+                <div className="bg-white border border-slate-200 rounded-card text-center py-12 text-slate-500 text-body">No tenants found matching your criteria.</div>
               )}
-              {displayed.map((t, idx) => (
-                <div key={t.id || idx} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-3">
+              {tenantsState.isReady && displayed.map((t, idx) => (
+                <div key={t.id || idx} className="bg-white border border-slate-200 rounded-card shadow-card p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-label font-bold ${
@@ -903,9 +921,9 @@ const AdminTenants = () => {
                       <p className="text-title font-bold text-indigo-700 m-0">{monthsPaid}</p>
                       <p className="text-caption text-indigo-600 font-semibold m-0 mt-0.5">Invoices Paid</p>
                     </div>
-                    <div className="card-interactive bg-red-50 border border-red-100 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-red-700 m-0">{overdueCount}</p>
-                      <p className="text-[11px] text-red-600 font-semibold m-0 mt-0.5">Overdue Invoices</p>
+                    <div className="card-interactive bg-red-50 border border-red-100 rounded-control p-3 text-center">
+                      <p className="text-title font-bold text-red-700 m-0">{overdueCount}</p>
+                      <p className="text-caption text-red-600 font-semibold m-0 mt-0.5">Overdue Invoices</p>
                     </div>
                     <div className="card-interactive bg-slate-50 border border-slate-200 rounded-control p-3 text-center">
                       <p className="text-body font-bold text-slate-700 m-0 truncate">{lastPayment}</p>
@@ -985,7 +1003,7 @@ const AdminTenants = () => {
 
       {/* ─── ARCHIVE CONFIRMATION MODAL ─── */}
       {showArchiveModal && archiveTarget && (
-        <Modal busy={!!savingAction} title="Archive Tenant" onClose={() => setShowArchiveModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <Modal busy={!!savingAction} title="Archive Tenant" onClose={() => setShowArchiveModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-card bg-violet-100 text-violet-600 flex items-center justify-center">
@@ -1065,7 +1083,7 @@ const AdminTenants = () => {
       )}
         {/* ─── ADMIN MOVE OUT SCHEDULING MODAL ─── */}
         {showMoveOutModal && moveOutTarget && (
-          <Modal busy={!!savingAction} title="Schedule Move-Out" onClose={() => setShowMoveOutModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+          <Modal busy={!!savingAction} title="Schedule Move-Out" onClose={() => setShowMoveOutModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-card bg-amber-100 text-amber-700 flex items-center justify-center">
@@ -1124,7 +1142,7 @@ const AdminTenants = () => {
         )}
         {/* ─── MOVE-OUT INSPECTION & CLEARANCE MODAL ─── */}
         {showClearanceModal && clearanceTarget && (
-          <Modal busy={!!savingAction} title="Move-Out Inspection & Clearance" onClose={() => setShowClearanceModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+          <Modal busy={!!savingAction} title="Move-Out Inspection & Clearance" onClose={() => setShowClearanceModal(false)} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-card bg-slate-800 text-white flex items-center justify-center font-bold">

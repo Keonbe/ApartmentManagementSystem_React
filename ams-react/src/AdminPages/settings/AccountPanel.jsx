@@ -6,6 +6,9 @@ import PhoneInput from '../../Components/PhoneInput';
 import PasswordField from '../../Components/form/PasswordField';
 import PasswordChecklist from '../../Components/form/PasswordChecklist';
 import { invalidCls } from '../../Components/form/formHelpers';
+import { btn } from '../../Components/admin/ui/styles';
+import LoadError from '../../Components/admin/ui/LoadError';
+import { Skeleton, SkeletonBlock } from '../../Components/admin/ui/Skeleton';
 
 const PW_LABEL = 'text-sm font-semibold text-slate-700';
 const PW_INPUT = `${INPUT} pr-12`;
@@ -16,7 +19,7 @@ const PW_INPUT = `${INPUT} pr-12`;
 // useFieldErrors() objects.
 export default function AccountPanel({
   firstName, setFirstName, lastName, setLastName, email, setEmail, phone, setPhone,
-  savingProfile, onProfileSubmit,
+  savingProfile, onProfileSubmit, profileState = 'ready', onProfileRetry,
   currentPassword, setCurrentPassword, newPassword, setNewPassword, confirmPassword, setConfirmPassword,
   savingPassword, onPasswordSubmit,
   profileForm, passwordForm,
@@ -44,6 +47,16 @@ export default function AccountPanel({
         title="Administrator Profile"
         description="Your name and contact details. The contact number also receives test SMS messages."
       >
+        {/* An unloaded profile is never shown as empty fields that could be saved. */}
+        {profileState === 'loading' ? (
+          <SkeletonBlock label="Loading your profile…" className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2"><Skeleton className="h-3 w-1/3" /><Skeleton className="h-10 w-full" /></div>
+            ))}
+          </SkeletonBlock>
+        ) : profileState === 'error' ? (
+          <LoadError title="Couldn't load your profile" onRetry={onProfileRetry} />
+        ) : (
         <form onSubmit={onProfileSubmit} className="space-y-5" noValidate>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Field label="First Name" htmlFor="acct-firstName" error={pErr.firstName}>
@@ -77,13 +90,14 @@ export default function AccountPanel({
             <button
               type="submit"
               disabled={savingProfile}
-              className="btn-interactive bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
+              className={btn('primary', 'md', 'btn-interactive')}
             >
               <FontAwesomeIcon icon={savingProfile ? faSpinner : faSave} className={savingProfile ? 'animate-spin' : ''} />
               {savingProfile ? 'Saving…' : 'Save Profile'}
             </button>
           </div>
         </form>
+        )}
       </SettingsSection>
 
       <SettingsSection
@@ -135,7 +149,7 @@ export default function AccountPanel({
             <button
               type="submit"
               disabled={savingPassword}
-              className="btn-interactive bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
+              className="btn-interactive bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-control text-body transition-all shadow-card flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
             >
               <FontAwesomeIcon icon={savingPassword ? faSpinner : faSave} className={savingPassword ? 'animate-spin' : ''} />
               {savingPassword ? 'Updating…' : 'Update Password'}

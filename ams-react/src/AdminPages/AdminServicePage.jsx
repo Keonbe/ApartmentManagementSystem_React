@@ -30,6 +30,8 @@ import { fileUrl } from '../api/fileUrl';
 import ServiceCatalogModal from '../Components/ServiceCatalogModal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import { SkeletonList } from '../Components/admin/ui/Skeleton';
+import LoadError from '../Components/admin/ui/LoadError';
 
 const initialServices = [
   {
@@ -448,11 +450,8 @@ const AdminServicePage = () => {
 
             {/*ErrorBanner*/}
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between">
-                <p className="text-sm font-medium text-red-700">{error}</p>
-                <button onClick={fetchData} className="btn-interactive flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-200 transition-colors">
-                  <FontAwesomeIcon icon={faSync} /> Retry
-                </button>
+              <div className="rounded-card border border-slate-200 bg-white shadow-card">
+                <LoadError title="Couldn't load services" message="This is not an empty list: the service data did not load." detail={error} onRetry={fetchData} />
               </div>
             )}
 
@@ -497,8 +496,8 @@ const AdminServicePage = () => {
 
               <div className="p-4">
                 {loading ? (
-                  <div className="py-12 text-center text-slate-500 text-sm font-medium">Loading service catalog...</div>
-                ) : (
+                  <SkeletonList rows={5} label="Loading service catalog…" />
+                ) : error ? null : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[880px] text-left text-body">
                       <thead className={THEAD}>
@@ -623,8 +622,8 @@ const AdminServicePage = () => {
 
               <div className="p-4">
                 {loading ? (
-                  <div className="py-12 text-center text-slate-500 text-sm font-medium">Loading request queue...</div>
-                ) : (
+                  <SkeletonList rows={5} label="Loading request queue…" />
+                ) : error ? null : (
                   <>
                     {/*ServiceBookingsTable*/}
                     {activeTab === 'services' && (

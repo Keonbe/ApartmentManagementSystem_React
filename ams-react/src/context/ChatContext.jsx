@@ -1,12 +1,17 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import api from '../api/axiosConfig';
 import { io } from 'socket.io-client';
+import useLoadState from '../hooks/useLoadState';
 import { CHAT_SOCKET_URL } from '../api/env';
 
 const ChatContext = createContext();
 
 export const ChatProvider = ({ children }) => {
     const [conversations, setConversations] = useState([]);
+    // loading | error | ready for the unfiltered list, so a page can tell a failed
+    // load from "no conversations" (fetchConversations returns [] for both).
+    const { state: conversationsStatus, ready: conversationsReady, fail: conversationsFail, retry: conversationsRetry } = useLoadState();
+    const lastUserIdRef = useRef(null);
     const [activeChat, setActiveChat] = useState(null); // { other_user_id, other_user_name, other_user_avatar }
     const [messages, setMessages] = useState([]);
     const [isTyping, setIsTyping] = useState({});
@@ -134,6 +139,8 @@ export const ChatProvider = ({ children }) => {
                 setUserRole(null);
                 setIsChatOpen(false);
                 setConversations([]);
+                conversationsRetry();
+                lastUserIdRef.current = null;
                 setActiveChat(null);
                 setMessages([]);
                 return;
@@ -141,6 +148,9 @@ export const ChatProvider = ({ children }) => {
 
             try {
                 const loggedInUser = JSON.parse(loggedInUserStr);
+                // A different account must not inherit the previous one's "ready".
+                if (lastUserIdRef.current !== (loggedInUser.id || null)) conversationsRetry();
+                lastUserIdRef.current = loggedInUser.id || null;
                 setUserId(loggedInUser.id || null);
                 setUserRole(loggedInUser.role || null);
                 setSocketStatus('offline');
@@ -157,7 +167,7 @@ export const ChatProvider = ({ children }) => {
             window.removeEventListener('auth-changed', syncLoggedInUser);
             window.removeEventListener('storage', syncLoggedInUser);
         };
-    }, []);
+    }, [conversationsRetry]);
 
     const fetchConversations = useCallback(async (search = '') => {
         if (!userId) return;
@@ -167,14 +177,16 @@ export const ChatProvider = ({ children }) => {
             });
             if (response.data?.success) {
                 const fetched = response.data.conversations || [];
-                if (!search.trim()) setConversations(fetched);
+                if (!search.trim()) { setConversations(fetched); conversationsReady(); }
                 return fetched;
             }
+            if (!search.trim()) conversationsFail();
         } catch (error) {
             console.error('Error fetching conversations:', error);
+            if (!search.trim()) conversationsFail();
         }
         return [];
-    }, [userId]);
+    }, [userId, conversationsReady, conversationsFail]);
 
     const fetchChatHistory = useCallback(async (otherUserId, markAsRead = false) => {
         if (!userId || !otherUserId) return;
@@ -455,6 +467,7 @@ export const ChatProvider = ({ children }) => {
                 setIsChatOpen,
                 sendMessage,
                 fetchConversations,
+                conversationsStatus,
                 fetchChatHistory,
                 handleTyping,
                 openSupportChat,

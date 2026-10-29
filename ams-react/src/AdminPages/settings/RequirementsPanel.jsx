@@ -8,6 +8,7 @@ import useFieldErrors from '../../hooks/useFieldErrors';
 import FieldError from '../../Components/form/FieldError';
 import Modal from '../../Components/admin/Modal';
 import { TH, THEAD, btn } from '../../Components/admin/ui/styles';
+import { SkeletonRows } from '../../Components/admin/ui/Skeleton';
 
 // Mirrors manage_application_requirements.php.
 const REQUIREMENT_LIMITS = { labelMin: 2, labelMax: 60, maxActive: 12 };
@@ -140,7 +141,7 @@ export default function RequirementsPanel() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan="6" className="px-4 py-8 text-center text-slate-500">Loading…</td></tr>
+              <SkeletonRows cols={6} rows={5} label="Loading requirements…" />
             ) : items.length === 0 ? (
               <tr><td colSpan="6" className="px-4 py-8 text-center text-slate-500">No requirements yet. Applicants will not be asked for any document.</td></tr>
             ) : items.map((r, i) => (
@@ -174,8 +175,8 @@ export default function RequirementsPanel() {
       <p className="m-0 text-label text-slate-500">Deactivating removes a document from the form and from the approval check; files applicants already uploaded for it are kept and stay visible on their application.</p>
 
       {editing && (
-        <Modal title={editing.id ? 'Edit requirement' : 'Add requirement'} onClose={() => setEditing(null)} busy={busy} as="form" onSubmit={save} noValidate overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="m-0 text-lg font-extrabold text-slate-800">{editing.id ? 'Edit requirement' : 'Add requirement'}</h3>
+        <Modal title={editing.id ? 'Edit requirement' : 'Add requirement'} onClose={() => setEditing(null)} busy={busy} as="form" onSubmit={save} noValidate overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-card bg-white p-6 shadow-dialog">
+            <h3 className="m-0 text-title font-bold text-slate-800">{editing.id ? 'Edit requirement' : 'Add requirement'}</h3>
             <div>
               <label htmlFor="req-label" className="block text-body font-semibold text-slate-700">Document name</label>
               <input

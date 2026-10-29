@@ -32,6 +32,8 @@ import { expenseCategoryLabel } from '../config/expenseCategories';
 import { fetchContractTemplate, pick } from '../Components/contract/contractTemplate';
 import Modal from '../Components/admin/Modal';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import LoadError from '../Components/admin/ui/LoadError';
+import { Skeleton, SkeletonBlock } from '../Components/admin/ui/Skeleton';
 
 const monthsList = [
   { value: 1, label: 'January' },
@@ -162,6 +164,10 @@ const AdminReports = () => {
   const reportQuery = `timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`;
   const [loadedQuery, setLoadedQuery] = useState(null);
   const loading = loadedQuery !== reportQuery;
+  // { query, message } when the report for `query` failed. Without it a failed
+  // load kept the previous period's figures under the new period's heading.
+  const [reportError, setReportError] = useState(null);
+  const failed = !loading && reportError?.query === reportQuery;
   const [showExpensesModal, setShowExpensesModal] = useState(false);
 
   const loadReportData = async (query) => {
@@ -249,11 +255,12 @@ const AdminReports = () => {
       }
       
       const utilResponse = await api.get(`get_utilities_report_data.php?${query}`);
-      if (utilResponse.data.success) {
-        setUtilityData(utilResponse.data.data);
-      }
+      if (!utilResponse.data.success) throw new Error(utilResponse.data.message || 'The utility figures did not load.');
+      setUtilityData(utilResponse.data.data);
+      setReportError(null);
     } catch (e) {
       console.error(e);
+      setReportError({ query, message: apiErrorMessage(e, e.message || 'The report did not load.') });
     }
     setLoadedQuery(query);
   };
@@ -553,7 +560,7 @@ const AdminReports = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (loading || !data) {
+  if (loading || !data || failed) {
     return (
       <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
         <div className="print:hidden">
@@ -563,12 +570,22 @@ const AdminReports = () => {
           <div className="print:hidden">
             <Header title="Reports & Analytics" />
           </div>
-          <div className="flex-1 flex items-center justify-center bg-slate-50">
-            <div className="text-center space-y-4">
-              <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p className="text-sm font-semibold text-slate-600">Loading reports and financial analytics...</p>
+          {failed ? (
+            <div className="m-4 sm:m-6 lg:m-8 bg-white border border-slate-200 rounded-card shadow-card">
+              <LoadError title="Couldn't load the report" message="No figures are shown: the report for this period did not load." detail={reportError.message} onRetry={() => { setLoadedQuery(null); fetchReportData(); }} />
             </div>
-          </div>
+          ) : (
+            <SkeletonBlock label="Loading reports…" className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 space-y-6">
+              <Skeleton className="h-12 w-full max-w-xl" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-card" />)}
+              </div>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <Skeleton className="h-72 rounded-card" />
+                <Skeleton className="h-72 rounded-card" />
+              </div>
+            </SkeletonBlock>
+          )}
         </main>
       </div>
     );
@@ -1346,7 +1363,7 @@ const AdminReports = () => {
                           return (
                             <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
                               {/* Tooltip */}
-                              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-all z-50 w-32 pointer-events-none">
+                              <div className="hidden sm:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-caption p-2 rounded-control shadow-raised opacity-0 group-hover:opacity-100 transition-all z-50 w-32 pointer-events-none">
                                 <p className="font-bold text-slate-300 border-b border-slate-600 pb-0.5 mb-1 text-center">{p.label}</p>
                                 <div className="flex justify-between"><span className="text-indigo-300">Rent:</span><span>{formatCurrency(p.rent)}</span></div>
                                 <div className="flex justify-between"><span className="text-amber-300">Elec:</span><span>{formatCurrency(p.electric)}</span></div>
@@ -1486,7 +1503,7 @@ const AdminReports = () => {
                       {trendPoints.map((p, idx) => (
                         <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
                           {/* Tooltip */}
-                          <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-all z-50 w-24 pointer-events-none">
+                          <div className="hidden sm:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-caption p-2 rounded-control shadow-raised opacity-0 group-hover:opacity-100 transition-all z-50 w-24 pointer-events-none">
                             <p className="font-bold text-slate-300 border-b border-slate-600 pb-0.5 mb-1 text-center">{p.label}</p>
                             <div className="flex justify-between"><span className="text-slate-400">Rev:</span><span className="font-bold text-emerald-400">{formatCurrency(p.revenue)}</span></div>
                             <div className="flex justify-between"><span className="text-slate-400">Exp:</span><span className="font-bold text-red-400">{formatCurrency(p.expenses)}</span></div>
@@ -2304,7 +2321,7 @@ const AdminReports = () => {
       )}
 
       {showInvoiceModal && (
-        <Modal title={`${showInvoicePreview ? 'Official Rental Invoice Preview' : (invoiceMode === 'adjust' ? 'Adjust Existing Invoice' : 'Generate Tenant Invoice')}`} onClose={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print:static print:p-0 print:bg-transparent print:block print:overflow-visible" className={`bg-white rounded-2xl shadow-2xl w-full ${showInvoicePreview ? 'max-w-3xl' : 'max-w-xl'} mx-auto overflow-hidden transition-all duration-200 print:shadow-none print:border-none print:max-w-none print:w-full`}>
+        <Modal busy={issuingInvoice} title={`${showInvoicePreview ? 'Official Rental Invoice Preview' : (invoiceMode === 'adjust' ? 'Adjust Existing Invoice' : 'Generate Tenant Invoice')}`} onClose={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print:static print:p-0 print:bg-transparent print:block print:overflow-visible" className={`bg-white rounded-card shadow-dialog w-full ${showInvoicePreview ? 'max-w-3xl' : 'max-w-xl'} mx-auto overflow-hidden transition-all duration-200 print:shadow-none print:border-none print:max-w-none print:w-full`}>
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center print:hidden">

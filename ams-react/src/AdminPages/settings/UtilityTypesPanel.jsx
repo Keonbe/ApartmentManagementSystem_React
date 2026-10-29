@@ -88,10 +88,10 @@ export default function UtilityTypesPanel() {
         </table>
       </div>
       {editing && (
-        <Modal title={editing.id ? 'Edit utility' : 'Add utility'} onClose={() => setEditing(null)} busy={saving} as="form" onSubmit={save} overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="m-0 text-lg font-extrabold text-slate-800">{editing.id ? 'Edit utility' : 'Add utility'}</h3>
-            <label className="block text-sm font-semibold text-slate-700">Name
-              <input required maxLength={60} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
+        <Modal title={editing.id ? 'Edit utility' : 'Add utility'} onClose={() => setEditing(null)} busy={saving} as="form" onSubmit={save} overlayClassName="flex items-center justify-center bg-slate-950/55 p-4" className="w-full max-w-md space-y-4 rounded-card bg-white p-6 shadow-dialog">
+            <h3 className="m-0 text-title font-bold text-slate-800">{editing.id ? 'Edit utility' : 'Add utility'}</h3>
+            <label className="block text-body font-semibold text-slate-700">Name
+              <input required maxLength={60} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="mt-1 w-full rounded-control border border-slate-300 px-3 py-2 font-normal" />
             </label>
             <label className="block text-body font-semibold text-slate-700">Billing
               <select value={editing.billing_mode} onChange={(e) => setEditing({ ...editing, billing_mode: e.target.value })} className="mt-1 w-full rounded-control border border-slate-300 bg-white px-3 py-2 font-normal">

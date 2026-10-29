@@ -8,8 +8,9 @@ import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from './form/FieldError';
 import CharCount from './form/CharCount';
-import { blockNonNumericKeys, invalidCls } from './form/formHelpers';
+import { blockNonNumericKeys, invalidCls } from './form/formHelpers';
 import Modal from './admin/Modal';
+import { TH, THEAD, btn } from './admin/ui/styles';
 
 // Building expenses entered by an admin (manage_expenses.php). The report adds
 // these to the maintenance costs it already derives, so repairs don't go here.
@@ -109,31 +110,31 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
   };
 
   const total = expenses.reduce((sum, x) => sum + x.amount, 0);
-  const inputCls = 'focus-glow w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500';
+  const inputCls = 'focus-glow w-full px-3 py-2 rounded-control bg-slate-50 border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
   return (
-    <Modal title="Building Expenses" onClose={onClose} overlayClassName="bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print:hidden" className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden text-left">
+    <Modal title="Building Expenses" onClose={onClose} overlayClassName="bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print:hidden" className="bg-white rounded-card shadow-dialog w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden text-left">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
-            <h3 className="text-lg font-bold m-0 text-slate-800">Building Expenses</h3>
-            <p className="text-xs text-slate-500 m-0 mt-0.5">
+            <h3 className="text-title font-bold m-0 text-slate-800">Building Expenses</h3>
+            <p className="text-label text-slate-500 m-0 mt-0.5">
               {month ? `Entries for ${month}` : 'Latest entries'} · Maintenance repairs are counted automatically and aren't entered here.
             </p>
           </div>
-          <button onClick={onClose} className="btn-interactive text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-base" aria-label="Close">
+          <button onClick={onClose} className="btn-interactive text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-title" aria-label="Close">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
 
         <form onSubmit={save} className="p-5 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-4 gap-3 items-start" noValidate>
-          <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
+          <label className="flex flex-col gap-1 text-label font-bold text-slate-600">
             Category
             <select {...fields.fieldA11y('category')} value={form.category} onChange={(e) => setField('category', e.target.value)} className={inputCls + invalidCls(fields.errors.category)}>
               {Object.entries(EXPENSE_CATEGORY_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </select>
             <FieldError id="expense-category" error={fields.errors.category} className="font-normal" />
           </label>
-          <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
+          <label className="flex flex-col gap-1 text-label font-bold text-slate-600">
             Amount (₱)
             <input type="number" {...fields.fieldA11y('amount')} inputMode="decimal" min="0.01" max={EXPENSE_MAX} step="0.01" required value={form.amount}
               onKeyDown={blockNonNumericKeys}
@@ -142,7 +143,7 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
               className={inputCls + invalidCls(fields.errors.amount)} />
             <FieldError id="expense-amount" error={fields.errors.amount} className="font-normal" />
           </label>
-          <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
+          <label className="flex flex-col gap-1 text-label font-bold text-slate-600">
             Date
             <input type="date" {...fields.fieldA11y('expenseDate')} required min={addYears(-10)} max={today()} value={form.expenseDate}
               onChange={(e) => setField('expenseDate', e.target.value)}
@@ -150,7 +151,7 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
               className={inputCls + invalidCls(fields.errors.expenseDate)} />
             <FieldError id="expense-expenseDate" error={fields.errors.expenseDate} className="font-normal" />
           </label>
-          <label className="flex flex-col gap-1 text-xs font-bold text-slate-600 sm:col-span-4">
+          <label className="flex flex-col gap-1 text-label font-bold text-slate-600 sm:col-span-4">
             Description
             <input type="text" {...fields.fieldA11y('description')} autoComplete="off" maxLength={LIMITS.expenseDescription} value={form.description}
               onChange={(e) => setField('description', e.target.value)}
@@ -161,32 +162,32 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
           </label>
           <div className="sm:col-span-4 flex justify-end gap-2">
             {form.id && (
-              <button type="button" onClick={() => resetForm()} className="btn-interactive px-4 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border-0 cursor-pointer">
+              <button type="button" onClick={() => resetForm()} className="btn-interactive px-4 py-2 rounded-control text-label font-bold bg-slate-100 text-slate-600 border-0 cursor-pointer">
                 Cancel edit
               </button>
             )}
-            <button type="submit" disabled={saving} className="btn-interactive px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white border-0 cursor-pointer disabled:opacity-60">
+            <button type="submit" disabled={saving} className={btn('primary', 'sm', 'btn-interactive')}>
               <FontAwesomeIcon icon={saving ? faSpinner : form.id ? faPen : faPlus} spin={saving} className="mr-1.5" />
               {form.id ? 'Save changes' : 'Add expense'}
             </button>
           </div>
-          {error && <p role="alert" className="sm:col-span-4 text-xs text-red-600 font-semibold m-0">{error}</p>}
+          {error && <p role="alert" className="sm:col-span-4 text-label text-red-600 font-semibold m-0">{error}</p>}
         </form>
 
         <div className="overflow-y-auto flex-grow">
           {loading ? (
-            <p className="p-6 text-center text-sm text-slate-400 m-0">Loading…</p>
+            <p className="p-6 text-center text-body text-slate-400 m-0">Loading…</p>
           ) : expenses.length === 0 ? (
-            <p className="p-6 text-center text-sm text-slate-400 m-0">No expenses recorded for this period.</p>
+            <p className="p-6 text-center text-body text-slate-400 m-0">No expenses recorded for this period.</p>
           ) : (
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+            <table className="w-full text-label">
+              <thead className={THEAD}>
                 <tr>
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Category</th>
-                  <th className="text-left p-3">Description</th>
-                  <th className="text-right p-3">Amount</th>
-                  <th className="p-3" />
+                  <th className={`${TH} text-left`}>Date</th>
+                  <th className={`${TH} text-left`}>Category</th>
+                  <th className={`${TH} text-left`}>Description</th>
+                  <th className={`${TH} text-right`}>Amount</th>
+                  <th className={TH} />
                 </tr>
               </thead>
               <tbody className="stagger-children">

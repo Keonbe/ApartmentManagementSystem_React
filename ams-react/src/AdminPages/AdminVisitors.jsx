@@ -43,6 +43,8 @@ import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 // Preset checkout notes; "Other" lets the desk type a short one instead. The
@@ -497,17 +499,9 @@ export default function AdminVisitors() {
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
-                      <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-slate-500 font-medium">
-                          Loading visitor records...
-                        </td>
-                      </tr>
+                      <SkeletonRows cols={7} label="Loading visitor records…" />
                     ) : error ? (
-                      <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-rose-500 font-medium">
-                          {error}
-                        </td>
-                      </tr>
+                      <LoadErrorRow cols={7} title="Couldn't load visitor records" detail={error} onRetry={fetchVisitors} />
                     ) : visitors.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center">
@@ -714,7 +708,7 @@ export default function AdminVisitors() {
 
       {/* Check-In / Register Visitor Modal */}
       {showCheckInModal && (
-        <Modal busy={submitting} title="Log Visitor Check-In" onClose={() => setShowCheckInModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto">
+        <Modal busy={submitting} title="Log Visitor Check-In" onClose={() => setShowCheckInModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-lg rounded-card bg-white p-6 shadow-dialog overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-card bg-indigo-50 text-indigo-600 text-title">
@@ -958,7 +952,7 @@ export default function AdminVisitors() {
 
       {/* Check Out Modal */}
       {showCheckoutModal && selectedVisitorForCheckout && (
-        <Modal busy={submitting} title="Confirm Visitor Checkout" onClose={() => setShowCheckoutModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <Modal busy={submitting} title="Confirm Visitor Checkout" onClose={() => setShowCheckoutModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-md rounded-card bg-white p-6 shadow-dialog">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h3 className="text-title font-bold text-slate-800 m-0">Confirm Visitor Checkout</h3>
               <button aria-label="Close"
@@ -1039,7 +1033,7 @@ export default function AdminVisitors() {
 
       {/* Configurable Overstay Threshold Modal */}
       {showThresholdModal && (
-        <Modal busy={submitting} title="Set Overstay Threshold" onClose={() => setShowThresholdModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <Modal busy={submitting} title="Set Overstay Threshold" onClose={() => setShowThresholdModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-md rounded-card bg-white p-6 shadow-dialog">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faSlidersH} className="text-indigo-600" />

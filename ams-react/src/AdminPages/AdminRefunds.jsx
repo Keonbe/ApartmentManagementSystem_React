@@ -5,11 +5,16 @@ import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { RefundForm, RefundTrail, StatusBadge } from '../Components/RefundParts';
 import { TYPE_LABELS, peso, when } from '../utils/refundFormat';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
+import LoadError from '../Components/admin/ui/LoadError';
+import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 
 const FILTERS = ['all', 'Pending Review', 'Info Requested', 'Approved', 'Refunded', 'Rejected', 'Cancelled'];
 
 export default function AdminRefunds() {
   const [requests, setRequests] = useState([]);
+  // The list did not load: shown instead of "No refund requests here."
+  const [loadFailed, setLoadFailed] = useState(false);
   const [filter, setFilter] = useState('Pending Review');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -24,8 +29,10 @@ export default function AdminRefunds() {
   const load = useCallback(async () => {
     try {
       const res = await api.get('get_refund_requests.php');
-      if (res.data.success) setRequests(res.data.requests || []);
+      if (res.data.success) { setRequests(res.data.requests || []); setLoadFailed(false); }
+      else setLoadFailed(true);
     } catch (err) {
+      setLoadFailed(true);
       setNotice({ ok: false, text: apiErrorMessage(err, 'Could not load refund requests.') });
     } finally {
       setLoading(false);
@@ -90,13 +97,13 @@ export default function AdminRefunds() {
             {notice && <div role="status" className={`rounded-control border p-3 text-body font-semibold ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>{notice.text}</div>}
 
             <div className="flex flex-wrap items-center gap-2">
-              {FILTERS.map((f) => (
-                <button key={f} type="button" onClick={() => setFilter(f)}
-                  className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-bold ${filter === f ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-600'}`}>
-                  {f === 'all' ? 'All' : f} ({f === 'all' ? requests.length : requests.filter((r) => r.status === f).length})
-                </button>
-              ))}
-              <button type="button" onClick={() => setShowNew((v) => !v)} className="ml-auto cursor-pointer rounded-lg border border-indigo-600 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700">
+              <FilterTabs
+                label="Filter refund requests by status"
+                value={filter}
+                onChange={setFilter}
+                options={FILTERS.map(f => ({ value: f, label: f === 'all' ? 'All' : f, count: loading || (loadFailed && requests.length === 0) ? null : f === 'all' ? requests.length : requests.filter(r => r.status === f).length }))}
+              />
+              <button type="button" onClick={() => setShowNew((v) => !v)} className="ml-auto cursor-pointer rounded-control border border-indigo-600 bg-white px-3 py-1.5 text-label font-bold text-indigo-700">
                 {showNew ? 'Close' : 'Open a request for a tenant'}
               </button>
             </div>
@@ -116,8 +123,11 @@ export default function AdminRefunds() {
               </section>
             )}
 
-            {loading ? <p className="text-sm text-slate-500">Loading…</p> : shown.length === 0 ? (
-              <p className="rounded-xl border border-slate-200 p-6 text-sm text-slate-500">No refund requests here.</p>
+            {loading ? <SkeletonCards count={3} className="space-y-3" label="Loading refund requests…" />
+              : loadFailed && requests.length === 0 ? (
+              <div className="rounded-card border border-slate-200 bg-white"><LoadError title="Couldn't load refund requests" onRetry={() => { setLoading(true); load(); }} /></div>
+            ) : shown.length === 0 ? (
+              <p className="rounded-card border border-slate-200 p-6 text-body text-slate-500">No refund requests here.</p>
             ) : shown.map((r) => (
               <article key={r.id} className="rounded-card border border-slate-200 bg-white p-4 shadow-card sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-2">

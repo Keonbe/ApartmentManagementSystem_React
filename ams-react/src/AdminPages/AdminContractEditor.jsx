@@ -19,6 +19,7 @@ import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { printElement } from '../utils/print';
 import { btn } from '../Components/admin/ui/styles';
+import Spinner from '../Components/admin/ui/Spinner';
 
 // Simple GCash validation: 11-digit PH mobile (09xx) or +639xx, or the literal '*********'
 const isValidGcashNumber = (num) => {
@@ -1023,7 +1024,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       icon={faHistory} tone="amber" title="Version History & Audit Log"
       description="All saved versions are preserved. Loading a previous version loads its terms into the editor."
     >
-      {historyLoading && <p className="text-sm text-slate-500 m-0"><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading history…</p>}
+      {historyLoading && <Spinner label="Loading history…" className="justify-start py-2" />}
       {!historyLoading && history.length === 0 && (
         <p className="text-body text-slate-500 m-0">No saved versions yet — built-in default is currently active.</p>
       )}

@@ -8,7 +8,7 @@ export default function PasswordChecklist({ password, className = '' }) {
       {PASSWORD_RULES.map((rule) => {
         const met = rule.test(pw);
         return (
-          <li key={rule.key} className={met ? 'text-emerald-600' : 'text-slate-400'}>
+          <li key={rule.key} className={met ? 'text-emerald-700' : 'text-slate-500'}>
             <span aria-hidden="true">{met ? '✓' : '○'}</span> {rule.label}
             <span className="sr-only">{met ? ' (met)' : ' (not met)'}</span>
           </li>

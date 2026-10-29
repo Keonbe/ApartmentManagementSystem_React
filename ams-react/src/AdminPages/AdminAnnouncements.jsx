@@ -17,6 +17,9 @@ import FileChip from '../Components/form/FileChip';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { invalidCls } from '../Components/form/formHelpers';
 import { btn } from '../Components/admin/ui/styles';
+import LoadError from '../Components/admin/ui/LoadError';
+import { SkeletonCards } from '../Components/admin/ui/Skeleton';
+import useLoadState from '../hooks/useLoadState';
 
 const SEND_TO = ['All tenants', 'Specific unit'];
 const TYPES = ['General', 'Urgent', 'Reminder'];
@@ -51,6 +54,8 @@ const getSmsText = (type, title, body) => {
 
 const AdminAnnouncements = () => {
   const [announcements, setAnnouncements] = useState([]);
+  // loading | error | ready for the history list (a failed refresh keeps it).
+  const historyState = useLoadState();
   const [tenants, setTenants] = useState([]);
   // Settings → Notifications → Cost per SMS, for the estimate next to the recipient count.
   const [smsUnitCost, setSmsUnitCost] = useState(0.5);
@@ -140,15 +145,20 @@ const AdminAnnouncements = () => {
           date: new Date(ann.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           recipients: ann.recipient_count || 0,
         })));
+        historyState.ready();
+      } else {
+        historyState.fail();
       }
     } catch (error) {
       console.error(error);
+      historyState.fail();
     }
   };
 
   useEffect(() => {
     const load = async () => { await Promise.all([fetchAnnouncements(), fetchTenants()]); };
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; the loaders only call stable useLoadState callbacks
   }, []);
 
   // Units that have a current tenant, with how many tenants each.
@@ -465,11 +475,13 @@ const AdminAnnouncements = () => {
             <div>
               <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Announcement History</h4>
               <div className="stagger-children space-y-3 mt-2">
-                {announcements.length === 0 && (
-                  <p className="text-xs text-slate-500 m-0">No announcements yet.</p>
+                {historyState.isLoading && <SkeletonCards count={3} className="space-y-3" label="Loading announcements…" />}
+                {historyState.isError && <div className="bg-white border border-slate-200 rounded-card"><LoadError title="Couldn't load past announcements" onRetry={() => { historyState.retry(); fetchAnnouncements(); }} /></div>}
+                {historyState.isReady && announcements.length === 0 && (
+                  <p className="text-label text-slate-500 m-0">No announcements yet.</p>
                 )}
-                {announcements.map(item => (
-                  <div key={item.id} className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-all hover:border-indigo-400">
+                {historyState.isReady && announcements.map(item => (
+                  <div key={item.id} className="card-interactive bg-white border border-slate-200 rounded-card p-5 shadow-card transition-all hover:border-indigo-400">
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                       <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex ${item.tagStyle}`}>{item.tag}</span>
                       <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex ${statusConfig[item.status].color}`}>{statusConfig[item.status].label}</span>

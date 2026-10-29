@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faEdit, faKey, faTrash, faTimes, faUserShield, faUser,
   faCheck, faExclamationTriangle,
-  faFilter
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { LIMITS, checkEmail, checkNewPassword, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
@@ -18,6 +17,9 @@ import PasswordChecklist from '../Components/form/PasswordChecklist';
 import { invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
 import { TH, btn } from '../Components/admin/ui/styles';
+import LoadError from '../Components/admin/ui/LoadError';
+import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
@@ -72,16 +74,22 @@ const AdminUsers = () => {
   const editErrors  = useFieldErrors(EDIT_VALIDATORS, { idPrefix: 'edituser-' });
   const resetErrors = useFieldErrors(RESET_VALIDATORS, { idPrefix: 'resetpw-' });
 
+  // Set when nothing could be loaded; a failed refresh after an action keeps the table.
+  const [loadError, setLoadError] = useState(null);
+
   const loadUsers = async () => {
     try {
       const res = await api.get('/manage_users.php');
-      if (res.data.success) setUsers(res.data.users);
-    } catch (err) { console.error(err); }
+      if (res.data.success) { setUsers(res.data.users); usersLoadedRef.current = true; setLoadError(null); }
+      else setLoadError(res.data.message || 'The server did not return the users.');
+    } catch (err) { console.error(err); setLoadError(apiErrorMessage(err, 'The users did not load.')); }
     finally { setLoading(false); }
   };
 
+  // The skeleton only until a load has succeeded once; a refresh keeps the rows.
+  const usersLoadedRef = useRef(false);
   const fetchUsers = () => {
-    setLoading(true);
+    if (!usersLoadedRef.current) setLoading(true);
     return loadUsers();
   };
 
@@ -228,6 +236,8 @@ const AdminUsers = () => {
   };
   // Role buttons filter inside the open status tab, so their counts follow it.
   const inStatus = users.filter(u => (statusFilter === 'archived' ? u.is_archived : !u.is_archived));
+  // No counts until the list has loaded, or when it failed to.
+  const noCounts = loading || (!!loadError && users.length === 0);
   const roleCounts = { all: inStatus.length, user: inStatus.filter(u => u.role === 'user').length, admin: inStatus.filter(u => u.role === 'admin').length };
 
   // Row actions, shared by the table (md and up) and the phone cards; iconSize keeps
@@ -291,34 +301,32 @@ const AdminUsers = () => {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-                  <FontAwesomeIcon icon={faFilter} className="text-slate-500 text-xs" />
-                  {ROLES.map(r => (
-                    <button key={r} type="button" aria-pressed={roleFilter === r} onClick={() => setRoleFilter(r)}
-                      className={`btn-interactive px-3 py-1 rounded-md text-xs font-semibold border-0 cursor-pointer transition-colors ${roleFilter === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 bg-transparent'}`}>
-                      {r === 'all' ? `All (${roleCounts.all})` : r === 'admin' ? `Admin (${roleCounts.admin})` : `User (${roleCounts.user})`}
-                    </button>
-                  ))}
-                </div>
+                <FilterTabs
+                  label="Filter users by role"
+                  value={roleFilter}
+                  onChange={setRoleFilter}
+                  options={ROLES.map(r => ({ value: r, label: r === 'all' ? 'All' : r === 'admin' ? 'Admin' : 'User', count: noCounts ? null : roleCounts[r] }))}
+                />
               </div>
 
               {/* Status Tabs */}
-              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1.5 shadow-sm">
-                <button onClick={() => setStatusFilter('active')}
-                  className={`btn-interactive px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'active' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
-                  Active ({counts.active})
-                </button>
-                <button onClick={() => setStatusFilter('archived')}
-                  className={`btn-interactive px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'archived' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
-                  Archived ({counts.archived})
-                </button>
-              </div>
+              <FilterTabs
+                label="Filter users by status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'active', label: 'Active', count: noCounts ? null : counts.active },
+                  { value: 'archived', label: 'Archived', count: noCounts ? null : counts.archived },
+                ]}
+              />
             </div>
 
             {/* Table */}
             <div className="bg-white rounded-card shadow-card border border-slate-200 overflow-hidden table-scroll-x">
               {loading ? (
-                <div className="py-20 text-center text-slate-500 text-sm">Loading users...</div>
+                <table className="w-full text-body"><tbody><SkeletonRows cols={6} rows={8} label="Loading users…" /></tbody></table>
+              ) : loadError && users.length === 0 ? (
+                <LoadError title="Couldn't load users" detail={loadError} onRetry={fetchUsers} />
               ) : filtered.length === 0 ? (
                 <div className="py-20 text-center text-slate-500 text-body">No users found.</div>
               ) : (
@@ -405,7 +413,7 @@ const AdminUsers = () => {
 
       {/* Edit Modal */}
       {editUser && (
-        <Modal busy={saving} title={`Edit User — ${editUser.first_name} ${editUser.last_name}`} onClose={() => setEditUser(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+        <Modal busy={saving} title={`Edit User — ${editUser.first_name} ${editUser.last_name}`} onClose={() => setEditUser(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-title font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
               <button aria-label="Close" onClick={() => setEditUser(null)} className="text-slate-500 hover:text-slate-600 p-1 rounded-control border-0 bg-transparent cursor-pointer">
@@ -473,7 +481,7 @@ const AdminUsers = () => {
 
       {/* Reset Password Modal */}
       {showResetModal && (
-        <Modal busy={saving} title="Reset Password" onClose={closeReset} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onSubmit={handleResetPassword} noValidate>
+        <Modal busy={saving} title="Reset Password" onClose={closeReset} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-sm mx-4 overflow-hidden" onSubmit={handleResetPassword} noValidate>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-title font-bold text-slate-800 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faKey} className="text-amber-700" /> Reset Password
@@ -510,7 +518,7 @@ const AdminUsers = () => {
 
       {/* Archive Confirm Modal */}
       {archiveTarget && (
-        <Modal busy={saving} title="Archive User" onClose={() => setArchiveTarget(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+        <Modal busy={saving} title="Archive User" onClose={() => setArchiveTarget(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-sm mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200">
               <h3 className="text-title font-bold text-amber-700 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faExclamationTriangle} /> Archive User

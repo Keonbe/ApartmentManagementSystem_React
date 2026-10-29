@@ -22,6 +22,8 @@ import { getSystemSettings } from '../config/systemSettings';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import { SkeletonCards } from '../Components/admin/ui/Skeleton';
+import LoadError from '../Components/admin/ui/LoadError';
 import {
   MAINTENANCE_CATEGORIES, MAINTENANCE_URGENCIES, MAINTENANCE_DEFAULT_URGENCY, MAINTENANCE_TRANSITIONS, MAINTENANCE_STATUS_STYLES,
   urgencyWeight, urgencyColor
@@ -145,8 +147,8 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
       {/* The code sits by the title so the tags above get the card's full width
           (beside them, two tags no longer fit on one line in a board column). */}
       <div className="flex items-baseline justify-between gap-2 mb-3">
-        <h4 className="text-sm font-bold text-slate-800 m-0 leading-snug min-w-0">{req.title}</h4>
-        <span className="shrink-0 whitespace-nowrap text-[11px] text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
+        <h4 className="text-body font-bold text-slate-800 m-0 leading-snug min-w-0">{req.title}</h4>
+        <span className="shrink-0 whitespace-nowrap text-caption text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
       </div>
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between text-caption text-slate-500 gap-2">
@@ -231,7 +233,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
   const FIELD = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500';
 
   return (
-    <Modal title="Create New Request" onClose={onClose} busy={isSubmitting} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onSubmit={handleSubmit} noValidate>
+    <Modal title="Create New Request" onClose={onClose} busy={isSubmitting} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onSubmit={handleSubmit} noValidate>
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
           <h2 className="text-title font-bold text-slate-800 m-0">Create New Request</h2>
           <button type="button" aria-label="Close" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
@@ -651,8 +653,8 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
   };
 
   return (
-    <Modal busy={saving} title={`${type === 'start' ? 'Start Work' : type === 'complete' ? 'Mark as Completed' : 'Reject Request'}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto p-6">
-        <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">
+    <Modal busy={saving} title={`${type === 'start' ? 'Start Work' : type === 'complete' ? 'Mark as Completed' : 'Reject Request'}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto p-6">
+        <h3 className="text-title font-bold text-slate-800 mb-1 mt-0">
           {type === 'start' ? 'Start Work' : type === 'complete' ? 'Mark as Completed' : 'Reject Request'}
         </h3>
         <p className="text-body text-slate-500 mb-4 mt-0">{req.code} · {req.title}</p>
@@ -1021,15 +1023,15 @@ const AdminMaintainance = () => {
                   <input aria-label="Search maintenance requests" maxLength={LIMITS.search} type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-body outline-none border-0 p-0 text-slate-800 bg-white" />
                 </div>
 
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-2 shadow-sm w-full sm:w-auto min-w-0">
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-control px-2 py-2 shadow-card w-full sm:w-auto min-w-0">
                   <FontAwesomeIcon icon={faFilter} className="text-slate-500 text-xs ml-2" />
-                  <select aria-label="Filter by priority" value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="min-w-0 flex-1 sm:flex-none bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
+                  <select aria-label="Filter by priority" value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="min-w-0 flex-1 sm:flex-none bg-transparent text-body outline-none border-0 text-slate-700 cursor-pointer">
                     <option value="All">All Priorities</option>
                     <option value={MAINTENANCE_DEFAULT_URGENCY}>{MAINTENANCE_DEFAULT_URGENCY}</option>
                     {[...MAINTENANCE_URGENCIES].reverse().map(u => <option key={u.value} value={u.value}>{u.value}</option>)}
                   </select>
                   <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                  <select aria-label="Filter by category" value={filterType} onChange={e => setFilterType(e.target.value)} className="min-w-0 flex-1 sm:flex-none bg-transparent text-sm outline-none border-0 text-slate-700 cursor-pointer">
+                  <select aria-label="Filter by category" value={filterType} onChange={e => setFilterType(e.target.value)} className="min-w-0 flex-1 sm:flex-none bg-transparent text-body outline-none border-0 text-slate-700 cursor-pointer">
                     <option value="All">All Categories</option>
                     {MAINTENANCE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value}</option>)}
                   </select>
@@ -1054,8 +1056,10 @@ const AdminMaintainance = () => {
 
             {/* Kanban / List Board */}
             {loadingReqs ? (
-              <div className="py-16 text-center text-slate-500 text-sm font-medium bg-white border border-slate-200 rounded-xl shadow-sm">
-                Loading maintenance requests…
+              <SkeletonCards count={6} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" label="Loading maintenance requests…" />
+            ) : loadError && requests.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-card shadow-card">
+                <LoadError title="Couldn't load maintenance requests" detail={loadError} onRetry={() => { setLoadingReqs(true); fetchRequests(); }} />
               </div>
             ) : viewMode === 'kanban' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">

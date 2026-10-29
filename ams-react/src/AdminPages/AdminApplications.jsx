@@ -18,6 +18,8 @@ import { LIMITS } from '../utils/validation';
 import { clickable } from '../utils/clickable';
 import Modal from '../Components/admin/Modal';
 import { TH, btn } from '../Components/admin/ui/styles';
+import { SkeletonList } from '../Components/admin/ui/Skeleton';
+import LoadError from '../Components/admin/ui/LoadError';
 
 const STATUS_OPTIONS = [
   { 
@@ -84,6 +86,8 @@ const AdminApplications = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  // Nothing loaded at all: the list area shows the error, not an empty table.
+  const appsFailed = !!errorMsg && applications.length === 0;
   const [loading, setLoading] = useState(true);
   const [approveTarget, setApproveTarget] = useState(null);
   const [isApproving, setIsApproving] = useState(false);
@@ -626,23 +630,28 @@ const AdminApplications = () => {
               </div>
             </div>
 
-            {errorMsg && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            {errorMsg && !appsFailed && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-control text-body">
                 <strong>Error loading applications:</strong> {errorMsg}
               </div>
             )}
             
             {loading && (
-              <div className="text-center py-12 text-slate-500 text-sm bg-white border border-slate-200 rounded-xl shadow-sm">
-                <FontAwesomeIcon icon={faClock} className="animate-spin text-slate-300 text-3xl mb-3 block mx-auto" />
-                Loading applications pipeline...
+              <div className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
+                <SkeletonList rows={6} label="Loading applications…" />
               </div>
             )}
 
             {/* Table View (Horizontal Orientation) */}
-            {!loading && viewMode === 'table' && (
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm table-scroll-x">
-                <table className="hidden md:table w-full text-sm">
+            {!loading && appsFailed && (
+              <div className="bg-white border border-slate-200 rounded-card shadow-card">
+                <LoadError title="Couldn't load applications" detail={errorMsg} onRetry={fetchApplications} />
+              </div>
+            )}
+
+            {!loading && !appsFailed && viewMode === 'table' && (
+              <div className="bg-white border border-slate-200 rounded-card overflow-hidden shadow-card table-scroll-x">
+                <table className="hidden md:table w-full text-body">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className={TH}>Applicant</th>
@@ -814,7 +823,7 @@ const AdminApplications = () => {
             )}
 
             {/* Kanban Board View */}
-            {!loading && viewMode === 'kanban' && (
+            {!loading && !appsFailed && viewMode === 'kanban' && (
               selectedStatuses.length === 0 ? (
                 <div className="text-center py-12 text-slate-500 text-body bg-white border border-slate-200 rounded-card shadow-card">
                   <FontAwesomeIcon icon={faFilter} className="text-slate-300 text-2xl mb-2 block mx-auto" />
@@ -1090,9 +1099,9 @@ const AdminApplications = () => {
       )}
       
       {approveTarget && (
-        <Modal title="Approve this application?" onClose={() => setApproveTarget(null)} busy={isApproving} overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="m-0 text-lg font-bold text-slate-800">Approve this application?</h3>
-            <p className="mt-2 text-sm text-slate-500">This reserves Unit {approveTarget.unit} for {approveTarget.name} and creates their initial payment request. It does not mark them as moved in.</p>
+        <Modal title="Approve this application?" onClose={() => setApproveTarget(null)} busy={isApproving} overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" className="w-full max-w-md rounded-card bg-white p-6 shadow-raised">
+            <h3 className="m-0 text-title font-bold text-slate-800">Approve this application?</h3>
+            <p className="mt-2 text-body text-slate-500">This reserves Unit {approveTarget.unit} for {approveTarget.name} and creates their initial payment request. It does not mark them as moved in.</p>
             <div className="mt-6 flex justify-end gap-3">
               <button 
                 type="button"
@@ -1122,12 +1131,12 @@ const AdminApplications = () => {
       )}
 
       {scheduleTarget && (
-        <Modal title="Send move-in date" onClose={() => setScheduleTarget(null)} busy={scheduling} as="form" overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" onSubmit={scheduleMoveIn} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
-            <div><h3 className="m-0 text-lg font-bold text-slate-800">Send move-in date</h3><p className="mt-1 text-sm text-slate-500">Payment is confirmed. Tell {scheduleTarget.name} when they can move in.</p></div>
-            <label className="block text-sm font-semibold text-slate-700">Move-in date<input required type="date" min={new Date().toISOString().slice(0, 10)} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" /></label>
-            <label className="block text-sm font-semibold text-slate-700">Message (optional)<textarea value={scheduleMessage} onChange={e => setScheduleMessage(e.target.value)} rows="3" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Arrival instructions, office hours, etc." /></label>
-            <label className="block text-sm font-semibold text-slate-700">Attachment (optional)<input type="file" accept="image/jpeg,image/png,application/pdf" onChange={e => setScheduleAttachment(e.target.files?.[0] || null)} className="mt-1 block w-full text-xs" /></label>
-            <div className="flex justify-end gap-3"><button type="button" onClick={() => setScheduleTarget(null)} disabled={scheduling} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold">Cancel</button><button type="submit" disabled={scheduling} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{scheduling ? 'Sending…' : 'Send notice'}</button></div>
+        <Modal title="Send move-in date" onClose={() => setScheduleTarget(null)} busy={scheduling} as="form" overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" onSubmit={scheduleMoveIn} className="w-full max-w-md rounded-card bg-white p-6 shadow-raised space-y-4">
+            <div><h3 className="m-0 text-title font-bold text-slate-800">Send move-in date</h3><p className="mt-1 text-body text-slate-500">Payment is confirmed. Tell {scheduleTarget.name} when they can move in.</p></div>
+            <label className="block text-body font-semibold text-slate-700">Move-in date<input required type="date" min={new Date().toISOString().slice(0, 10)} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="mt-1 w-full rounded-card border border-slate-200 px-3 py-2" /></label>
+            <label className="block text-body font-semibold text-slate-700">Message (optional)<textarea value={scheduleMessage} onChange={e => setScheduleMessage(e.target.value)} rows="3" className="mt-1 w-full rounded-card border border-slate-200 px-3 py-2" placeholder="Arrival instructions, office hours, etc." /></label>
+            <label className="block text-body font-semibold text-slate-700">Attachment (optional)<input type="file" accept="image/jpeg,image/png,application/pdf" onChange={e => setScheduleAttachment(e.target.files?.[0] || null)} className="mt-1 block w-full text-label" /></label>
+            <div className="flex justify-end gap-3"><button type="button" onClick={() => setScheduleTarget(null)} disabled={scheduling} className="rounded-card border border-slate-200 px-4 py-2 text-body font-semibold">Cancel</button><button type="submit" disabled={scheduling} className={btn('primary', 'md')}>{scheduling ? 'Sending…' : 'Send notice'}</button></div>
           </Modal>
       )}
 
