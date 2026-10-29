@@ -23,6 +23,8 @@ const EMPTY_LOG = { full_name: '', contact_no: '', email: '', room_name: '', mes
 import { getSystemSettings } from '../config/systemSettings';
 import WaitlistPanel from '../Components/WaitlistPanel';
 import Modal from '../Components/admin/Modal';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 const INQUIRY_TABS = ['all', 'new', 'contacted', 'scheduled', 'reserved', 'converted', 'closed'];
 const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
@@ -372,7 +374,7 @@ export default function AdminInquiries() {
       Active: 'bg-violet-100 text-violet-700',
       Converted: 'bg-emerald-100 text-emerald-700',
       Expired: 'bg-amber-100 text-amber-700',
-      Cancelled: 'bg-rose-100 text-rose-700',
+      Cancelled: 'bg-red-100 text-red-700',
     };
     return map[status] || 'bg-slate-100 text-slate-600';
   };
@@ -388,21 +390,21 @@ export default function AdminInquiries() {
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
+      <div className="flex flex-1 flex-col overflow-hidden bg-slate-50 text-left font-sans">
         <Header title="Inquiries & Reservations" />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* View switch + actions */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-card w-full sm:w-auto">
                 {['inquiries', 'reservations'].map(v => (
                   <button
                     key={v}
                     type="button"
                     onClick={() => { setView(v); setStatusFilter('all'); }}
-                    className={`flex-1 sm:flex-none rounded-lg px-4 py-2 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
-                      view === v ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                    className={`flex-1 sm:flex-none rounded-control px-4 py-2 text-label font-bold capitalize transition-all border-0 cursor-pointer ${
+                      view === v ? 'bg-white text-slate-800 shadow-card' : 'bg-transparent text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     {v} ({v === 'inquiries' ? inquiries.length : reservations.length})
@@ -414,14 +416,14 @@ export default function AdminInquiries() {
                 <button
                   type="button"
                   onClick={() => { setActionError(null); logErrors.setErrors({}); setShowLogModal(true); }}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm"
+                  className={btn('primary', 'sm', 'flex-1 sm:flex-none justify-center')}
                 >
                   <FontAwesomeIcon icon={faPlus} /> Log Walk-in Inquiry
                 </button>
                 <button
                   type="button"
                   onClick={runExpirySweep}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                  className={btn('secondary', 'sm', 'flex-1 sm:flex-none justify-center')}
                   title="Release reservations whose hold period has lapsed"
                 >
                   <FontAwesomeIcon icon={faHourglassHalf} /> Release Expired
@@ -430,7 +432,7 @@ export default function AdminInquiries() {
             </div>
 
             {/* Search + status filter */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="rounded-card border border-slate-200 bg-white p-4 sm:p-6 shadow-card space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
                   <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
@@ -439,33 +441,21 @@ export default function AdminInquiries() {
                     placeholder={view === 'inquiries' ? 'Search by name, email, contact, unit, or message...' : 'Search by name, unit, or contact...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full rounded-card border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-between">
-                  <div className="flex gap-1 bg-slate-100 p-1 rounded-xl flex-wrap">
-                    {tabs.map(tab => (
-                      <button
-                        key={tab}
-                        type="button"
-                        aria-pressed={statusFilter === tab}
-                        onClick={() => setStatusFilter(tab)}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
-                          statusFilter === tab ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        {view === 'inquiries' && tab === 'new' && tabCount('new') > 0 && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-                        )}
-                        {tab} ({tabCount(tab)})
-                      </button>
-                    ))}
-                  </div>
+                  <FilterTabs
+                    label="Filter by status"
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    options={tabs.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1), count: loading || error ? null : tabCount(t), dot: view === 'inquiries' && t === 'new' && tabCount('new') > 0 }))}
+                  />
                   <button
                     type="button"
                     onClick={() => { fetchData(); fetchSupporting(); }}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
+                    className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
                     title="Refresh"
                   >
                     <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
@@ -475,19 +465,19 @@ export default function AdminInquiries() {
             </div>
 
             {/* Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
               <div className="overflow-x-auto">
                 {view === 'inquiries' ? (
-                  <table className="w-full min-w-[850px] text-left text-sm">
-                    <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <table className="w-full min-w-[850px] text-left text-body">
+                    <thead className={THEAD}>
                       <tr>
-                        <th className="px-5 py-3.5">Prospect</th>
-                        <th className="px-4 py-3.5">Unit of Interest</th>
-                        <th className="px-4 py-3.5">Preferred Move-In</th>
-                        <th className="px-4 py-3.5">Source</th>
-                        <th className="px-4 py-3.5">Received</th>
-                        <th className="px-4 py-3.5 text-center">Status</th>
-                        <th className="px-5 py-3.5 text-right">Actions</th>
+                        <th className={TH}>Prospect</th>
+                        <th className={TH}>Unit of Interest</th>
+                        <th className={TH}>Preferred Move-In</th>
+                        <th className={TH}>Source</th>
+                        <th className={TH}>Received</th>
+                        <th className={`${TH} text-center`}>Status</th>
+                        <th className={`${TH} text-right`}>Actions</th>
                       </tr>
                     </thead>
                     <tbody className="stagger-children divide-y divide-slate-100">
@@ -499,7 +489,7 @@ export default function AdminInquiries() {
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faEnvelopeOpenText} className="text-xl text-slate-300 shrink-0" />
-                            <span className="text-sm italic">No inquiries found.</span>
+                            <span className="text-body italic">No inquiries found.</span>
                           </div>
                         </td></tr>
                       ) : (
@@ -507,35 +497,35 @@ export default function AdminInquiries() {
                           <tr key={inq.id} className="hover:bg-slate-50/70 transition-colors">
                             <td className="px-5 py-4">
                               <p className="font-bold text-slate-800 m-0">{inq.fullName}</p>
-                              <span className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                              <span className="flex items-center gap-1 text-label text-slate-500 mt-0.5">
                                 <FontAwesomeIcon icon={faEnvelope} className="text-[10px] text-indigo-500" />
                                 {inq.email}
                               </span>
-                              <span className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                              <span className="flex items-center gap-1 text-label text-slate-500 mt-0.5">
                                 <FontAwesomeIcon icon={faPhone} className="text-[10px] text-indigo-500" />
                                 {inq.contactNo}
                               </span>
                             </td>
                             <td className="px-4 py-4">
                               {inq.unit ? (
-                                <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700">
+                                <span className="inline-flex items-center gap-1 text-label font-bold text-slate-700">
                                   <FontAwesomeIcon icon={faBuilding} className="text-[10px] text-indigo-500" />
                                   Unit {inq.unit}
                                 </span>
                               ) : (
-                                <span className="text-xs text-slate-500 italic">Any available</span>
+                                <span className="text-label text-slate-500 italic">Any available</span>
                               )}
                               {inq.occupants && (
-                                <p className="text-[11px] text-slate-500 m-0 mt-0.5">{inq.occupants} occupant(s)</p>
+                                <p className="text-caption text-slate-500 m-0 mt-0.5">{inq.occupants} occupant(s)</p>
                               )}
                             </td>
-                            <td className="px-4 py-4 text-xs text-slate-600">{fmtDate(inq.preferredMoveIn)}</td>
+                            <td className="px-4 py-4 text-label text-slate-600">{fmtDate(inq.preferredMoveIn)}</td>
                             <td className="px-4 py-4">
-                              <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600 capitalize">{inq.source}</span>
+                              <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-slate-100 text-slate-600 capitalize">{inq.source}</span>
                             </td>
-                            <td className="px-4 py-4 text-xs text-slate-500">{fmtDate(inq.createdAt)}</td>
+                            <td className="px-4 py-4 text-label text-slate-500">{fmtDate(inq.createdAt)}</td>
                             <td className="px-4 py-4 text-center">
-                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${inquiryBadge(inq.status)}`}>
+                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(inq.status)}`}>
                                 {inq.status}
                               </span>
                             </td>
@@ -543,7 +533,7 @@ export default function AdminInquiries() {
                               <button
                                 type="button"
                                 onClick={() => openDetail(inq)}
-                                className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border-0 cursor-pointer"
+                                className="rounded-control bg-indigo-50 px-3 py-1.5 text-label font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border-0 cursor-pointer"
                               >
                                 Manage
                               </button>
@@ -554,16 +544,16 @@ export default function AdminInquiries() {
                     </tbody>
                   </table>
                 ) : (
-                  <table className="w-full min-w-[850px] text-left text-sm">
-                    <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <table className="w-full min-w-[850px] text-left text-body">
+                    <thead className={THEAD}>
                       <tr>
-                        <th className="px-5 py-3.5">Unit</th>
-                        <th className="px-4 py-3.5">Reserved For</th>
-                        <th className="px-4 py-3.5">Reserved On</th>
-                        <th className="px-4 py-3.5">Hold Expires</th>
-                        <th className="px-4 py-3.5">Fee</th>
-                        <th className="px-4 py-3.5 text-center">Status</th>
-                        <th className="px-5 py-3.5 text-right">Actions</th>
+                        <th className={TH}>Unit</th>
+                        <th className={TH}>Reserved For</th>
+                        <th className={TH}>Reserved On</th>
+                        <th className={TH}>Hold Expires</th>
+                        <th className={TH}>Fee</th>
+                        <th className={`${TH} text-center`}>Status</th>
+                        <th className={`${TH} text-right`}>Actions</th>
                       </tr>
                     </thead>
                     <tbody className="stagger-children divide-y divide-slate-100">
@@ -575,7 +565,7 @@ export default function AdminInquiries() {
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faBookmark} className="text-xl text-slate-300 shrink-0" />
-                            <span className="text-sm italic">No reservations found.</span>
+                            <span className="text-body italic">No reservations found.</span>
                           </div>
                         </td></tr>
                       ) : (
@@ -586,17 +576,17 @@ export default function AdminInquiries() {
                                 <FontAwesomeIcon icon={faBuilding} className="text-[10px] text-indigo-500" />
                                 Unit {res.unit}
                               </span>
-                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">{res.roomType || '—'}</p>
+                              <p className="text-caption text-slate-500 m-0 mt-0.5">{res.roomType || '—'}</p>
                             </td>
                             <td className="px-4 py-4">
                               <p className="font-semibold text-slate-700 m-0">{res.reservedFor}</p>
-                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">{res.contactNo || res.email || '—'}</p>
+                              <p className="text-caption text-slate-500 m-0 mt-0.5">{res.contactNo || res.email || '—'}</p>
                             </td>
-                            <td className="px-4 py-4 text-xs text-slate-500">{fmtDate(res.createdAt)}</td>
+                            <td className="px-4 py-4 text-label text-slate-500">{fmtDate(res.createdAt)}</td>
                             <td className="px-4 py-4">
-                              <p className="text-xs font-semibold text-slate-700 m-0">{fmtDate(res.holdExpiresAt)}</p>
+                              <p className="text-label font-semibold text-slate-700 m-0">{fmtDate(res.holdExpiresAt)}</p>
                               {res.status === 'Active' && (
-                                <p className={`text-[11px] m-0 mt-0.5 font-bold ${Number(res.daysRemaining) <= 2 ? 'text-rose-600' : 'text-slate-500'}`}>
+                                <p className={`text-caption m-0 mt-0.5 font-bold ${Number(res.daysRemaining) <= 2 ? 'text-red-600' : 'text-slate-500'}`}>
                                   {Number(res.daysRemaining) < 0
                                     ? 'Lapsed'
                                     : Number(res.daysRemaining) === 0
@@ -605,11 +595,11 @@ export default function AdminInquiries() {
                                 </p>
                               )}
                             </td>
-                            <td className="px-4 py-4 text-xs font-semibold text-slate-700">
+                            <td className="px-4 py-4 text-label font-semibold text-slate-700">
                               {Number(res.reservationFee) > 0 ? `₱${Number(res.reservationFee).toLocaleString()}` : '—'}
                             </td>
                             <td className="px-4 py-4 text-center">
-                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${reservationBadge(res.status)}`}>
+                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${reservationBadge(res.status)}`}>
                                 {res.status}
                               </span>
                             </td>
@@ -619,7 +609,7 @@ export default function AdminInquiries() {
                                   <button
                                     type="button"
                                     onClick={() => markReservation(res.id, 'Converted')}
-                                    className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
+                                    className="rounded-control bg-emerald-50 px-2.5 py-1.5 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
                                     title="Mark as converted to an application"
                                   >
                                     <FontAwesomeIcon icon={faCheckCircle} className="mr-1" /> Converted
@@ -627,14 +617,14 @@ export default function AdminInquiries() {
                                   <button
                                     type="button"
                                     onClick={() => setReasonFor({ kind: 'cancelHold', id: res.id })}
-                                    className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors border-0 cursor-pointer"
+                                    className="rounded-control bg-red-50 px-2.5 py-1.5 text-label font-bold text-red-700 hover:bg-red-100 transition-colors border-0 cursor-pointer"
                                     title="Cancel hold and release the unit"
                                   >
                                     <FontAwesomeIcon icon={faBan} />
                                   </button>
                                 </div>
                               ) : (
-                                <span className="text-xs font-medium italic text-slate-500">
+                                <span className="text-label font-medium italic text-slate-500">
                                   {res.releasedReason || 'Closed'}
                                 </span>
                               )}
@@ -655,20 +645,20 @@ export default function AdminInquiries() {
 
       {/* ─── INQUIRY DETAIL MODAL ─── */}
       {showDetail && selected && (
-        <Modal title={`${selected.fullName}`} onClose={() => setShowDetail(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <Modal title={`${selected.fullName}`} onClose={() => setShowDetail(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-card shadow-dialog w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
             <div className="px-6 py-5 flex items-center justify-between shrink-0 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
               <div>
-                <h3 className="text-xl font-bold m-0 tracking-tight">{selected.fullName}</h3>
-                <div className="flex gap-3 mt-1 opacity-90 text-xs">
+                <h3 className="text-section font-bold m-0 tracking-tight">{selected.fullName}</h3>
+                <div className="flex gap-3 mt-1 opacity-90 text-label">
                   <span>Received {fmtDate(selected.createdAt)}</span>
                   <span>•</span>
-                  <span className="font-semibold px-2 py-0.5 bg-white/20 rounded-md">
+                  <span className="font-semibold px-2 py-0.5 bg-white/20 rounded-control">
                     {selected.unit ? `Unit ${selected.unit}` : 'No specific unit'}
                   </span>
                 </div>
               </div>
-              <button aria-label="Close" onClick={() => setShowDetail(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer transition-colors">
+              <button aria-label="Close" onClick={() => setShowDetail(false)} className="text-white hover:bg-white/20 p-2 rounded-card border-0 bg-transparent cursor-pointer transition-colors">
                 <FontAwesomeIcon icon={faTimes} className="text-lg" />
               </button>
             </div>
@@ -676,45 +666,45 @@ export default function AdminInquiries() {
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-5">
 
               {actionError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-card text-body font-medium">
                   {actionError}
                 </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
-                  <p className="text-sm font-semibold text-slate-800 m-0 break-all">{selected.email}</p>
+                <div className="bg-white rounded-card p-3.5 border border-slate-200">
+                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
+                  <p className="text-body font-semibold text-slate-800 m-0 break-all">{selected.email}</p>
                 </div>
-                <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
-                  <p className="text-sm font-semibold text-slate-800 m-0">{selected.contactNo}</p>
+                <div className="bg-white rounded-card p-3.5 border border-slate-200">
+                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
+                  <p className="text-body font-semibold text-slate-800 m-0">{selected.contactNo}</p>
                 </div>
-                <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
-                  <p className="text-sm font-semibold text-slate-800 m-0">{fmtDate(selected.preferredMoveIn)}</p>
+                <div className="bg-white rounded-card p-3.5 border border-slate-200">
+                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
+                  <p className="text-body font-semibold text-slate-800 m-0">{fmtDate(selected.preferredMoveIn)}</p>
                 </div>
-                <div className="bg-white rounded-xl p-3.5 border border-slate-200">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1" /> Occupants</p>
-                  <p className="text-sm font-semibold text-slate-800 m-0">{selected.occupants || '—'}</p>
+                <div className="bg-white rounded-card p-3.5 border border-slate-200">
+                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faUsers} className="mr-1" /> Occupants</p>
+                  <p className="text-body font-semibold text-slate-800 m-0">{selected.occupants || '—'}</p>
                 </div>
               </div>
 
               {selected.message && (
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 m-0"><FontAwesomeIcon icon={faComment} className="mr-1" /> Message</p>
-                  <p className="text-sm text-slate-700 m-0 whitespace-pre-wrap">{selected.message}</p>
+                <div className="bg-white rounded-card p-4 border border-slate-200">
+                  <p className="text-label font-medium text-slate-600 mb-1.5 m-0 capitalize"><FontAwesomeIcon icon={faComment} className="mr-1" /> Message</p>
+                  <p className="text-body text-slate-700 m-0 whitespace-pre-wrap">{selected.message}</p>
                 </div>
               )}
 
               {selected.viewingDate && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-amber-800 text-sm font-medium">
+                <div className="bg-amber-50 border border-amber-200 rounded-card p-3.5 text-amber-800 text-body font-medium">
                   Viewing scheduled for {fmtDateTime(selected.viewingDate)}
                 </div>
               )}
 
-              <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3">
-                <label htmlFor="inquiry-detail-admin_notes" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Admin Notes</label>
+              <div className="bg-white rounded-card p-4 border border-slate-200 space-y-3">
+                <label htmlFor="inquiry-detail-admin_notes" className="text-label font-medium text-slate-600 block">Admin Notes</label>
                 <textarea
                   rows="3"
                   {...detailErrors.fieldA11y('admin_notes')}
@@ -723,12 +713,12 @@ export default function AdminInquiries() {
                   onChange={(e) => { setNotes(e.target.value); detailErrors.clearError('admin_notes'); }}
                   onBlur={() => { const v = notes.trim(); setNotes(v); detailErrors.validateField('admin_notes', { admin_notes: v }); }}
                   placeholder="Record what was discussed, follow-up dates, or screening notes..."
-                  className={`w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-y${invalidCls(detailErrors.errors.admin_notes)}`}
+                  className={`w-full rounded-control border border-slate-200 bg-slate-50 p-3 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-y${invalidCls(detailErrors.errors.admin_notes)}`}
                 />
                 <FieldError id="inquiry-detail-admin_notes" error={detailErrors.errors.admin_notes} />
                 <CharCount value={notes} max={LIMITS.notes} />
 
-                <label htmlFor="inquiry-detail-viewing_date" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Viewing Schedule</label>
+                <label htmlFor="inquiry-detail-viewing_date" className="text-label font-medium text-slate-600 block">Viewing Schedule</label>
                 <input
                   type="datetime-local"
                   {...detailErrors.fieldA11y('viewing_date')}
@@ -737,7 +727,7 @@ export default function AdminInquiries() {
                   value={viewingDate}
                   onChange={(e) => { setViewingDate(e.target.value); detailErrors.clearError('viewing_date'); }}
                   onBlur={() => viewingDate && detailErrors.validateField('viewing_date', { viewing_date: viewingDate })}
-                  className={`w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white${invalidCls(detailErrors.errors.viewing_date)}`}
+                  className={`w-full rounded-control border border-slate-200 bg-slate-50 p-3 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white${invalidCls(detailErrors.errors.viewing_date)}`}
                 />
                 <FieldError id="inquiry-detail-viewing_date" error={detailErrors.errors.viewing_date} />
               </div>
@@ -747,7 +737,7 @@ export default function AdminInquiries() {
                 <button
                   type="button"
                   onClick={() => navigate(`/admin-messages?guest_thread_id=${encodeURIComponent(selected.rawId || selected.id)}`)}
-                  className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-3 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
+                  className="col-span-2 flex items-center justify-center gap-2 rounded-card bg-indigo-50 border border-indigo-200 px-4 py-3 text-label font-bold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
                 >
                   <FontAwesomeIcon icon={faComment} /> Chat / Message
                 </button>
@@ -760,7 +750,7 @@ export default function AdminInquiries() {
                     const ok = await updateInquiry({ id: selected.id, status: 'Contacted', admin_notes: notes.trim() });
                     if (ok) setShowDetail(false);
                   }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-xs font-bold text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-2 rounded-card bg-sky-50 border border-sky-200 px-4 py-3 text-label font-bold text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FontAwesomeIcon icon={faPhone} /> Mark Contacted
                 </button>
@@ -773,7 +763,7 @@ export default function AdminInquiries() {
                     const ok = await updateInquiry({ id: selected.id, status: 'Scheduled', admin_notes: notes.trim(), viewing_date: viewingDate.replace('T', ' ') + ':00' });
                     if (ok) setShowDetail(false);
                   }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-2 rounded-card bg-amber-50 border border-amber-200 px-4 py-3 text-label font-bold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FontAwesomeIcon icon={faCalendarAlt} /> Schedule Viewing
                 </button>
@@ -782,7 +772,7 @@ export default function AdminInquiries() {
                   type="button"
                   onClick={() => { setActionError(null); reserveErrors.setErrors({}); setShowReserveModal(true); }}
                   disabled={selected.status === 'Reserved'}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-violet-50 border border-violet-200 px-4 py-3 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-card bg-violet-50 border border-violet-200 px-4 py-3 text-label font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                   <FontAwesomeIcon icon={faBookmark} /> Reserve Unit
                 </button>
@@ -790,22 +780,22 @@ export default function AdminInquiries() {
                 <button
                   type="button"
                   onClick={() => convertToApplication(selected)}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-card bg-emerald-50 border border-emerald-200 px-4 py-3 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
                 >
                   <FontAwesomeIcon icon={faArrowRight} /> Convert to Application
                 </button>
               </div>
 
               {!['Converted', 'Closed'].includes(selected.status) && (
-                <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                <div className="bg-white rounded-card p-4 border border-slate-200 space-y-2">
+                  <label className="text-label font-medium text-slate-600 block capitalize">
                     <FontAwesomeIcon icon={faListOl} className="mr-1" /> Waitlist for an occupied unit
                   </label>
                   <div className="flex gap-2">
                     <select
                       value={waitlistRoom}
                       onChange={(e) => setWaitlistRoom(e.target.value)}
-                      className="flex-1 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500"
+                      className="flex-1 rounded-control border border-slate-200 bg-slate-50 p-2.5 text-body text-slate-800 outline-none focus:border-indigo-500"
                     >
                       <option value="">Select a unit…</option>
                       {occupiedRooms.map(r => (
@@ -815,13 +805,13 @@ export default function AdminInquiries() {
                     <button
                       type="button"
                       onClick={addToWaitlist}
-                      className="rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 cursor-pointer"
+                      className="rounded-control bg-indigo-50 border border-indigo-200 px-4 py-2 text-label font-bold text-indigo-700 hover:bg-indigo-100 cursor-pointer"
                     >
                       Add to waitlist
                     </button>
                   </div>
                   {waitlistMsg && (
-                    <p className={`text-xs font-semibold m-0 ${waitlistMsg.ok ? 'text-emerald-700' : 'text-rose-600'}`}>{waitlistMsg.text}</p>
+                    <p className={`text-label font-semibold m-0 ${waitlistMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{waitlistMsg.text}</p>
                   )}
                 </div>
               )}
@@ -835,7 +825,7 @@ export default function AdminInquiries() {
                     const ok = await updateInquiry({ id: selected.id, status: selected.status, admin_notes: notes.trim() });
                     if (ok) setShowDetail(false);
                   }}
-                  className="flex-1 rounded-xl bg-slate-800 px-4 py-3 text-xs font-bold text-white hover:bg-slate-900 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-card bg-slate-800 px-4 py-3 text-label font-bold text-white hover:bg-slate-900 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {busy === 'inquiry' ? 'Saving…' : 'Save Notes'}
                 </button>
@@ -846,7 +836,7 @@ export default function AdminInquiries() {
                     if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
                     setReasonFor({ kind: 'closeInquiry', id: selected.id });
                   }}
-                  className="flex-1 rounded-xl bg-white border-2 border-rose-200 px-4 py-3 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-card bg-white border-2 border-red-200 px-4 py-3 text-label font-bold text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Close Inquiry
                 </button>
@@ -859,31 +849,31 @@ export default function AdminInquiries() {
       {showReserveModal && selected && (
         <Modal busy={!!busy} title="Reserve a Unit" onClose={() => setShowReserveModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onSubmit={submitReservation} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-violet-600 to-violet-800">
-              <h3 className="text-lg font-bold m-0">Reserve a Unit</h3>
-              <button type="button" aria-label="Close" onClick={() => setShowReserveModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
+              <h3 className="text-title font-bold m-0">Reserve a Unit</h3>
+              <button type="button" aria-label="Close" onClick={() => setShowReserveModal(false)} className="text-white hover:bg-white/20 p-2 rounded-card border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
 
             <div className="p-6 space-y-4 bg-slate-50">
               {actionError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-card text-body font-medium">
                   {actionError}
                 </div>
               )}
 
-              <p className="text-sm text-slate-600 m-0">
+              <p className="text-body text-slate-600 m-0">
                 Holding a unit for <strong className="text-slate-800">{selected.fullName}</strong>. The unit is marked
                 <strong className="text-violet-700"> Reserved</strong> and hidden from the public listing until the hold expires.
               </p>
 
               <div>
-                <label htmlFor="reserve-room_name" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit (vacant only)</label>
+                <label htmlFor="reserve-room_name" className="text-label font-medium text-slate-600 block mb-1.5">Unit (vacant only)</label>
                 <select
                   {...reserveErrors.fieldA11y('room_name')}
                   value={resRoom}
                   onChange={(e) => { setResRoom(e.target.value); reserveErrors.clearError('room_name'); }}
-                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.room_name)}`}
+                  className={`w-full rounded-control border border-slate-200 bg-white p-3 text-body text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.room_name)}`}
                 >
                   <option value="" disabled>Select a unit...</option>
                   {rooms.map(r => (
@@ -892,13 +882,13 @@ export default function AdminInquiries() {
                 </select>
                 <FieldError id="reserve-room_name" error={reserveErrors.errors.room_name} />
                 {rooms.length === 0 && (
-                  <p className="text-xs text-amber-700 font-medium mt-1.5 m-0">No vacant units are available to reserve.</p>
+                  <p className="text-label text-amber-700 font-medium mt-1.5 m-0">No vacant units are available to reserve.</p>
                 )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="reserve-hold_days" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
+                  <label htmlFor="reserve-hold_days" className="text-label font-medium text-slate-600 block mb-1.5">Hold Period (days)</label>
                   {/* Kept as typed: Number('') used to turn an empty field into 0. */}
                   <input
                     type="number"
@@ -911,12 +901,12 @@ export default function AdminInquiries() {
                     onKeyDown={blockNonIntegerKeys}
                     onChange={(e) => { setResHoldDays(e.target.value); reserveErrors.clearError('hold_days'); }}
                     onBlur={() => reserveErrors.validateField('hold_days', reserveValues())}
-                    className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.hold_days)}`}
+                    className={`w-full rounded-control border border-slate-200 bg-white p-3 text-body text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.hold_days)}`}
                   />
                   <FieldError id="reserve-hold_days" error={reserveErrors.errors.hold_days} />
                 </div>
                 <div>
-                  <label htmlFor="reserve-reservation_fee" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Reservation Fee (₱)</label>
+                  <label htmlFor="reserve-reservation_fee" className="text-label font-medium text-slate-600 block mb-1.5">Reservation Fee (₱)</label>
                   <input
                     type="number"
                     {...reserveErrors.fieldA11y('reservation_fee')}
@@ -929,14 +919,14 @@ export default function AdminInquiries() {
                     onChange={(e) => { setResFee(e.target.value); reserveErrors.clearError('reservation_fee'); }}
                     onBlur={() => reserveErrors.validateField('reservation_fee', reserveValues())}
                     placeholder="0.00"
-                    className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.reservation_fee)}`}
+                    className={`w-full rounded-control border border-slate-200 bg-white p-3 text-body text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.reservation_fee)}`}
                   />
                   <FieldError id="reserve-reservation_fee" error={reserveErrors.errors.reservation_fee} />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="reserve-notes" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Notes</label>
+                <label htmlFor="reserve-notes" className="text-label font-medium text-slate-600 block mb-1.5">Notes</label>
                 <textarea
                   rows="2"
                   {...reserveErrors.fieldA11y('notes')}
@@ -945,7 +935,7 @@ export default function AdminInquiries() {
                   onChange={(e) => { setResNotes(e.target.value); reserveErrors.clearError('notes'); }}
                   onBlur={() => { const v = resNotes.trim(); setResNotes(v); reserveErrors.validateField('notes', { ...reserveValues(), notes: v }); }}
                   placeholder="Terms agreed, deposit arrangement, etc."
-                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500 resize-y${invalidCls(reserveErrors.errors.notes)}`}
+                  className={`w-full rounded-control border border-slate-200 bg-white p-3 text-body text-slate-800 outline-none focus:border-violet-500 resize-y${invalidCls(reserveErrors.errors.notes)}`}
                 />
                 <FieldError id="reserve-notes" error={reserveErrors.errors.notes} />
                 <CharCount value={resNotes} max={LIMITS.notes} />
@@ -954,7 +944,7 @@ export default function AdminInquiries() {
               <button
                 type="submit"
                 disabled={!!busy}
-                className="w-full rounded-xl bg-violet-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-violet-700 transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-card bg-violet-600 px-4 py-3.5 text-body font-bold text-white hover:bg-violet-700 transition-colors border-0 cursor-pointer shadow-raised disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {busy === 'reserve' ? 'Placing hold…' : 'Place Hold'}
               </button>
@@ -966,31 +956,31 @@ export default function AdminInquiries() {
       {showLogModal && (
         <Modal busy={!!busy} title="Log an Inquiry" onClose={() => setShowLogModal(false)} as="form" overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onSubmit={submitLoggedInquiry} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
-              <h3 className="text-lg font-bold m-0">Log an Inquiry</h3>
-              <button type="button" aria-label="Close" onClick={() => setShowLogModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
+              <h3 className="text-title font-bold m-0">Log an Inquiry</h3>
+              <button type="button" aria-label="Close" onClick={() => setShowLogModal(false)} className="text-white hover:bg-white/20 p-2 rounded-card border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
 
             <div className="p-6 space-y-4 bg-slate-50 max-h-[70vh] overflow-y-auto">
               {actionError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-card text-body font-medium">
                   {actionError}
                 </div>
               )}
 
-              <p className="text-sm text-slate-600 m-0">Record an inquiry that came in by phone or at the office.</p>
+              <p className="text-body text-slate-600 m-0">Record an inquiry that came in by phone or at the office.</p>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Source</label>
-                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                <label className="text-label font-medium text-slate-600 block mb-1.5">Source</label>
+                <div className="flex gap-1 bg-slate-100 p-1 rounded-card">
                   {['walk-in', 'phone'].map(s => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => setLogForm({ ...logForm, source: s })}
-                      className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
-                        logForm.source === s ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-600'
+                      className={`flex-1 rounded-control px-3 py-2 text-label font-bold capitalize transition-all border-0 cursor-pointer ${
+                        logForm.source === s ? 'bg-white text-slate-800 shadow-card' : 'bg-transparent text-slate-600'
                       }`}
                     >
                       {s}
@@ -1005,7 +995,7 @@ export default function AdminInquiries() {
                 { key: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. juan@email.com', max: LIMITS.email },
               ].map(field => (
                 <div key={field.key}>
-                  <label htmlFor={`log-${field.key}`} className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">{field.label}</label>
+                  <label htmlFor={`log-${field.key}`} className="text-label font-medium text-slate-600 block mb-1.5 capitalize">{field.label}</label>
                   {field.type === 'tel' ? (
                     <PhoneInput
                       id="log-contact_no"
@@ -1014,7 +1004,7 @@ export default function AdminInquiries() {
                       onChange={(digits) => setLogField('contact_no', digits)}
                       onBlur={() => blurLogField('contact_no')}
                       error={logErrors.errors.contact_no}
-                      inputClassName={`w-full rounded-r-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors.contact_no)}`}
+                      inputClassName={`w-full rounded-r-control border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors.contact_no)}`}
                     />
                   ) : (
                     <>
@@ -1028,7 +1018,7 @@ export default function AdminInquiries() {
                         onChange={(e) => setLogField(field.key, e.target.value)}
                         onBlur={() => blurLogField(field.key)}
                         placeholder={field.placeholder}
-                        className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors[field.key])}`}
+                        className={`w-full rounded-control border border-slate-200 bg-white p-3 text-body text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors[field.key])}`}
                       />
                       <FieldError id={`log-${field.key}`} error={logErrors.errors[field.key]} />
                     </>
@@ -1037,12 +1027,12 @@ export default function AdminInquiries() {
               ))}
 
               <div>
-                <label htmlFor="log-room_name" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Unit of Interest</label>
+                <label htmlFor="log-room_name" className="text-label font-medium text-slate-600 block mb-1.5">Unit of Interest</label>
                 <select
                   {...logErrors.fieldA11y('room_name')}
                   value={logForm.room_name}
                   onChange={(e) => setLogField('room_name', e.target.value)}
-                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors.room_name)}`}
+                  className={`w-full rounded-control border border-slate-200 bg-white p-3 text-body text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors.room_name)}`}
                 >
                   <option value="">No specific unit</option>
                   {rooms.map(r => (
@@ -1053,7 +1043,7 @@ export default function AdminInquiries() {
               </div>
 
               <div>
-                <label htmlFor="log-message" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">What did they ask?</label>
+                <label htmlFor="log-message" className="text-label font-medium text-slate-600 block mb-1.5">What did they ask?</label>
                 <textarea
                   rows="3"
                   {...logErrors.fieldA11y('message')}
@@ -1062,7 +1052,7 @@ export default function AdminInquiries() {
                   onChange={(e) => setLogField('message', e.target.value)}
                   onBlur={() => blurLogField('message')}
                   placeholder="Summarize the inquiry..."
-                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 resize-y${invalidCls(logErrors.errors.message)}`}
+                  className={`w-full rounded-control border border-slate-200 bg-white p-3 text-body text-slate-800 outline-none focus:border-indigo-500 resize-y${invalidCls(logErrors.errors.message)}`}
                 />
                 <FieldError id="log-message" error={logErrors.errors.message} />
                 <CharCount value={logForm.message} max={LIMITS.message} />
@@ -1071,7 +1061,7 @@ export default function AdminInquiries() {
               <button
                 type="submit"
                 disabled={!!busy}
-                className="w-full rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className={btn('primary', 'md', 'w-full')}
               >
                 {busy === 'log' ? 'Saving…' : 'Save Inquiry'}
               </button>

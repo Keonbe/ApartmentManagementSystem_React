@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axiosConfig';
 import { apiErrorMessage } from '../../utils/apiError';
 import HouseRulesPanel from './HouseRulesPanel';
+import { btn } from '../../Components/admin/ui/styles';
 
 const BLANK = { label: '', min_age: '', max_age: '', rule: '', rule_fil: '' };
 
@@ -88,66 +89,66 @@ export default function MinorsPanel() {
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="m-0 text-base font-extrabold text-slate-800">Age Categories</h3>
-          <p className="m-0 mt-1 text-sm text-slate-500">Define the age ranges for infants, toddlers and minors and the rule that applies to each. A tenant who adds a child to the household gives the child&apos;s age, and the matching category is recorded.</p>
+        <div className="rounded-card border border-slate-200 bg-white p-5">
+          <h3 className="m-0 text-title font-bold text-slate-800">Age Categories</h3>
+          <p className="m-0 mt-1 text-body text-slate-500">Define the age ranges for infants, toddlers and minors and the rule that applies to each. A tenant who adds a child to the household gives the child&apos;s age, and the matching category is recorded.</p>
         </div>
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm">
+        <div className="space-y-3 rounded-card border border-slate-200 bg-white p-4 text-body">
           <p className="m-0 font-semibold text-slate-700">Floors where young children may not live</p>
           <p className="m-0 text-xs text-slate-500">Babies and small children are not accepted on these floors (the 3rd floor, because of the stairs). Other floors have no age limit. Leave every floor unticked for no restriction.</p>
           <div className="flex flex-wrap gap-3" role="group" aria-label="Restricted floors">
-            {floors.length === 0 && <span className="text-xs text-slate-500">No floors found.</span>}
+            {floors.length === 0 && <span className="text-label text-slate-500">No floors found.</span>}
             {floors.map((f) => (
-              <label key={f} className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+              <label key={f} className="inline-flex items-center gap-1.5 text-body text-slate-700">
                 <input type="checkbox" checked={restrictedFloors.includes(f)} onChange={() => toggleFloor(f)} />
                 {f}
               </label>
             ))}
           </div>
-          {errors.floors && <p role="alert" className="m-0 text-xs font-semibold text-rose-600">{errors.floors}</p>}
+          {errors.floors && <p role="alert" className="m-0 text-label font-semibold text-red-600">{errors.floors}</p>}
           <label className="block font-semibold text-slate-700">Children younger than
             <input type="number" min="0" max="17" step="1" value={childAge} aria-invalid={!!errors.childAge}
               onChange={(e) => { setChildAge(e.target.value); setErrors((p) => ({ ...p, childAge: '' })); setDirty(true); }}
               onBlur={() => setErrors((p) => ({ ...p, childAge: checkAge(childAge, 'Child age limit') }))}
-              className={`mt-1 block w-28 rounded-lg border px-3 py-2 font-normal ${errors.childAge ? 'border-rose-400' : 'border-slate-300'}`} />
-            <span className="mt-1 block text-xs font-normal text-slate-500">cannot live on the floors ticked above (0 = no limit).</span>
+              className={`mt-1 block w-28 rounded-control border px-3 py-2 font-normal ${errors.childAge ? 'border-red-400' : 'border-slate-300'}`} />
+            <span className="mt-1 block text-label font-normal text-slate-500">cannot live on the floors ticked above (0 = no limit).</span>
           </label>
-          {errors.childAge && <p role="alert" className="m-0 text-xs font-semibold text-rose-600">{errors.childAge}</p>}
+          {errors.childAge && <p role="alert" className="m-0 text-label font-semibold text-red-600">{errors.childAge}</p>}
         </div>
-        <label className="block rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">Minimum age anywhere in the building (0 = none)
+        <label className="block rounded-card border border-slate-200 bg-white p-4 text-body font-semibold text-slate-700">Minimum age anywhere in the building (0 = none)
           <input type="number" min="0" max="17" step="1" value={minAge} aria-invalid={!!errors.minAge}
             onChange={(e) => { setMinAge(e.target.value); setErrors((p) => ({ ...p, minAge: '' })); setDirty(true); }}
             onBlur={() => setErrors((p) => ({ ...p, minAge: checkAge(minAge, 'Minimum age') }))}
-            className={`mt-1 block w-28 rounded-lg border px-3 py-2 font-normal ${errors.minAge ? 'border-rose-400' : 'border-slate-300'}`} />
-          <span className="mt-1 block text-xs font-normal text-slate-500">A tenant cannot add a household member younger than this on any floor. Pets are not allowed (see the rules below).</span>
-          {errors.minAge && <span role="alert" className="mt-1 block text-xs font-semibold text-rose-600">{errors.minAge}</span>}
+            className={`mt-1 block w-28 rounded-control border px-3 py-2 font-normal ${errors.minAge ? 'border-red-400' : 'border-slate-300'}`} />
+          <span className="mt-1 block text-label font-normal text-slate-500">A tenant cannot add a household member younger than this on any floor. Pets are not allowed (see the rules below).</span>
+          {errors.minAge && <span role="alert" className="mt-1 block text-label font-semibold text-red-600">{errors.minAge}</span>}
         </label>
-        {notice && <p role={notice.ok ? 'status' : 'alert'} className={`m-0 rounded-xl p-3 text-sm ${notice.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{notice.text}</p>}
+        {notice && <p role={notice.ok ? 'status' : 'alert'} className={`m-0 rounded-card p-3 text-body ${notice.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{notice.text}</p>}
         {cats.map((c, i) => (
-          <div key={c.key || i} className="grid grid-cols-12 gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-            <label className="col-span-12 text-xs font-bold text-slate-600 sm:col-span-6">Name
-              <input maxLength={40} value={c.label} onChange={(e) => edit(i, { label: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
+          <div key={c.key || i} className="grid grid-cols-12 gap-3 rounded-card border border-slate-200 bg-white p-4">
+            <label className="col-span-12 text-label font-bold text-slate-600 sm:col-span-6">Name
+              <input maxLength={40} value={c.label} onChange={(e) => edit(i, { label: e.target.value })} className="mt-1 w-full rounded-control border border-slate-300 px-3 py-2 text-body font-normal" />
             </label>
-            <label className="col-span-6 text-xs font-bold text-slate-600 sm:col-span-3">From age
-              <input type="number" min="0" max="17" value={c.min_age} onChange={(e) => edit(i, { min_age: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
+            <label className="col-span-6 text-label font-bold text-slate-600 sm:col-span-3">From age
+              <input type="number" min="0" max="17" value={c.min_age} onChange={(e) => edit(i, { min_age: e.target.value })} className="mt-1 w-full rounded-control border border-slate-300 px-3 py-2 text-body font-normal" />
             </label>
-            <label className="col-span-6 text-xs font-bold text-slate-600 sm:col-span-3">To age
-              <input type="number" min="0" max="17" value={c.max_age} onChange={(e) => edit(i, { max_age: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
+            <label className="col-span-6 text-label font-bold text-slate-600 sm:col-span-3">To age
+              <input type="number" min="0" max="17" value={c.max_age} onChange={(e) => edit(i, { max_age: e.target.value })} className="mt-1 w-full rounded-control border border-slate-300 px-3 py-2 text-body font-normal" />
             </label>
-            <label className="col-span-12 text-xs font-bold text-slate-600 sm:col-span-6">Rule (English)
-              <textarea rows={3} maxLength={500} value={c.rule} onChange={(e) => edit(i, { rule: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
+            <label className="col-span-12 text-label font-bold text-slate-600 sm:col-span-6">Rule (English)
+              <textarea rows={3} maxLength={500} value={c.rule} onChange={(e) => edit(i, { rule: e.target.value })} className="mt-1 w-full rounded-control border border-slate-300 px-3 py-2 text-body font-normal" />
             </label>
-            <label className="col-span-12 text-xs font-bold text-slate-600 sm:col-span-6">Rule (Filipino, optional)
-              <textarea rows={3} maxLength={500} value={c.rule_fil} onChange={(e) => edit(i, { rule_fil: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" />
+            <label className="col-span-12 text-label font-bold text-slate-600 sm:col-span-6">Rule (Filipino, optional)
+              <textarea rows={3} maxLength={500} value={c.rule_fil} onChange={(e) => edit(i, { rule_fil: e.target.value })} className="mt-1 w-full rounded-control border border-slate-300 px-3 py-2 text-body font-normal" />
             </label>
             <div className="col-span-12 text-right">
-              <button type="button" onClick={() => { setCats((p) => p.filter((_, n) => n !== i)); setDirty(true); }} disabled={cats.length <= 1} className="cursor-pointer border-0 bg-transparent p-0 text-xs font-bold text-rose-600 hover:underline disabled:opacity-40">Remove category</button>
+              <button type="button" onClick={() => { setCats((p) => p.filter((_, n) => n !== i)); setDirty(true); }} disabled={cats.length <= 1} className="cursor-pointer border-0 bg-transparent p-0 text-label font-bold text-red-600 hover:underline disabled:opacity-40">Remove category</button>
             </div>
           </div>
         ))}
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={cats.length >= 6} onClick={() => { setCats((p) => [...p, { ...BLANK }]); setDirty(true); }} className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40">Add category</button>
-          <button type="button" disabled={!dirty || saving} onClick={save} className="ml-auto cursor-pointer rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save age rules'}</button>
+          <button type="button" disabled={cats.length >= 6} onClick={() => { setCats((p) => [...p, { ...BLANK }]); setDirty(true); }} className={btn('secondary', 'md')}>Add category</button>
+          <button type="button" disabled={!dirty || saving} onClick={save} className={btn('primary', 'md', 'ml-auto')}>{saving ? 'Saving…' : 'Save age rules'}</button>
         </div>
       </section>
       <HouseRulesPanel scope="minors" />

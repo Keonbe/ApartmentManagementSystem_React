@@ -22,6 +22,7 @@ import { printElement } from '../utils/print';
 import { clickable } from '../utils/clickable';
 import StatCard from '../Components/admin/StatCard';
 import Modal from '../Components/admin/Modal';
+import { TH, btn } from '../Components/admin/ui/styles';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -41,7 +42,7 @@ const deskMethodsFor = (label) => {
   if (l.includes('cash') || l.includes('in-person') || l.includes('in person')) return ['cash'];
   return [];
 };
-const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white';
+const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white';
 // Statuses adjust_invoice.php accepts (backend INVOICE_ADJUSTABLE_STATUSES).
 const ADJUSTABLE_STATUSES = ['pending', 'unpaid', 'overdue', 'scheduled', 'payment-failed'];
 // Manual invoice lines adjust_invoice.php may change; services, maintenance
@@ -556,7 +557,7 @@ const AdminPayments = () => {
     return kept.sort(sorters[depositSort] || sorters['tenant-asc']).map(({ c }) => c);
   })();
   const depositItemsList = (items) => (
-    <ul className="m-0 p-0 list-none space-y-0.5 text-[11px] text-slate-500 whitespace-normal">
+    <ul className="m-0 p-0 list-none space-y-0.5 text-caption text-slate-500 whitespace-normal">
       {items.map((it, i) => (
         <li key={i} className="flex justify-between gap-3">
           <span className="min-w-0"><span className="font-semibold text-slate-700">{it.label || it.category}</span>{it.reason ? `: ${it.reason}` : ''}</span>
@@ -566,7 +567,7 @@ const AdminPayments = () => {
     </ul>
   );
   const depositStatusBadge = (status) => (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+    <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap capitalize ${
       status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
       status === 'Applied to Rent' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
       status === 'Not Collected' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
@@ -850,12 +851,12 @@ const handleMarkAsPaid = async () => {
         <Sidebar />
         <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
           <Header title="Payment Management" />
-          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 text-center bg-white border border-slate-200 rounded-xl m-6">
-             <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-2xl mb-4">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 text-center bg-white border border-slate-200 rounded-card m-6">
+             <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-page mb-4">
                <FontAwesomeIcon icon={faInfoCircle} />
              </div>
-             <h3 className="text-lg font-bold text-slate-800 m-0">No Active Tenant Ledgers</h3>
-             <p className="text-slate-500 text-sm max-w-sm mt-2">There are currently no active tenant ledgers or invoices in the system. Create invoices or approve a tenant's rent application to view ledgers here.</p>
+             <h3 className="text-title font-bold text-slate-800 m-0">No Active Tenant Ledgers</h3>
+             <p className="text-slate-500 text-body max-w-sm mt-2">There are currently no active tenant ledgers or invoices in the system. Create invoices or approve a tenant's rent application to view ledgers here.</p>
           </div>
         </main>
       </div>
@@ -894,7 +895,7 @@ const handleMarkAsPaid = async () => {
 
             {/* Due Date Indicator Bar with Batch Reminder Button */}
             {(dueWithin5DaysCount > 0 || overdueCount > 0) && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-card text-body flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-card">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-700 text-base" />
                   <span>
@@ -905,7 +906,7 @@ const handleMarkAsPaid = async () => {
                   type="button"
                   onClick={handleBatchReminders}
                   disabled={batchSending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer border-0 shrink-0 self-start sm:self-auto disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-control text-label font-bold transition-colors cursor-pointer border-0 shrink-0 self-start sm:self-auto disabled:opacity-50"
                 >
                   <FontAwesomeIcon icon={faBell} />
                   {batchSending ? 'Sending Reminders...' : 'Send Due Reminders to All'}
@@ -916,14 +917,14 @@ const handleMarkAsPaid = async () => {
             <div className="flex border-b border-slate-200 mb-2 gap-4">
               <button 
                 onClick={() => setActiveTab('billing')}
-                className={`pb-3 pt-1 text-sm font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                className={`pb-3 pt-1 text-body font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               >
                 <FontAwesomeIcon icon={faFileAlt} className="mr-2" />
                 Tenant Billing & Payments
               </button>
               <button 
                 onClick={() => setActiveTab('deposits')}
-                className={`pb-3 pt-1 text-sm font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'deposits' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                className={`pb-3 pt-1 text-body font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'deposits' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               >
                 <FontAwesomeIcon icon={faShieldAlt} className="mr-2" />
                 Security Deposit Ledger
@@ -934,20 +935,20 @@ const handleMarkAsPaid = async () => {
             <>
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Tenant Selector */}
-              <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden h-[calc(100vh-18rem)] min-h-[500px]">
+              <div className="lg:col-span-4 bg-white border border-slate-200 rounded-card flex flex-col overflow-hidden h-[calc(100vh-18rem)] min-h-[500px]">
                 <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-800 m-0">Select Tenant</h3>
+                  <h3 className="text-body font-semibold text-slate-800 m-0">Select Tenant</h3>
                   {/* Search on its own row: beside the two filters it was squeezed to "Searc". */}
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-control px-3 py-1.5 focus-within:border-indigo-500 transition-all">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
-                      <input aria-label="Search tenants" maxLength={LIMITS.search} type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                      <input aria-label="Search tenants" maxLength={LIMITS.search} type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-body outline-none border-0 p-0 text-slate-800 bg-white" />
                     </div>
                     <div className="flex gap-2">
                       <select aria-label="Filter by payment status" 
                         value={statusFilter} 
                         onChange={e => setStatusFilter(e.target.value)} 
-                        className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                        className="flex-1 bg-white border border-slate-200 rounded-control px-2 py-1.5 text-label font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
                       >
                         <option value="all">All</option>
                         <option value="unpaid">Unpaid</option>
@@ -961,7 +962,7 @@ const handleMarkAsPaid = async () => {
                       <select aria-label="Sort tenants" 
                         value={sortOption} 
                         onChange={e => setSortOption(e.target.value)} 
-                        className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                        className="flex-1 bg-white border border-slate-200 rounded-control px-2 py-1.5 text-label font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
                       >
                         <option value="name-asc">Name ↑</option>
                         <option value="name-desc">Name ↓</option>
@@ -989,7 +990,7 @@ const handleMarkAsPaid = async () => {
                             {t.status === 'processing' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-700 animate-pulse" />}
                             {isDueSoon && t.status !== 'pending-verification' && t.status !== 'scheduled' && t.status !== 'processing' && t.status !== 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-700" />}
                           </p>
-                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold text-center uppercase shrink-0 ${
+                          <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-center shrink-0 capitalize ${
                             t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
                             t.status === 'pending-verification' ? 'bg-indigo-100 text-indigo-800' : 
                             t.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 
@@ -1000,8 +1001,8 @@ const handleMarkAsPaid = async () => {
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <p className="text-xs text-slate-600 m-0 min-w-0 truncate">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
                           {t.status !== 'paid'
-                            ? <p className="text-sm font-bold text-slate-900 m-0 shrink-0">{formatCurrency(tenantTotalDue)}</p>
-                            : <p className="text-xs font-medium text-slate-600 m-0 shrink-0">No balance</p>}
+                            ? <p className="text-body font-bold text-slate-900 m-0 shrink-0">{formatCurrency(tenantTotalDue)}</p>
+                            : <p className="text-label font-medium text-slate-600 m-0 shrink-0">No balance</p>}
                         </div>
                       </div>
                     );
@@ -1014,7 +1015,7 @@ const handleMarkAsPaid = async () => {
                 
                 {/* Dynamic Status Notification Banner */}
                 {showBanner && (
-                  <div className={`p-3 rounded-lg border flex items-center gap-3 text-sm font-semibold ${
+                  <div className={`p-3 rounded-control border flex items-center gap-3 text-body font-semibold ${
                     activeTenant.status === 'pending-verification' ? 'bg-indigo-50 border-indigo-200 text-indigo-800' :
                     activeTenant.status === 'scheduled' ? 'bg-blue-50 border-blue-200 text-blue-800' :
                     activeTenant.status === 'processing' ? 'bg-amber-50 border-amber-200 text-amber-800' :
@@ -1035,22 +1036,22 @@ const handleMarkAsPaid = async () => {
                   </div>
                 )}
 
-                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                <div className="bg-white border border-slate-200 rounded-card p-6 shadow-card">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faFileAlt} className="text-indigo-600" /> Billing Details</h3>
-                      <p className="text-sm text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
+                      <h3 className="text-title font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faFileAlt} className="text-indigo-600" /> Billing Details</h3>
+                      <p className="text-body text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
                     </div>
 
                     {/* Due Date & Reminder Controls */}
                     {activeTenant.status !== 'paid' && activeTenant.pendingInvoiceId && (
                       <div className="flex items-center gap-2 flex-wrap">
                         {activeTenant.lastReminderDate ? (
-                          <span className="text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-medium border border-slate-200">
+                          <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-slate-600 bg-slate-100 ring-slate-200 ring-1 ring-inset">
                             Last Reminded: <strong className="text-slate-700">{new Date(activeTenant.lastReminderDate).toLocaleDateString()}</strong> {activeTenant.reminderCount > 1 ? `(${activeTenant.reminderCount}x)` : ''}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                          <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-slate-500 bg-slate-50 ring-slate-200 ring-1 ring-inset">
                             No reminders sent yet
                           </span>
                         )}
@@ -1058,7 +1059,7 @@ const handleMarkAsPaid = async () => {
                           type="button"
                           onClick={() => handleSendReminder(activeTenant.pendingInvoiceId)}
                           disabled={sendingReminder}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-label font-bold rounded-control border border-indigo-200 cursor-pointer transition-colors disabled:opacity-50"
                         >
                           <FontAwesomeIcon icon={faBell} />
                           {sendingReminder ? 'Sending...' : 'Send Due Reminder'}
@@ -1070,56 +1071,56 @@ const handleMarkAsPaid = async () => {
                   {/* Read-only: what the bill says. The period, charges and due
                       date are changed with "Adjust invoice", never at the till. */}
                   <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-3 mb-2">
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">Period</p>
-                      <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.billingPeriod || '—'}</p>
+                    <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
+                      <p className="text-label text-slate-600 font-medium mb-1 m-0">Period</p>
+                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.billingPeriod || '—'}</p>
                     </div>
                     {/* A past-due bill shows the period it covers (from move-in), not its lapsed due date. */}
                     {activeTenant.pastDue ? (
-                      <div className="bg-rose-50 p-3 rounded-lg border border-rose-100">
-                        <p className="text-[11px] uppercase text-rose-700 font-semibold mb-1 m-0">Covers (overdue)</p>
-                        <p className="text-sm font-medium text-rose-800 m-0">{activeTenant.coveredPeriod}</p>
+                      <div className="bg-red-50 p-3 rounded-control border border-red-100">
+                        <p className="text-label text-red-700 font-medium mb-1 m-0">Covers (overdue)</p>
+                        <p className="text-body font-medium text-red-800 m-0">{activeTenant.coveredPeriod}</p>
                       </div>
                     ) : (
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">Due Date</p>
-                      <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.dueDate || '—'}</p>
+                    <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
+                      <p className="text-label text-slate-600 font-medium mb-1 m-0">Due Date</p>
+                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.dueDate || '—'}</p>
                     </div>
                     )}
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">Term</p>
-                      <p className="text-sm font-medium text-slate-800 m-0">Monthly</p>
-                      <p className="text-[11px] leading-snug text-slate-500 m-0 mt-0.5">Due on the move-in day each month</p>
+                    <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
+                      <p className="text-label text-slate-600 font-medium mb-1 m-0">Term</p>
+                      <p className="text-body font-medium text-slate-800 m-0">Monthly</p>
+                      <p className="text-caption leading-snug text-slate-500 m-0 mt-0.5">Due on the move-in day each month</p>
                     </div>
                     {[['Security Deposit', depositChip(activeTenant.account)], ['Prepaid Rent', prepaidChip(activeTenant.account)]].map(([label, chip]) => (
-                      <div key={label} className="bg-white p-3 rounded-lg border border-slate-200">
-                        <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1 m-0">{label}</p>
-                        <p className={`text-sm font-semibold m-0 ${CHIP_TONES[chip.tone]}`}>{chip.text}</p>
-                        {chip.sub && <p className="text-[11px] leading-snug text-slate-500 m-0 mt-0.5">{chip.sub}</p>}
+                      <div key={label} className="bg-white p-3 rounded-control border border-slate-200">
+                        <p className="text-label text-slate-600 font-medium mb-1 m-0 capitalize">{label}</p>
+                        <p className={`text-body font-semibold m-0 ${CHIP_TONES[chip.tone]}`}>{chip.text}</p>
+                        {chip.sub && <p className="text-caption leading-snug text-slate-500 m-0 mt-0.5">{chip.sub}</p>}
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between gap-3 mb-6 text-[11px] text-slate-500">
+                  <div className="flex items-center justify-between gap-3 mb-6 text-caption text-slate-500">
                     <span>Amounts, period and due date come from the invoice.</span>
                     {activeTenant.adjustInvoice && (
-                      <button type="button" onClick={openAdjust} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 border-solid text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                      <button type="button" onClick={openAdjust} className={btn('secondary', 'sm')}>
                         <FontAwesomeIcon icon={faFileAlt} /> Adjust invoice…
                       </button>
                     )}
                   </div>
 
                   {activeTenant.adjustments?.length > 0 && (
-                    <details className="mb-6 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                    <details className="mb-6 rounded-control border border-slate-200 bg-white p-3 text-label text-slate-600">
                       <summary className="cursor-pointer font-semibold text-slate-700">Adjustment history ({activeTenant.adjustments.length})</summary>
                       <ul className="m-0 mt-2 p-0 list-none space-y-2">
                         {activeTenant.adjustments.map(a => (
                           <li key={a.id} className="border-t border-slate-100 pt-2">
-                            <p className="m-0 text-[11px] text-slate-500">
+                            <p className="m-0 text-caption text-slate-500">
                               {a.created_at ? new Date(String(a.created_at).replace(' ', 'T')).toLocaleString() : '—'} · {a.admin || 'Admin'}
                               {activeTenant.advanceGroup ? <> · <span className="font-mono">{a.invoiceId}</span></> : null}
                             </p>
                             <p className="m-0 mt-0.5 text-slate-800">“{a.reason}”</p>
-                            <p className="m-0 mt-0.5 text-[11px]">
+                            <p className="m-0 mt-0.5 text-caption">
                               {Object.entries(a.changes || {}).map(([line, [from, to]]) => (
                                 <span key={line} className="mr-3 inline-block">
                                   {ADJUSTMENT_LINE_LABELS[line] || line}: {line === 'due_date' ? `${from || '—'} → ${to || '—'}` : `${formatCurrency(from)} → ${formatCurrency(to)}`}
@@ -1134,31 +1135,31 @@ const handleMarkAsPaid = async () => {
                   )}
 
                   {activeTenant.advanceInvoice && (
-                    <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
-                      <p className="m-0 text-xs font-bold text-indigo-800">
+                    <div className="mb-4 rounded-control border border-indigo-200 bg-indigo-50 p-3">
+                      <p className="m-0 text-label font-bold text-indigo-800">
                         Advance payment · {activeTenant.advanceInvoice.months} month{activeTenant.advanceInvoice.months === 1 ? '' : 's'} · <span className="font-mono">{activeTenant.advanceInvoice.id}</span>
                       </p>
-                      <p className="m-0 mt-1 text-[11px] text-indigo-700">
+                      <p className="m-0 mt-1 text-caption text-indigo-700">
                         {activeTenant.advanceInvoice.label}. Confirming it credits each month; the monthly rent invoices are still issued on their usual dates and paid from the credit, each with its own receipt.
                       </p>
                     </div>
                   )}
 
                   {activeTenant.account?.deposit?.state === 'unpaid' && activeTenant.pendingInvoiceId !== activeTenant.account.deposit.move_in_invoice && (
-                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    <div className="mb-4 rounded-control border border-amber-200 bg-amber-50 p-3 text-label text-amber-800">
                       <strong>Move-in invoice unpaid:</strong> {activeTenant.account.deposit.move_in_invoice} (advance rent + security deposit) is still open. The tenancy cannot start until it is paid.
                     </div>
                   )}
 
                   {activeTenant.advanceGroup && (
-                    <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
-                      <p className="m-0 text-xs font-bold text-indigo-800">
+                    <div className="mb-4 rounded-control border border-indigo-200 bg-indigo-50 p-3">
+                      <p className="m-0 text-label font-bold text-indigo-800">
                         {isBundleKey(activeTenant.advanceGroup.key) ? 'Combined payment' : 'Advance payment'} · {activeTenant.advanceGroup.months.length} {isBundleKey(activeTenant.advanceGroup.key) ? 'bill' : 'month'}{activeTenant.advanceGroup.months.length === 1 ? '' : 's'} · <span className="font-mono">{activeTenant.advanceGroup.key}</span>
                       </p>
-                      <p className="m-0 mt-1 text-[11px] text-indigo-700">
+                      <p className="m-0 mt-1 text-caption text-indigo-700">
                         Paid with one payment; confirming it settles each billing period as its own invoice, with its own receipt{isBundleKey(activeTenant.advanceGroup.key) ? ', plus one combined receipt for the tenant' : ''}.
                       </p>
-                      <ul className="m-0 mt-2 pl-4 text-[11px] text-indigo-900 space-y-0.5">
+                      <ul className="m-0 mt-2 pl-4 text-caption text-indigo-900 space-y-0.5">
                         {activeTenant.advanceGroup.months.map(m => (
                           <li key={m.id}>{m.billing_period} — {isPastDue(m) ? `covers ${formatCoveredPeriod(m)}` : `due ${m.due_date}`} — {formatCurrency(m.total_amount)} <span className="text-indigo-500">({m.id})</span></li>
                         ))}
@@ -1167,12 +1168,12 @@ const handleMarkAsPaid = async () => {
                   )}
 
                   <div className="flex items-end justify-between gap-4 border-t border-slate-100 pt-4 mb-6">
-                    <div className="max-w-xs flex items-start gap-2 text-[11px] text-slate-500">
+                    <div className="max-w-xs flex items-start gap-2 text-caption text-slate-500">
                       <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 text-indigo-400" />
                       <p className="m-0">The bill is settled in full at its total. To change a charge or the due date, or to add a one-off charge, adjust the invoice first; a rent extension is billed from the tenant's extension request.</p>
                     </div>
                     <div className="text-right flex flex-col items-end">
-                      <div className="mb-3 text-xs text-slate-500 space-y-1">
+                      <div className="mb-3 text-label text-slate-500 space-y-1">
                         <div className="flex justify-end gap-4"><span className="w-32 text-right">Base Rent:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.baseRent)}</span></div>
                         {activeTenant.billing.securityDeposit > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Security Deposit:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.securityDeposit)}</span></div>}
                         {activeTenant.billing.water > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Water:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.water)}</span></div>}
@@ -1183,49 +1184,49 @@ const handleMarkAsPaid = async () => {
                         {activeTenant.billing.lateFee > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Late Fee:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.lateFee)}</span></div>}
                         <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
                       </div>
-                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">Total Due</p>
+                      <p className="text-label font-medium text-slate-600 mb-1 m-0">Total Due</p>
                       <p className="text-3xl font-bold text-indigo-600 m-0 mt-0.5">{formatCurrency(totalDue)}</p>
                     </div>
                   </div>
 
                   {/* Payment Recording Area */}
                   {totalDue > 0 && activeTenant.status !== 'paid' && (
-                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-6">
+                    <div className="bg-slate-50 rounded-card border border-slate-200 p-4 mb-6">
                       <div className="mb-4 flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-slate-800 m-0">Record Payment</h4>
-                          <p className="mt-1 text-xs text-slate-500">{splitMode ? 'Allocate how the tenant is settling this bill' : 'Select the received payment method and verify details'}</p>
+                          <h4 className="text-body font-bold text-slate-800 m-0">Record Payment</h4>
+                          <p className="mt-1 text-label text-slate-500">{splitMode ? 'Allocate how the tenant is settling this bill' : 'Select the received payment method and verify details'}</p>
                         </div>
-                        <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-                          <input type="checkbox" className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" checked={splitMode} disabled={activeTenant.methodLocked || tenantSplit} onChange={e => setSplitMode(e.target.checked)} />
+                        <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-label font-semibold text-indigo-700">
+                          <input type="checkbox" className="h-4 w-4 rounded-control text-blue-600 focus:ring-blue-500" checked={splitMode} disabled={activeTenant.methodLocked || tenantSplit} onChange={e => setSplitMode(e.target.checked)} />
                           Split Payment
                         </label>
                       </div>
                       <div className={`grid grid-cols-1 ${splitMode ? '' : 'md:grid-cols-3'} gap-4 mb-4`}>
                         <div>
-                          {!splitMode && <label htmlFor="record-paymentMethod" className="mb-1 block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Method</label>}
+                          {!splitMode && <label htmlFor="record-paymentMethod" className="mb-1 block text-label font-medium text-slate-600">Method</label>}
                           {!splitMode && <>
-                            <select {...recordForm.fieldA11y('paymentMethod')} value={paymentMethod} disabled={activeTenant.methodLocked} onChange={e => { setPaymentMethod(e.target.value); recordForm.setErrors({}); }} className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 disabled:bg-slate-100 disabled:cursor-not-allowed${invalidCls(recordForm.errors.paymentMethod)}`}>
+                            <select {...recordForm.fieldA11y('paymentMethod')} value={paymentMethod} disabled={activeTenant.methodLocked} onChange={e => { setPaymentMethod(e.target.value); recordForm.setErrors({}); }} className={`w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500 disabled:bg-slate-100 disabled:cursor-not-allowed${invalidCls(recordForm.errors.paymentMethod)}`}>
                               {allowedMethods.map(m => <option key={m} value={m}>{m === 'cash' ? 'Cash' : m === 'gcash' ? 'GCash' : 'Bank Transfer'}</option>)}
                             </select>
-                            {paymentMethod === 'bank_transfer' && <><select className="w-full mt-2 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white" value={paymentParts[0]?.bank_name || ''} onChange={e => setPaymentParts([{ ...paymentParts[0], bank_name: e.target.value }])}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{paymentParts[0]?.bank_name === 'Other' && <input className={`${AMOUNT_INPUT} mt-2`} placeholder="Enter bank name" value={paymentParts[0]?.other_bank_name || ''} onChange={e => setPaymentParts([{ ...paymentParts[0], other_bank_name: e.target.value }])} />}</>}
+                            {paymentMethod === 'bank_transfer' && <><select className="w-full mt-2 px-3 py-2 text-body border border-slate-200 rounded-control bg-white" value={paymentParts[0]?.bank_name || ''} onChange={e => setPaymentParts([{ ...paymentParts[0], bank_name: e.target.value }])}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{paymentParts[0]?.bank_name === 'Other' && <input className={`${AMOUNT_INPUT} mt-2`} placeholder="Enter bank name" value={paymentParts[0]?.other_bank_name || ''} onChange={e => setPaymentParts([{ ...paymentParts[0], other_bank_name: e.target.value }])} />}</>}
                             <FieldError id="record-paymentMethod" error={recordForm.errors.paymentMethod} />
                           </>}
                           {activeTenant.methodLocked ? (
-                            <p className="text-[11px] text-slate-500 m-0 mt-1">Declared by the tenant with their proof ({activeTenant.declaredLabel}). To record another method, reject the proof.</p>
+                            <p className="text-caption text-slate-500 m-0 mt-1">Declared by the tenant with their proof ({activeTenant.declaredLabel}). To record another method, reject the proof.</p>
                           ) : activeTenant.declaredLabel && (
-                            <p className="text-[11px] text-slate-500 m-0 mt-1">Tenant chose: {activeTenant.declaredLabel}</p>
+                            <p className="text-caption text-slate-500 m-0 mt-1">Tenant chose: {activeTenant.declaredLabel}</p>
                           )}
                         </div>
                         <div>
-                          {!splitMode && <label htmlFor="record-amountPaid" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{paymentMethod === 'cash' ? 'Amount Tendered' : 'Amount Received'}</label>}
+                          {!splitMode && <label htmlFor="record-amountPaid" className="block text-label font-medium text-slate-600 mb-1 capitalize">{paymentMethod === 'cash' ? 'Amount Tendered' : 'Amount Received'}</label>}
                           {!splitMode && <input type="number" {...recordForm.fieldA11y('amountPaid')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={amountTendered}
                             onKeyDown={blockNonNumericKeys}
                             onChange={e => { setAmountTendered(e.target.value); recordForm.clearError('amountPaid'); }}
                             onBlur={() => amountTendered !== '' && blurRecord('amountPaid')}
                             className={AMOUNT_INPUT + invalidCls(recordForm.errors.amountPaid)} placeholder="0" />}
                           {splitMode && <div className="w-full min-w-0 space-y-3">
-                            <div className="hidden grid-cols-12 gap-3 px-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:grid"><div className="col-span-3">Method</div><div className="col-span-4">Bank / Reference No.</div><div className="col-span-4">Amount (PHP)</div><div className="col-span-1 text-center">Action</div></div>
+                            <div className="hidden grid-cols-12 gap-3 px-3 text-label font-medium text-slate-600 sm:grid"><div className="col-span-3">Method</div><div className="col-span-4">Bank / Reference No.</div><div className="col-span-4">Amount (PHP)</div><div className="col-span-1 text-center">Action</div></div>
                             {paymentParts.map((part, index) => {
                               const updatePart = (changes) => setPaymentParts(parts => parts.map((p, i) => i === index ? { ...p, ...changes } : p));
                               const amountValue = Number(part.amount);
@@ -1240,32 +1241,32 @@ const handleMarkAsPaid = async () => {
                                 <div className="col-span-2 flex justify-center sm:col-span-1"><button type="button" aria-label={`Remove portion ${index + 1}`} disabled={paymentParts.length === 1 || tenantSplit} onClick={() => setPaymentParts(parts => parts.filter((_, i) => i !== index))} className="flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-slate-200 bg-white text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-35">✕</button></div>
                               </div>;
                             })}
-                            <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center"><button type="button" disabled={paymentParts.length >= 2 || tenantSplit} title={paymentParts.length >= 2 ? 'Split payments use two methods at most' : undefined} onClick={() => setPaymentParts(parts => parts.length < 4 ? [...parts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }] : parts)} className="self-start text-xs font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">+ Add payment portion ({paymentParts.length}/2)</button><div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">Allocated: {formatCurrency(splitTotal)}</span><span className={`rounded-full px-3 py-1.5 ${remainingBalance === 0 ? 'bg-emerald-50 text-emerald-700' : remainingBalance > 0 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>{remainingBalance === 0 ? '✓ Balanced' : remainingBalance > 0 ? `Remaining: ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div></div>
+                            <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center"><button type="button" disabled={paymentParts.length >= 2 || tenantSplit} title={paymentParts.length >= 2 ? 'Split payments use two methods at most' : undefined} onClick={() => setPaymentParts(parts => parts.length < 4 ? [...parts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }] : parts)} className="self-start text-label font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">+ Add payment portion ({paymentParts.length}/2)</button><div className="flex flex-wrap gap-2 text-label font-semibold"><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">Allocated: {formatCurrency(splitTotal)}</span><span className={`rounded-full px-3 py-1.5 ${remainingBalance === 0 ? 'bg-emerald-50 text-emerald-700' : remainingBalance > 0 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{remainingBalance === 0 ? '✓ Balanced' : remainingBalance > 0 ? `Remaining: ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div></div>
                           </div>}
                           {!splitMode && <FieldError id="record-amountPaid" error={recordForm.errors.amountPaid} />}
                           {!splitMode && activeTenant.canPartPay && declaredPart === null && (
-                            <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+                            <label className="mt-2 flex items-center gap-2 text-label font-semibold text-slate-600">
                               <input type="checkbox" checked={adminPart} onChange={e => { setPartChoice({ tenant: activeTenant, on: e.target.checked }); recordForm.clearError('amountPaid'); }} />
                               Record part-payment (the rest stays due)
                             </label>
                           )}
-                          {declaredPart !== null && partMode && <p className="m-0 mt-1 text-[11px] text-indigo-600">The tenant paid part of the bill: {formatCurrency(declaredPart)} of {formatCurrency(activeTenant.pendingAmount)}. It is recorded as a part-payment.</p>}
+                          {declaredPart !== null && partMode && <p className="m-0 mt-1 text-caption text-indigo-600">The tenant paid part of the bill: {formatCurrency(declaredPart)} of {formatCurrency(activeTenant.pendingAmount)}. It is recorded as a part-payment.</p>}
                           {(activeTenant.paidSoFar || 0) > 0 && (
-                            <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 p-2 text-[11px] text-slate-600">
+                            <div className="mt-2 rounded-control border border-emerald-100 bg-emerald-50/60 p-2 text-caption text-slate-600">
                               <p className="m-0 font-semibold text-emerald-700">Paid so far {formatCurrency(activeTenant.paidSoFar)} of {formatCurrency(activeTenant.invoiceTotal)} · balance {formatCurrency(activeTenant.pendingAmount)}</p>
                               {(activeTenant.partsList || []).map(p => <p key={p.id} className="m-0">{String(p.created_at || '').slice(0, 10)} · {p.payment_method}{p.bank_name ? ` (${p.bank_name})` : ''} · {formatCurrency(p.amount)}{p.reference_number ? ` · ref ${p.reference_number}` : ''}</p>)}
                             </div>
                           )}
                         </div>
                         <div className={splitMode ? 'hidden' : ''}>
-                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Change</label>
-                          <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 text-slate-700 font-semibold">{formatCurrency(change)}</div>
+                          <label className="block text-label font-medium text-slate-600 mb-1">Change</label>
+                          <div className="w-full px-3 py-2 text-body border border-slate-200 rounded-control bg-slate-100 text-slate-700 font-semibold">{formatCurrency(change)}</div>
                         </div>
                       </div>
 
                       {!splitMode && paymentMethod !== 'cash' && (
                         <div className="mt-3">
-                          <label htmlFor="record-paymentReference" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference No.</label>
+                          <label htmlFor="record-paymentReference" className="block text-label font-medium text-slate-600 mb-1">Reference No.</label>
                           <input
                             type="text"
                             {...recordForm.fieldA11y('paymentReference')}
@@ -1283,21 +1284,21 @@ const handleMarkAsPaid = async () => {
                       )}
                       
                       {(activeTenant.status === 'pending-verification' || activeTenant.proofOfPaymentPath) && (
-                        <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3">
+                        <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-card space-y-3">
                           <div className="flex items-center justify-between">
-                            <h5 className="text-xs font-bold text-indigo-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                            <h5 className="text-label font-medium text-indigo-900 m-0 flex items-center gap-1.5 capitalize">
                               <FontAwesomeIcon icon={faInfoCircle} /> E-Receipt Metadata Verification
                             </h5>
                             {activeTenant.status === 'pending-verification' && (
-                              <span className="text-[11px] bg-indigo-200/70 text-indigo-900 px-2 py-0.5 rounded-full font-bold">Verification Needed</span>
+                              <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-indigo-200/70 text-indigo-900">Verification Needed</span>
                             )}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-indigo-950 font-medium">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-label text-indigo-950 font-medium">
                              <div><span className="text-indigo-500 font-bold mr-1">Sender Profile Name:</span> {activeTenant.senderName || 'Not Captured'}</div>
-                             {!activeTenant.splitParts?.length && <div><span className="text-indigo-500 font-bold mr-1">Network Reference No:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200/60 font-bold text-slate-800">{activeTenant.paymentReference || '—'}</span></div>}
+                             {!activeTenant.splitParts?.length && <div><span className="text-indigo-500 font-bold mr-1">Network Reference No:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded-control border border-indigo-200/60 font-bold text-slate-800">{activeTenant.paymentReference || '—'}</span></div>}
                           </div>
                           {activeTenant.referenceReuse && (
-                            <p role="status" className="m-0 flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800">
+                            <p role="status" className="m-0 flex items-start gap-1.5 rounded-control border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-caption font-semibold text-amber-800">
                               <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5" />
                               <span>
                                 Reference already used on invoice <span className="font-mono">{activeTenant.referenceReuse.invoice_id}</span>
@@ -1308,9 +1309,9 @@ const handleMarkAsPaid = async () => {
                           )}
                           {activeTenant.splitParts?.length > 0 && (
                             <div className="space-y-1.5 border-t border-indigo-100 pt-2">
-                              <div className="text-[11px] font-bold uppercase tracking-wide text-indigo-500">Split payment portions submitted by the tenant</div>
+                              <div className="text-label font-medium text-indigo-500">Split payment portions submitted by the tenant</div>
                               {activeTenant.splitParts.map((p, i) => (
-                                <div key={i} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+                                <div key={i} className="flex flex-wrap items-center justify-between gap-2 text-label text-slate-700">
                                   <span>
                                     <strong>{{ cash: 'Cash', gcash: 'GCash', bank_transfer: 'Bank transfer' }[p.method] || p.method}</strong> {formatCurrency(p.amount)}
                                     {p.bank_name ? ` · ${p.bank_name}` : ''}
@@ -1318,13 +1319,13 @@ const handleMarkAsPaid = async () => {
                                   </span>
                                   {p.proof_path ? (
                                     <span className="inline-flex flex-wrap items-center gap-1.5"><button type="button" onClick={() => setPreviewProof({ url: getBackendAssetUrl(p.proof_path), title: `Proof of Payment — ${activeTenant.name} (${activeTenant.unit})`, reference: p.reference_number, sender: activeTenant.senderName })}
-                                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50">
+                                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-control border border-indigo-200 bg-white px-2.5 py-1 text-caption font-bold text-indigo-700 hover:bg-indigo-50">
                                       <FontAwesomeIcon icon={faEye} /> Preview proof
                                     </button>
-                                    <a href={getBackendAssetUrl(p.proof_path)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-700 no-underline hover:bg-indigo-50">
+                                    <a href={getBackendAssetUrl(p.proof_path)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-control border border-indigo-200 bg-white px-2.5 py-1 text-caption font-bold text-indigo-700 no-underline hover:bg-indigo-50">
                                       <FontAwesomeIcon icon={faExternalLinkAlt} /> Open in new tab
                                     </a></span>
-                                  ) : <span className="text-[11px] text-slate-500">Cash at the office{activeTenant.scheduledDate ? ` on ${activeTenant.scheduledDate} (${activeTenant.scheduledTimeSlot || 'time not set'})` : ''}</span>}
+                                  ) : <span className="text-caption text-slate-500">Cash at the office{activeTenant.scheduledDate ? ` on ${activeTenant.scheduledDate} (${activeTenant.scheduledTimeSlot || 'time not set'})` : ''}</span>}
                                 </div>
                               ))}
                             </div>
@@ -1339,7 +1340,7 @@ const handleMarkAsPaid = async () => {
                                   reference: activeTenant.paymentReference,
                                   sender: activeTenant.senderName
                                 })}
-                                className="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all border-0 cursor-pointer shadow-sm"
+                                className={btn('primary', 'sm')}
                               >
                                 <FontAwesomeIcon icon={faEye} /> Preview Proof in Modal
                               </button>
@@ -1347,7 +1348,7 @@ const handleMarkAsPaid = async () => {
                                 href={getBackendAssetUrl(activeTenant.proofOfPaymentPath)} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="inline-flex items-center gap-1.5 bg-white text-indigo-700 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-all no-underline shadow-sm"
+                                className="inline-flex items-center gap-1.5 bg-white text-indigo-700 border border-indigo-200 px-3.5 py-2 rounded-card text-label font-bold hover:bg-indigo-50 transition-all no-underline shadow-card"
                               >
                                 <FontAwesomeIcon icon={faExternalLinkAlt} /> Open Full Asset in New Tab
                               </a>
@@ -1357,11 +1358,11 @@ const handleMarkAsPaid = async () => {
                       )}
 
                       {activeTenant.status === 'scheduled' && (
-                        <div className="mt-2 p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
-                          <h5 className="text-xs font-bold text-blue-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                        <div className="mt-2 p-4 bg-blue-50 border border-blue-100 rounded-card space-y-3">
+                          <h5 className="text-label font-medium text-blue-900 m-0 flex items-center gap-1.5 capitalize">
                             <FontAwesomeIcon icon={faCalendarAlt} /> In-Person Visit Scheduled
                           </h5>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-blue-950 font-medium">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-label text-blue-950 font-medium">
                              <div><span className="text-blue-500 font-bold mr-1">Scheduled Date:</span> {activeTenant.scheduledDate || 'Not Captured'}</div>
                              <div><span className="text-blue-500 font-bold mr-1">Time Slot:</span> <span className="font-bold text-slate-800">{activeTenant.scheduledTimeSlot === 'morning' ? 'Morning (9am-12pm)' : activeTenant.scheduledTimeSlot === 'afternoon' ? 'Afternoon (1pm-5pm)' : activeTenant.scheduledTimeSlot}</span></div>
                           </div>
@@ -1369,21 +1370,21 @@ const handleMarkAsPaid = async () => {
                       )}
 
                       {activeTenant.status === 'processing' && (
-                        <div className="mt-2 p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-3">
-                           <h5 className="text-xs font-bold text-amber-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                        <div className="mt-2 p-4 bg-amber-50 border border-amber-100 rounded-card space-y-3">
+                           <h5 className="text-label font-medium text-amber-900 m-0 flex items-center gap-1.5 capitalize">
                             <FontAwesomeIcon icon={faExclamationTriangle} /> Checkout Processing
                            </h5>
-                           <p className="text-xs text-amber-800 m-0">An online checkout session is currently active. Please wait for the webhook to confirm payment. A payment can't be recorded here while it is open, so the tenant is never charged twice.</p>
+                           <p className="text-label text-amber-800 m-0">An online checkout session is currently active. Please wait for the webhook to confirm payment. A payment can't be recorded here while it is open, so the tenant is never charged twice.</p>
                            <button type="button" onClick={handleReleaseCheckout} disabled={releasing}
-                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 border-solid text-amber-800 text-xs font-semibold rounded-lg hover:bg-amber-100 cursor-pointer transition-colors disabled:opacity-50">
+                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 border-solid text-amber-800 text-label font-semibold rounded-control hover:bg-amber-100 cursor-pointer transition-colors disabled:opacity-50">
                              <FontAwesomeIcon icon={faTimes} /> {releasing ? 'Cancelling…' : 'Cancel online checkout'}
                            </button>
                         </div>
                       )}
                       
                       {activeTenant.status === 'payment-failed' && (
-                        <div className="mt-2 p-4 bg-red-50 border border-red-100 rounded-xl space-y-3">
-                           <h5 className="text-xs font-bold text-red-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                        <div className="mt-2 p-4 bg-red-50 border border-red-100 rounded-card space-y-3">
+                           <h5 className="text-label font-medium text-red-900 m-0 flex items-center gap-1.5 capitalize">
                             <FontAwesomeIcon icon={faExclamationTriangle} /> Payment Failed
                            </h5>
                            <p className="text-xs text-red-800 m-0">The online payment attempt failed. You can record a manual payment here instead.</p>
@@ -1393,50 +1394,50 @@ const handleMarkAsPaid = async () => {
                   )}
 
                   {totalDue > 0 && !['paid', 'processing', ...TENANT_ACTED_STATUSES].includes(activeTenant.status) && (
-                    <p className="m-0 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Waiting for the tenant to pay or schedule a visit in Pay Bills. You can clear this bill once they do.</p>
+                    <p className="m-0 mb-3 rounded-control border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-800">Waiting for the tenant to pay or schedule a visit in Pay Bills. You can clear this bill once they do.</p>
                   )}
                   <div className="flex flex-wrap gap-3">
                     <button
                       onClick={handleConfirmPayment}
                       disabled={recording || totalDue <= 0 || !TENANT_ACTED_STATUSES.includes(activeTenant.status) || (splitMode && !splitCanProcess)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors border-0 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                      className={btn('success', 'md', 'flex-1 justify-center')}
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment
                     </button>
                     {activeTenant.status === 'pending-verification' && (
                       <button
                         onClick={handleRejectProof}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 border-solid cursor-pointer transition-colors"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-700 rounded-control text-body font-semibold hover:bg-red-50 border-solid cursor-pointer transition-colors"
                       >
                         <FontAwesomeIcon icon={faExclamationTriangle} /> Reject Proof
                       </button>
                     )}
-                    <button onClick={() => handleGenerateReceipt()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> View Draft Receipt</button>
+                    <button onClick={() => handleGenerateReceipt()} className={btn('secondary', 'md')}><FontAwesomeIcon icon={faPrint} /> View Draft Receipt</button>
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex-1">
+                <div className="bg-white border border-slate-200 rounded-card p-6 shadow-card flex-1">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-500" /> Payment History</h3>
+                      <h3 className="text-body font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-500" /> Payment History</h3>
                     </div>
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus-within:border-indigo-400 transition-colors">
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-control px-2 py-1 focus-within:border-indigo-400 transition-colors">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
-                      <input aria-label="Filter payment history by period" maxLength={LIMITS.search} type="text" placeholder="Filter period..." value={historySearchPeriod} onChange={e => {setHistorySearchPeriod(e.target.value); setHistoryPage(1);}} className="bg-transparent text-xs outline-none border-0 p-0 text-slate-700 w-24 bg-slate-50" />
+                      <input aria-label="Filter payment history by period" maxLength={LIMITS.search} type="text" placeholder="Filter period..." value={historySearchPeriod} onChange={e => {setHistorySearchPeriod(e.target.value); setHistoryPage(1);}} className="bg-transparent text-label outline-none border-0 p-0 text-slate-700 w-24 bg-slate-50" />
                     </div>
                   </div>
                   
                   <div className="w-full overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                    <table className="min-w-full divide-y divide-slate-200 text-left text-label">
                       <thead>
-                        <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wide bg-slate-50">
-                          <th className="w-32 px-4 py-3">Period</th>
-                          <th className="w-28 px-4 py-3">Amount</th>
-                          <th className="w-32 px-4 py-3">Method</th>
-                          <th className="max-w-xs px-4 py-3">Breakdown</th>
-                          <th className="w-40 px-4 py-3 whitespace-nowrap">Date Paid</th>
-                          <th className="w-28 px-4 py-3 text-center whitespace-nowrap">Proof</th>
-                          <th className="w-28 px-4 py-3 text-center whitespace-nowrap">Receipt</th>
+                        <tr className="border-b border-slate-200 text-label font-medium text-slate-600 bg-slate-50">
+                          <th className={`${TH} w-32`}>Period</th>
+                          <th className={`${TH} w-28`}>Amount</th>
+                          <th className={`${TH} w-32`}>Method</th>
+                          <th className={`${TH} max-w-xs`}>Breakdown</th>
+                          <th className={`${TH} w-40 whitespace-nowrap`}>Date Paid</th>
+                          <th className={`${TH} w-28 text-center whitespace-nowrap`}>Proof</th>
+                          <th className={`${TH} w-28 text-center whitespace-nowrap`}>Receipt</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1462,19 +1463,19 @@ const handleMarkAsPaid = async () => {
                                     reference: record.paymentReference,
                                     sender: record.senderName
                                   })}
-                                  className="text-xs inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md border border-indigo-200 cursor-pointer font-semibold transition-colors"
+                                  className="text-label inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-control border border-indigo-200 cursor-pointer font-semibold transition-colors"
                                   title="View Uploaded Payment Proof"
                                 >
                                   <FontAwesomeIcon icon={faEye} /> Proof
                                 </button>
                               ) : (
-                                <span className="text-slate-300 text-xs">—</span>
+                                <span className="text-slate-300 text-label">—</span>
                               )}
                             </td>
-                            <td className="w-28 px-4 py-3 text-center whitespace-nowrap"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
+                            <td className="w-28 px-4 py-3 text-center whitespace-nowrap"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded-control cursor-pointer transition-colors text-label" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
                           </tr>
                         )) : (
-                          <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
+                          <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-body">No records found.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1482,10 +1483,10 @@ const handleMarkAsPaid = async () => {
                   
                   {historyPageCount > 1 && (
                     <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
-                      <p className="text-xs text-slate-500 m-0">Showing Page {historyPage} of {historyPageCount}</p>
+                      <p className="text-label text-slate-500 m-0">Showing Page {historyPage} of {historyPageCount}</p>
                       <div className="flex gap-1">
-                        <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1} className="px-2 py-1 text-xs border border-slate-200 rounded bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 cursor-pointer">Prev</button>
-                        <button onClick={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))} disabled={historyPage === historyPageCount} className="px-2 py-1 text-xs border border-slate-200 rounded bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 cursor-pointer">Next</button>
+                        <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1} className={btn('secondary', 'sm')}>Prev</button>
+                        <button onClick={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))} disabled={historyPage === historyPageCount} className={btn('secondary', 'sm')}>Next</button>
                       </div>
                     </div>
                   )}
@@ -1495,9 +1496,9 @@ const handleMarkAsPaid = async () => {
             </div>
 
             {/* ─── PAYMENT TRACKING DASHBOARD ─── */}
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2">
                   <FontAwesomeIcon icon={faChartBar} className="text-indigo-600" />
                   Payment Tracking Dashboard
                 </h3>
@@ -1507,13 +1508,13 @@ const handleMarkAsPaid = async () => {
                 {/* Monthly Collection Progress */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Monthly Collection Progress</span>
-                    <span className="text-xs font-bold text-indigo-600">{collectionPct}%</span>
+                    <span className="text-label font-medium text-slate-600">Monthly Collection Progress</span>
+                    <span className="text-label font-bold text-indigo-600">{collectionPct}%</span>
                   </div>
                   <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all duration-500 ${collectionPct >= 80 ? 'bg-emerald-500' : collectionPct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${collectionPct}%` }}></div>
                   </div>
-                  <div className="flex justify-between text-[11px] text-slate-500 mt-1">
+                  <div className="flex justify-between text-caption text-slate-500 mt-1">
                     <span>Collected: {formatCurrency(monthlyCollected)}</span>
                     <span>Target: {formatCurrency(monthlyTarget)}</span>
                   </div>
@@ -1521,23 +1522,23 @@ const handleMarkAsPaid = async () => {
 
                 {/* Outstanding Balance Aging */}
                 <div>
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3 m-0">Outstanding Balance Aging</h4>
+                  <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Outstanding Balance Aging</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
-                      <p className="text-sm lg:text-base font-bold text-emerald-700 m-0">{formatCurrency(agingData.current)}</p>
-                      <p className="text-[11px] text-emerald-700 font-semibold m-0 mt-0.5">Current</p>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-control p-3 text-center">
+                      <p className="text-body lg:text-title font-bold text-emerald-700 m-0">{formatCurrency(agingData.current)}</p>
+                      <p className="text-caption text-emerald-700 font-semibold m-0 mt-0.5">Current</p>
                     </div>
-                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
-                      <p className="text-sm lg:text-base font-bold text-amber-700 m-0">{formatCurrency(agingData.days15)}</p>
-                      <p className="text-[11px] text-amber-700 font-semibold m-0 mt-0.5">1–15 Days</p>
+                    <div className="bg-amber-50 border border-amber-100 rounded-control p-3 text-center">
+                      <p className="text-body lg:text-title font-bold text-amber-700 m-0">{formatCurrency(agingData.days15)}</p>
+                      <p className="text-caption text-amber-700 font-semibold m-0 mt-0.5">1–15 Days</p>
                     </div>
-                    <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-center">
-                      <p className="text-sm lg:text-base font-bold text-orange-700 m-0">{formatCurrency(agingData.days30)}</p>
-                      <p className="text-[11px] text-orange-600 font-semibold m-0 mt-0.5">16–30 Days</p>
+                    <div className="bg-orange-50 border border-orange-100 rounded-control p-3 text-center">
+                      <p className="text-body lg:text-title font-bold text-orange-700 m-0">{formatCurrency(agingData.days30)}</p>
+                      <p className="text-caption text-orange-600 font-semibold m-0 mt-0.5">16–30 Days</p>
                     </div>
-                    <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
-                      <p className="text-sm lg:text-base font-bold text-red-700 m-0">{formatCurrency(agingData.days60plus)}</p>
-                      <p className="text-[11px] text-red-600 font-semibold m-0 mt-0.5">60+ Days</p>
+                    <div className="bg-red-50 border border-red-100 rounded-control p-3 text-center">
+                      <p className="text-body lg:text-title font-bold text-red-700 m-0">{formatCurrency(agingData.days60plus)}</p>
+                      <p className="text-caption text-red-600 font-semibold m-0 mt-0.5">60+ Days</p>
                     </div>
                   </div>
                   {/* Aging visual bar */}
@@ -1553,17 +1554,17 @@ const handleMarkAsPaid = async () => {
 
                 {/* Per-Tenant Payment Status */}
                 <div>
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3 m-0">Per-Tenant Payment Status</h4>
+                  <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Per-Tenant Payment Status</h4>
                   <div className="space-y-2">
                     {tenants.map(t => {
                       const paidCount = t.history.filter(h => h.status === 'paid').length;
                       return (
-                        <div key={t.id} className="flex items-center gap-3 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">{t.name.charAt(0)}</div>
+                        <div key={t.id} className="flex items-center gap-3 p-2 rounded-control bg-slate-50 border border-slate-100">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-label font-bold shrink-0">{t.name.charAt(0)}</div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-slate-700 truncate">{t.name} · Unit {t.unit}</span>
-                              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
+                              <span className="text-label font-medium text-slate-700 truncate">{t.name} · Unit {t.unit}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${
                                 t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
                                 t.status === 'pending-verification' ? 'bg-indigo-100 text-indigo-800' : 
                                 t.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 
@@ -1572,8 +1573,8 @@ const handleMarkAsPaid = async () => {
                               }`}>{t.status.toUpperCase()}</span>
                             </div>
                             <div className="flex justify-between mt-0.5">
-                              <span className="text-[11px] text-slate-500">{paidCount} payments recorded</span>
-                              {(t.outstandingBalance || 0) > 0 && <span className="text-[11px] text-red-600 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
+                              <span className="text-caption text-slate-500">{paidCount} payments recorded</span>
+                              {(t.outstandingBalance || 0) > 0 && <span className="text-caption text-red-600 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
                             </div>
                           </div>
                         </div>
@@ -1585,24 +1586,24 @@ const handleMarkAsPaid = async () => {
                 {/* ─── OUTSTANDING BALANCE ─── */}
                 {/* Payments, full or part, are recorded via Record Payment
                     above; this panel only monitors what is still owed. */}
-                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
                   <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                    <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2">
                       <FontAwesomeIcon icon={faBalanceScale} className="text-violet-600" />
                       Outstanding Balance — {activeTenant.name}
                     </h3>
                   </div>
                   <div className="p-6 space-y-4">
                     {/* Outstanding Balance Monitor */}
-                    <div className={`rounded-xl p-4 border flex items-center justify-between ${(activeTenant.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <div className={`rounded-card p-4 border flex items-center justify-between ${(activeTenant.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                       <div className="flex items-center gap-3">
                         <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600 text-xl' : 'text-emerald-700 text-xl'} />
                         <div>
-                          <p className="text-sm font-bold text-slate-800 m-0">Outstanding Balance</p>
-                          <p className="text-[11px] text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
+                          <p className="text-body font-bold text-slate-800 m-0">Outstanding Balance</p>
+                          <p className="text-caption text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
                         </div>
                       </div>
-                      <p className={`text-2xl font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                      <p className={`text-page font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                         {formatCurrency(activeTenant.outstandingBalance || 0)}
                       </p>
                     </div>
@@ -1617,13 +1618,13 @@ const handleMarkAsPaid = async () => {
             {activeTab === 'deposits' && (
             <div className="grid grid-cols-1 gap-6">
               {/* ─── SECURITY DEPOSIT TRACKING LEDGER ─── */}
-              <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2">
                   <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-700" />
                   Security Deposit Tracking Ledger
                 </h3>
-                <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wider">Non-Refundable Held Assets</span>
+                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-emerald-50 text-emerald-700 ring-emerald-100 ring-1 ring-inset">Non-Refundable Held Assets</span>
               </div>
               
               <div className="p-6 space-y-6">
@@ -1636,35 +1637,35 @@ const handleMarkAsPaid = async () => {
 
                 {/* Ledger search, filter and sort */}
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
+                  <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-control px-3 py-1.5 focus-within:border-indigo-500 transition-all">
                     <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
-                    <input maxLength={LIMITS.search} type="text" aria-label="Search deposits by tenant or unit" placeholder="Search tenant or unit..." value={depositSearch} onChange={(e) => setDepositSearch(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0" />
+                    <input maxLength={LIMITS.search} type="text" aria-label="Search deposits by tenant or unit" placeholder="Search tenant or unit..." value={depositSearch} onChange={(e) => setDepositSearch(e.target.value)} className="w-full bg-transparent text-body outline-none border-0 p-0" />
                   </div>
                   <div className="flex gap-2">
-                    <select aria-label="Filter deposits" value={depositFilter} onChange={(e) => setDepositFilter(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all">
+                    <select aria-label="Filter deposits" value={depositFilter} onChange={(e) => setDepositFilter(e.target.value)} className="bg-white border border-slate-200 rounded-control px-2 py-1.5 text-label font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all">
                       {DEPOSIT_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
-                    <select aria-label="Sort deposits" value={depositSort} onChange={(e) => setDepositSort(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all">
+                    <select aria-label="Sort deposits" value={depositSort} onChange={(e) => setDepositSort(e.target.value)} className="bg-white border border-slate-200 rounded-control px-2 py-1.5 text-label font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all">
                       {DEPOSIT_SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                   </div>
-                  <span className="text-[11px] text-slate-500 font-semibold sm:ml-auto whitespace-nowrap">{visibleContracts.length} of {contracts.length}</span>
+                  <span className="text-caption text-slate-500 font-semibold sm:ml-auto whitespace-nowrap">{visibleContracts.length} of {contracts.length}</span>
                 </div>
 
                 {/* Detailed Deposits Table */}
-                <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-xl">
-                  <table className="w-full text-left text-xs whitespace-nowrap">
+                <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-card">
+                  <table className="w-full text-left text-label whitespace-nowrap">
                     <thead>
-                      <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wide bg-slate-50">
-                        <th className="py-3 px-4">Tenant Name</th>
-                        <th className="py-3 px-4 text-center">Unit</th>
-                        <th className="py-3 px-4">Rent Term</th>
-                        <th className="py-3 px-4">Original Deposit</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4">Fixture Damages</th>
-                        <th className="py-3 px-4">Unpaid Utilities</th>
-                        <th className="py-3 px-4">Applied to Rent</th>
-                        <th className="py-3 px-4">Refunded</th>
+                      <tr className="border-b border-slate-200 text-label font-medium text-slate-600 bg-slate-50">
+                        <th className={TH}>Tenant Name</th>
+                        <th className={`${TH} text-center`}>Unit</th>
+                        <th className={TH}>Rent Term</th>
+                        <th className={TH}>Original Deposit</th>
+                        <th className={TH}>Status</th>
+                        <th className={TH}>Fixture Damages</th>
+                        <th className={TH}>Unpaid Utilities</th>
+                        <th className={TH}>Applied to Rent</th>
+                        <th className={TH}>Refunded</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1682,13 +1683,13 @@ const handleMarkAsPaid = async () => {
                             <td className={`py-3.5 px-4 font-semibold ${dmg > 0 ? 'text-red-600' : 'text-slate-500'}`}>{dmg > 0 ? formatCurrency(dmg) : '—'}</td>
                             <td className={`py-3.5 px-4 font-semibold ${utl > 0 ? 'text-red-600' : 'text-slate-500'}`}>{utl > 0 ? formatCurrency(utl) : '—'}</td>
                             <td className="py-3.5 px-4 font-bold text-indigo-600">{appliedRent > 0 ? formatCurrency(appliedRent) : '—'}</td>
-                            <td className="py-3.5 px-4 text-slate-500 font-medium">₱0.00 <span className="text-[11px] text-slate-500 italic font-normal">(Non-Refundable)</span></td>
+                            <td className="py-3.5 px-4 text-slate-500 font-medium">₱0.00 <span className="text-caption text-slate-500 italic font-normal">(Non-Refundable)</span></td>
                           </tr>
                           {items.length > 0 && (
                             <tr className="border-t-0">
                               <td colSpan="9" className="px-4 pb-3 pt-0">
-                                <div className="ml-4 max-w-xl bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
+                                <div className="ml-4 max-w-xl bg-slate-50 border border-slate-100 rounded-control px-3 py-2">
+                                  <p className="text-label font-medium text-slate-600 m-0 mb-1">Deductions</p>
                                   {depositItemsList(items)}
                                 </div>
                               </td>
@@ -1708,11 +1709,11 @@ const handleMarkAsPaid = async () => {
                   {visibleContracts.length > 0 ? visibleContracts.map((c, idx) => {
                     const { tenantName, unit, leaseStart, leaseEnd, baseDeposit, dmg, utl, appliedRent, status, items } = depositRowData(c);
                     return (
-                      <div key={idx} className="border border-slate-100 rounded-xl p-4 space-y-2 text-sm">
+                      <div key={idx} className="border border-slate-100 rounded-card p-4 space-y-2 text-body">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-bold text-slate-800 m-0 truncate">{tenantName}</p>
-                            <p className="text-xs text-slate-500 m-0 mt-0.5"><span className="font-bold text-indigo-600">Unit {unit}</span> · {leaseStart} – {leaseEnd}</p>
+                            <p className="text-label text-slate-500 m-0 mt-0.5"><span className="font-bold text-indigo-600">Unit {unit}</span> · {leaseStart} – {leaseEnd}</p>
                           </div>
                           <div className="shrink-0">{depositStatusBadge(status)}</div>
                         </div>
@@ -1732,7 +1733,7 @@ const handleMarkAsPaid = async () => {
                         </dl>
                         {items.length > 0 && (
                           <div className="pt-2 border-t border-slate-100">
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Deductions</p>
+                            <p className="text-label font-medium text-slate-600 m-0 mb-1">Deductions</p>
                             {depositItemsList(items)}
                           </div>
                         )}
@@ -1755,12 +1756,12 @@ const handleMarkAsPaid = async () => {
       {adjustForm && (
         <Modal title="Adjust Invoice" onClose={() => setAdjustForm(null)} busy={adjusting} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onSubmit={submitAdjust} noValidate>
             <div className="p-6">
-              <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">Adjust Invoice</h3>
-              <p className="text-xs text-slate-500 m-0 mb-4"><span className="font-mono">{adjustForm.invoiceId}</span> · {adjustForm.period}. The change is logged and the tenant is notified of the new total.</p>
+              <h3 className="text-title font-bold text-slate-800 mb-1 mt-0">Adjust Invoice</h3>
+              <p className="text-label text-slate-500 m-0 mb-4"><span className="font-mono">{adjustForm.invoiceId}</span> · {adjustForm.period}. The change is logged and the tenant is notified of the new total.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 {ADJUST_LINES.map(([key, , label]) => (
                   <div key={key}>
-                    <label htmlFor={`adjust-${key}`} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>
+                    <label htmlFor={`adjust-${key}`} className="block text-label font-medium text-slate-600 mb-1 capitalize">{label}</label>
                     <input id={`adjust-${key}`} type="number" inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={adjustForm[key]}
                       onKeyDown={blockNonNumericKeys}
                       onChange={e => { setAdjustForm({ ...adjustForm, [key]: e.target.value }); setAdjustError(''); }}
@@ -1768,37 +1769,37 @@ const handleMarkAsPaid = async () => {
                   </div>
                 ))}
                 <div>
-                  <label htmlFor="adjust-dueDate" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Due date</label>
+                  <label htmlFor="adjust-dueDate" className="block text-label font-medium text-slate-600 mb-1">Due date</label>
                   <input id="adjust-dueDate" type="date" min={adjustForm.originalDue < localDateString() ? adjustForm.originalDue : localDateString()} max={maxFutureDate()} value={adjustForm.dueDate}
                     onChange={e => { setAdjustForm({ ...adjustForm, dueDate: e.target.value }); setAdjustError(''); }}
                     className={AMOUNT_INPUT} />
                 </div>
               </div>
               {(adjustForm.services > 0 || adjustForm.maintenance > 0 || adjustForm.securityDeposit > 0) && (
-                <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded p-2 m-0 mb-3">
+                <p className="text-caption text-slate-500 bg-slate-50 border border-slate-100 rounded-control p-2 m-0 mb-3">
                   Already posted, not editable here: Services {formatCurrency(adjustForm.services)} · Maintenance {formatCurrency(adjustForm.maintenance)} · Security deposit {formatCurrency(adjustForm.securityDeposit)}.
                 </p>
               )}
               <div className="mb-3">
-                <label htmlFor="adjust-reason" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason <span className="text-red-600">*</span></label>
+                <label htmlFor="adjust-reason" className="block text-label font-medium text-slate-600 mb-1">Reason <span className="text-red-600">*</span></label>
                 <textarea id="adjust-reason" rows={2} maxLength={ADJUST_REASON_MAX} value={adjustForm.reason}
                   placeholder="e.g. Water billed twice; corrected to the provider bill"
                   aria-invalid={adjustReasonError ? 'true' : undefined} aria-describedby={adjustReasonError ? 'adjust-reason-error' : 'adjust-reason-hint'}
                   onChange={e => { setAdjustForm({ ...adjustForm, reason: e.target.value }); setAdjustReasonError(''); setAdjustError(''); }}
                   onBlur={e => setAdjustReasonError(checkAdjustReason(e.target.value))}
-                  className={`w-full px-3 py-2 text-sm border border-solid rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-y ${adjustReasonError ? 'border-red-400' : 'border-slate-200'}`} />
+                  className={`w-full px-3 py-2 text-body border border-solid rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500 resize-y ${adjustReasonError ? 'border-red-400' : 'border-slate-200'}`} />
                 {adjustReasonError
-                  ? <p id="adjust-reason-error" role="alert" className="text-[11px] text-red-700 m-0 mt-1">{adjustReasonError}</p>
-                  : <p id="adjust-reason-hint" className="text-[11px] text-slate-500 m-0 mt-1">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>}
+                  ? <p id="adjust-reason-error" role="alert" className="text-caption text-red-700 m-0 mt-1">{adjustReasonError}</p>
+                  : <p id="adjust-reason-hint" className="text-caption text-slate-500 m-0 mt-1">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>}
               </div>
-              <div className="flex justify-between text-sm mb-4">
+              <div className="flex justify-between text-body mb-4">
                 <span className="text-slate-500">Total {formatCurrency(adjustForm.oldTotal)} →</span>
                 <span className="font-bold text-indigo-700">{formatCurrency(adjustTotal)}</span>
               </div>
-              {adjustError && <p role="alert" className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 m-0 mb-3">{adjustError}</p>}
+              {adjustError && <p role="alert" className="text-label text-red-700 bg-red-50 border border-red-200 rounded-control p-2 m-0 mb-3">{adjustError}</p>}
               <div className="flex gap-2">
-                <button type="submit" disabled={adjusting} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{adjusting ? 'Saving…' : 'Save Adjustment'}</button>
-                <button type="button" disabled={adjusting} onClick={() => setAdjustForm(null)} className="flex-1 disabled:opacity-50 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
+                <button type="submit" disabled={adjusting} className={btn('primary', 'md', 'flex-1')}>{adjusting ? 'Saving…' : 'Save Adjustment'}</button>
+                <button type="button" disabled={adjusting} onClick={() => setAdjustForm(null)} className={btn('secondary', 'md', 'flex-1')}>Cancel</button>
               </div>
             </div>
           </Modal>
@@ -1808,9 +1809,9 @@ const handleMarkAsPaid = async () => {
       {showConfirmModal && (
         <Modal title="Confirm Payment" onClose={() => setShowConfirmModal(false)} busy={recording} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
             <div className="p-6">
-              <h3 className="text-lg font-bold text-slate-800 mb-2 mt-0">Confirm Payment</h3>
-              <p className="text-sm text-slate-600 mb-4">Are you sure you want to process this payment? This action will generate an official receipt record row.</p>
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm space-y-2 mb-6">
+              <h3 className="text-title font-bold text-slate-800 mb-2 mt-0">Confirm Payment</h3>
+              <p className="text-body text-slate-600 mb-4">Are you sure you want to process this payment? This action will generate an official receipt record row.</p>
+              <div className="bg-slate-50 p-3 rounded-control border border-slate-100 text-body space-y-2 mb-6">
                 <div className="flex justify-between"><span className="text-slate-500">Tenant</span><span className="font-semibold text-slate-800">{activeTenant.name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Period</span><span className="font-semibold text-slate-800 text-right">{activeTenant.billingPeriod}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-bold text-emerald-700">{formatCurrency(totalDue)}</span></div>
@@ -1825,11 +1826,11 @@ const handleMarkAsPaid = async () => {
                                         : activeTenant.splitParts?.length
                       ? `The tenant submitted a split payment${activeTenant.scheduledDate ? ` and booked the cash portion for ${activeTenant.scheduledDate} (${activeTenant.scheduledTimeSlot})` : ''}: ${activeTenant.splitParts.map(p => `${methodName[p.method] || p.method} ${formatCurrency(p.amount)}${p.reference_number ? ` (Ref ${p.reference_number})` : ''}`).join(' + ')}. Check each proof matches before confirming.`
                       : `The tenant submitted ${activeTenant.declaredLabel || 'a payment'}${activeTenant.paymentReference ? ` (Ref ${activeTenant.paymentReference})` : ''} with a proof. Check it matches before confirming.`;
-                return <div className="mb-4"><p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{note}</p></div>;
+                return <div className="mb-4"><p className="rounded-control border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-800">{note}</p></div>;
               })()}
               <div className="flex gap-2">
-                <button type="button" onClick={handleMarkAsPaid} disabled={recording} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{recording ? 'Processing…' : 'Confirm Approval'}</button>
-                <button type="button" disabled={recording} onClick={() => setShowConfirmModal(false)} className="flex-1 disabled:opacity-50 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
+                <button type="button" onClick={handleMarkAsPaid} disabled={recording} className={btn('primary', 'md', 'flex-1')}>{recording ? 'Processing…' : 'Confirm Approval'}</button>
+                <button type="button" disabled={recording} onClick={() => setShowConfirmModal(false)} className={btn('secondary', 'md', 'flex-1')}>Cancel</button>
               </div>
             </div>
           </Modal>
@@ -1837,63 +1838,63 @@ const handleMarkAsPaid = async () => {
 
       {/* Receipt Modal */}
       {showReceipt && receiptData && (
-        <Modal title="Official receipt" onClose={() => setShowReceipt(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm" cardRef={receiptRef} className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt">
+        <Modal title="Official receipt" onClose={() => setShowReceipt(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm" cardRef={receiptRef} className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4 overflow-hidden printable-receipt">
             <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
-              <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
+              <h2 className="text-2xl font-medium italic font-serif mb-1 m-0">Apartment AMS</h2>
               <div className="mt-4 pt-4 border-t border-slate-700/50 print:border-slate-300">
-                <p className="text-sm font-semibold text-slate-300 uppercase tracking-widest m-0 print:text-slate-700">Official Receipt</p>
-                <p className="text-xs font-mono text-indigo-300 m-0 mt-1 print:text-slate-900">{receiptData.rctId}</p>
+                <p className="text-sm font-medium text-slate-300 m-0 print:text-slate-700">Official Receipt</p>
+                <p className="text-label font-mono text-indigo-300 m-0 mt-1 print:text-slate-900">{receiptData.rctId}</p>
               </div>
             </div>
-            <div className="p-6 space-y-4 font-mono text-sm">
+            <div className="p-6 space-y-4 font-mono text-body">
               <div className="flex justify-between border-b border-slate-200 pb-4">
-                <div><p className="text-slate-500 text-[11px] uppercase m-0">Date</p><p className="font-semibold m-0 mt-0.5">{receiptData.date}</p></div>
-                <div className="text-right"><p className="text-slate-500 text-[11px] uppercase m-0">Status</p><p className="font-bold text-emerald-700 m-0 mt-0.5">{receiptData.status}</p></div>
+                <div><p className="text-slate-600 text-label m-0">Date</p><p className="font-semibold m-0 mt-0.5">{receiptData.date}</p></div>
+                <div className="text-right"><p className="text-slate-600 text-label m-0">Status</p><p className="font-bold text-emerald-700 m-0 mt-0.5">{receiptData.status}</p></div>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-4">
-                <div><p className="text-slate-500 text-[11px] uppercase m-0">Received From</p><p className="font-bold text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-xs">Unit {receiptData.unit}</p></div>
+                <div><p className="text-slate-600 text-label m-0">Received From</p><p className="font-bold text-title m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-label">Unit {receiptData.unit}</p></div>
                 <div className="text-right">
-                  <p className="text-slate-500 text-[11px] uppercase m-0">Method</p>
+                  <p className="text-slate-600 text-label m-0">Method</p>
                   <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p>
-                  {receiptData.paymentTransactions?.map(tx => <p key={tx.id} className="text-[11px] text-slate-700 m-0 mt-1">{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</p>)}
-                  {!receiptData.paymentTransactions?.length && receiptData.paymentReference && <p className="text-[11px] text-indigo-600 m-0 mt-1">Ref: {receiptData.paymentReference}</p>}
+                  {receiptData.paymentTransactions?.map(tx => <p key={tx.id} className="text-caption text-slate-700 m-0 mt-1">{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</p>)}
+                  {!receiptData.paymentTransactions?.length && receiptData.paymentReference && <p className="text-caption text-indigo-600 m-0 mt-1">Ref: {receiptData.paymentReference}</p>}
                   {receiptData.gateway && (
                     <>
-                      <p className="text-slate-500 text-[11px] uppercase m-0 mt-2">Gateway</p>
+                      <p className="text-slate-600 text-label m-0 mt-2">Gateway</p>
                       <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.gateway}</p>
                     </>
                   )}
                 </div>
               </div>
               <div>
-                <p className="text-slate-500 text-[11px] uppercase m-0 mb-1">Payment Breakdown ({receiptData.period})</p>
-                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed text-xs text-slate-700">{receiptData.breakdown}</div>
+                <p className="text-slate-600 text-label m-0 mb-1 capitalize">Payment Breakdown ({receiptData.period})</p>
+                <div className="bg-slate-50 p-4 rounded-control border border-slate-100 whitespace-pre-wrap leading-relaxed text-label text-slate-700">{receiptData.breakdown}</div>
               </div>
               <div className="flex justify-between items-center pt-4 border-t-2 border-dashed border-slate-200">
-                <p className="font-bold text-slate-600 m-0 text-base">TOTAL PAID</p>
-                <p className="text-2xl font-bold text-slate-900 m-0">{formatCurrency(receiptData.amount)}</p>
+                <p className="font-bold text-slate-600 m-0 text-title">TOTAL PAID</p>
+                <p className="text-page font-bold text-slate-900 m-0">{formatCurrency(receiptData.amount)}</p>
               </div>
               {/* Signature placeholder */}
               <div className="pt-6 flex flex-col items-end text-right">
                 <div className="border-b border-slate-400 w-36 h-8 mb-1"></div>
-                <p className="text-[11px] uppercase text-slate-500 font-bold tracking-widest m-0">Authorized Admin Signature</p>
+                <p className="text-label text-slate-600 font-medium m-0">Authorized Admin Signature</p>
               </div>
             </div>
             <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">
-              <button onClick={() => printElement(receiptRef.current)} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
-              <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors">Close</button>
+              <button onClick={() => printElement(receiptRef.current)} className={btn('primary', 'md', 'flex-1 justify-center')}><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
+              <button onClick={() => setShowReceipt(false)} className={btn('secondary', 'md', 'flex-1')}>Close</button>
             </div>
           </Modal>
       )}
 
       {/* Proof of Payment Preview Modal */}
       {previewProof && (
-        <Modal title={`${previewProof.title || 'Uploaded Proof of Payment'}`} onClose={() => setPreviewProof(null)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+        <Modal title={`${previewProof.title || 'Uploaded Proof of Payment'}`} onClose={() => setPreviewProof(null)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-card shadow-dialog max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div>
-                <h3 className="text-sm font-bold text-slate-800 m-0">{previewProof.title || 'Uploaded Proof of Payment'}</h3>
+                <h3 className="text-body font-bold text-slate-800 m-0">{previewProof.title || 'Uploaded Proof of Payment'}</h3>
                 {(previewProof.reference || previewProof.sender) && (
-                  <p className="text-xs text-slate-500 m-0 mt-0.5">
+                  <p className="text-label text-slate-500 m-0 mt-0.5">
                     {previewProof.sender ? `Sender: ${previewProof.sender} ` : ''}
                     {previewProof.reference ? `· Ref: ${previewProof.reference}` : ''}
                   </p>
@@ -1904,13 +1905,13 @@ const handleMarkAsPaid = async () => {
                   href={previewProof.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors no-underline inline-flex items-center gap-1"
+                  className="text-label text-indigo-600 hover:text-indigo-800 font-semibold px-3 py-1.5 rounded-control bg-indigo-50 hover:bg-indigo-100 transition-colors no-underline inline-flex items-center gap-1"
                 >
                   <FontAwesomeIcon icon={faExternalLinkAlt} /> Open in New Tab
                 </a>
                 <button aria-label="Close"
                   onClick={() => setPreviewProof(null)}
-                  className="text-slate-500 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
+                  className="text-slate-500 hover:text-slate-600 p-1.5 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
                 >
                   <FontAwesomeIcon icon={faTimes} />
                 </button>
@@ -1918,12 +1919,12 @@ const handleMarkAsPaid = async () => {
             </div>
             <div className="p-6 overflow-auto flex items-center justify-center bg-slate-900/5 min-h-[300px]">
               {previewProof.url.toLowerCase().endsWith('.pdf') ? (
-                <iframe src={previewProof.url} title="Payment Proof PDF" className="w-full h-[500px] border-0 rounded-lg shadow" />
+                <iframe src={previewProof.url} title="Payment Proof PDF" className="w-full h-[500px] border-0 rounded-control shadow-card" />
               ) : (
                 <img
                   src={previewProof.url}
                   alt="Proof of Payment"
-                  className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md border border-slate-200 bg-white"
+                  className="max-h-[65vh] max-w-full object-contain rounded-control shadow-raised border border-slate-200 bg-white"
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.style.display = 'none';
@@ -1932,8 +1933,8 @@ const handleMarkAsPaid = async () => {
                 />
               )}
               <div style={{ display: 'none' }} className="text-center p-8 text-slate-500">
-                <p className="font-bold text-sm">Image could not be rendered directly.</p>
-                <p className="text-xs mt-1">Please use the "Open in New Tab" link above to view or download.</p>
+                <p className="font-bold text-body">Image could not be rendered directly.</p>
+                <p className="text-label mt-1">Please use the "Open in New Tab" link above to view or download.</p>
               </div>
             </div>
           </Modal>
@@ -1952,7 +1953,7 @@ const handleMarkAsPaid = async () => {
       )}
 
       {flash && (
-        <div role="status" className="fixed bottom-6 right-6 z-50 max-w-sm flex items-start gap-3 rounded-xl bg-emerald-600 text-white px-4 py-3 shadow-2xl text-sm font-semibold">
+        <div role="status" className="fixed bottom-6 right-6 z-50 max-w-sm flex items-start gap-3 rounded-card bg-emerald-600 text-white px-4 py-3 shadow-dialog text-body font-semibold">
           <FontAwesomeIcon icon={faCheckCircle} className="mt-0.5" />
           <span>{flash}</span>
         </div>

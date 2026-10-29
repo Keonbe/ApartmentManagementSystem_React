@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axiosConfig';
 import { apiErrorMessage } from '../../utils/apiError';
+import { TH, THEAD, btn } from '../../Components/admin/ui/styles';
 
 // Floor -> fixed monthly rent. Saved with update_system_settings.php
 // (floor_rates). Changing a price never touches occupied units; "Apply to
@@ -80,29 +81,29 @@ export default function FloorRentPanel() {
 
   return (
     <section className="space-y-5">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h3 className="m-0 text-base font-extrabold text-slate-800">Floor Rent</h3>
-        <p className="m-0 mt-1 text-sm text-slate-500">New units start at their floor&apos;s rent, and you can still change any unit&apos;s rent by hand. Changing a floor price does not touch occupied units: they keep the rent their tenant agreed to. Use &quot;Apply to vacant units&quot; to copy a new price onto vacant units that have no hand-set rent.</p>
+      <div className="rounded-card border border-slate-200 bg-white p-5">
+        <h3 className="m-0 text-title font-bold text-slate-800">Floor Rent</h3>
+        <p className="m-0 mt-1 text-body text-slate-500">New units start at their floor&apos;s rent, and you can still change any unit&apos;s rent by hand. Changing a floor price does not touch occupied units: they keep the rent their tenant agreed to. Use &quot;Apply to vacant units&quot; to copy a new price onto vacant units that have no hand-set rent.</p>
       </div>
-      {notice && <p role={notice.ok ? 'status' : 'alert'} className={`m-0 rounded-xl p-3 text-sm ${notice.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{notice.text}</p>}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[480px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-bold">Floor</th><th className="px-4 py-3 font-bold">Monthly rent (₱)</th><th className="px-4 py-3 font-bold">Vacant units</th></tr></thead>
+      {notice && <p role={notice.ok ? 'status' : 'alert'} className={`m-0 rounded-card p-3 text-body ${notice.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{notice.text}</p>}
+      <div className="overflow-x-auto rounded-card border border-slate-200 bg-white">
+        <table className="w-full min-w-[480px] text-left text-body">
+          <thead className={THEAD}><tr><th className={TH}>Floor</th><th className={TH}>Monthly rent (₱)</th><th className={TH}>Vacant units</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
             {floors.length === 0 ? <tr><td colSpan="3" className="px-4 py-8 text-center text-slate-500">No floors yet. Add one below.</td></tr> : floors.map((f) => (
               <tr key={f}>
                 <td className="px-4 py-3 font-bold text-slate-800">{f}</td>
-                <td className="px-4 py-3"><input type="number" min="0.01" max="1000000" step="0.01" value={draft[f] ?? ''} onChange={(e) => setDraft((p) => ({ ...p, [f]: e.target.value }))} aria-label={`Monthly rent for floor ${f}`} className="w-36 rounded-lg border border-slate-300 px-3 py-2" /></td>
-                <td className="px-4 py-3"><button type="button" disabled={rates[f] === undefined || dirty} onClick={() => apply(f)} className="cursor-pointer rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40">Apply to vacant units</button></td>
+                <td className="px-4 py-3"><input type="number" min="0.01" max="1000000" step="0.01" value={draft[f] ?? ''} onChange={(e) => setDraft((p) => ({ ...p, [f]: e.target.value }))} aria-label={`Monthly rent for floor ${f}`} className="w-36 rounded-control border border-slate-300 px-3 py-2" /></td>
+                <td className="px-4 py-3"><button type="button" disabled={rates[f] === undefined || dirty} onClick={() => apply(f)} className="cursor-pointer rounded-control border border-indigo-200 bg-white px-3 py-1.5 text-label font-bold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40">Apply to vacant units</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <input value={newFloor} maxLength={50} onChange={(e) => setNewFloor(e.target.value)} placeholder="Add a floor, e.g. 7F" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        <button type="button" onClick={addFloor} className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">Add floor</button>
-        <button type="button" disabled={!dirty || saving} onClick={save} className="ml-auto cursor-pointer rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save floor rents'}</button>
+        <input value={newFloor} maxLength={50} onChange={(e) => setNewFloor(e.target.value)} placeholder="Add a floor, e.g. 7F" className="rounded-control border border-slate-300 px-3 py-2 text-body" />
+        <button type="button" onClick={addFloor} className={btn('secondary', 'md')}>Add floor</button>
+        <button type="button" disabled={!dirty || saving} onClick={save} className={btn('primary', 'md', 'ml-auto')}>{saving ? 'Saving…' : 'Save floor rents'}</button>
       </div>
     </section>
   );

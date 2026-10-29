@@ -16,12 +16,12 @@ const PAYMENT_MODES = [
 // value is kept and comes back when the mode is switched again.
 function ChannelRow({ label, sublabel, checked, onChange, disabled = false }) {
   return (
-    <label className={`flex items-center justify-between gap-3 p-2 rounded-lg transition-colors ${
+    <label className={`flex items-center justify-between gap-3 p-2 rounded-control transition-colors ${
       disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'
     }`}>
       <span>
-        <span className="text-xs font-medium text-slate-700 block">{label}</span>
-        {sublabel && <span className="text-[11px] text-slate-500">{sublabel}</span>}
+        <span className="text-label font-medium text-slate-700 block">{label}</span>
+        {sublabel && <span className="text-caption text-slate-500">{sublabel}</span>}
       </span>
       <input
         type="checkbox"
@@ -36,8 +36,8 @@ function ChannelRow({ label, sublabel, checked, onChange, disabled = false }) {
 
 function ModeBadge({ active, mode }) {
   return active
-    ? <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-semibold">Active</span>
-    : <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-semibold">Off in {mode} mode</span>;
+    ? <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-emerald-50 text-emerald-700">Active</span>
+    : <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-slate-100 text-slate-600">Off in {mode} mode</span>;
 }
 
 export default function PaymentsPanel({ settings, updateSetting }) {
@@ -95,7 +95,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
             {PAYMENT_MODES.map((mode) => (
               <label
                 key={mode.value}
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border cursor-pointer transition-colors ${
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-card border cursor-pointer transition-colors ${
                   settings.paymentMode === mode.value ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
@@ -112,8 +112,8 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                   className="text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                 />
                 <span>
-                  <span className="text-sm font-semibold text-slate-700 block">{mode.label}</span>
-                  <span className="text-[11px] text-slate-500">{mode.hint}</span>
+                  <span className="text-body font-semibold text-slate-700 block">{mode.label}</span>
+                  <span className="text-caption text-slate-500">{mode.hint}</span>
                 </span>
               </label>
             ))}
@@ -121,9 +121,9 @@ export default function PaymentsPanel({ settings, updateSetting }) {
         </Field>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 rounded-xl border border-slate-200 space-y-3">
+          <div className="p-4 rounded-card border border-slate-200 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Manual & In-Person</span>
+              <span className="text-label font-medium text-slate-800">Manual & In-Person</span>
               <ModeBadge active={!isSandbox} mode={modeName} />
             </div>
             <div className="space-y-1">
@@ -133,9 +133,9 @@ export default function PaymentsPanel({ settings, updateSetting }) {
             </div>
           </div>
 
-          <div className="p-4 rounded-xl border border-slate-200 space-y-3">
+          <div className="p-4 rounded-card border border-slate-200 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Sandbox (PayMongo)</span>
+              <span className="text-label font-medium text-slate-800">Sandbox (PayMongo)</span>
               <ModeBadge active={isSandbox} mode={modeName} />
             </div>
             <div className="space-y-1">
@@ -146,7 +146,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-500">
+        <p className="text-caption text-slate-500">
           Tenants see the {isSandbox ? 'PayMongo sandbox' : 'receipt-upload'} channels plus In-Person.
           Switch the mode above to use the other family; your channel choices are kept.
         </p>
@@ -177,7 +177,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
         description="API keys for online payments. Live mode is locked; everything runs in sandbox."
       >
         <Field label="Environment Mode" hint="Live configuration is locked. All transactions will be processed in Sandbox Mode.">
-          <div className="flex items-center gap-6 mt-1 text-sm text-slate-700">
+          <div className="flex items-center gap-6 mt-1 text-body text-slate-700">
             <label className="flex items-center gap-2 opacity-50 cursor-not-allowed" title="Live mode is currently locked by system administrator.">
               <input type="radio" name="paymongoEnv" value="live" checked={false} disabled className="cursor-not-allowed" />
               <span>Live (Production) <FontAwesomeIcon icon={faLock} className="text-[10px] ml-1" /></span>

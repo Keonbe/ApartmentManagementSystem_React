@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faListOl, faTrashAlt, faBell } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { TH, THEAD } from './admin/ui/styles';
 
 // Basic unit waitlist (manage_waitlist.php). Entries are added from an inquiry's
 // detail view. When a unit frees up, the first entry is marked Notified and an
@@ -40,9 +41,9 @@ export default function WaitlistPanel({ onOpenInquiry }) {
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
       <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+        <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2">
           <FontAwesomeIcon icon={faListOl} className="text-indigo-600" />
           Unit Waitlist ({entries.length})
         </h3>
@@ -50,22 +51,22 @@ export default function WaitlistPanel({ onOpenInquiry }) {
           First come, first served. The first person is flagged when a unit frees up — no hold is placed automatically.
         </p>
       </div>
-      {error && <p className="px-5 py-3 text-xs font-semibold text-rose-600 m-0">{error}</p>}
+      {error && <p className="px-5 py-3 text-label font-semibold text-red-600 m-0">{error}</p>}
       {entries.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-slate-500 text-center m-0">
+        <p className="px-5 py-6 text-body text-slate-500 text-center m-0">
           Nobody is waiting. Open an inquiry for an occupied unit and choose “Add to waitlist”.
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-sm">
-            <thead className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <table className="w-full min-w-[700px] text-left text-body">
+            <thead className={THEAD}>
               <tr>
-                <th className="px-5 py-3">Unit</th>
-                <th className="px-5 py-3">Position</th>
-                <th className="px-5 py-3">Name</th>
-                <th className="px-5 py-3">Contact</th>
-                <th className="px-5 py-3">Added</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th className={TH}>Unit</th>
+                <th className={TH}>Position</th>
+                <th className={TH}>Name</th>
+                <th className={TH}>Contact</th>
+                <th className={TH}>Added</th>
+                <th className={`${TH} text-right`}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -73,11 +74,11 @@ export default function WaitlistPanel({ onOpenInquiry }) {
                 <tr key={e.id} className={e.status === 'Notified' ? 'bg-amber-50/60' : ''}>
                   <td className="px-5 py-3 font-bold text-slate-800">
                     {e.roomName}
-                    <span className="ml-2 text-[11px] font-semibold uppercase text-slate-500">{e.roomStatus || '—'}</span>
+                    <span className="ml-2 text-label font-medium text-slate-600 capitalize">{e.roomStatus || '—'}</span>
                   </td>
                   <td className="px-5 py-3">
                     {e.status === 'Notified' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                      <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 bg-amber-100 text-amber-700">
                         <FontAwesomeIcon icon={faBell} /> Unit available — contact
                       </span>
                     ) : (
@@ -91,13 +92,13 @@ export default function WaitlistPanel({ onOpenInquiry }) {
                       </button>
                     ) : e.fullName}
                   </td>
-                  <td className="px-5 py-3 text-xs text-slate-500">{[e.contactNo, e.email].filter(Boolean).join(' · ') || '—'}</td>
-                  <td className="px-5 py-3 text-xs text-slate-500">{e.createdAt ? new Date(e.createdAt.replace(' ', 'T')).toLocaleDateString() : '—'}</td>
+                  <td className="px-5 py-3 text-label text-slate-500">{[e.contactNo, e.email].filter(Boolean).join(' · ') || '—'}</td>
+                  <td className="px-5 py-3 text-label text-slate-500">{e.createdAt ? new Date(e.createdAt.replace(' ', 'T')).toLocaleDateString() : '—'}</td>
                   <td className="px-5 py-3 text-right">
                     <button
                       type="button"
                       onClick={() => remove(e)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-control border border-red-200 bg-white px-2.5 py-1.5 text-label font-bold text-red-600 hover:bg-red-50 cursor-pointer"
                     >
                       <FontAwesomeIcon icon={faTrashAlt} /> Remove
                     </button>

@@ -17,6 +17,7 @@ import PasswordField from '../Components/form/PasswordField';
 import PasswordChecklist from '../Components/form/PasswordChecklist';
 import { invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
+import { TH, btn } from '../Components/admin/ui/styles';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
@@ -43,10 +44,10 @@ const EDIT_VALIDATORS = {
 
 const RESET_VALIDATORS = { new_password: (v) => checkNewPassword(v) };
 
-const EDIT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white';
+const EDIT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-400 text-slate-800 bg-white';
 
 const RoleBadge = ({ role }) => (
-  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 capitalize ${role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
     <FontAwesomeIcon icon={role === 'admin' ? faUserShield : faUser} className="text-[9px]" />
     {role}
   </span>
@@ -234,35 +235,35 @@ const AdminUsers = () => {
   const renderUserActions = (u, iconSize, layout) => (
     <div className={`flex items-center ${layout}`}>
       {u.is_self ? (
-        <span className="text-[11px] font-semibold text-slate-500" title="Your own details and password are managed from Account Settings">
+        <span className="text-caption font-semibold text-slate-500" title="Your own details and password are managed from Account Settings">
           You · Account Settings
         </span>
       ) : statusFilter === 'active' ? (
         <>
           <button onClick={() => openEdit(u)} title="Edit"
-            className={`${iconSize} rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
+            className={`${iconSize} rounded-control bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 text-slate-600 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
             <FontAwesomeIcon icon={faEdit} className="text-xs" />
           </button>
           <button onClick={() => { setShowResetModal(u.id); setNewPassword(''); }} title="Reset Password"
-            className={`${iconSize} rounded-lg bg-slate-100 hover:bg-amber-100 hover:text-amber-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
+            className={`${iconSize} rounded-control bg-slate-100 hover:bg-amber-100 hover:text-amber-600 text-slate-600 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
             <FontAwesomeIcon icon={faKey} className="text-xs" />
           </button>
           <button
             onClick={() => handleSetRole(u, u.role === 'admin' ? 'user' : 'admin')}
             title={u.role === 'admin' ? 'Revoke Admin' : 'Promote to Admin'}
-            className={`${iconSize} rounded-lg flex items-center justify-center border-0 cursor-pointer transition-colors ${u.role === 'admin' ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600' : 'bg-slate-100 hover:bg-violet-100 hover:text-violet-600 text-slate-500'}`}>
+            className={`${iconSize} rounded-control flex items-center justify-center border-0 cursor-pointer transition-colors ${u.role === 'admin' ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600' : 'bg-slate-100 hover:bg-violet-100 hover:text-violet-600 text-slate-600'}`}>
             <FontAwesomeIcon icon={faUserShield} className="text-xs" />
           </button>
           {u.role !== 'admin' && (
             <button onClick={() => setArchiveTarget(u)} title="Archive User"
-              className={`${iconSize} rounded-lg bg-slate-100 hover:bg-amber-50 hover:text-amber-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
+              className={`${iconSize} rounded-control bg-slate-100 hover:bg-amber-50 hover:text-amber-600 text-slate-600 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
               <FontAwesomeIcon icon={faTrash} className="text-xs" />
             </button>
           )}
         </>
       ) : (
         <button onClick={() => handleRestore(u)} title="Restore User"
-          className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
+          className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-control text-label font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
           <FontAwesomeIcon icon={faCheck} className="text-[10px]" /> Restore Account
         </button>
       )}
@@ -281,12 +282,12 @@ const AdminUsers = () => {
             {/* Toolbar */}
             <div className="flex items-center gap-3 flex-wrap justify-between">
               <div className="flex items-center gap-3 flex-wrap flex-1">
-                <div className="flex items-center gap-2 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                <div className="flex items-center gap-2 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-control px-3 py-2 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
                   <input maxLength={LIMITS.search}
                     type="text" value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Search by name or email..."
-                    className="focus-glow flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
+                    className="focus-glow flex-1 bg-transparent text-body text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
                   />
                 </div>
 
@@ -315,22 +316,22 @@ const AdminUsers = () => {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden table-scroll-x">
+            <div className="bg-white rounded-card shadow-card border border-slate-200 overflow-hidden table-scroll-x">
               {loading ? (
                 <div className="py-20 text-center text-slate-500 text-sm">Loading users...</div>
               ) : filtered.length === 0 ? (
-                <div className="py-20 text-center text-slate-500 text-sm">No users found.</div>
+                <div className="py-20 text-center text-slate-500 text-body">No users found.</div>
               ) : (
                 <>
-                <table className="hidden md:table w-full text-sm border-collapse">
+                <table className="hidden md:table w-full text-body border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Name</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Email</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Contact</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Gender</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Role</th>
-                      <th className="px-4 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
+                      <th className={`${TH} text-left`}>Name</th>
+                      <th className={`${TH} text-left`}>Email</th>
+                      <th className={`${TH} text-left`}>Contact</th>
+                      <th className={`${TH} text-left`}>Gender</th>
+                      <th className={`${TH} text-left`}>Role</th>
+                      <th className={`${TH} text-right`}>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
@@ -338,18 +339,18 @@ const AdminUsers = () => {
                       <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-label font-bold shrink-0 ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
                               {u.first_name.charAt(0)}{u.last_name.charAt(0)}
                             </div>
                             <div>
                               <p className="font-semibold text-slate-800 m-0">{u.first_name} {u.middle_name ? u.middle_name.charAt(0) + '. ' : ''}{u.last_name}{u.suffix ? ' ' + u.suffix : ''}</p>
-                              <p className="text-[11px] text-slate-500 m-0">ID #{u.id}</p>
+                              <p className="text-caption text-slate-500 m-0">ID #{u.id}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-600 text-xs">{u.email}</td>
-                        <td className="px-4 py-3 text-slate-500 text-xs">{u.contact_no || '—'}</td>
-                        <td className="px-4 py-3 text-slate-500 text-xs">{u.gender || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600 text-label">{u.email}</td>
+                        <td className="px-4 py-3 text-slate-500 text-label">{u.contact_no || '—'}</td>
+                        <td className="px-4 py-3 text-slate-500 text-label">{u.gender || '—'}</td>
                         <td className="px-4 py-3">
                           <RoleBadge role={u.role} />
                         </td>
@@ -365,17 +366,17 @@ const AdminUsers = () => {
                     <div key={u.id} className="p-4 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-label font-bold shrink-0 ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
                             {u.first_name.charAt(0)}{u.last_name.charAt(0)}
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-800 m-0 truncate">{u.first_name} {u.middle_name ? u.middle_name.charAt(0) + '. ' : ''}{u.last_name}{u.suffix ? ' ' + u.suffix : ''}</p>
-                            <p className="text-[11px] text-slate-500 m-0">ID #{u.id}</p>
+                            <p className="text-caption text-slate-500 m-0">ID #{u.id}</p>
                           </div>
                         </div>
                         <RoleBadge role={u.role} />
                       </div>
-                      <dl className="space-y-1.5 text-sm m-0">
+                      <dl className="space-y-1.5 text-body m-0">
                         {[['Email', u.email], ['Contact', u.contact_no || '—'], ['Gender', u.gender || '—']].map(([label, value]) => (
                           <div key={label} className="flex justify-between gap-3">
                             <dt className="text-slate-500 shrink-0">{label}</dt>
@@ -396,7 +397,7 @@ const AdminUsers = () => {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold transition-all ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-card shadow-raised text-body font-semibold transition-all ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
           <FontAwesomeIcon icon={toast.type === 'error' ? faExclamationTriangle : faCheck} />
           {toast.msg}
         </div>
@@ -406,8 +407,8 @@ const AdminUsers = () => {
       {editUser && (
         <Modal busy={saving} title={`Edit User — ${editUser.first_name} ${editUser.last_name}`} onClose={() => setEditUser(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="text-base font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
-              <button aria-label="Close" onClick={() => setEditUser(null)} className="text-slate-500 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
+              <h3 className="text-title font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
+              <button aria-label="Close" onClick={() => setEditUser(null)} className="text-slate-500 hover:text-slate-600 p-1 rounded-control border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
@@ -419,7 +420,7 @@ const AdminUsers = () => {
                   const error = editErrors.errors[f.key];
                   return (
                   <div key={f.key}>
-                    <label htmlFor={a11y.id} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{f.label}</label>
+                    <label htmlFor={a11y.id} className="block text-label font-medium text-slate-600 mb-1 capitalize">{f.label}</label>
                     {f.key === 'contact_no' ? (
                       <PhoneInput
                         id={a11y.id}
@@ -428,7 +429,7 @@ const AdminUsers = () => {
                         onChange={digits => changeEdit('contact_no', digits)}
                         onBlur={() => blurEdit('contact_no')}
                         error={error}
-                        inputClassName={`w-full px-3 py-2 text-sm border border-slate-200 rounded-r-lg outline-none focus:border-indigo-400 text-slate-800 bg-white${invalidCls(error)}`}
+                        inputClassName={`w-full px-3 py-2 text-sm border border-slate-200 rounded-r-control outline-none focus:border-indigo-400 text-slate-800 bg-white${invalidCls(error)}`}
                       />
                     ) : (
                       <>
@@ -451,7 +452,7 @@ const AdminUsers = () => {
                 })}
               </div>
               <div>
-                <label htmlFor="edituser-gender" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Gender</label>
+                <label htmlFor="edituser-gender" className="block text-label font-medium text-slate-600 mb-1">Gender</label>
                 <select {...editErrors.fieldA11y('gender')} value={editForm.gender} onChange={e => changeEdit('gender', e.target.value)}
                   className={EDIT_INPUT + invalidCls(editErrors.errors.gender)}>
                   {GENDERS.map(g => <option key={g} value={g}>{g || '— Select —'}</option>)}
@@ -460,9 +461,9 @@ const AdminUsers = () => {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-              <button type="button" onClick={() => setEditUser(null)} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
+              <button type="button" onClick={() => setEditUser(null)} className="px-4 py-2 text-body text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-control cursor-pointer">Cancel</button>
               <button type="submit" disabled={saving}
-                className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer disabled:opacity-40">
+                className={btn('primary', 'md')}>
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
@@ -474,20 +475,20 @@ const AdminUsers = () => {
       {showResetModal && (
         <Modal busy={saving} title="Reset Password" onClose={closeReset} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onSubmit={handleResetPassword} noValidate>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
+              <h3 className="text-title font-bold text-slate-800 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faKey} className="text-amber-700" /> Reset Password
               </h3>
-              <button type="button" onClick={closeReset} aria-label="Close" className="text-slate-500 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
+              <button type="button" onClick={closeReset} aria-label="Close" className="text-slate-500 hover:text-slate-600 p-1 rounded-control border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
             <div className="p-6 space-y-3">
-              <p className="text-xs text-slate-500 m-0">Enter a new password for this account. The user will need to use this password on their next login.</p>
+              <p className="text-label text-slate-500 m-0">Enter a new password for this account. The user will need to use this password on their next login.</p>
               <PasswordField
                 a11y={resetErrors.fieldA11y('new_password')}
                 label="New Password"
                 labelClassName="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide"
-                inputClassName="w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
+                inputClassName="w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-400 text-slate-800 bg-white"
                 placeholder="Enter new password"
                 value={newPassword}
                 onChange={e => { setNewPassword(e.target.value); resetErrors.clearError('new_password'); }}
@@ -498,9 +499,9 @@ const AdminUsers = () => {
               </PasswordField>
             </div>
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-              <button type="button" onClick={closeReset} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
+              <button type="button" onClick={closeReset} className="px-4 py-2 text-body text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-control cursor-pointer">Cancel</button>
               <button type="submit" disabled={saving}
-                className="px-5 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 border-0 cursor-pointer disabled:opacity-40">
+                className="px-5 py-2 bg-amber-500 text-white rounded-control text-body font-semibold hover:bg-amber-600 border-0 cursor-pointer disabled:opacity-40">
                 {saving ? 'Saving...' : 'Reset Password'}
               </button>
             </div>
@@ -511,20 +512,20 @@ const AdminUsers = () => {
       {archiveTarget && (
         <Modal busy={saving} title="Archive User" onClose={() => setArchiveTarget(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200">
-              <h3 className="text-base font-bold text-amber-700 m-0 flex items-center gap-2">
+              <h3 className="text-title font-bold text-amber-700 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faExclamationTriangle} /> Archive User
               </h3>
             </div>
             <div className="p-6">
-              <p className="text-sm text-slate-600 m-0">Are you sure you want to archive <strong>{archiveTarget.first_name} {archiveTarget.last_name}</strong>? This user will no longer be able to log in.</p>
-              <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700">
+              <p className="text-body text-slate-600 m-0">Are you sure you want to archive <strong>{archiveTarget.first_name} {archiveTarget.last_name}</strong>? This user will no longer be able to log in.</p>
+              <div className="mt-4 bg-amber-50 border border-amber-100 rounded-control p-3 text-label text-amber-700">
                 You can restore this account at any time from the "Archived" tab.
               </div>
             </div>
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-              <button onClick={() => setArchiveTarget(null)} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
+              <button onClick={() => setArchiveTarget(null)} className="px-4 py-2 text-body text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-control cursor-pointer">Cancel</button>
               <button onClick={handleArchive} disabled={saving}
-                className="px-5 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 border-0 cursor-pointer disabled:opacity-40">
+                className="px-5 py-2 bg-amber-500 text-white rounded-control text-body font-semibold hover:bg-amber-600 border-0 cursor-pointer disabled:opacity-40">
                 {saving ? 'Archiving...' : 'Archive User'}
               </button>
             </div>

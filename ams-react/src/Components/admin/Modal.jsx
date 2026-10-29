@@ -14,7 +14,7 @@ import useDialog, { openDialogCount } from '../../hooks/useDialog';
 //            print rules key off it)
 // as="form"  the card is the form; extra props (onSubmit, noValidate) go to the card
 // z          only to override the automatic stacking (50, then +10 per open dialog)
-const DEFAULT_CARD = 'bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden';
+const DEFAULT_CARD = 'bg-white rounded-dialog shadow-dialog w-full max-w-lg mx-4 overflow-hidden';
 const DEFAULT_OVERLAY = 'flex items-center justify-center bg-black/50 backdrop-blur-sm p-4';
 
 export default function Modal({

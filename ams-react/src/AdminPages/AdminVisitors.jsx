@@ -41,6 +41,8 @@ const DENY_REASON_OPTIONS = [
 import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 import Modal from '../Components/admin/Modal';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 // Preset checkout notes; "Other" lets the desk type a short one instead. The
 // chosen text is stored as-is in visitor_logs.checkout_notes.
@@ -372,7 +374,7 @@ export default function AdminVisitors() {
     { key: 'all', label: 'All Records', count: stats.total_count },
     { key: 'pending_approval', label: 'Pending Review', count: stats.pending_count, color: 'text-amber-700 bg-amber-50' },
     { key: 'checked_in', label: 'Checked In', count: stats.active_count, color: 'text-emerald-700 bg-emerald-50' },
-    { key: 'overstayed', label: 'Overstayed', count: stats.overstay_count, color: 'text-rose-700 bg-rose-50' },
+    { key: 'overstayed', label: 'Overstayed', count: stats.overstay_count, color: 'text-red-700 bg-red-50' },
     { key: 'checked_out', label: 'Checked Out' },
     { key: 'denied', label: 'Denied' },
     { key: 'cancelled', label: 'Cancelled' },
@@ -381,7 +383,7 @@ export default function AdminVisitors() {
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
+      <div className="flex flex-1 flex-col overflow-hidden bg-slate-50 text-left font-sans">
         <Header title="Visitor Management" />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
@@ -389,12 +391,12 @@ export default function AdminVisitors() {
 
             {/* Today's check-ins and the overstay rule, the two things the status pills
                 below do not show (a row of count cards used to repeat the pills). */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-body text-slate-600">
               <span><strong className="text-slate-800">{stats.today_count}</strong> check-in{stats.today_count === 1 ? '' : 's'} today</span>
               <button
                 type="button"
                 onClick={() => setShowThresholdModal(true)}
-                className="btn-interactive inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 cursor-pointer"
+                className={btn('secondary', 'sm', 'btn-interactive')}
               >
                 <FontAwesomeIcon icon={faSlidersH} className="text-[10px]" aria-hidden="true" />
                 Overstay after {stats.overstay_threshold_hours >= 24 ? `${Math.round(stats.overstay_threshold_hours / 24)} day${Math.round(stats.overstay_threshold_hours / 24) === 1 ? '' : 's'}` : `${stats.overstay_threshold_hours} hours`}
@@ -402,7 +404,7 @@ export default function AdminVisitors() {
             </div>
 
             {/* Action & Filter Control Bar */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="rounded-card border border-slate-200 bg-white p-4 sm:p-6 shadow-card space-y-4">
               
               <div className="admin-visitors-filter-bar flex flex-col md:flex-row items-center justify-between gap-4">
                 
@@ -415,12 +417,12 @@ export default function AdminVisitors() {
                       placeholder="Search visitor name, phone, unit, plate number..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="admin-visitors-search-input w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+                      className="admin-visitors-search-input w-full rounded-card border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-body text-slate-800 outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
                   <button
                     type="submit"
-                    className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-slate-700 border-0 cursor-pointer"
+                    className="rounded-card bg-slate-800 px-4 py-2.5 text-label font-bold text-white transition-colors hover:bg-slate-700 border-0 cursor-pointer"
                   >
                     Search
                   </button>
@@ -433,7 +435,7 @@ export default function AdminVisitors() {
                   <select aria-label="Filter by unit"
                     value={unitFilter}
                     onChange={(e) => setUnitFilter(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-indigo-500 cursor-pointer"
+                    className="rounded-card border border-slate-200 bg-white px-3 py-2.5 text-label font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-indigo-500 cursor-pointer"
                   >
                     <option value="all">All Units</option>
                     {rooms.map(r => (
@@ -446,7 +448,7 @@ export default function AdminVisitors() {
                     type="button"
                     onClick={fetchVisitors}
                     title="Refresh data"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                    className="flex h-10 w-10 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
                   >
                     <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
                   </button>
@@ -455,7 +457,7 @@ export default function AdminVisitors() {
                   <button
                     type="button"
                     onClick={openCheckInModal}
-                    className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-md hover:shadow-indigo-200 active:scale-[0.98] border-0 cursor-pointer shrink-0"
+                    className={btn('primary', 'sm', 'shrink-0')}
                   >
                     <FontAwesomeIcon icon={faUserPlus} />
                     <span>Log Visitor</span>
@@ -466,43 +468,30 @@ export default function AdminVisitors() {
               </div>
 
               {/* Status Filter Pills */}
-              <div className="admin-visitors-pill-group flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100">
-                {statusPills.map(pill => (
-                  <button
-                    key={pill.key}
-                    type="button"
-                    onClick={() => setStatusFilter(pill.key)}
-                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all border-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                      statusFilter === pill.key
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    {pill.count !== undefined && pill.count > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[11px] font-bold ${statusFilter === pill.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                        {pill.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
+              <div className="admin-visitors-pill-group pt-2 border-t border-slate-100">
+                <FilterTabs
+                  label="Filter visitors by status"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={statusPills.map(pill => ({ value: pill.key, label: pill.label, count: pill.count > 0 ? pill.count : undefined }))}
+                />
               </div>
 
             </div>
 
             {/* Visitor Records Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
               <div className="admin-visitors-table-container overflow-x-auto">
-                <table className="w-full min-w-[850px] text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <table className="w-full min-w-[850px] text-left text-body">
+                  <thead className={THEAD}>
                     <tr>
-                      <th className="px-5 py-3.5">Visitor &amp; Contact</th>
-                      <th className="px-4 py-3.5">Target Unit / Host</th>
-                      <th className="px-4 py-3.5">Purpose &amp; Vehicle</th>
-                      <th className="px-4 py-3.5">Check-In Time</th>
-                      <th className="px-4 py-3.5">Duration</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-5 py-3.5 text-right">Actions</th>
+                      <th className={TH}>Visitor &amp; Contact</th>
+                      <th className={TH}>Target Unit / Host</th>
+                      <th className={TH}>Purpose &amp; Vehicle</th>
+                      <th className={TH}>Check-In Time</th>
+                      <th className={TH}>Duration</th>
+                      <th className={`${TH} text-center`}>Status</th>
+                      <th className={`${TH} text-right`}>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
@@ -523,7 +512,7 @@ export default function AdminVisitors() {
                         <td colSpan="7" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faIdBadge} className="text-xl text-slate-300 shrink-0" />
-                            <span className="text-sm italic">No visitor records found matching current filters.</span>
+                            <span className="text-body italic">No visitor records found matching current filters.</span>
                           </div>
                         </td>
                       </tr>
@@ -542,16 +531,16 @@ export default function AdminVisitors() {
                             {/* Visitor Info */}
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 font-bold text-indigo-700 text-xs shrink-0">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-card bg-indigo-50 font-bold text-indigo-700 text-label shrink-0">
                                   {v.visitorName.charAt(0).toUpperCase()}
                                 </div>
                                 <div>
                                   <p className="font-bold text-slate-800 m-0 leading-snug">{v.visitorName}</p>
-                                  <p className="text-xs text-slate-500 m-0 mt-0.5 flex flex-wrap items-center gap-1.5">
+                                  <p className="text-label text-slate-500 m-0 mt-0.5 flex flex-wrap items-center gap-1.5">
                                     <FontAwesomeIcon icon={faPhone} className="text-[10px] text-slate-500" />
                                     <span>{v.contactNumber}</span>
                                     {v.idNumber && (
-                                      <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                                      <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-slate-100 text-slate-600 font-mono">
                                         {v.idType}: {v.idNumber}
                                       </span>
                                     )}
@@ -560,7 +549,7 @@ export default function AdminVisitors() {
                                         href={fileUrl(v.idPhotoPath)}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline inline-flex items-center gap-1 bg-indigo-50 px-1.5 py-0.5 rounded"
+                                        className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-indigo-600 hover:text-indigo-800 hover:underline inline-flex items-center gap-1 bg-indigo-50"
                                       >
                                         <FontAwesomeIcon icon={faEye} className="text-[9px]" />
                                         <span>View ID</span>
@@ -573,51 +562,51 @@ export default function AdminVisitors() {
 
                             {/* Unit & Host */}
                             <td className="px-4 py-4">
-                              <span className="inline-flex items-center gap-1 font-bold text-slate-800 text-xs bg-slate-100 px-2 py-0.5 rounded-md">
+                              <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 text-slate-800 bg-slate-100">
                                 <FontAwesomeIcon icon={faBuilding} className="text-indigo-500 text-[10px]" />
                                 Unit {v.unit}
                               </span>
-                              <p className="text-xs text-slate-500 m-0 mt-1 truncate max-w-[140px]" title={v.hostName}>
+                              <p className="text-label text-slate-500 m-0 mt-1 truncate max-w-[140px]" title={v.hostName}>
                                 Host: {v.hostName}
                               </p>
                             </td>
 
                             {/* Purpose & Vehicle */}
                             <td className="px-4 py-4">
-                              <p className="text-xs font-semibold text-slate-700 m-0">{v.purpose}</p>
+                              <p className="text-label font-semibold text-slate-700 m-0">{v.purpose}</p>
                               {v.vehiclePlate ? (
-                                <p className="text-[11px] text-slate-500 m-0 mt-0.5 flex items-center gap-1">
+                                <p className="text-caption text-slate-500 m-0 mt-0.5 flex items-center gap-1">
                                   <FontAwesomeIcon icon={faCar} className="text-[10px] text-slate-500" />
                                   <span className="font-mono uppercase font-bold text-indigo-600">{v.vehiclePlate}</span>
                                 </p>
                               ) : (
-                                <span className="text-[11px] text-slate-500">Pedestrian / Drop-off</span>
+                                <span className="text-caption text-slate-500">Pedestrian / Drop-off</span>
                               )}
                             </td>
 
                             {/* Check-In Time */}
-                            <td className="px-4 py-4 text-xs text-slate-600">
+                            <td className="px-4 py-4 text-label text-slate-600">
                               <p className="m-0 font-medium">
                                 {new Date(v.visitAt || v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </p>
-                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                              <p className="text-caption text-slate-500 m-0 mt-0.5">
                                 {new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
                               {v.expectedCheckOutAt && (
-                                <p className="text-[11px] text-slate-500 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>
+                                <p className="text-caption text-slate-500 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>
                               )}
                             </td>
 
                             {/* Duration */}
-                            <td className="px-4 py-4 text-xs">
+                            <td className="px-4 py-4 text-label">
                               {isPending ? (
-                                <span className="text-slate-500 italic text-[11px]">
+                                <span className="text-slate-500 italic text-caption">
                                   {v.expectedAt
                                     ? `Expected ${new Date(v.expectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                                     : 'Awaiting entry'}
                                 </span>
                               ) : (
-                                <span className={`font-mono font-bold text-xs ${isOverstay ? 'text-rose-600' : 'text-slate-700'}`}>
+                                <span className={`font-mono font-bold text-label ${isOverstay ? 'text-red-600' : 'text-slate-700'}`}>
                                   {v.duration}
                                 </span>
                               )}
@@ -626,35 +615,35 @@ export default function AdminVisitors() {
                             {/* Status Badge */}
                             <td className="px-4 py-4 text-center">
                               {isPending && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 bg-amber-100 text-amber-700">
                                   <FontAwesomeIcon icon={faClock} className="text-[9px]" />
                                   Review
                                 </span>
                               )}
                               {isActive && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 bg-emerald-100 text-emerald-700">
                                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                   Checked In
                                 </span>
                               )}
                               {isOverstay && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-bold text-rose-700">
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 bg-red-100 text-red-700">
                                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-[9px]" />
                                   Overstayed
                                 </span>
                               )}
                               {isCompleted && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 bg-slate-100 text-slate-600">
                                   Checked Out
                                 </span>
                               )}
                               {isDenied && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700" title={v.adminNotes || 'Entry Denied'}>
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 bg-red-100 text-red-700" title={v.adminNotes || 'Entry Denied'}>
                                   Denied
                                 </span>
                               )}
                               {isCancelled && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500" title={v.adminNotes || 'Cancelled by tenant'}>
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 bg-slate-100 text-slate-600" title={v.adminNotes || 'Cancelled by tenant'}>
                                   Cancelled
                                 </span>
                               )}
@@ -667,7 +656,7 @@ export default function AdminVisitors() {
                                   <button
                                     type="button"
                                     onClick={() => handleReviewAction(v.id, 'checked_in')}
-                                    className="admin-visitors-action-btn rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
+                                    className="admin-visitors-action-btn rounded-control bg-emerald-50 px-2.5 py-1.5 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
                                     title="Approve Entry"
                                   >
                                     <FontAwesomeIcon icon={faCheck} className="mr-1" /> Approve
@@ -675,7 +664,7 @@ export default function AdminVisitors() {
                                   <button
                                     type="button"
                                     onClick={() => handleReviewAction(v.id, 'denied')}
-                                    className="admin-visitors-action-btn rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors border-0 cursor-pointer"
+                                    className="admin-visitors-action-btn rounded-control bg-red-50 px-2.5 py-1.5 text-label font-bold text-red-700 hover:bg-red-100 transition-colors border-0 cursor-pointer"
                                     title="Deny Entry"
                                   >
                                     <FontAwesomeIcon icon={faTimes} />
@@ -694,7 +683,7 @@ export default function AdminVisitors() {
                                     checkIn.clearError('checkoutOther');
                                     setShowCheckoutModal(true);
                                   }}
-                                  className="admin-visitors-action-btn inline-flex items-center gap-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors border-0 cursor-pointer"
+                                  className="admin-visitors-action-btn inline-flex items-center gap-1.5 rounded-control bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-label font-bold text-slate-700 transition-colors border-0 cursor-pointer"
                                   title="Check Out Visitor"
                                 >
                                   <FontAwesomeIcon icon={faSignOutAlt} className="text-slate-500" />
@@ -703,7 +692,7 @@ export default function AdminVisitors() {
                               )}
 
                               {(isCompleted || isDenied) && (
-                                <span className="text-xs font-medium italic text-slate-500">
+                                <span className="text-label font-medium italic text-slate-500">
                                   {v.checkOutAt ? `Departed ${new Date(v.checkOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Archived'}
                                 </span>
                               )}
@@ -727,15 +716,15 @@ export default function AdminVisitors() {
         <Modal busy={submitting} title="Log Visitor Check-In" onClose={() => setShowCheckInModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 text-base">
+                <div className="flex h-9 w-9 items-center justify-center rounded-card bg-indigo-50 text-indigo-600 text-title">
                   <FontAwesomeIcon icon={faUserPlus} />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 m-0">Log Visitor Check-In</h3>
+                <h3 className="text-title font-bold text-slate-800 m-0">Log Visitor Check-In</h3>
               </div>
               <button aria-label="Close"
                 type="button"
                 onClick={() => setShowCheckInModal(false)}
-                className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-lg"
+                className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-title"
               >
                 <FontAwesomeIcon icon={faTimes} />
               </button>
@@ -744,7 +733,7 @@ export default function AdminVisitors() {
             <form onSubmit={handleCheckInSubmit} className="space-y-4" noValidate>
               
               <div>
-                <label htmlFor="checkin-visitorName" className="block text-xs font-bold text-slate-700 mb-1">Visitor Full Name *</label>
+                <label htmlFor="checkin-visitorName" className="block text-label font-bold text-slate-700 mb-1">Visitor Full Name *</label>
                 <input
                   type="text"
                   {...checkIn.fieldA11y('visitorName')}
@@ -755,14 +744,14 @@ export default function AdminVisitors() {
                   placeholder="e.g. Maria Santos"
                   value={checkInForm.visitorName}
                   maxLength={LIMITS.fullName}
-                  className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitorName)}
+                  className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitorName)}
                 />
                 <FieldError id="checkin-visitorName" error={checkIn.errors.visitorName} />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="checkin-contactNumber" className="block text-xs font-bold text-slate-700 mb-1">Contact Number *</label>
+                  <label htmlFor="checkin-contactNumber" className="block text-label font-bold text-slate-700 mb-1">Contact Number *</label>
                   <PhoneInput
                     id="checkin-contactNumber"
                     name="contactNumber"
@@ -774,14 +763,14 @@ export default function AdminVisitors() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="checkin-unit" className="block text-xs font-bold text-slate-700 mb-1">Target Unit *</label>
+                  <label htmlFor="checkin-unit" className="block text-label font-bold text-slate-700 mb-1">Target Unit *</label>
                   <select
                     required
                     {...checkIn.fieldA11y('unit')}
                     onChange={(e) => setCheckInField('unit', e.target.value)}
                     onBlur={() => blurCheckInField('unit')}
                     value={checkInForm.unit}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.unit)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.unit)}
                   >
                     <option value="" disabled>Select Target Unit</option>
                     {rooms.map(r => (
@@ -796,7 +785,7 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="checkin-visitDate" className="block text-xs font-bold text-slate-700 mb-1">Check-in Date *</label>
+                  <label htmlFor="checkin-visitDate" className="block text-label font-bold text-slate-700 mb-1">Check-in Date *</label>
                   <input
                     type="date"
                     required
@@ -806,12 +795,12 @@ export default function AdminVisitors() {
                     min={visitDateBounds.min}
                     max={visitDateBounds.max}
                     value={checkInForm.visitDate}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitDate)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitDate)}
                   />
                   <FieldError id="checkin-visitDate" error={checkIn.errors.visitDate} />
                 </div>
                 <div>
-                  <label htmlFor="checkin-visitTime" className="block text-xs font-bold text-slate-700 mb-1">Check-in Time *</label>
+                  <label htmlFor="checkin-visitTime" className="block text-label font-bold text-slate-700 mb-1">Check-in Time *</label>
                   <input
                     type="time"
                     required
@@ -819,7 +808,7 @@ export default function AdminVisitors() {
                     onChange={(e) => setCheckInField('visitTime', e.target.value)}
                     onBlur={() => blurCheckInField('visitTime')}
                     value={checkInForm.visitTime}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitTime)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitTime)}
                   />
                   <FieldError id="checkin-visitTime" error={checkIn.errors.visitTime} />
                 </div>
@@ -827,7 +816,7 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="checkin-checkOutDate" className="block text-xs font-bold text-slate-700 mb-1">Expected Check-out Date *</label>
+                  <label htmlFor="checkin-checkOutDate" className="block text-label font-bold text-slate-700 mb-1">Expected Check-out Date *</label>
                   <input
                     type="date"
                     required
@@ -837,12 +826,12 @@ export default function AdminVisitors() {
                     min={visitDateBounds.min}
                     max={visitDateBounds.outMax}
                     value={checkInForm.checkOutDate}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkOutDate)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkOutDate)}
                   />
                   <FieldError id="checkin-checkOutDate" error={checkIn.errors.checkOutDate} />
                 </div>
                 <div>
-                  <label htmlFor="checkin-checkOutTime" className="block text-xs font-bold text-slate-700 mb-1">Expected Check-out Time *</label>
+                  <label htmlFor="checkin-checkOutTime" className="block text-label font-bold text-slate-700 mb-1">Expected Check-out Time *</label>
                   <input
                     type="time"
                     required
@@ -850,20 +839,20 @@ export default function AdminVisitors() {
                     onChange={(e) => setCheckInField('checkOutTime', e.target.value)}
                     onBlur={() => blurCheckInField('checkOutTime')}
                     value={checkInForm.checkOutTime}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkOutTime)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkOutTime)}
                   />
                   <FieldError id="checkin-checkOutTime" error={checkIn.errors.checkOutTime} />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="checkin-purpose" className="block text-xs font-bold text-slate-700 mb-1">Purpose of Visit *</label>
+                <label htmlFor="checkin-purpose" className="block text-label font-bold text-slate-700 mb-1">Purpose of Visit *</label>
                 <select
                   {...checkIn.fieldA11y('purpose')}
                     onChange={(e) => setCheckInField('purpose', e.target.value)}
                     onBlur={() => blurCheckInField('purpose')}
                   value={checkInForm.purpose}
-                  className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.purpose)}
+                  className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.purpose)}
                 >
                   <option value="Personal Visit">Personal Visit / Family</option>
                   <option value="Delivery / Courier">Delivery / Courier</option>
@@ -875,13 +864,13 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="checkin-idType" className="block text-xs font-bold text-slate-700 mb-1">Gov ID Type *</label>
+                  <label htmlFor="checkin-idType" className="block text-label font-bold text-slate-700 mb-1">Gov ID Type *</label>
                   <select
                     {...checkIn.fieldA11y('idType')}
                     onChange={(e) => setCheckInField('idType', e.target.value)}
                     onBlur={() => blurCheckInField('idType')}
                     value={checkInForm.idType}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.idType)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.idType)}
                   >
                     <option value="National ID">Philippine National ID</option>
                     <option value="Driver's License">Driver's License</option>
@@ -891,7 +880,7 @@ export default function AdminVisitors() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="checkin-idNumber" className="block text-xs font-bold text-slate-700 mb-1">ID Number *</label>
+                  <label htmlFor="checkin-idNumber" className="block text-label font-bold text-slate-700 mb-1">ID Number *</label>
                   <input
                     type="text"
                     required
@@ -902,7 +891,7 @@ export default function AdminVisitors() {
                     placeholder="e.g. N02-18-9382"
                     value={checkInForm.idNumber}
                     maxLength={LIMITS.idNumber}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.idNumber)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.idNumber)}
                   />
                   <FieldError id="checkin-idNumber" error={checkIn.errors.idNumber} />
                 </div>
@@ -910,7 +899,7 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="checkin-vehiclePlate" className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
+                  <label htmlFor="checkin-vehiclePlate" className="block text-label font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
                   <input
                     type="text"
                     {...checkIn.fieldA11y('vehiclePlate')}
@@ -920,12 +909,12 @@ export default function AdminVisitors() {
                     placeholder="e.g. ABC 1234"
                     value={checkInForm.vehiclePlate}
                     maxLength={LIMITS.visitorPlate}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase font-mono" + invalidCls(checkIn.errors.vehiclePlate)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase font-mono" + invalidCls(checkIn.errors.vehiclePlate)}
                   />
                   <FieldError id="checkin-vehiclePlate" error={checkIn.errors.vehiclePlate} />
                 </div>
                 <div>
-                  <label htmlFor="checkin-idPhoto" className="block text-xs font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
+                  <label htmlFor="checkin-idPhoto" className="block text-label font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
                   <input
                     key={photoInputKey}
                     type="file"
@@ -938,7 +927,7 @@ export default function AdminVisitors() {
                       if (fileError) { e.target.value = ''; setCheckInForm(f => ({ ...f, idPhoto: null })); return; }
                       setCheckInForm(f => ({ ...f, idPhoto: file }));
                     }}
-                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                    className="w-full text-label text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-control file:border-0 file:text-label file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
                   />
                   <FieldError id="checkin-idPhoto" error={checkIn.errors.idPhoto} />
                   <FileChip file={checkInForm.idPhoto} onRemove={clearIdPhoto} />
@@ -949,14 +938,14 @@ export default function AdminVisitors() {
                 <button
                   type="button"
                   onClick={() => setShowCheckInModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
+                  className={btn('secondary', 'md', 'flex-1')}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-sm font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
+                  className={btn('primary', 'md', 'flex-1')}
                 >
                   {submitting ? 'Checking In...' : 'Log & Check In'}
                 </button>
@@ -970,7 +959,7 @@ export default function AdminVisitors() {
       {showCheckoutModal && selectedVisitorForCheckout && (
         <Modal busy={submitting} title="Confirm Visitor Checkout" onClose={() => setShowCheckoutModal(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <h3 className="text-lg font-bold text-slate-800 m-0">Confirm Visitor Checkout</h3>
+              <h3 className="text-title font-bold text-slate-800 m-0">Confirm Visitor Checkout</h3>
               <button aria-label="Close"
                 type="button"
                 onClick={() => setShowCheckoutModal(false)}
@@ -980,7 +969,7 @@ export default function AdminVisitors() {
               </button>
             </div>
 
-            <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 mb-4 space-y-1.5 text-xs text-slate-600">
+            <div className="rounded-card bg-slate-50 p-4 border border-slate-100 mb-4 space-y-1.5 text-label text-slate-600">
               <p className="m-0"><strong className="text-slate-800">Visitor:</strong> {selectedVisitorForCheckout.visitorName}</p>
               <p className="m-0"><strong className="text-slate-800">Visiting Unit:</strong> Unit {selectedVisitorForCheckout.unit} ({selectedVisitorForCheckout.hostName})</p>
               <p className="m-0"><strong className="text-slate-800">Checked In At:</strong> {new Date(selectedVisitorForCheckout.checkInAt).toLocaleString()}</p>
@@ -992,14 +981,14 @@ export default function AdminVisitors() {
 
             <form onSubmit={handleCheckoutSubmit} className="space-y-4" noValidate>
               <div>
-                <label htmlFor="checkout-note" className="block text-xs font-bold text-slate-700 mb-1">Checkout Note *</label>
+                <label htmlFor="checkout-note" className="block text-label font-bold text-slate-700 mb-1">Checkout Note *</label>
                 <select
                   id="checkout-note"
                   name="checkoutNote"
                   required
                   value={checkoutNote}
                   onChange={(e) => { setCheckoutNote(e.target.value); checkIn.clearError('checkoutOther'); }}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                  className="w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-body text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
                 >
                   {CHECKOUT_NOTE_OPTIONS.map(option => (
                     <option key={option} value={option}>{option}</option>
@@ -1009,7 +998,7 @@ export default function AdminVisitors() {
               </div>
               {checkoutNote === CHECKOUT_NOTE_OTHER && (
                 <div>
-                  <label htmlFor="checkin-checkoutOther" className="block text-xs font-bold text-slate-700 mb-1">Other Note *</label>
+                  <label htmlFor="checkin-checkoutOther" className="block text-label font-bold text-slate-700 mb-1">Other Note *</label>
                   {/* update_visitor_status.php allows 1000 characters; the input used to stop at 255. */}
                   <input
                     type="text"
@@ -1021,7 +1010,7 @@ export default function AdminVisitors() {
                     maxLength={LIMITS.notes}
                     onChange={(e) => { setCheckoutOther(e.target.value); checkIn.clearError('checkoutOther'); }}
                     onBlur={() => { const v = checkoutOther.trim(); setCheckoutOther(v); if (v) checkIn.validateField('checkoutOther', { checkoutOther: v }); }}
-                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkoutOther)}
+                    className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkoutOther)}
                   />
                   <FieldError id="checkin-checkoutOther" error={checkIn.errors.checkoutOther} />
                 </div>
@@ -1031,14 +1020,14 @@ export default function AdminVisitors() {
                 <button
                   type="button"
                   onClick={() => setShowCheckoutModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
+                  className={btn('secondary', 'md', 'flex-1')}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 rounded-xl bg-slate-900 hover:bg-black py-2.5 text-sm font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
+                  className="flex-1 rounded-card bg-slate-900 hover:bg-black py-2.5 text-body font-bold text-white transition-colors border-0 cursor-pointer shadow-raised disabled:opacity-50"
                 >
                   {submitting ? 'Processing...' : 'Complete Checkout'}
                 </button>
@@ -1053,7 +1042,7 @@ export default function AdminVisitors() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faSlidersH} className="text-indigo-600" />
-                <h3 className="text-lg font-bold text-slate-800 m-0">Set Overstay Threshold</h3>
+                <h3 className="text-title font-bold text-slate-800 m-0">Set Overstay Threshold</h3>
               </div>
               <button aria-label="Close"
                 type="button"
@@ -1064,13 +1053,13 @@ export default function AdminVisitors() {
               </button>
             </div>
 
-            <p className="text-xs text-slate-500 leading-relaxed mb-4">
+            <p className="text-label text-slate-500 leading-relaxed mb-4">
               Configure after how many hours/days an active visitor is flagged with an <strong>Overstay Alert</strong>. Configurable from 1 hour up to 7 days (168 hours).
             </p>
 
             <form onSubmit={handleSaveThreshold} className="space-y-4" noValidate>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Overstay Limit Preset</label>
+                <label className="block text-label font-bold text-slate-700 mb-1">Overstay Limit Preset</label>
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   {[
                     { h: 6, label: '6 Hours' },
@@ -1084,9 +1073,9 @@ export default function AdminVisitors() {
                       key={preset.h}
                       type="button"
                       onClick={() => { setThresholdHours(preset.h); checkIn.clearError('visitor_overstay_hours'); }}
-                      className={`rounded-xl py-2 px-1 text-xs font-bold transition-all border cursor-pointer ${
+                      className={`rounded-card py-2 px-1 text-label font-bold transition-all border cursor-pointer ${
                         Number(thresholdHours) === preset.h
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-card'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
@@ -1095,7 +1084,7 @@ export default function AdminVisitors() {
                   ))}
                 </div>
 
-                <label htmlFor="checkin-visitor_overstay_hours" className="block text-xs font-bold text-slate-700 mb-1">Custom Hours (1 to 168 hours)</label>
+                <label htmlFor="checkin-visitor_overstay_hours" className="block text-label font-bold text-slate-700 mb-1">Custom Hours (1 to 168 hours)</label>
                 {/* Kept as typed and validated; it used to snap to 1 while being cleared. */}
                 <input
                   type="number"
@@ -1109,7 +1098,7 @@ export default function AdminVisitors() {
                   onKeyDown={blockNonIntegerKeys}
                   onChange={(e) => { setThresholdHours(e.target.value); checkIn.clearError('visitor_overstay_hours'); }}
                   onBlur={() => checkIn.validateField('visitor_overstay_hours', { visitor_overstay_hours: thresholdHours })}
-                  className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitor_overstay_hours)}
+                  className={"w-full rounded-card border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitor_overstay_hours)}
                 />
                 <FieldError id="checkin-visitor_overstay_hours" error={checkIn.errors.visitor_overstay_hours} />
               </div>
@@ -1118,14 +1107,14 @@ export default function AdminVisitors() {
                 <button
                   type="button"
                   onClick={() => setShowThresholdModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
+                  className={btn('secondary', 'md', 'flex-1')}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-sm font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
+                  className={btn('primary', 'md', 'flex-1')}
                 >
                   {submitting ? 'Saving...' : 'Save Setting'}
                 </button>

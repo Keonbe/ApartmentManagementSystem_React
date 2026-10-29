@@ -16,6 +16,7 @@ import FieldError from '../Components/form/FieldError';
 import FileChip from '../Components/form/FileChip';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { invalidCls } from '../Components/form/formHelpers';
+import { btn } from '../Components/admin/ui/styles';
 
 const SEND_TO = ['All tenants', 'Specific unit'];
 const TYPES = ['General', 'Urgent', 'Reminder'];
@@ -33,8 +34,8 @@ const CURRENT_STATUSES = ['active', 'Approved', 'pending-move-out'];
 // removeAttachment drops that file on the next save or send.
 const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'], attachment: null, draftId: null, draftAttachment: null, removeAttachment: false };
 
-const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
-const LABEL = 'block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1';
+const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-control bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
+const LABEL = 'block text-label font-medium text-slate-600 mb-1';
 
 const peso = (n) => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const getSmsPrefix =(type) => (type === 'General' || !type ? 'AMS: ' : `AMS ${type}: `);
@@ -286,11 +287,11 @@ const AdminAnnouncements = () => {
           <div className="max-w-4xl mx-auto space-y-6">
 
             {/* Compose Announcement */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-card p-6 shadow-card">
               <div className="flex items-center justify-between gap-3 mb-4">
-                <h3 className="text-base font-bold text-slate-800 m-0">{form.draftId ? 'Edit Draft' : 'Compose Announcement'}</h3>
+                <h3 className="text-title font-bold text-slate-800 m-0">{form.draftId ? 'Edit Draft' : 'Compose Announcement'}</h3>
                 {form.draftId && (
-                  <button type="button" onClick={closeDraft} className="text-xs font-semibold text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer p-0">
+                  <button type="button" onClick={closeDraft} className="text-label font-semibold text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer p-0">
                     Close draft
                   </button>
                 )}
@@ -336,16 +337,16 @@ const AdminAnnouncements = () => {
                 <label htmlFor="announce-body" className={LABEL}>Message</label>
                 <textarea {...fields.fieldA11y('body')} placeholder="Type your message here..." rows={4} maxLength={LIMITS.message} value={form.body}
                   onChange={e => setField('body', e.target.value)} onBlur={() => blurText('body')}
-                  className={"focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" + invalidCls(fields.errors.body)} />
+                  className={"focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-control bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" + invalidCls(fields.errors.body)} />
                 <FieldError id="announce-body" error={fields.errors.body} />
                 <p className="sr-only" aria-live="polite">
                   {form.body.length} / {LIMITS.message} characters
                 </p>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mt-1 text-[11px]">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mt-1 text-caption">
                   <div>
                     {isSmsOverLimit ? (
-                      <span className="inline-flex items-center gap-1.5 text-rose-600 font-semibold">
-                        <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-500" />
+                      <span className="inline-flex items-center gap-1.5 text-red-600 font-semibold">
+                        <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
                         SMS exceeds 160-character limit ({smsLength}/160)
                       </span>
                     ) : isSmsActive && smsLength > 0 ? (
@@ -357,7 +358,7 @@ const AdminAnnouncements = () => {
                   <div className="text-right">
                     <span className="text-slate-500">{form.body.length} / {LIMITS.message} characters</span>
                     {isSmsActive && (
-                      <span className={isSmsOverLimit ? 'font-semibold text-rose-600 ml-1.5' : 'text-slate-500 ml-1.5'}>
+                      <span className={isSmsOverLimit ? 'font-semibold text-red-600 ml-1.5' : 'text-slate-500 ml-1.5'}>
                         · SMS: {smsLength}/160 {isSmsOverLimit ? `(+${smsLength - 160} over)` : ''}
                       </span>
                     )}
@@ -365,11 +366,11 @@ const AdminAnnouncements = () => {
                 </div>
 
                 {isSmsOverLimit && (
-                  <div className="mt-2.5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 shadow-sm">
-                    <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-500 text-sm mt-0.5 shrink-0" />
+                  <div className="mt-2.5 p-3 rounded-control bg-red-50 border border-red-200 text-red-800 text-label flex items-start gap-2.5 shadow-card">
+                    <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 text-sm mt-0.5 shrink-0" />
                     <div className="space-y-1">
                       <p className="font-semibold m-0">SMS character limit exceeded</p>
-                      <p className="m-0 text-rose-700 leading-relaxed">
+                      <p className="m-0 text-red-700 leading-relaxed">
                         The combined announcement text formatted for SMS is <strong>{smsLength} characters</strong> (exceeds the 160-character limit by {smsLength - 160}). Sending via SMS is blocked until the title or message is shortened, or SMS delivery is unchecked.
                       </p>
                     </div>
@@ -379,57 +380,57 @@ const AdminAnnouncements = () => {
 
               {/* Attachment Input */}
               <div className="mb-4">
-                <label htmlFor="announcement-attachment" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Attachment (Optional)</label>
+                <label htmlFor="announcement-attachment" className="block text-label font-medium text-slate-600 mb-2">Attachment (Optional)</label>
                 <input
                   id="announcement-attachment"
                   key={fileKey} type="file"
                   accept={acceptFor(FILE_RULES.announcement)}
                   onChange={e => chooseAttachment(e.target.files[0])}
                   aria-describedby="announcement-attachment-hint"
-                  className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  className="w-full text-body text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-control file:border-0 file:text-body file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
-                <p id="announcement-attachment-hint" className="text-[11px] text-slate-500 m-0 mt-1">
+                <p id="announcement-attachment-hint" className="text-caption text-slate-500 m-0 mt-1">
                   One file: {FILE_RULES.announcement.label}, up to {FILE_RULES.announcement.maxMB} MB. Tenants open it from the announcement in their notifications; it is not sent with the SMS or email. "Save draft" keeps it with the draft.
                 </p>
-                {attachmentError && <p role="alert" className="text-xs text-red-600 m-0 mt-1">{attachmentError}</p>}
+                {attachmentError && <p role="alert" className="text-label text-red-600 m-0 mt-1">{attachmentError}</p>}
                 {/* The file a reopened draft already holds; a newly chosen file replaces it. */}
                 {form.draftAttachment && !form.attachment && (
-                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-control border border-slate-200 bg-slate-50 px-3 py-1.5 text-label text-slate-600">
                     <FontAwesomeIcon icon={faPaperclip} className="text-indigo-500" />
                     <a href={fileUrl(form.draftAttachment)} target="_blank" rel="noreferrer" className="font-semibold text-indigo-700 no-underline hover:underline">Saved attachment</a>
-                    <button type="button" onClick={removeDraftAttachment} className="text-rose-600 font-semibold bg-transparent border-0 cursor-pointer p-0">Remove</button>
+                    <button type="button" onClick={removeDraftAttachment} className="text-red-600 font-semibold bg-transparent border-0 cursor-pointer p-0">Remove</button>
                   </div>
                 )}
                 <FileChip file={form.attachment} onRemove={clearAttachment} />
                 {attachmentFile && (
-                  <div className="mt-2 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+                  <div className="mt-2 inline-flex items-center justify-center rounded-control border border-slate-200 bg-slate-50 overflow-hidden">
                     {attachmentIsImage
                       ? <img ref={attachmentImgRef} alt="Attachment preview" className="max-h-40 max-w-full object-contain" />
-                      : <div className="flex items-center gap-2 px-4 py-3 text-xs text-slate-600"><FontAwesomeIcon icon={faFilePdf} className="text-red-600 text-base" /> PDF attached</div>}
+                      : <div className="flex items-center gap-2 px-4 py-3 text-label text-slate-600"><FontAwesomeIcon icon={faFilePdf} className="text-red-600 text-base" /> PDF attached</div>}
                   </div>
                 )}
               </div>
 
               {/* Delivery Channels */}
               <div className="mb-4">
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Delivery Channels</label>
+                <label className="block text-label font-medium text-slate-600 mb-2">Delivery Channels</label>
                 <div className="flex flex-wrap gap-2">
                   {[{ key: 'in-app', label: 'In-App', icon: faDesktop }, { key: 'sms', label: 'SMS', icon: faMobileAlt }, { key: 'email', label: 'Email', icon: faEnvelope }].map(ch => (
                     <button key={ch.key} type="button" onClick={() => toggleChannel(ch.key)}
                       title={ch.key === 'in-app' ? 'In-app is always sent' : undefined}
-                      className={`btn-interactive flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border ${ch.key === 'in-app' ? 'cursor-default' : 'cursor-pointer'} transition-all ${form.channels.includes(ch.key) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400'}`}>
+                      className={`btn-interactive flex items-center gap-2 px-3 py-2 rounded-control text-label font-semibold border ${ch.key === 'in-app' ? 'cursor-default' : 'cursor-pointer'} transition-all ${form.channels.includes(ch.key) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400'}`}>
                       <FontAwesomeIcon icon={ch.icon} /> {ch.label}
                       {ch.key === 'in-app' && <FontAwesomeIcon icon={faLock} className="text-[9px] opacity-70" />}
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500 m-0 mt-2">
+                <p className="text-caption text-slate-500 m-0 mt-2">
                   SMS and email reach only tenants who have them enabled and not opted out. SMS is capped at 160 characters (1 segment) per announcement.
                 </p>
               </div>
 
               {/* Recipient Count */}
-              <div className="mb-4 bg-slate-50 border border-slate-100 rounded-lg p-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
+              <div className="mb-4 bg-slate-50 border border-slate-100 rounded-control p-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-slate-600">
                 <FontAwesomeIcon icon={faUsers} className="text-indigo-500" />
                 <span>Will be sent to <strong className="text-slate-800">{recipientCount} tenant{recipientCount === 1 ? '' : 's'}</strong></span>
                 {/* "Up to": tenants without SMS enabled, or opted out, are skipped. One SMS each (160-char cap). */}
@@ -441,7 +442,7 @@ const AdminAnnouncements = () => {
               </div>
 
               {notice && (
-                <div role={notice.ok ? 'status' : 'alert'} className={`mb-4 rounded-lg px-3 py-2 text-xs font-medium ${notice.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                <div role={notice.ok ? 'status' : 'alert'} className={`mb-4 rounded-control px-3 py-2 text-label font-medium ${notice.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
                   {notice.text}
                 </div>
               )}
@@ -449,12 +450,12 @@ const AdminAnnouncements = () => {
               <div className="flex flex-wrap gap-3">
                 <button type="button" onClick={() => handleSend(false)} disabled={!!sending || isSmsOverLimit}
                   title={isSmsOverLimit ? `SMS length (${smsLength}/160) exceeds the 160-character limit. Shorten text or uncheck SMS.` : undefined}
-                  className="btn-interactive flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                  className={btn('primary', 'sm', 'btn-interactive')}>
                   <FontAwesomeIcon icon={sending === 'send' ? faSpinner : faPaperPlane} spin={sending === 'send'} />
                   {sendLabel}
                 </button>
                 <button type="button" onClick={() => handleSend(true)} disabled={!!sending}
-                  className="btn-interactive flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                  className={btn('secondary', 'sm', 'btn-interactive')}>
                   <FontAwesomeIcon icon={sending === 'draft' ? faSpinner : faSave} spin={sending === 'draft'} /> Save draft
                 </button>
               </div>
@@ -462,7 +463,7 @@ const AdminAnnouncements = () => {
 
             {/* Announcement History */}
             <div>
-              <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-3 m-0">Announcement History</h4>
+              <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Announcement History</h4>
               <div className="stagger-children space-y-3 mt-2">
                 {announcements.length === 0 && (
                   <p className="text-xs text-slate-500 m-0">No announcements yet.</p>
@@ -470,29 +471,29 @@ const AdminAnnouncements = () => {
                 {announcements.map(item => (
                   <div key={item.id} className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-all hover:border-indigo-400">
                     <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-semibold ${item.tagStyle}`}>{item.tag}</span>
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold ${statusConfig[item.status].color}`}>{statusConfig[item.status].label}</span>
-                      <span className="text-sm font-semibold text-slate-800">{item.title}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex ${item.tagStyle}`}>{item.tag}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex ${statusConfig[item.status].color}`}>{statusConfig[item.status].label}</span>
+                      <span className="text-body font-semibold text-slate-800">{item.title}</span>
                     </div>
-                    <p className="text-xs text-slate-500 leading-relaxed m-0 mb-3">{item.body}</p>
+                    <p className="text-label text-slate-500 leading-relaxed m-0 mb-3">{item.body}</p>
                     {item.attachment_path && (
                       <a href={fileUrl(item.attachment_path)} target="_blank" rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-semibold no-underline hover:bg-indigo-100">
+                        className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-control bg-indigo-50 text-indigo-700 text-caption font-semibold no-underline hover:bg-indigo-100">
                         <FontAwesomeIcon icon={faPaperclip} /> View attachment
                       </a>
                     )}
                     {item.status === 'draft' && (
                       <button type="button" onClick={() => openDraft(item)} disabled={!!sending || form.draftId === item.id}
-                        className="ml-2 inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-semibold border-0 cursor-pointer hover:bg-slate-200 disabled:opacity-60 disabled:cursor-default">
+                        className="ml-2 inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-control bg-slate-100 text-slate-700 text-caption font-semibold border-0 cursor-pointer hover:bg-slate-200 disabled:opacity-60 disabled:cursor-default">
                         {form.draftId === item.id ? 'Open in composer' : 'Open draft'}
                       </button>
                     )}
-                    <div className="flex items-center flex-wrap gap-3 text-[11px] text-slate-500">
+                    <div className="flex items-center flex-wrap gap-3 text-caption text-slate-500">
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faCalendarAlt} /> {item.date}</span>
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faUsers} /> {item.send_to} · {item.recipients} recipients</span>
                       <div className="flex items-center gap-1">
                         {item.channels.map(ch => (
-                          <span key={ch} className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center" title={ch}>
+                          <span key={ch} className="w-5 h-5 rounded-control bg-slate-100 flex items-center justify-center" title={ch}>
                             <FontAwesomeIcon icon={channelIcons[ch]} className="text-[9px] text-slate-500" />
                           </span>
                         ))}

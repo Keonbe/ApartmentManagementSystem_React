@@ -9,6 +9,8 @@ import {
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { LIMITS } from '../utils/validation';
+import { TH, THEAD } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 export default function AdminCctv() {
   const [requests, setRequests] = useState([]);
@@ -81,14 +83,14 @@ export default function AdminCctv() {
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
+      <div className="flex flex-1 flex-col overflow-hidden bg-slate-50 text-left font-sans">
         <Header title="CCTV Footage Requests" />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Filter and Search Bar */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="rounded-card border border-slate-200 bg-white p-4 sm:p-6 shadow-card space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
                   <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
@@ -97,33 +99,22 @@ export default function AdminCctv() {
                     placeholder="Search by tenant, unit, incident location, or reason..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full rounded-card border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-between">
-                  <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                    {['all', 'pending', 'approved', 'rejected'].map(tab => (
-                      <button
-                        key={tab}
-                        type="button"
-                        aria-pressed={statusFilter === tab}
-                        onClick={() => setStatusFilter(tab)}
-                        className={`btn-interactive rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
-                          statusFilter === tab
-                            ? 'bg-white text-slate-800 shadow-sm'
-                            : 'bg-transparent text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        {tab} ({tabCounts[tab]})
-                      </button>
-                    ))}
-                  </div>
+                  <FilterTabs
+                    label="Filter CCTV requests by status"
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    options={['all', 'pending', 'approved', 'rejected'].map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1), count: loading || error ? null : tabCounts[t] }))}
+                  />
 
                   <button
                     type="button"
                     onClick={fetchCctvRequests}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                    className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
                     title="Refresh"
                   >
                     <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
@@ -133,17 +124,17 @@ export default function AdminCctv() {
             </div>
 
             {/* Requests Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[750px] text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <table className="w-full min-w-[750px] text-left text-body">
+                  <thead className={THEAD}>
                     <tr>
-                      <th className="px-5 py-3.5">Tenant &amp; Unit</th>
-                      <th className="px-4 py-3.5">Incident Date &amp; Time</th>
-                      <th className="px-4 py-3.5">Location</th>
-                      <th className="px-4 py-3.5">Reason</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-5 py-3.5 text-right">Actions</th>
+                      <th className={TH}>Tenant &amp; Unit</th>
+                      <th className={TH}>Incident Date &amp; Time</th>
+                      <th className={TH}>Location</th>
+                      <th className={TH}>Reason</th>
+                      <th className={`${TH} text-center`}>Status</th>
+                      <th className={`${TH} text-right`}>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
@@ -164,7 +155,7 @@ export default function AdminCctv() {
                         <td colSpan="6" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faVideo} className="text-xl text-slate-300 shrink-0" />
-                            <span className="text-sm italic">No CCTV footage requests found.</span>
+                            <span className="text-body italic">No CCTV footage requests found.</span>
                           </div>
                         </td>
                       </tr>
@@ -173,30 +164,30 @@ export default function AdminCctv() {
                         <tr key={req.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="px-5 py-4">
                             <p className="font-bold text-slate-800 m-0">{req.tenant}</p>
-                            <span className="inline-flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                            <span className="inline-flex items-center gap-1 text-label text-slate-500 mt-0.5">
                               <FontAwesomeIcon icon={faBuilding} className="text-[10px] text-indigo-500" />
                               Unit {req.unit}
                             </span>
                           </td>
 
-                          <td className="px-4 py-4 text-xs text-slate-600">
+                          <td className="px-4 py-4 text-label text-slate-600">
                             <p className="m-0 font-medium flex items-center gap-1">
                               <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-500 text-[10px]" />
                               {req.incidentDate}
                             </p>
-                            <p className="text-[11px] text-slate-500 m-0 mt-0.5">{req.time}</p>
+                            <p className="text-caption text-slate-500 m-0 mt-0.5">{req.time}</p>
                           </td>
 
-                          <td className="px-4 py-4 text-xs font-medium text-slate-700">
+                          <td className="px-4 py-4 text-label font-medium text-slate-700">
                             {req.location}
                           </td>
 
-                          <td className="px-4 py-4 text-xs text-slate-500 max-w-xs truncate" title={req.reason}>
+                          <td className="px-4 py-4 text-label text-slate-500 max-w-xs truncate" title={req.reason}>
                             {req.reason}
                           </td>
 
                           <td className="px-4 py-4 text-center">
-                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                            <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${
                               req.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
                               req.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' :
                               'bg-red-100 text-red-700'
@@ -211,7 +202,7 @@ export default function AdminCctv() {
                                 <button
                                   type="button"
                                   onClick={() => handleStatusUpdate(req.id, 'Approved')}
-                                  className="btn-interactive rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
+                                  className="btn-interactive rounded-control bg-emerald-50 px-2.5 py-1.5 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
                                   title="Approve Request"
                                 >
                                   <FontAwesomeIcon icon={faCheck} className="mr-1" /> Approve
@@ -219,14 +210,14 @@ export default function AdminCctv() {
                                 <button
                                   type="button"
                                   onClick={() => handleStatusUpdate(req.id, 'Rejected')}
-                                  className="btn-interactive rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors border-0 cursor-pointer"
+                                  className="btn-interactive rounded-control bg-red-50 px-2.5 py-1.5 text-label font-bold text-red-700 hover:bg-red-100 transition-colors border-0 cursor-pointer"
                                   title="Reject Request"
                                 >
                                   <FontAwesomeIcon icon={faTimes} />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-xs font-medium italic text-slate-500">Resolved</span>
+                              <span className="text-label font-medium italic text-slate-500">Resolved</span>
                             )}
                           </td>
                         </tr>

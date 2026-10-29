@@ -6,6 +6,20 @@
    Unlayered rules, so they win over Tailwind utilities without !important.
    ===================================================== */
 
+/* Admin typeface (index.css @theme --font-admin, self-hosted via
+   @fontsource-variable/ibm-plex-sans, imported in AdminSidebar.jsx). Tabular
+   figures keep money and counts aligned in columns. Pages and some inner
+   wrappers carry Tailwind's font-sans, which would put the system font back. */
+.admin-shell,
+.admin-shell .font-sans {
+  font-family: var(--font-admin);
+  font-variant-numeric: tabular-nums;
+}
+/* index.css gives h1/h2 their own font (--heading); admin headings use the admin face. */
+.admin-shell :is(h1, h2, h3, h4, h5, h6) {
+  font-family: inherit;
+}
+
 @media (max-width: 767px) {
   /* Wide tables scroll inside their card instead of squashing their columns.
      Tables that already set their own min-w-* keep it. */

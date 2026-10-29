@@ -30,7 +30,7 @@ export default function SettingsNav({ tabs, active, onSelect, dirtyTabs }) {
             type="button"
             onClick={() => onSelect(tab.id)}
             aria-current={isActive ? 'page' : undefined}
-            className={`shrink-0 flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-semibold text-left whitespace-nowrap border-0 cursor-pointer transition-colors duration-150 ${
+            className={`shrink-0 flex items-center gap-3 px-3.5 py-2.5 rounded-control text-body font-semibold text-left whitespace-nowrap border-0 cursor-pointer transition-colors duration-150 ${
               isActive
                 ? 'bg-indigo-50 text-indigo-700'
                 : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-800'

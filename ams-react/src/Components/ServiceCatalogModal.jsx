@@ -7,6 +7,7 @@ import FieldError from './form/FieldError';
 import CharCount from './form/CharCount';
 import { blockNonIntegerKeys, blockNonNumericKeys, invalidCls } from './form/formHelpers';
 import Modal from './admin/Modal';
+import { btn } from './admin/ui/styles';
 
 const CATEGORIES = [
     { value: 'cleaning', label: 'Cleaning' },
@@ -140,8 +141,8 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
         });
     };
 
-    const inputClass = "focus-glow w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500";
-    const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+    const inputClass = "focus-glow w-full rounded-control border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+    const labelClass = "mb-1 block text-label font-medium text-slate-600";
     const isSession = form.pricingUnit === 'session';
     const cls = (field, extra = '') => `${inputClass}${extra}${invalidCls(fields.errors[field])}`;
     const bind = (field) => ({ ...fields.fieldA11y(field), value: form[field], onChange: set(field), onBlur: blur(field) });
@@ -152,10 +153,10 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                 {/*ModalHeader*/}
                 <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                     <div>
-                        <h3 className="m-0 text-lg font-semibold text-slate-800">
+                        <h3 className="m-0 text-title font-semibold text-slate-800">
                             {service ? 'Edit Service' : 'Add Service'}
                         </h3>
-                        <p className="m-0 mt-1 text-xs text-slate-500">
+                        <p className="m-0 mt-1 text-label text-slate-500">
                             Priced add-on services tenants can book from their portal.
                         </p>
                     </div>
@@ -284,7 +285,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                             className={cls('leadTimeDays')}
                         />
                         {error('leadTimeDays')}
-                        <p className="m-0 mt-1 text-[11px] text-slate-400">Earliest date a tenant may book.</p>
+                        <p className="m-0 mt-1 text-caption text-slate-400">Earliest date a tenant may book.</p>
                     </div>
 
                     <div>
@@ -300,7 +301,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                             className={cls('sortOrder')}
                         />
                         {error('sortOrder')}
-                        <p className="m-0 mt-1 text-[11px] text-slate-400">Lower numbers appear first.</p>
+                        <p className="m-0 mt-1 text-caption text-slate-400">Lower numbers appear first.</p>
                     </div>
 
                     <div className="flex items-center gap-3 sm:col-span-2">
@@ -311,7 +312,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                             onChange={set('isActive')}
                             className="h-4 w-4 cursor-pointer accent-indigo-600"
                         />
-                        <label htmlFor="catalog-active-checkbox" className="cursor-pointer text-sm font-medium text-slate-600">
+                        <label htmlFor="catalog-active-checkbox" className="cursor-pointer text-body font-medium text-slate-600">
                             Bookable by tenants
                         </label>
                     </div>
@@ -320,14 +321,14 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         <button
                             type="button"
                             onClick={onClose}
-                            className="btn-interactive cursor-pointer rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                            className={btn('secondary', 'md', 'btn-interactive')}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="btn-interactive cursor-pointer rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            className={btn('primary', 'md', 'btn-interactive')}
                         >
                             {saving ? 'Saving...' : service ? 'Save Changes' : 'Create Service'}
                         </button>

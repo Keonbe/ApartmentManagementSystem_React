@@ -34,9 +34,10 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
+import { btn } from '../Components/admin/ui/styles';
 
 const UNIT_TYPES = ['Studio', '1BR', '2BR'];
-const FIELD_CLS = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white';
+const FIELD_CLS = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white';
 
 const daysRemaining = (leaseEnd) => {
   if (!leaseEnd) return null;
@@ -144,11 +145,11 @@ const AdminUnits = () => {
   };
 
   const filters = [
-    { key: 'all', label: `All (${counts.all})` },
-    { key: 'occupied', label: `Occupied (${counts.occupied})` },
-    { key: 'vacant', label: `Vacant (${counts.vacant})` },
-    { key: 'reserved', label: `Reserved (${counts.reserved})` },
-    { key: 'repair', label: `Under Repair (${counts.repair})` },
+    { key: 'all', label: 'All', count: counts.all },
+    { key: 'occupied', label: 'Occupied', count: counts.occupied },
+    { key: 'vacant', label: 'Vacant', count: counts.vacant },
+    { key: 'reserved', label: 'Reserved', count: counts.reserved },
+    { key: 'repair', label: 'Under Repair', count: counts.repair },
   ];
 
   let displayed = activeFilter === 'all' ? units : units.filter(u => u.status === activeFilter);
@@ -167,7 +168,7 @@ const AdminUnits = () => {
       repair: { style: 'bg-red-100 text-red-800', label: '✕ Under Repair' },
     };
     const { style, label } = map[status] || map.vacant;
-    return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${style}`}>{label}</span>;
+    return <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 ${style}`}>{label}</span>;
   };
 
   const validateLeaseDuration = (startDate, endDate) => {
@@ -367,31 +368,31 @@ const AdminUnits = () => {
 
             {/* Top Bar */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+              <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-control px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
                 <input maxLength={LIMITS.search}
                   type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Search units, tenants..."
-                  className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
+                  className="flex-1 bg-transparent text-body text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
                 />
               </div>
               <button
                 onClick={() => { setRentTyped(false); setUnitForm({ ...emptyUnitForm, rent: floorRates[emptyUnitForm.floor] ? String(floorRates[emptyUnitForm.floor]) : '' }); setShowAddModal(true); }}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm border-0 cursor-pointer"
+                className={btn('primary', 'md')}
               >
                 <FontAwesomeIcon icon={faPlus} /> Add Unit
               </button>
             </div>
 
             {/* Min Lease Duration Notice */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
+            <div className="bg-indigo-50 border border-indigo-100 rounded-control px-4 py-2.5 flex items-center gap-2 text-label text-indigo-700">
               <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
               <span>Minimum rent duration policy: <strong>{minLeaseDuration} months</strong>. Configure in Settings → System Configuration.</span>
             </div>
 
             {/* Filter Pills */}
             {unitActionError && (
-              <div role="alert" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
+              <div role="alert" className="text-body text-red-700 bg-red-50 border border-red-200 rounded-control px-4 py-3">
                 {unitActionError}
               </div>
             )}
@@ -422,7 +423,7 @@ const AdminUnits = () => {
                 return (
                   <div
                     key={unit.id}
-                    className={`card-interactive bg-white border rounded-xl p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 group relative ${
+                    className={`card-interactive bg-white border rounded-card p-4 transition-all hover:shadow-raised hover:-translate-y-0.5 group relative ${
                       unit.status === 'vacant' ? 'border-amber-300' : unit.maintenanceFlag ? 'border-red-200' : 'border-slate-200'
                     }`}
                   >
@@ -432,16 +433,16 @@ const AdminUnits = () => {
                       </div>
                     )}
 
-                    <div className="text-xl font-bold text-slate-800">{unit.id}</div>
-                    <div className="text-[11px] text-slate-500 mb-2">{unit.type} · {unit.floor}</div>
+                    <div className="text-section font-bold text-slate-800">{unit.id}</div>
+                    <div className="text-caption text-slate-500 mb-2">{unit.type} · {unit.floor}</div>
                     {getStatusBadge(unit.status)}
 
                     {unit.status === 'occupied' ? (
                       <>
-                        <div className="text-[11px] text-slate-500 mt-2">{unit.tenant}</div>
-                        <div className="text-xs font-bold text-indigo-600 mt-1">{formatCurrency(unit.rent)}/mo</div>
+                        <div className="text-caption text-slate-500 mt-2">{unit.tenant}</div>
+                        <div className="text-label font-bold text-indigo-600 mt-1">{formatCurrency(unit.rent)}/mo</div>
                         {remaining !== null && (
-                          <div className={`text-[11px] font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
+                          <div className={`text-caption font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
                             <FontAwesomeIcon icon={faClock} className="text-[9px]" />
                             {remaining > 0 ? `${remaining} days left` : 'Rent expired'}
                           </div>
@@ -449,13 +450,13 @@ const AdminUnits = () => {
                       </>
                     ) : (
                       <>
-                        <div className="text-[11px] text-amber-700 mt-2">Available now</div>
-                        <div className="text-xs font-bold text-emerald-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
-                        {unit.lastTenant && <div className="text-[11px] text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
+                        <div className="text-caption text-amber-700 mt-2">Available now</div>
+                        <div className="text-label font-bold text-emerald-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
+                        {unit.lastTenant && <div className="text-caption text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
                       </>
                     )}
 
-                    <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
                       <button
                         onClick={() => { setSelectedUnit(unit); setShowDetailModal(true); setLeaseError(''); }}
                         className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
@@ -497,22 +498,22 @@ const AdminUnits = () => {
         <Modal busy={addUnitSubmitting} title="Add New Unit" onClose={closeAddModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onSubmit={handleAddUnit} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
+                <div className="w-10 h-10 rounded-card bg-indigo-100 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800 m-0">Add New Unit</h3>
-                  <p className="text-xs text-slate-500 m-0 mt-0.5">Create a new apartment unit</p>
+                  <h3 className="text-title font-bold text-slate-800 m-0">Add New Unit</h3>
+                  <p className="text-label text-slate-500 m-0 mt-0.5">Create a new apartment unit</p>
                 </div>
               </div>
-              <button type="button" onClick={closeAddModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button type="button" onClick={closeAddModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               {addUnitError && (
-                <div role="alert" className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{addUnitError}</div>
+                <div role="alert" className="text-label font-medium text-red-700 bg-red-50 border border-red-200 rounded-control px-3 py-2">{addUnitError}</div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[['id', 'Unit Number *', 'e.g. 6A'], ['floor', 'Floor *', 'e.g. 6F']].map(([key, label, placeholder]) => (
                   <div key={key}>
-                    <label htmlFor={`unit-${key}`} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>
+                    <label htmlFor={`unit-${key}`} className="block text-label font-medium text-slate-600 mb-1 capitalize">{label}</label>
                     <input {...unitErrors.fieldA11y(key)} autoComplete="off" value={unitForm[key]} maxLength={LIMITS.unitId}
                       onChange={e => {
                         const next = { ...unitForm, [key]: e.target.value };
@@ -528,14 +529,14 @@ const AdminUnits = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="unit-type" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Type *</label>
+                  <label htmlFor="unit-type" className="block text-label font-medium text-slate-600 mb-1">Type *</label>
                   <select {...unitErrors.fieldA11y('type')} value={unitForm.type} onChange={e => { setUnitForm({ ...unitForm, type: e.target.value }); unitErrors.clearError('type'); }} className={FIELD_CLS + invalidCls(unitErrors.errors.type)}>
                     {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                   <FieldError id="unit-type" error={unitErrors.errors.type} />
                 </div>
                 <div>
-                  <label htmlFor="unit-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *{floorRates[unitForm.floor.trim()] ? <span className="normal-case font-normal text-slate-500"> (floor rent {floorRates[unitForm.floor.trim()]})</span> : null}</label>
+                  <label htmlFor="unit-rent" className="block text-label font-medium text-slate-600 mb-1 capitalize">Monthly Rent *{floorRates[unitForm.floor.trim()] ? <span className="normal-case font-normal text-slate-500"> (floor rent {floorRates[unitForm.floor.trim()]})</span> : null}</label>
                   <input type="number" {...unitErrors.fieldA11y('rent')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={unitForm.rent}
                     onKeyDown={blockNonNumericKeys}
                     onChange={e => { setRentTyped(true); setUnitForm({ ...unitForm, rent: e.target.value }); unitErrors.clearError('rent'); }}
@@ -545,9 +546,9 @@ const AdminUnits = () => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-              <button type="button" onClick={closeAddModal} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button type="submit" disabled={addUnitSubmitting} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{addUnitSubmitting ? 'Adding...' : 'Add Unit'}</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-card">
+              <button type="button" onClick={closeAddModal} className="px-4 py-2 text-body text-slate-600 font-medium hover:bg-slate-100 rounded-control border-0 bg-transparent cursor-pointer">Cancel</button>
+              <button type="submit" disabled={addUnitSubmitting} className={btn('primary', 'md')}>{addUnitSubmitting ? 'Adding...' : 'Add Unit'}</button>
             </div>
           </Modal>
       )}
@@ -557,17 +558,17 @@ const AdminUnits = () => {
         <Modal busy={assigning} title={`Assign Tenant to Unit ${selectedUnit.id}`} onClose={closeAssignModal} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onSubmit={handleAssignTenant} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
+                <div className="w-10 h-10 rounded-card bg-emerald-100 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800 m-0">Assign Tenant to Unit {selectedUnit.id}</h3>
-                  <p className="text-xs text-slate-500 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
+                  <h3 className="text-title font-bold text-slate-800 m-0">Assign Tenant to Unit {selectedUnit.id}</h3>
+                  <p className="text-label text-slate-500 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
                 </div>
               </div>
-              <button type="button" onClick={closeAssignModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button type="button" onClick={closeAssignModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label htmlFor="assign-userId" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant User *</label>
+                <label htmlFor="assign-userId" className="block text-label font-medium text-slate-600 mb-1">Select Tenant User *</label>
                 <select
                   {...assignErrors.fieldA11y('userId')}
                   value={assignForm.userId}
@@ -580,7 +581,7 @@ const AdminUnits = () => {
                     });
                     assignErrors.clearError('userId');
                   }}
-                  className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.userId)}`}
+                  className={`w-full px-3 py-2.5 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.userId)}`}
                 >
                   <option value="" disabled>-- Choose Existing User --</option>
                   {users.map(u => (
@@ -591,7 +592,7 @@ const AdminUnits = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="assign-moveIn" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Move-in Date *</label>
+                  <label htmlFor="assign-moveIn" className="block text-label font-medium text-slate-600 mb-1">Move-in Date *</label>
                   <input type="date" {...assignErrors.fieldA11y('moveIn')} min={localDateString()} max={maxFutureDate()} value={assignForm.moveIn}
                     onChange={e => {
                       const moveIn = e.target.value;
@@ -602,33 +603,33 @@ const AdminUnits = () => {
                       setLeaseError('');
                     }}
                     onBlur={() => assignForm.moveIn && assignErrors.validateField('moveIn', assignForm)}
-                    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.moveIn)}`} />
+                    className={`w-full px-3 py-2.5 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.moveIn)}`} />
                   <FieldError id="assign-moveIn" error={assignErrors.errors.moveIn} />
                 </div>
                 <div>
-                  <label htmlFor="assign-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent End *</label>
+                  <label htmlFor="assign-leaseEnd" className="block text-label font-medium text-slate-600 mb-1">Rent End *</label>
                   <input type="date" {...assignErrors.fieldA11y('leaseEnd')} min={assignForm.moveIn || localDateString()} max={maxFutureDate()} value={assignForm.leaseEnd}
                     onChange={e => { setAssignForm({ ...assignForm, leaseEnd: e.target.value }); assignErrors.clearError('leaseEnd'); setLeaseError(''); }}
                     onBlur={() => assignForm.leaseEnd && assignErrors.validateField('leaseEnd', assignForm)}
-                    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.leaseEnd)}`} />
+                    className={`w-full px-3 py-2.5 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.leaseEnd)}`} />
                   <FieldError id="assign-leaseEnd" error={assignErrors.errors.leaseEnd} />
                 </div>
               </div>
               {assignForm.moveIn && assignForm.leaseEnd && (
-                <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                <div className="text-label text-slate-500 bg-slate-50 rounded-control p-2 border border-slate-100">
                   Duration: <strong>{monthsBetween(assignForm.moveIn, assignForm.leaseEnd)} months</strong> · Min required: <strong>{minLeaseDuration} months</strong>
                 </div>
               )}
-              <p className="m-0 text-xs text-slate-500 bg-indigo-50 border border-indigo-100 rounded-lg p-2">
+              <p className="m-0 text-label text-slate-500 bg-indigo-50 border border-indigo-100 rounded-control p-2">
                 The unit is reserved and a move-in invoice (1 month advance rent + 1 month security deposit) is issued. It becomes occupied when the move-in is confirmed after that invoice is paid.
               </p>
               {leaseError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
+                <div className="bg-red-50 border border-red-200 rounded-control p-3 flex items-start gap-2 text-label text-red-700">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                   {leaseError}
                 </div>
               )}
-              <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
+              <label className="flex items-start gap-2 text-label text-slate-600 cursor-pointer">
                 <input
                   type="checkbox"
                   {...assignErrors.fieldA11y('identityVerified')}
@@ -640,9 +641,9 @@ const AdminUnits = () => {
               </label>
               <FieldError id="assign-identityVerified" error={assignErrors.errors.identityVerified} />
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-              <button type="button" onClick={closeAssignModal} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button type="submit" disabled={assigning} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{assigning ? 'Assigning…' : 'Assign Tenant'}</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-card">
+              <button type="button" onClick={closeAssignModal} className="px-4 py-2 text-body text-slate-600 font-medium hover:bg-slate-100 rounded-control border-0 bg-transparent cursor-pointer">Cancel</button>
+              <button type="submit" disabled={assigning} className={btn('success', 'md')}>{assigning ? 'Assigning…' : 'Assign Tenant'}</button>
             </div>
           </Modal>
       )}
@@ -797,25 +798,25 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
   const progressPct = totalDays > 0 ? Math.min(100, Math.max(0, (elapsed / totalDays) * 100)) : 0;
 
   return (
-    <Modal title={`Unit ${unit.id}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <Modal title={`Unit ${unit.id}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-slate-50">
           <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md ${unit.status === 'occupied' ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' : 'bg-gradient-to-br from-amber-400 to-amber-600'}`}>
+            <div className={`w-12 h-12 rounded-card flex items-center justify-center text-white font-bold text-title shadow-raised ${unit.status === 'occupied' ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' : 'bg-gradient-to-br from-amber-400 to-amber-600'}`}>
               {unit.id}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800 m-0">Unit {unit.id}</h3>
-              <p className="text-xs text-slate-500 m-0 mt-0.5">{unit.type} · {unit.floor} · {formatCurrency(unit.rent)}/mo</p>
+              <h3 className="text-title font-bold text-slate-800 m-0">Unit {unit.id}</h3>
+              <p className="text-label text-slate-500 m-0 mt-0.5">{unit.type} · {unit.floor} · {formatCurrency(unit.rent)}/mo</p>
             </div>
           </div>
-          <button aria-label="Close" onClick={onClose} className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+          <button aria-label="Close" onClick={onClose} className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
         </div>
 
         <div className="flex border-b border-slate-200 px-3 shrink-0 bg-white overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-3 text-xs font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer whitespace-nowrap ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-500 border-b-transparent hover:text-slate-600'}`}
+              className={`flex items-center gap-1.5 px-3 py-3 text-label font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer whitespace-nowrap ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-500 border-b-transparent hover:text-slate-600'}`}
             >
               <FontAwesomeIcon icon={tab.icon} className="text-[10px]" /> {tab.label}
             </button>
@@ -825,17 +826,17 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white">
           {activeTab === 'overview' && (
             <div className="space-y-5">
-              <div className={`rounded-xl p-4 border ${unit.status === 'occupied' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+              <div className={`rounded-card p-4 border ${unit.status === 'occupied' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <FontAwesomeIcon icon={unit.status === 'occupied' ? faCheckCircle : faBuilding} className={unit.status === 'occupied' ? 'text-emerald-700 text-lg' : 'text-amber-700 text-lg'} />
                     <div>
-                      <p className="text-sm font-semibold text-slate-800 m-0">{unit.status === 'occupied' ? 'Currently Occupied' : 'Vacant — Available'}</p>
-                      <p className="text-xs text-slate-500 m-0 mt-0.5">{unit.tenant ? `Tenant: ${unit.tenant}` : 'No current tenant'}</p>
+                      <p className="text-body font-semibold text-slate-800 m-0">{unit.status === 'occupied' ? 'Currently Occupied' : 'Vacant — Available'}</p>
+                      <p className="text-label text-slate-500 m-0 mt-0.5">{unit.tenant ? `Tenant: ${unit.tenant}` : 'No current tenant'}</p>
                     </div>
                   </div>
                   {unit.status === 'vacant' && (
-                    <button onClick={onAssign} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer"><FontAwesomeIcon icon={faUserPlus} /> Assign Tenant</button>
+                    <button onClick={onAssign} className={btn('success', 'sm')}><FontAwesomeIcon icon={faUserPlus} /> Assign Tenant</button>
                   )}
                 </div>
               </div>
@@ -862,21 +863,21 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       setEditFurnishing(unit.furnishingStatus || 'Unfurnished');
                       setShowStatusEdit(true);
                     }}
-                    className="btn-interactive flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors"
+                    className="btn-interactive flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-control text-label font-semibold border-0 cursor-pointer transition-colors"
                   >
                     <FontAwesomeIcon icon={faWrench} className="text-[10px]" /> Update Status & Inspection Details
                   </button>
                 ) : (
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4 text-left">
-                    <h4 className="text-xs font-bold text-slate-700 m-0">Edit Unit Status Monitoring</h4>
+                  <div className="bg-slate-50 border border-slate-200 rounded-card p-4 space-y-4 text-left">
+                    <h4 className="text-label font-bold text-slate-700 m-0">Edit Unit Status Monitoring</h4>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Room Condition</label>
+                        <label className="block text-label font-medium text-slate-600 mb-1">Room Condition</label>
                         <select 
                           value={editCondition} 
                           onChange={e => setEditCondition(e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none bg-white text-slate-800"
+                          className="w-full px-2 py-1.5 text-label border border-slate-200 rounded-control outline-none bg-white text-slate-800"
                         >
                           <option value="Good">Good</option>
                           <option value="Fair">Fair</option>
@@ -887,11 +888,11 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Furnishing Status</label>
+                        <label className="block text-label font-medium text-slate-600 mb-1">Furnishing Status</label>
                         <select 
                           value={editFurnishing} 
                           onChange={e => setEditFurnishing(e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none bg-white text-slate-800"
+                          className="w-full px-2 py-1.5 text-label border border-slate-200 rounded-control outline-none bg-white text-slate-800"
                         >
                           <option value="Unfurnished">Unfurnished</option>
                           <option value="Semi-Furnished">Semi-Furnished</option>
@@ -900,7 +901,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       </div>
 
                       <div>
-                        <label htmlFor="monitor-inspection" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Last Inspection Date</label>
+                        <label htmlFor="monitor-inspection" className="block text-label font-medium text-slate-600 mb-1">Last Inspection Date</label>
                         <input
                           type="date"
                           id="monitor-inspection"
@@ -909,7 +910,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                           max={localDateString()}
                           value={editInspectionDate}
                           onChange={e => setEditInspectionDate(e.target.value)}
-                          className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white text-slate-800"
+                          className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap w-full ring-slate-200 outline-none bg-white text-slate-800 ring-1 ring-inset"
                         />
                       </div>
                     </div>
@@ -918,13 +919,13 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       <button 
                         onClick={handleSaveMonitoring} 
                         disabled={isUpdating}
-                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer disabled:opacity-50"
+                        className={btn('primary', 'sm')}
                       >
                         {isUpdating ? 'Saving...' : 'Save Monitoring'}
                       </button>
                       <button 
                         onClick={() => setShowStatusEdit(false)} 
-                        className="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer"
+                        className="px-3.5 py-1.5 text-label text-slate-600 hover:bg-white rounded-control border-0 bg-transparent cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -938,10 +939,10 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
           {activeTab === 'gallery' && (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-4">
-                <p className="text-xs text-slate-500 m-0 leading-relaxed">
+                <p className="text-label text-slate-500 m-0 leading-relaxed">
                   Showcase photos shown to guests on the public Preview page. Rooms with no images hide the "View Layout" button entirely (max 8 images). Add a description for each photo (used as its caption and for screen readers) and choose Fill (crop to the frame), Fit (show the whole photo) or Wide (panoramic frame).
                 </p>
-                <label className={`btn-interactive shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors ${galleryImages.length >= 8 || isUploadingImages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+                <label className={`btn-interactive shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-control text-label font-semibold border-0 cursor-pointer transition-colors ${galleryImages.length >= 8 || isUploadingImages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
                   <FontAwesomeIcon icon={faUpload} className="text-[10px]" />
                   {isUploadingImages ? 'Uploading...' : 'Upload Images'}
                   <input
@@ -956,7 +957,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               </div>
 
               {galleryError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
+                <div className="bg-red-50 border border-red-200 rounded-control p-3 flex items-start gap-2 text-label text-red-700">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                   {galleryError}
                 </div>
@@ -965,19 +966,19 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               {galleryImages.length === 0 ? (
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faImages} className="text-slate-300 text-4xl mb-3 mx-auto block" />
-                  <p className="text-sm text-slate-500 m-0">No showcase images uploaded for this unit yet.</p>
+                  <p className="text-body text-slate-500 m-0">No showcase images uploaded for this unit yet.</p>
                 </div>
               ) : (
                 <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {galleryImages.map((item) => (
-                    <div key={item.path} className="card-interactive rounded-xl overflow-hidden border border-slate-200 bg-white">
+                    <div key={item.path} className="card-interactive rounded-card overflow-hidden border border-slate-200 bg-white">
                       <div className={`relative group bg-slate-100 ${item.fit === 'wide' ? 'aspect-[21/9]' : 'aspect-[4/3]'}`}>
                         <img src={publicAssetUrl(item.path)} alt={item.alt || `Unit ${unit.id} showcase`} className={`w-full h-full ${item.fit === 'fit' ? 'object-contain' : 'object-cover'}`} />
                         <button
                           type="button"
                           onClick={() => handleDeleteImage(item.path)}
                           disabled={deletingImagePath === item.path}
-                          className="btn-interactive absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-50"
+                          className="btn-interactive absolute top-1.5 right-1.5 w-7 h-7 rounded-control bg-black/60 hover:bg-red-600 text-white flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-50"
                           title="Remove image"
                           aria-label="Remove image"
                         >
@@ -985,7 +986,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                         </button>
                       </div>
                       <div className="p-2.5 space-y-2">
-                        <label className="block text-[11px] font-semibold text-slate-600">
+                        <label className="block text-caption font-semibold text-slate-600">
                           Description (read aloud by screen readers)
                           <input
                             type="text"
@@ -994,7 +995,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                             placeholder="e.g. Studio with a window and a double bed"
                             onChange={(e) => editGalleryItem(item.path, { alt: e.target.value })}
                             onBlur={() => saveGalleryItem(item.path)}
-                            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-normal"
+                            className="mt-1 w-full rounded-control border border-slate-300 px-2.5 py-1.5 text-label font-normal"
                           />
                         </label>
                         <div role="group" aria-label="Display size" className="flex gap-1">
@@ -1004,7 +1005,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                               type="button"
                               aria-pressed={item.fit === value}
                               onClick={() => { editGalleryItem(item.path, { fit: value }); saveGalleryItem(item.path, { fit: value }); }}
-                              className={`flex-1 rounded-lg border px-2 py-1 text-[11px] font-semibold cursor-pointer ${item.fit === value ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                              className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap flex-1 cursor-pointer ${item.fit === value ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
                             >{label}</button>
                           ))}
                         </div>
@@ -1020,73 +1021,73 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
             <div className="space-y-5">
               {unit.status === 'occupied' ? (
                 <>
-                  <div className="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl p-5 border border-indigo-100">
-                    <h4 className="text-sm font-semibold text-slate-800 m-0 mb-4">Rent Progress</h4>
+                  <div className="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-card p-5 border border-indigo-100">
+                    <h4 className="text-body font-semibold text-slate-800 m-0 mb-4">Rent Progress</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center mb-4">
-                      <div><p className="text-xl font-bold text-indigo-600 m-0 truncate" title={unit.tenant}>{unit.tenant?.split(' ')[0]}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Tenant</p></div>
-                      <div><p className="text-xl font-bold text-slate-800 m-0">{unit.occupants || 0}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Occupants</p></div>
-                      <div><p className="text-xl font-bold text-slate-800 m-0">{elapsed > 0 ? elapsed : 0}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Days Elapsed</p></div>
-                      <div><p className={`text-xl font-bold m-0 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-emerald-700'}`}>{remaining > 0 ? remaining : 0}</p><p className="text-[11px] text-slate-500 m-0 mt-0.5">Days Left</p></div>
+                      <div><p className="text-section font-bold text-indigo-600 m-0 truncate" title={unit.tenant}>{unit.tenant?.split(' ')[0]}</p><p className="text-caption text-slate-500 m-0 mt-0.5">Tenant</p></div>
+                      <div><p className="text-section font-bold text-slate-800 m-0">{unit.occupants || 0}</p><p className="text-caption text-slate-500 m-0 mt-0.5">Occupants</p></div>
+                      <div><p className="text-section font-bold text-slate-800 m-0">{elapsed > 0 ? elapsed : 0}</p><p className="text-caption text-slate-500 m-0 mt-0.5">Days Elapsed</p></div>
+                      <div><p className={`text-section font-bold m-0 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-emerald-700'}`}>{remaining > 0 ? remaining : 0}</p><p className="text-caption text-slate-500 m-0 mt-0.5">Days Left</p></div>
                     </div>
                     <div>
-                      <div className="flex justify-between text-[11px] text-slate-500 mb-1"><span>{unit.leaseStart}</span><span>{unit.leaseEnd}</span></div>
+                      <div className="flex justify-between text-caption text-slate-500 mb-1"><span>{unit.leaseStart}</span><span>{unit.leaseEnd}</span></div>
                       <div className="w-full h-2 bg-white rounded-full overflow-hidden shadow-inner"><div className={`h-full rounded-full transition-all ${remaining <= 30 ? 'bg-red-500' : remaining <= 90 ? 'bg-amber-400' : 'bg-indigo-500'}`} style={{ width: `${progressPct}%` }} /></div>
                     </div>
                   </div>
                   {!showExtendForm ? (
-                    <button onClick={() => { setShowExtendForm(true); setLeaseError(''); extendErrors.setErrors({}); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Rent / Adjust Rent</button>
+                    <button onClick={() => { setShowExtendForm(true); setLeaseError(''); extendErrors.setErrors({}); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-control text-body font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Rent / Adjust Rent</button>
                   ) : (
-                    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
-                      <h4 className="text-sm font-semibold text-slate-800 m-0">Extend Rent</h4>
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-card p-4 space-y-3">
+                      <h4 className="text-body font-semibold text-slate-800 m-0">Extend Rent</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label htmlFor="extend-addMonths" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Months to Add *</label>
+                          <label htmlFor="extend-addMonths" className="block text-label font-medium text-slate-600 mb-1">Months to Add *</label>
                           <input type="number" {...extendErrors.fieldA11y('addMonths')} inputMode="numeric" min={unit.extensionRange?.min || Math.min(MAX_EXTENSION_MONTHS, minLeaseDuration)} max={Math.max(1, unit.extensionRange?.max ?? MAX_EXTENSION_MONTHS)} step="1" value={extendForm.addMonths}
                             onKeyDown={blockNonNumericKeys}
                             onChange={e => { setExtendForm({ ...extendForm, addMonths: e.target.value }); extendErrors.clearError('addMonths'); setLeaseError(''); }}
                             onBlur={() => extendForm.addMonths !== '' && extendErrors.validateField('addMonths', extendForm)}
-                            className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.addMonths)}`}
+                            className={`w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.addMonths)}`}
                             placeholder={`${Math.min(MAX_EXTENSION_MONTHS, minLeaseDuration)}–${MAX_EXTENSION_MONTHS}`} />
                           <FieldError id="extend-addMonths" error={extendErrors.errors.addMonths} />
                         </div>
                         <div>
-                          <label htmlFor="extend-newRent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent (optional)</label>
+                          <label htmlFor="extend-newRent" className="block text-label font-medium text-slate-600 mb-1">New Rent (optional)</label>
                           <input type="number" {...extendErrors.fieldA11y('newRent')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={extendForm.newRent}
                             onKeyDown={blockNonNumericKeys}
                             onChange={e => { setExtendForm({ ...extendForm, newRent: e.target.value }); extendErrors.clearError('newRent'); }}
                             onBlur={() => extendErrors.validateField('newRent', extendForm)}
-                            className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newRent)}`} placeholder={String(unit.rent)} />
+                            className={`w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newRent)}`} placeholder={String(unit.rent)} />
                           <FieldError id="extend-newRent" error={extendErrors.errors.newRent} />
                         </div>
                       </div>
                       {Number(extendForm.addMonths) > 0 && (
-                        <div className="text-xs text-slate-500 bg-white rounded-lg p-2 border border-slate-100">
+                        <div className="text-label text-slate-500 bg-white rounded-control p-2 border border-slate-100">
                           New rent end: <strong>{addMonthsTo(unit.leaseEnd, extendForm.addMonths) || '—'}</strong> · The added months are billed a week before each starts. Refused while the tenant has overdue bills or a scheduled move-out.
                         </div>
                       )}
                       {leaseError && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
+                        <div className="bg-red-50 border border-red-200 rounded-control p-3 flex items-start gap-2 text-label text-red-700">
                           <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                           {leaseError}
                         </div>
                       )}
                       <div className="flex gap-3">
-                        <button type="button" onClick={onExtendLease} disabled={extending} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 border-0 cursor-pointer disabled:opacity-40">{extending ? 'Saving…' : 'Confirm Extension'}</button>
-                        <button type="button" onClick={() => { setShowExtendForm(false); setLeaseError(''); extendErrors.setErrors({}); }} className="px-4 py-2 text-sm text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+                        <button type="button" onClick={onExtendLease} disabled={extending} className={btn('primary', 'sm')}>{extending ? 'Saving…' : 'Confirm Extension'}</button>
+                        <button type="button" onClick={() => { setShowExtendForm(false); setLeaseError(''); extendErrors.setErrors({}); }} className="px-4 py-2 text-body text-slate-600 hover:bg-white rounded-control border-0 bg-transparent cursor-pointer">Cancel</button>
                       </div>
 
                       {/* Previous Extensions Table */}
                       {unit.leaseHistory && unit.leaseHistory.filter(l => l.event === 'Rent Extended').length > 0 && (
                         <div className="mt-3 pt-3 border-t border-indigo-100">
-                          <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2 m-0">Previous Extensions</h5>
+                          <h5 className="text-label font-medium text-slate-600 mb-2 m-0">Previous Extensions</h5>
                           <div className="space-y-1.5">
                             {unit.leaseHistory.filter(l => l.event === 'Rent Extended').map((ext, idx) => (
-                              <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-2 border border-slate-100 text-xs">
+                              <div key={idx} className="flex items-center justify-between bg-white rounded-control p-2 border border-slate-100 text-label">
                                 <div>
                                   <span className="text-slate-600 font-semibold">{ext.oldEnd} → {ext.newEnd}</span>
                                   <span className="text-slate-500 ml-2">({ext.detail})</span>
                                 </div>
-                                <span className="text-[11px] text-slate-500">{ext.date}</span>
+                                <span className="text-caption text-slate-500">{ext.date}</span>
                               </div>
                             ))}
                           </div>
@@ -1098,7 +1099,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               ) : (
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faBuilding} className="text-slate-300 text-4xl mb-3 mx-auto block" />
-                  <p className="text-sm text-slate-500 m-0">This unit is currently vacant.</p>
+                  <p className="text-body text-slate-500 m-0">This unit is currently vacant.</p>
                 </div>
               )}
             </div>
@@ -1107,7 +1108,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
           {/* Occupancy History Tab */}
           {activeTab === 'occupancyHistory' && (
             <div className="space-y-4">
-              <h4 className="text-sm font-bold text-slate-700 m-0 flex items-center gap-2">
+              <h4 className="text-body font-bold text-slate-700 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faHistory} className="text-indigo-500" />
                 All Tenants Who Occupied This Unit
               </h4>
@@ -1116,40 +1117,40 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   {[...unit.occupancyHistory].reverse().map((occ, idx) => {
                     const duration = monthsBetween(occ.leaseStart, occ.leaseEnd);
                     return (
-                      <div key={idx} className={`card-interactive rounded-xl p-4 border ${occ.status === 'current' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                      <div key={idx} className={`card-interactive rounded-card p-4 border ${occ.status === 'current' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-label font-bold ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
                               {occ.tenant.charAt(0)}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 m-0">{occ.tenant}</p>
-                              <p className="text-[11px] text-slate-500 m-0">{occ.status === 'current' ? 'Current Tenant' : 'Past Tenant'}</p>
+                              <p className="text-body font-semibold text-slate-800 m-0">{occ.tenant}</p>
+                              <p className="text-caption text-slate-500 m-0">{occ.status === 'current' ? 'Current Tenant' : 'Past Tenant'}</p>
                             </div>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap capitalize ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
                             {occ.status === 'current' ? 'Active' : 'Ended'}
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-label">
                           <div><span className="text-slate-500">Period:</span> <span className="font-semibold text-slate-700">{occ.leaseStart} → {occ.leaseEnd}</span></div>
                           <div><span className="text-slate-500">Duration:</span> <span className="font-semibold text-slate-700">{duration} months</span></div>
                           <div><span className="text-slate-500">Rent:</span> <span className="font-bold text-indigo-600">{formatCurrency(occ.rent)}</span></div>
                         </div>
                         {occ.moveOutReason && (
-                          <div className="mt-2 text-[11px] text-slate-500 bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+                          <div className="mt-2 text-caption text-slate-500 bg-white rounded-control px-2.5 py-1.5 border border-slate-100">
                             Move-out reason: <strong>{occ.moveOutReason}</strong>
                           </div>
                         )}
                         {occ.extensions?.length > 0 && (
-                          <div className="mt-2 bg-white rounded-lg px-2.5 py-2 border border-slate-100">
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700 m-0 mb-1">Extensions</p>
+                          <div className="mt-2 bg-white rounded-control px-2.5 py-2 border border-slate-100">
+                            <p className="text-label font-medium text-amber-700 m-0 mb-1">Extensions</p>
                             <div className="space-y-1">
                               {occ.extensions.map((ext, i) => (
-                                <div key={i} className="flex flex-wrap items-center gap-2 text-[11px]">
-                                  <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{ext.oldEnd}</span>
+                                <div key={i} className="flex flex-wrap items-center gap-2 text-caption">
+                                  <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-control font-mono">{ext.oldEnd}</span>
                                   <FontAwesomeIcon icon={faChevronRight} className="text-slate-500 text-[8px]" />
-                                  <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">{ext.newEnd}</span>
+                                  <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-control font-mono">{ext.newEnd}</span>
                                   <span className="text-slate-500">+{ext.addedMonths} month(s)</span>
                                   {ext.date && <span className="text-slate-500 ml-auto">{ext.date}</span>}
                                 </div>
@@ -1171,7 +1172,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               ) : (
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faUser} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                  <p className="text-sm text-slate-500 m-0">No occupancy history. This unit has never been rented.</p>
+                  <p className="text-body text-slate-500 m-0">No occupancy history. This unit has never been rented.</p>
                 </div>
               )}
             </div>
@@ -1181,13 +1182,13 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
           {activeTab === 'history' && (
             <div className="space-y-3">
               {[...unit.history].reverse().map((entry, idx) => (
-                <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5 text-xs"><FontAwesomeIcon icon={faHistory} /></div>
+                <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-control border border-slate-100">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5 text-label"><FontAwesomeIcon icon={faHistory} /></div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-800 m-0">{entry.event}</p>
-                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">{entry.detail}</p>
+                    <p className="text-body font-medium text-slate-800 m-0">{entry.event}</p>
+                    <p className="text-caption text-slate-500 m-0 mt-0.5">{entry.detail}</p>
                   </div>
-                  <span className="text-[11px] text-slate-500 shrink-0">{entry.date}</span>
+                  <span className="text-caption text-slate-500 shrink-0">{entry.date}</span>
                 </div>
               ))}
             </div>
@@ -1198,23 +1199,23 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               {unit.maintenanceHistory && unit.maintenanceHistory.length > 0 ? (
                 <>
                   {/* Cost summary */}
-                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-amber-800">Total Maintenance Cost for This Unit</span>
-                    <span className="text-sm font-bold text-amber-700">{formatCurrency(unit.maintenanceHistory.reduce((sum, m) => sum + (m.cost || 0), 0))}</span>
+                  <div className="bg-amber-50 border border-amber-100 rounded-control p-3 flex items-center justify-between">
+                    <span className="text-label font-semibold text-amber-800">Total Maintenance Cost for This Unit</span>
+                    <span className="text-body font-bold text-amber-700">{formatCurrency(unit.maintenanceHistory.reduce((sum, m) => sum + (m.cost || 0), 0))}</span>
                   </div>
                   {[...unit.maintenanceHistory].reverse().map((entry, idx) => (
-                    <div key={idx} className="card-interactive flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <div className={`w-8 h-8 rounded-full ${entry.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faWrench} /></div>
+                    <div key={idx} className="card-interactive flex items-start gap-3 p-3 bg-slate-50 rounded-control border border-slate-100">
+                      <div className={`w-8 h-8 rounded-full ${entry.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center shrink-0 mt-0.5 text-label`}><FontAwesomeIcon icon={faWrench} /></div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-800 m-0">{entry.issue}</p>
-                        <p className="text-[11px] text-slate-500 m-0 mt-0.5">Status: {entry.status} {entry.cost ? `· Cost: ${formatCurrency(entry.cost)}` : ''}</p>
+                        <p className="text-body font-medium text-slate-800 m-0">{entry.issue}</p>
+                        <p className="text-caption text-slate-500 m-0 mt-0.5">Status: {entry.status} {entry.cost ? `· Cost: ${formatCurrency(entry.cost)}` : ''}</p>
                       </div>
-                      <span className="text-[11px] text-slate-500 shrink-0">{entry.date}</span>
+                      <span className="text-caption text-slate-500 shrink-0">{entry.date}</span>
                     </div>
                   ))}
                 </>
               ) : (
-                <div className="text-center py-8 text-slate-500 text-sm">No maintenance history for this unit.</div>
+                <div className="text-center py-8 text-slate-500 text-body">No maintenance history for this unit.</div>
               )}
             </div>
           )}
@@ -1225,9 +1226,9 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
 };
 
 const DetailField = ({ label, value }) => (
-  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 m-0">{label}</p>
-    <p className="text-sm font-medium text-slate-700 m-0 mt-0.5">{value || '—'}</p>
+  <div className="bg-slate-50 rounded-control p-3 border border-slate-100">
+    <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize">{label}</p>
+    <p className="text-body font-medium text-slate-700 m-0 mt-0.5">{value || '—'}</p>
   </div>
 );
 

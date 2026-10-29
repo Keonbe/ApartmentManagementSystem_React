@@ -16,7 +16,7 @@ export default function DepositOutcome({ deposit, className = 'mt-2' }) {
   return (
     <div className={`${className} bg-white rounded-lg px-2.5 py-2 border border-slate-100 text-[11px] text-slate-600`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 m-0">Deposit</p>
+        <p className="text-label font-medium text-emerald-700 m-0">Deposit</p>
         <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-slate-200 text-slate-600">{deposit.status || 'Unknown'}</span>
       </div>
       <div className="flex justify-between"><span className="text-slate-400">Deposit amount</span><span className="font-semibold">{peso(amount)}</span></div>

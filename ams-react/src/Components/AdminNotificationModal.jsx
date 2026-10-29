@@ -14,6 +14,7 @@ import {
 } from '../config/notificationLinks';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import Modal from './admin/Modal';
+import { btn } from './admin/ui/styles';
 
 const TYPE_CONFIG = {
   occupancy_request: { label: 'Occupancy Request', icon: faUsers, color: 'bg-purple-100 text-purple-600', badge: 'bg-purple-100 text-purple-700' },
@@ -29,12 +30,12 @@ const TYPE_CONFIG = {
   payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
   cash_payment_declared: { label: 'Cash Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
   payment: { label: 'Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
-  payment_followup: { label: 'Overdue Payment', icon: faExclamationTriangle, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
+  payment_followup: { label: 'Overdue Payment', icon: faExclamationTriangle, color: 'bg-red-100 text-red-600', badge: 'bg-red-100 text-red-700' },
   document_followup: { label: 'Documents Needed', icon: faFileContract, color: 'bg-amber-100 text-amber-700', badge: 'bg-amber-100 text-amber-700' },
   refund_request: { label: 'Refund Request', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
-  move_out_request: { label: 'Move-Out Notice', icon: faCalendarPlus, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
+  move_out_request: { label: 'Move-Out Notice', icon: faCalendarPlus, color: 'bg-red-100 text-red-600', badge: 'bg-red-100 text-red-700' },
   visitor_registration: { label: 'Visitor', icon: faUsers, color: 'bg-purple-100 text-purple-600', badge: 'bg-purple-100 text-purple-700' },
-  visitor_overstay: { label: 'Visitor Alert', icon: faUsers, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
+  visitor_overstay: { label: 'Visitor Alert', icon: faUsers, color: 'bg-red-100 text-red-600', badge: 'bg-red-100 text-red-700' },
 };
 
 export default function AdminNotificationModal({
@@ -87,30 +88,30 @@ export default function AdminNotificationModal({
 
   return (
     <>
-      <Modal title={`${notification.title}`} onClose={handleIgnore} overlayClassName="flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in select-none" className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[88vh] overflow-hidden animate-scale-in text-left border border-slate-100 relative">
+      <Modal title={`${notification.title}`} onClose={handleIgnore} overlayClassName="flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in select-none" className="bg-white rounded-dialog w-full max-w-lg shadow-dialog flex flex-col max-h-[88vh] overflow-hidden animate-scale-in text-left border border-slate-100 relative">
           {/* Header */}
           <div className="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between gap-3 bg-slate-50/70">
             <div className="flex items-start gap-3 min-w-0">
-              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${cfg.color}`}>
+              <div className={`w-11 h-11 rounded-card flex items-center justify-center shrink-0 shadow-xs ${cfg.color}`}>
                 <FontAwesomeIcon icon={cfg.icon} className="text-base" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${cfg.badge}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${cfg.badge}`}>
                     {cfg.label}
                   </span>
                   {isPending && (
-                    <span className="bg-amber-100 text-amber-800 text-[11px] font-extrabold px-2 py-0.5 rounded-full border border-amber-200">
+                    <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-amber-100 text-amber-800 ring-amber-200 ring-1 ring-inset">
                       Pending Action
                     </span>
                   )}
                   {createdAt && (
-                    <span className="text-[11px] text-slate-500 font-medium">
+                    <span className="text-caption text-slate-500 font-medium">
                       {formatRelativeTime(createdAt)}
                     </span>
                   )}
                 </div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 m-0 leading-snug">
+                <h3 className="text-title sm:text-title font-bold text-slate-900 m-0 leading-snug">
                   {notification.title}
                 </h3>
               </div>
@@ -128,19 +129,19 @@ export default function AdminNotificationModal({
 
           {/* Body */}
           <div className="p-5 sm:p-6 overflow-y-auto space-y-4">
-            <p className="text-sm text-slate-700 whitespace-pre-wrap m-0 leading-relaxed font-normal">
+            <p className="text-body text-slate-700 whitespace-pre-wrap m-0 leading-relaxed font-normal">
               {notification.message}
             </p>
 
             {/* Attachment preview */}
             {attachment && (
-              <div className="mt-3 border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 shadow-xs">
-                <div className="px-3.5 py-2 border-b border-slate-200 bg-white flex items-center justify-between text-xs text-slate-600 font-semibold">
+              <div className="mt-3 border border-slate-200 rounded-card overflow-hidden bg-slate-50 shadow-xs">
+                <div className="px-3.5 py-2 border-b border-slate-200 bg-white flex items-center justify-between text-label text-slate-600 font-semibold">
                   <span>Attached File ({isPdf ? 'PDF Document' : 'Image'})</span>
                   <button
                     type="button"
                     onClick={() => setPreviewAttachment(true)}
-                    className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer bg-transparent border-0 text-xs font-bold p-0"
+                    className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer bg-transparent border-0 text-label font-bold p-0"
                   >
                     <FontAwesomeIcon icon={faExpand} className="text-[10px]" />
                     <span>View Full Size</span>
@@ -165,7 +166,7 @@ export default function AdminNotificationModal({
                     />
                   )}
                   <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="bg-white/95 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl shadow-md flex items-center gap-1.5">
+                    <span className="bg-white/95 text-slate-800 text-label font-bold px-3 py-1.5 rounded-card shadow-raised flex items-center gap-1.5">
                       <FontAwesomeIcon icon={faExpand} className="text-[11px]" />
                       Click to expand
                     </span>
@@ -180,7 +181,7 @@ export default function AdminNotificationModal({
             <button
               type="button"
               onClick={handleIgnore}
-              className="px-5 py-2.5 bg-white hover:bg-slate-100 active:scale-[0.98] text-slate-700 text-xs font-bold rounded-xl cursor-pointer border border-slate-200 shadow-xs transition-all"
+              className={btn('secondary', 'sm')}
             >
               Ignore
             </button>
@@ -192,7 +193,7 @@ export default function AdminNotificationModal({
                   type="button"
                   onClick={() => onApprove(notification)}
                   disabled={isProcessing}
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl cursor-pointer border-0 shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  className={btn('success', 'sm')}
                 >
                   <FontAwesomeIcon icon={faCheckCircle} />
                   <span>Approve</span>
@@ -204,7 +205,7 @@ export default function AdminNotificationModal({
                   type="button"
                   onClick={() => onReject(notification)}
                   disabled={isProcessing}
-                  className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 active:scale-[0.98] text-rose-600 text-xs font-bold rounded-xl cursor-pointer border border-rose-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-4 py-2.5 bg-red-50 hover:bg-red-100 active:scale-[0.98] text-red-600 text-label font-bold rounded-card cursor-pointer border border-red-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <FontAwesomeIcon icon={faTimesCircle} />
                   <span>Reject</span>
@@ -216,7 +217,7 @@ export default function AdminNotificationModal({
                 <button
                   type="button"
                   onClick={handleGoToPage}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl cursor-pointer border-0 shadow-sm shadow-indigo-100 transition-all flex items-center gap-2"
+                  className={btn('primary', 'sm')}
                 >
                   <span>{targetLabel}</span>
                   <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />

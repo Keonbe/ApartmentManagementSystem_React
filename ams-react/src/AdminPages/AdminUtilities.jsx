@@ -18,6 +18,8 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 // sync_utility_to_invoice.php: a separate invoice's due date is today to +10 days.
 const SYNC_DUE_MAX_DAYS = 10;
@@ -57,9 +59,9 @@ const hasValue = (v) => v !== null && v !== undefined && v !== '';
 
 function ChangeBadge({ pct }) {
   if (pct === null || pct === undefined) return null;
-  const tone = pct > SPIKE_THRESHOLD_PCT ? 'text-rose-600' : 'text-slate-500';
+  const tone = pct > SPIKE_THRESHOLD_PCT ? 'text-red-600' : 'text-slate-500';
   return (
-    <div className={`text-[11px] font-semibold ${tone}`}>
+    <div className={`text-caption font-semibold ${tone}`}>
       {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {Math.abs(pct)}% vs previous
     </div>
   );
@@ -110,8 +112,9 @@ export default function AdminUtilities() {
         if (!isSubscribed) return;
         if (readingsRes?.data?.success && Array.isArray(readingsRes?.data?.data)) {
           setReadings(readingsRes.data.data);
+          setError(null);
         } else {
-          setReadings([]);
+          setError(readingsRes?.data?.message || 'The utility readings did not load.');
         }
         if (roomsRes?.data?.success) {
           const roomList = Array.isArray(roomsRes.data.rooms) 
@@ -324,12 +327,12 @@ export default function AdminUtilities() {
   }, [readings, searchQuery, roomFilter, periodFilter, statusFilter]);
 
   return (
-    <div className="admin-shell flex h-screen w-full font-sans" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
+    <div className="admin-shell flex h-screen w-full font-sans bg-slate-50 text-slate-900">
       {/* Persistent / Mobile Responsive Admin Sidebar */}
       <Sidebar />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left" style={{ backgroundColor: '#f8fafc' }}>
+      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
         <Header title="Utility Tracking & Sub-Meters" />
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" style={{ backgroundColor: '#f8fafc' }}>
@@ -344,7 +347,7 @@ export default function AdminUtilities() {
             </div>
 
             {/* Filter & Action Control Toolbar */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="bg-white border border-slate-200 rounded-card p-4 sm:p-5 shadow-card space-y-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 
                 {/* Search & Unit Filter */}
@@ -356,7 +359,7 @@ export default function AdminUtilities() {
                       placeholder="Search unit, notes, period..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-4 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                      className="w-full rounded-card border border-slate-200 bg-slate-50 pl-9 pr-4 py-2 text-label font-medium text-slate-800 placeholder-slate-400 outline-none focus:border-indigo-500 focus:bg-white transition-all"
                     />
                   </div>
 
@@ -364,7 +367,7 @@ export default function AdminUtilities() {
                   <select aria-label="Filter by unit"
                     value={roomFilter}
                     onChange={e => setRoomFilter(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
+                    className="rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-label font-medium text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
                   >
                     <option value="all">All Units</option>
                     {rooms.map(r => (
@@ -377,7 +380,7 @@ export default function AdminUtilities() {
                     <button
                       type="button"
                       onClick={handleOpenMonthPicker}
-                      className="absolute left-2 w-6 h-6 rounded text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 text-xs z-10 flex items-center justify-center"
+                      className="absolute left-2 w-6 h-6 rounded-control text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 text-label z-10 flex items-center justify-center"
                       aria-label="Open month picker"
                       title="Open Calendar Month Picker"
                     >
@@ -394,7 +397,7 @@ export default function AdminUtilities() {
                           setPeriodFilter(val);
                         }
                       }}
-                      className="rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-7 py-2 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 cursor-pointer appearance-none hover:bg-slate-100 transition-colors max-w-[230px] truncate"
+                      className="rounded-card border border-slate-200 bg-slate-50 pl-8 pr-7 py-2 text-label font-medium text-slate-700 outline-none focus:border-indigo-500 cursor-pointer appearance-none hover:bg-slate-100 transition-colors max-w-[230px] truncate"
                       title="Filter by Billing Period"
                     >
                       <option value="">All Periods ({readings.length})</option>
@@ -452,13 +455,13 @@ export default function AdminUtilities() {
                       <button
                         type="button"
                         onClick={() => setPeriodFilter('')}
-                        className="absolute right-2 text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"
+                        className="absolute right-2 text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-label"
                         title="Clear period filter"
                       >
                         <FontAwesomeIcon icon={faTimes} />
                       </button>
                     ) : (
-                      <span className="absolute right-2.5 text-[11px] text-slate-500 pointer-events-none">▼</span>
+                      <span className="absolute right-2.5 text-caption text-slate-500 pointer-events-none">▼</span>
                     )}
 
                     {/* Hidden Native Month Input for visual calendar picking */}
@@ -482,7 +485,7 @@ export default function AdminUtilities() {
                     type="button"
                     onClick={reloadData}
                     title="Refresh data"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                    className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
                   >
                     <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
                   </button>
@@ -490,7 +493,7 @@ export default function AdminUtilities() {
                   <button
                     type="button"
                     onClick={() => setShowModal(true)}
-                    className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-bold text-white transition-all shadow-sm hover:shadow-indigo-200 active:scale-[0.98] border-0 cursor-pointer"
+                    className={btn('primary', 'sm')}
                   >
                     <FontAwesomeIcon icon={faPlus} />
                     <span>Record Reading</span>
@@ -499,7 +502,7 @@ export default function AdminUtilities() {
                   <button
                     type="button"
                     onClick={() => navigate('/admin-reports?tab=utilities')}
-                    className="flex items-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-4 py-2 text-xs font-bold text-white transition-all shadow-sm hover:shadow-emerald-200 active:scale-[0.98] border-0 cursor-pointer ml-2"
+                    className={btn('success', 'sm', 'ml-2')}
                   >
                     <FontAwesomeIcon icon={faChartLine} />
                     <span>View Analytics</span>
@@ -509,47 +512,34 @@ export default function AdminUtilities() {
               </div>
 
               {/* Status Pill Filters */}
-              <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100">
-                {[
-                  { key: 'all', label: 'All Records', count: readings.length },
-                  { key: 'pending', label: 'Pending Sync', count: stats.pendingSyncCount },
-                  { key: 'invoiced', label: 'Invoiced', count: Math.max(0, readings.length - stats.pendingSyncCount) }
-                ].map(pill => (
-                  <button
-                    key={pill.key}
-                    type="button"
-                    onClick={() => setStatusFilter(pill.key)}
-                    className={`rounded-full px-3.5 py-1 text-xs font-semibold transition-all border-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                      statusFilter === pill.key
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
-                      statusFilter === pill.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {pill.count}
-                    </span>
-                  </button>
-                ))}
+              <div className="pt-2 border-t border-slate-100">
+                <FilterTabs
+                  label="Filter readings by status"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={[
+                    { value: 'all', label: 'All Records', count: loading || error ? null : readings.length },
+                    { value: 'pending', label: 'Pending Sync', count: loading || error ? null : stats.pendingSyncCount },
+                    { value: 'invoiced', label: 'Invoiced', count: loading || error ? null : Math.max(0, readings.length - stats.pendingSyncCount) },
+                  ]}
+                />
               </div>
 
             </div>
 
             {/* Utility Records Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <table className="w-full min-w-[900px] text-left text-body">
+                  <thead className={THEAD}>
                     <tr>
-                      <th className="px-5 py-3.5">Unit / Room</th>
-                      <th className="px-4 py-3.5">Billing Period</th>
-                      <th className="px-4 py-3.5">Water Sub-Meter (m³)</th>
-                      <th className="px-4 py-3.5">Electricity Sub-Meter (kWh)</th>
-                      <th className="px-4 py-3.5 text-right">Total Utility (₱)</th>
-                      <th className="px-4 py-3.5 text-center">Billing Status</th>
-                      <th className="px-5 py-3.5 text-right">Actions</th>
+                      <th className={TH}>Unit / Room</th>
+                      <th className={TH}>Billing Period</th>
+                      <th className={TH}>Water Sub-Meter (m³)</th>
+                      <th className={TH}>Electricity Sub-Meter (kWh)</th>
+                      <th className={`${TH} text-right`}>Total Utility (₱)</th>
+                      <th className={`${TH} text-center`}>Billing Status</th>
+                      <th className={`${TH} text-right`}>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
@@ -571,8 +561,8 @@ export default function AdminUtilities() {
                         <td colSpan="7" className="px-5 py-12 text-center">
                           <div className="flex flex-col items-center justify-center text-slate-500 py-6">
                             <FontAwesomeIcon icon={faTint} className="text-3xl text-slate-300 mb-2" />
-                            <p className="text-sm font-semibold text-slate-600 m-0">No utility readings found</p>
-                            <p className="text-xs text-slate-500 mt-1 m-0">Click "+ Record Reading" to log water and electricity meters.</p>
+                            <p className="text-body font-semibold text-slate-600 m-0">No utility readings found</p>
+                            <p className="text-label text-slate-500 mt-1 m-0">Click "+ Record Reading" to log water and electricity meters.</p>
                           </div>
                         </td>
                       </tr>
@@ -586,25 +576,25 @@ export default function AdminUtilities() {
                             {/* Unit & Tenant */}
                             <td className="px-5 py-4 font-semibold text-slate-900">
                               <div className="flex items-center gap-2">
-                                <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                                <span className="w-8 h-8 rounded-control bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-label">
                                   {r.room_name}
                                 </span>
                                 <div>
-                                  <p className="text-xs font-bold text-slate-900 m-0">Unit {r.room_name}</p>
+                                  <p className="text-label font-bold text-slate-900 m-0">Unit {r.room_name}</p>
                                   {r.tenant_first_name ? (
-                                    <p className="text-[11px] text-indigo-600 font-medium m-0">
+                                    <p className="text-caption text-indigo-600 font-medium m-0">
                                       {r.tenant_first_name} {r.tenant_last_name} <span className="text-slate-500 font-normal">(User #{r.user_id})</span>
                                     </p>
                                   ) : r.user_id ? (
-                                    <p className="text-[11px] text-indigo-600 font-medium m-0">
+                                    <p className="text-caption text-indigo-600 font-medium m-0">
                                       Tenant ID: #{r.user_id}
                                     </p>
                                   ) : (
-                                    <p className="text-[11px] text-slate-500 italic m-0">No tenant assigned</p>
+                                    <p className="text-caption text-slate-500 italic m-0">No tenant assigned</p>
                                   )}
                                   {r.has_spike && (
                                     <p
-                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-2 py-0.5 m-0 mt-0.5"
+                                      className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 text-red-700 bg-red-50 ring-red-200 m-0 mt-0.5 ring-1 ring-inset"
                                       title={`Usage rose more than ${SPIKE_THRESHOLD_PCT}% over the previous reading`}
                                     >
                                       <FontAwesomeIcon icon={faExclamationTriangle} className="text-[9px]" />
@@ -612,7 +602,7 @@ export default function AdminUtilities() {
                                     </p>
                                   )}
                                   {r.reading_date && (
-                                    <p className="text-[11px] text-slate-500 m-0 font-normal">
+                                    <p className="text-caption text-slate-500 m-0 font-normal">
                                       Read: {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                     </p>
                                   )}
@@ -621,13 +611,13 @@ export default function AdminUtilities() {
                             </td>
 
                             {/* Period */}
-                            <td className="px-4 py-4 text-xs font-semibold text-slate-700">
+                            <td className="px-4 py-4 text-label font-semibold text-slate-700">
                               {formatBillingPeriod(r.billing_period)}
                             </td>
 
                             {r.entry_mode === 'total' ? (
-                              <td colSpan={2} className="px-4 py-4 text-xs text-slate-600">
-                                <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">Total only</span>
+                              <td colSpan={2} className="px-4 py-4 text-label text-slate-600">
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex bg-indigo-50 text-indigo-700">Total only</span>
                                 <span className="ml-2">{r.notes || 'No meter readings; the tenant paid the full amount.'}</span>
                               </td>
                             ) : r.entry_mode === 'bill' ? (<>
@@ -636,20 +626,20 @@ export default function AdminUtilities() {
                               { key: 'water', icon: faTint, tone: 'text-blue-500', unit: 'm³', label: 'Water bill' },
                               { key: 'electric', icon: faBolt, tone: 'text-amber-700', unit: 'kWh', label: 'Electricity bill' },
                             ].map(({ key, icon, tone, unit, label }) => (
-                              <td key={key} className="px-4 py-4 text-xs">
+                              <td key={key} className="px-4 py-4 text-label">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1.5 font-bold text-slate-800">
                                     <FontAwesomeIcon icon={icon} className={`${tone} text-[10px]`} />
                                     <span>{peso(r[`${key}_amount`])}</span>
                                   </div>
-                                  <div className="text-[11px] font-semibold text-indigo-600">{label}</div>
+                                  <div className="text-caption font-semibold text-indigo-600">{label}</div>
                                   {hasValue(r[`${key}_consumption`]) ? (
-                                    <div className="text-[11px] text-slate-500 font-medium">
+                                    <div className="text-caption text-slate-500 font-medium">
                                       {r[`${key}_consumption`]} {unit}
                                       <span className="text-slate-500 font-normal ml-1">({r[`${key}_prev_reading`]} → {r[`${key}_curr_reading`]})</span>
                                     </div>
                                   ) : hasValue(r[`${key}_curr_reading`]) ? (
-                                    <div className="text-[11px] text-slate-500">Meter: {r[`${key}_curr_reading`]} {unit}</div>
+                                    <div className="text-caption text-slate-500">Meter: {r[`${key}_curr_reading`]} {unit}</div>
                                   ) : null}
                                   <ChangeBadge pct={r[`${key}_change_pct`]} />
                                 </div>
@@ -657,39 +647,39 @@ export default function AdminUtilities() {
                             ))}
                             </>) : (<>
                             {/* Water */}
-                            <td className="px-4 py-4 text-xs">
+                            <td className="px-4 py-4 text-label">
                               <div className="space-y-0.5">
                                 <div className="flex items-center gap-1.5 font-bold text-slate-800">
                                   <FontAwesomeIcon icon={faTint} className="text-blue-500 text-[10px]" />
                                   <span>{r.water_consumption} m³</span>
                                   <span className="text-slate-500 font-normal">(@ ₱{r.water_rate_per_unit}/m³)</span>
                                 </div>
-                                <div className="text-[11px] text-slate-500 font-medium">
+                                <div className="text-caption text-slate-500 font-medium">
                                   ₱{parseFloat(r.water_amount || 0).toFixed(2)}
                                   <span className="text-slate-500 font-normal ml-1">({r.water_prev_reading} → {r.water_curr_reading})</span>
                                 </div>
                                 <ChangeBadge pct={r.water_change_pct} />
                                 {parseFloat(r.water_other_fees || 0) > 0 && (
-                                  <div className="text-[11px] text-blue-600 font-semibold">+ ₱{parseFloat(r.water_other_fees).toFixed(2)} fees</div>
+                                  <div className="text-caption text-blue-600 font-semibold">+ ₱{parseFloat(r.water_other_fees).toFixed(2)} fees</div>
                                 )}
                               </div>
                             </td>
 
                             {/* Electric */}
-                            <td className="px-4 py-4 text-xs">
+                            <td className="px-4 py-4 text-label">
                               <div className="space-y-0.5">
                                 <div className="flex items-center gap-1.5 font-bold text-slate-800">
                                   <FontAwesomeIcon icon={faBolt} className="text-amber-700 text-[10px]" />
                                   <span>{r.electric_consumption} kWh</span>
                                   <span className="text-slate-500 font-normal">(@ ₱{r.electric_rate_per_unit}/kWh)</span>
                                 </div>
-                                <div className="text-[11px] text-slate-500 font-medium">
+                                <div className="text-caption text-slate-500 font-medium">
                                   ₱{parseFloat(r.electric_amount || 0).toFixed(2)}
                                   <span className="text-slate-500 font-normal ml-1">({r.electric_prev_reading} → {r.electric_curr_reading})</span>
                                 </div>
                                 <ChangeBadge pct={r.electric_change_pct} />
                                 {parseFloat(r.electric_other_fees || 0) > 0 && (
-                                  <div className="text-[11px] text-amber-700 font-semibold">+ ₱{parseFloat(r.electric_other_fees).toFixed(2)} fees</div>
+                                  <div className="text-caption text-amber-700 font-semibold">+ ₱{parseFloat(r.electric_other_fees).toFixed(2)} fees</div>
                                 )}
                               </div>
                             </td>
@@ -698,14 +688,14 @@ export default function AdminUtilities() {
 
                             {/* Total Cost */}
                             <td className="px-4 py-4 text-right">
-                              <span className="text-xs font-extrabold text-slate-900 block">
+                              <span className="text-label font-bold text-slate-900 block">
                                 ₱{totalCost.toFixed(2)}
                               </span>
                             </td>
 
                             {/* Status */}
                             <td className="px-4 py-4 text-center">
-                              <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1 ${
                                 isInvoiced 
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                                   : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -714,7 +704,7 @@ export default function AdminUtilities() {
                                 {isInvoiced ? 'Invoiced' : 'Pending Sync'}
                               </span>
                               {isInvoiced && r.invoice_id && (
-                                <span className="block text-[11px] text-slate-500 font-medium mt-1">{r.invoice_id}</span>
+                                <span className="block text-caption text-slate-500 font-medium mt-1">{r.invoice_id}</span>
                               )}
                             </td>
 
@@ -726,7 +716,7 @@ export default function AdminUtilities() {
                                     type="button"
                                     onClick={() => setSyncTargetId(r.id)}
                                     disabled={syncingId === r.id}
-                                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer border border-indigo-200 hover:border-indigo-600 disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 rounded-control bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 text-label font-bold transition-colors cursor-pointer border border-indigo-200 hover:border-indigo-600 disabled:opacity-50"
                                   >
                                     <FontAwesomeIcon icon={faSync} className={syncingId === r.id ? 'animate-spin' : ''} />
                                     <span>Sync Options</span>
@@ -737,16 +727,16 @@ export default function AdminUtilities() {
                                       onClick={() => handleDelete(r)}
                                       disabled={syncingId === r.id}
                                       title="Delete this reading to correct and re-record it"
-                                      className="inline-flex items-center justify-center rounded-lg bg-white text-rose-600 hover:bg-rose-600 hover:text-white w-8 h-8 text-xs transition-colors cursor-pointer border border-rose-200 hover:border-rose-600 disabled:opacity-50"
+                                      className="inline-flex items-center justify-center rounded-control bg-white text-red-600 hover:bg-red-600 hover:text-white w-8 h-8 text-label transition-colors cursor-pointer border border-red-200 hover:border-red-600 disabled:opacity-50"
                                     >
                                       <FontAwesomeIcon icon={faTrash} />
                                     </button>
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-xs font-medium text-slate-500">Synced</span>
+                                <span className="text-label font-medium text-slate-500">Synced</span>
                               )}
-                              <div className="mt-1.5 flex items-center justify-end gap-2 text-[11px] font-semibold">
+                              <div className="mt-1.5 flex items-center justify-end gap-2 text-caption font-semibold">
                                 {r.bill_file_path && (
                                   <a href={fileUrl(r.bill_file_path)} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">View bill</a>
                                 )}
@@ -757,7 +747,7 @@ export default function AdminUtilities() {
                                     onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleBillFile(r, f); }} />
                                 </label>
                                 {r.bill_file_path && (
-                                  <button type="button" onClick={() => handleBillFile(r, null)} className="cursor-pointer border-0 bg-transparent p-0 text-rose-600 hover:underline">Remove</button>
+                                  <button type="button" onClick={() => handleBillFile(r, null)} className="cursor-pointer border-0 bg-transparent p-0 text-red-600 hover:underline">Remove</button>
                                 )}
                               </div>
                             </td>
@@ -825,39 +815,39 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
   return (
     <Modal busy={busy} title="Sync Utility to Invoice" onClose={onClose} overlayClassName="flex items-center justify-center p-4 bg-slate-900/60" className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-slate-800 m-0 text-sm">Sync Utility to Invoice</h3>
-          <button aria-label="Close" type="button" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-lg">
+          <h3 className="font-bold text-slate-800 m-0 text-body">Sync Utility to Invoice</h3>
+          <button aria-label="Close" type="button" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-title">
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4" noValidate>
           <div className="space-y-3">
-            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-card cursor-pointer hover:bg-slate-50 transition-colors">
               <input type="radio" name="syncMode" value="merge" checked={syncMode === 'merge'} onChange={() => setSyncMode('merge')} className="mt-1" />
               <div>
-                <p className="font-bold text-slate-800 m-0 text-sm">Merge with Monthly Rent</p>
-                <p className="text-xs text-slate-500 m-0">Adds the charge to this tenant's open invoice for the same month. If there is none, a utilities-only invoice is created — rent is never billed twice.</p>
+                <p className="font-bold text-slate-800 m-0 text-body">Merge with Monthly Rent</p>
+                <p className="text-label text-slate-500 m-0">Adds the charge to this tenant's open invoice for the same month. If there is none, a utilities-only invoice is created — rent is never billed twice.</p>
               </div>
             </label>
-            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-card cursor-pointer hover:bg-slate-50 transition-colors">
               <input type="radio" name="syncMode" value="separate" checked={syncMode === 'separate'} onChange={() => setSyncMode('separate')} className="mt-1" />
               <div>
-                <p className="font-bold text-slate-800 m-0 text-sm">Issue Separate Invoice</p>
-                <p className="text-xs text-slate-500 m-0">Generates a separate pending invoice only for this utility.</p>
+                <p className="font-bold text-slate-800 m-0 text-body">Issue Separate Invoice</p>
+                <p className="text-label text-slate-500 m-0">Generates a separate pending invoice only for this utility.</p>
               </div>
             </label>
-            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-card cursor-pointer hover:bg-slate-50 transition-colors">
               <input type="radio" name="syncMode" value="paid" checked={syncMode === 'paid'} onChange={() => setSyncMode('paid')} className="mt-1" />
               <div>
-                <p className="font-bold text-slate-800 m-0 text-sm">Mark as Paid (Cash/Direct)</p>
-                <p className="text-xs text-slate-500 m-0">Marks utility as fully paid immediately via cash/direct.</p>
+                <p className="font-bold text-slate-800 m-0 text-body">Mark as Paid (Cash/Direct)</p>
+                <p className="text-label text-slate-500 m-0">Marks utility as fully paid immediately via cash/direct.</p>
               </div>
             </label>
           </div>
 
           {syncMode === 'separate' && (
             <div className="pt-2 border-t border-slate-100">
-              <label htmlFor="sync-due_date" className="block text-xs font-bold text-slate-700 mb-1">Due Date</label>
+              <label htmlFor="sync-due_date" className="block text-label font-bold text-slate-700 mb-1">Due Date</label>
               <input
                 type="date"
                 id="sync-due_date"
@@ -870,16 +860,16 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
                 required
                 aria-invalid={dueError ? true : undefined}
                 aria-describedby={dueError ? 'sync-due_date-error' : undefined}
-                className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500${invalidCls(dueError)}`}
+                className={`w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500${invalidCls(dueError)}`}
               />
               <FieldError id="sync-due_date" error={dueError} />
-              <p className="text-[11px] text-slate-500 mt-1">Due date cannot exceed {SYNC_DUE_MAX_DAYS} days from today.</p>
+              <p className="text-caption text-slate-500 mt-1">Due date cannot exceed {SYNC_DUE_MAX_DAYS} days from today.</p>
             </div>
           )}
 
           <div className="pt-4 flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg bg-transparent border-0 cursor-pointer">Cancel</button>
-            <button type="submit" disabled={busy} className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{busy ? 'Syncing…' : 'Confirm Sync'}</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 text-label font-bold text-slate-600 hover:bg-slate-100 rounded-control bg-transparent border-0 cursor-pointer">Cancel</button>
+            <button type="submit" disabled={busy} className={btn('primary', 'sm')}>{busy ? 'Syncing…' : 'Confirm Sync'}</button>
           </div>
         </form>
       </Modal>
@@ -1102,15 +1092,15 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+            <div className="w-8 h-8 rounded-control bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-body">
               <FontAwesomeIcon icon={faBolt} />
             </div>
-            <h3 className="text-base font-bold text-slate-900 m-0">Record Unit Utility Bill</h3>
+            <h3 className="text-title font-bold text-slate-900 m-0">Record Unit Utility Bill</h3>
           </div>
           <button aria-label="Close" 
             type="button" 
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-base transition-colors"
+            className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-title transition-colors"
             title="Close"
           >
             <FontAwesomeIcon icon={faTimes} />
@@ -1123,14 +1113,14 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="reading-room_name" className="block text-xs font-bold text-slate-700 mb-1">Target Unit / Room *</label>
+                <label htmlFor="reading-room_name" className="block text-label font-bold text-slate-700 mb-1">Target Unit / Room *</label>
                 <select
                   {...readingForm.fieldA11y('room_name')}
                   onBlur={handleBlur}
                   value={formData.room_name}
                   onChange={handleInputChange}
                   required
-                  className={fieldCls('room_name', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 cursor-pointer")}
+                  className={fieldCls('room_name', "w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 cursor-pointer")}
                 >
                   <option value="">Select an occupied unit</option>
                   {rooms.filter(room => room.status === 'occupied').map(room => (
@@ -1143,7 +1133,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
               </div>
 
               <div>
-                <label htmlFor="reading-billing_period" className="block text-xs font-bold text-slate-700 mb-1">Billing Period (Month) *</label>
+                <label htmlFor="reading-billing_period" className="block text-label font-bold text-slate-700 mb-1">Billing Period (Month) *</label>
                 <input
                   type="month"
                   {...readingForm.fieldA11y('billing_period')}
@@ -1151,14 +1141,14 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   value={formData.billing_period}
                   onChange={handleInputChange}
                   required
-                  className={fieldCls('billing_period', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
+                  className={fieldCls('billing_period', "w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
                 />
                 <FieldError id="reading-billing_period" error={readingForm.errors.billing_period} />
               </div>
             </div>
 
             <div>
-              <label htmlFor="reading-reading_date" className="block text-xs font-bold text-slate-700 mb-1">Reading Date *</label>
+              <label htmlFor="reading-reading_date" className="block text-label font-bold text-slate-700 mb-1">Reading Date *</label>
               <input
                 type="date"
                 {...readingForm.fieldA11y('reading_date')}
@@ -1168,7 +1158,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                 value={formData.reading_date}
                 onChange={handleInputChange}
                 required
-                className={fieldCls('reading_date', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
+                className={fieldCls('reading_date', "w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
               />
               <FieldError id="reading-reading_date" error={readingForm.errors.reading_date} />
             </div>
@@ -1177,18 +1167,18 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
             <div role="radiogroup" aria-label="How to record" className="space-y-1.5">
               <button type="button" role="radio" aria-checked={formData.entry_mode === 'bill'}
                 onClick={() => setFormData(prev => ({ ...prev, entry_mode: 'bill' }))}
-                className={`w-full rounded-xl border px-3 py-2 text-left text-xs font-bold cursor-pointer transition-colors ${formData.entry_mode === 'bill' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
+                className={`w-full rounded-card border px-3 py-2 text-left text-label font-bold cursor-pointer transition-colors ${formData.entry_mode === 'bill' ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
                 Provider bill
-                <span className="block text-[11px] font-normal text-slate-500">The tenant pays exactly the Meralco / water bill for the unit.</span>
+                <span className="block text-caption font-normal text-slate-500">The tenant pays exactly the Meralco / water bill for the unit.</span>
               </button>
-              <p className="m-0 text-[11px] text-slate-500">
+              <p className="m-0 text-caption text-slate-500">
                 Other ways:{' '}
                 {[['metered', 'meter reading × rate'], ['total', 'total only']].map(([mode, label], i) => (
                   <span key={mode}>
                     {i > 0 && ' · '}
                     <button type="button" role="radio" aria-checked={formData.entry_mode === mode}
                       onClick={() => setFormData(prev => ({ ...prev, entry_mode: mode }))}
-                      className={`border-0 bg-transparent p-0 text-[11px] cursor-pointer underline-offset-2 hover:underline ${formData.entry_mode === mode ? 'font-bold text-indigo-700 underline' : 'text-slate-600'}`}>
+                      className={`border-0 bg-transparent p-0 text-caption cursor-pointer underline-offset-2 hover:underline ${formData.entry_mode === mode ? 'font-bold text-indigo-700 underline' : 'text-slate-600'}`}>
                       {label}
                     </button>
                   </span>
@@ -1204,7 +1194,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     ['electric_bill_amount', 'Electricity bill amount (₱)', 'e.g. 1240.75', faBolt, 'text-amber-700'],
                   ].map(([name, label, placeholder, icon, tone]) => (
                     <div key={name}>
-                      <label htmlFor={`reading-${name}`} className="block text-xs font-bold text-slate-700 mb-1">
+                      <label htmlFor={`reading-${name}`} className="block text-label font-bold text-slate-700 mb-1">
                         <FontAwesomeIcon icon={icon} className={`${tone} mr-1`} />{label}
                       </label>
                       <input
@@ -1219,30 +1209,30 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                         value={formData[name]}
                         onChange={handleInputChange}
                         placeholder={placeholder}
-                        className={fieldCls(name, "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
+                        className={fieldCls(name, "w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
                       />
                       <FieldError id={`reading-${name}`} error={readingForm.errors[name]} />
                     </div>
                   ))}
                 </div>
-                <p className="m-0 text-[11px] text-slate-500">Type the amounts from the provider bills. Leave one blank if the unit has only one bill this month.</p>
+                <p className="m-0 text-caption text-slate-500">Type the amounts from the provider bills. Leave one blank if the unit has only one bill this month.</p>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50">
+                <div className="rounded-card border border-slate-200 bg-slate-50">
                   <button type="button" aria-expanded={showMeter} onClick={() => setShowMeter((v) => !v)}
-                    className="flex w-full items-center justify-between border-0 bg-transparent px-3 py-2 text-left text-xs font-bold text-slate-700 cursor-pointer">
+                    className="flex w-full items-center justify-between border-0 bg-transparent px-3 py-2 text-left text-label font-bold text-slate-700 cursor-pointer">
                     Meter reading (optional)
                     <span className="text-slate-500">{showMeter ? 'Hide' : 'Show'}</span>
                   </button>
                   {showMeter && (
                     <div className="space-y-2 border-t border-slate-200 p-3">
-                      <p className="m-0 text-[11px] text-slate-500">For the record only: the charge is the bill amount above, never reading × rate.</p>
+                      <p className="m-0 text-caption text-slate-500">For the record only: the charge is the bill amount above, never reading × rate.</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
                           ['water_curr_reading', 'Water meter (m³)', meterPrev.water],
                           ['electric_curr_reading', 'Electricity meter (kWh)', meterPrev.electric],
                         ].map(([name, label, prev]) => (
                           <div key={name}>
-                            <label htmlFor={`reading-${name}`} className="block text-[11px] font-bold text-slate-600 mb-1">{label}</label>
+                            <label htmlFor={`reading-${name}`} className="block text-caption font-bold text-slate-600 mb-1">{label}</label>
                             <input
                               type="number"
                               step="0.01"
@@ -1254,7 +1244,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                               value={formData[name]}
                               onChange={handleInputChange}
                               placeholder={prev === null ? 'First reading' : `Previous ${prev}`}
-                              className={fieldCls(name, "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
+                              className={fieldCls(name, "w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
                             />
                             <FieldError id={`reading-${name}`} error={readingForm.errors[name]} />
                           </div>
@@ -1268,7 +1258,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
             {formData.entry_mode === 'total' && (
               <div>
-                <label htmlFor="reading-total_amount" className="block text-xs font-bold text-slate-700 mb-1">Total Utilities Paid (₱) *</label>
+                <label htmlFor="reading-total_amount" className="block text-label font-bold text-slate-700 mb-1">Total Utilities Paid (₱) *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1281,27 +1271,27 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   value={formData.total_amount}
                   onChange={handleInputChange}
                   placeholder="e.g. 1850.00"
-                  className={fieldCls('total_amount', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
+                  className={fieldCls('total_amount', "w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
                 />
                 <FieldError id="reading-total_amount" error={readingForm.errors.total_amount} />
-                <p className="m-0 mt-1 text-[11px] text-slate-500">No meter readings are stored. Use the note below to say what the total covers.</p>
+                <p className="m-0 mt-1 text-caption text-slate-500">No meter readings are stored. Use the note below to say what the total covers.</p>
               </div>
             )}
 
             {formData.entry_mode === 'metered' && (<>
             {/* Water Section */}
-            <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
+            <div className="p-4 rounded-card bg-blue-50/50 border border-blue-100 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                <span className="text-label font-bold text-blue-900 flex items-center gap-1.5">
                   <FontAwesomeIcon icon={faTint} className="text-blue-500" /> Water Meter
                 </span>
-                <span className="text-[11px] text-blue-700 font-medium">
+                <span className="text-caption text-blue-700 font-medium">
                   Prev Reading: <strong>{modalCalculations.waterPrev} m³</strong>
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="reading-water_curr_reading" className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (m³)</label>
+                  <label htmlFor="reading-water_curr_reading" className="block text-caption font-bold text-slate-600 mb-1">Current Reading (m³)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1315,12 +1305,12 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     onChange={handleInputChange}
                     placeholder={modalCalculations.waterPrev.toString()}
                     required
-                    className={fieldCls('water_curr_reading', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
+                    className={fieldCls('water_curr_reading', "w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
                   />
                   <FieldError id="reading-water_curr_reading" error={readingForm.errors.water_curr_reading} />
                 </div>
                 <div>
-                  <label htmlFor="reading-water_rate_per_unit" className="block text-[11px] font-bold text-slate-600 mb-1">Rate per m³ (₱)</label>
+                  <label htmlFor="reading-water_rate_per_unit" className="block text-caption font-bold text-slate-600 mb-1">Rate per m³ (₱)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1333,12 +1323,12 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     value={formData.water_rate_per_unit}
                     onChange={handleInputChange}
                     required
-                    className={fieldCls('water_rate_per_unit', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
+                    className={fieldCls('water_rate_per_unit', "w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
                   />
                   <FieldError id="reading-water_rate_per_unit" error={readingForm.errors.water_rate_per_unit} />
                 </div>
                 <div className="col-span-2">
-                  <label htmlFor="reading-water_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Water Fees (₱) <span className="text-slate-500 font-normal italic">- Optional fixed charges</span></label>
+                  <label htmlFor="reading-water_other_fees" className="block text-caption font-bold text-slate-600 mb-1">Other Water Fees (₱) <span className="text-slate-500 font-normal italic">- Optional fixed charges</span></label>
                   <input
                     type="number"
                     step="0.01"
@@ -1350,30 +1340,30 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     max={MAX_AMOUNT}
                     value={formData.water_other_fees}
                     onChange={handleInputChange}
-                    className={fieldCls('water_other_fees', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
+                    className={fieldCls('water_other_fees', "w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
                   />
                   <FieldError id="reading-water_other_fees" error={readingForm.errors.water_other_fees} />
                 </div>
               </div>
-              <div className="text-[11px] text-blue-800 font-semibold flex justify-between pt-1 border-t border-blue-100">
+              <div className="text-caption text-blue-800 font-semibold flex justify-between pt-1 border-t border-blue-100">
                 <span>Consumption: {modalCalculations.waterCons} m³</span>
                 <span className="text-right">Usage: ₱{modalCalculations.waterAmt}<br/>Total w/ Fees: ₱{modalCalculations.totalWater}</span>
               </div>
             </div>
 
             {/* Electricity Section */}
-            <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-100 space-y-3">
+            <div className="p-4 rounded-card bg-amber-50/50 border border-amber-100 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <span className="text-label font-bold text-amber-900 flex items-center gap-1.5">
                   <FontAwesomeIcon icon={faBolt} className="text-amber-700" /> Electricity Meter
                 </span>
-                <span className="text-[11px] text-amber-700 font-medium">
+                <span className="text-caption text-amber-700 font-medium">
                   Prev Reading: <strong>{modalCalculations.elecPrev} kWh</strong>
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="reading-electric_curr_reading" className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (kWh)</label>
+                  <label htmlFor="reading-electric_curr_reading" className="block text-caption font-bold text-slate-600 mb-1">Current Reading (kWh)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1387,12 +1377,12 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     onChange={handleInputChange}
                     placeholder={modalCalculations.elecPrev.toString()}
                     required
-                    className={fieldCls('electric_curr_reading', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
+                    className={fieldCls('electric_curr_reading', "w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
                   />
                   <FieldError id="reading-electric_curr_reading" error={readingForm.errors.electric_curr_reading} />
                 </div>
                 <div>
-                  <label htmlFor="reading-electric_rate_per_unit" className="block text-[11px] font-bold text-slate-600 mb-1">Rate per kWh (₱)</label>
+                  <label htmlFor="reading-electric_rate_per_unit" className="block text-caption font-bold text-slate-600 mb-1">Rate per kWh (₱)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1405,12 +1395,12 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     value={formData.electric_rate_per_unit}
                     onChange={handleInputChange}
                     required
-                    className={fieldCls('electric_rate_per_unit', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
+                    className={fieldCls('electric_rate_per_unit', "w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
                   />
                   <FieldError id="reading-electric_rate_per_unit" error={readingForm.errors.electric_rate_per_unit} />
                 </div>
                 <div className="col-span-2">
-                  <label htmlFor="reading-electric_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Electricity Fees (₱) <span className="text-slate-500 font-normal italic">- Optional fixed charges</span></label>
+                  <label htmlFor="reading-electric_other_fees" className="block text-caption font-bold text-slate-600 mb-1">Other Electricity Fees (₱) <span className="text-slate-500 font-normal italic">- Optional fixed charges</span></label>
                   <input
                     type="number"
                     step="0.01"
@@ -1422,12 +1412,12 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     max={MAX_AMOUNT}
                     value={formData.electric_other_fees}
                     onChange={handleInputChange}
-                    className={fieldCls('electric_other_fees', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
+                    className={fieldCls('electric_other_fees', "w-full rounded-card border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
                   />
                   <FieldError id="reading-electric_other_fees" error={readingForm.errors.electric_other_fees} />
                 </div>
               </div>
-              <div className="text-[11px] text-amber-800 font-semibold flex justify-between pt-1 border-t border-amber-100">
+              <div className="text-caption text-amber-800 font-semibold flex justify-between pt-1 border-t border-amber-100">
                 <span>Consumption: {modalCalculations.elecCons} kWh</span>
                 <span className="text-right">Usage: ₱{modalCalculations.elecAmt}<br/>Total w/ Fees: ₱{modalCalculations.totalElec}</span>
               </div>
@@ -1437,37 +1427,37 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
             {/* Extra utility types (with a metered reading or a provider bill) */}
             {formData.entry_mode !== 'total' && utilityTypes.length > 0 && (
-              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="m-0 text-xs font-bold text-slate-700">Other utilities (optional)</p>
+              <div className="space-y-2 rounded-card border border-slate-200 bg-slate-50 p-3">
+                <p className="m-0 text-label font-bold text-slate-700">Other utilities (optional)</p>
                 {utilityTypes.map((t) => {
                   const e = extra[t.id] || { on: false, curr: '', rate: String(t.default_rate) };
                   const prev = lastItemReading(readings, formData.room_name, formData.billing_period, t.id);
                   const metered = t.billing_mode === 'metered';
                   return (
-                    <div key={t.id} className="grid grid-cols-12 items-center gap-2 text-xs">
+                    <div key={t.id} className="grid grid-cols-12 items-center gap-2 text-label">
                       <label className="col-span-12 flex items-center gap-2 font-semibold text-slate-700 sm:col-span-4">
                         <input type="checkbox" checked={e.on} onChange={(ev) => setExtraField(t, { on: ev.target.checked })} />
                         {t.name}
                       </label>
                       {metered && (
                         <input type="number" min={prev} step="0.01" disabled={!e.on} value={e.curr} onChange={(ev) => setExtraField(t, { curr: ev.target.value })}
-                          aria-label={`${t.name} current reading`} placeholder={`Reading (previous ${prev})`} className="col-span-6 rounded-lg border border-slate-200 bg-white px-2 py-1.5 sm:col-span-4" />
+                          aria-label={`${t.name} current reading`} placeholder={`Reading (previous ${prev})`} className="col-span-6 rounded-control border border-slate-200 bg-white px-2 py-1.5 sm:col-span-4" />
                       )}
                       <input type="number" min="0" step="0.01" disabled={!e.on} value={e.rate} onChange={(ev) => setExtraField(t, { rate: ev.target.value })}
                         aria-label={`${t.name} ${metered ? 'rate' : 'fee'}`} placeholder={metered ? `Rate per ${t.unit_label || 'unit'}` : 'Flat fee'}
-                        className={`rounded-lg border border-slate-200 bg-white px-2 py-1.5 ${metered ? 'col-span-6 sm:col-span-4' : 'col-span-12 sm:col-span-8'}`} />
+                        className={`rounded-control border border-slate-200 bg-white px-2 py-1.5 ${metered ? 'col-span-6 sm:col-span-4' : 'col-span-12 sm:col-span-8'}`} />
                     </div>
                   );
                 })}
-                {extraTotal > 0 && <p className="m-0 text-right text-[11px] font-semibold text-slate-600">Other utilities: ₱{extraTotal.toFixed(2)}</p>}
+                {extraTotal > 0 && <p className="m-0 text-right text-caption font-semibold text-slate-600">Other utilities: ₱{extraTotal.toFixed(2)}</p>}
               </div>
             )}
 
             {/* Combined Total Preview */}
             {formData.entry_mode !== 'total' && (
-              <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between text-xs font-bold">
+              <div className="p-3 bg-slate-900 text-white rounded-card flex items-center justify-between text-label font-bold">
                 <span>{formData.entry_mode === 'bill' ? 'Total to bill the tenant:' : 'Calculated Total Utility Bill:'}</span>
-                <span className="text-base text-emerald-400">₱{((formData.entry_mode === 'bill'
+                <span className="text-title text-emerald-400">₱{((formData.entry_mode === 'bill'
                   ? (parseFloat(formData.water_bill_amount) || 0) + (parseFloat(formData.electric_bill_amount) || 0)
                   : parseFloat(modalCalculations.totalAmt)) + extraTotal).toFixed(2)}</span>
               </div>
@@ -1475,7 +1465,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
             {/* Provider bill (optional) */}
             <div>
-              <label htmlFor="reading-bill_file" className="block text-xs font-bold text-slate-700 mb-1">Provider Bill (Optional)</label>
+              <label htmlFor="reading-bill_file" className="block text-label font-bold text-slate-700 mb-1">Provider Bill (Optional)</label>
               <input
                 id="reading-bill_file"
                 type="file"
@@ -1486,14 +1476,14 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   if (err) { alert(err); ev.target.value = ''; setBillFile(null); return; }
                   setBillFile(f);
                 }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800"
+                className="w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-label font-medium text-slate-800"
               />
-              <p className="m-0 mt-1 text-[11px] text-slate-500">Attach the water or electric company's bill (photo or PDF) so the tenant can see it. You can also add or replace it later from the readings list.</p>
+              <p className="m-0 mt-1 text-caption text-slate-500">Attach the water or electric company's bill (photo or PDF) so the tenant can see it. You can also add or replace it later from the readings list.</p>
             </div>
 
             {/* Notes */}
             <div>
-              <label htmlFor="reading-notes" className="block text-xs font-bold text-slate-700 mb-1">Notes (Optional)</label>
+              <label htmlFor="reading-notes" className="block text-label font-bold text-slate-700 mb-1">Notes (Optional)</label>
               <input
                 type="text"
                 {...readingForm.fieldA11y('notes')}
@@ -1503,7 +1493,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                 value={formData.notes}
                 onChange={handleInputChange}
                 placeholder="e.g. Verified sub-meter serial, tenant present"
-                className={fieldCls('notes', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
+                className={fieldCls('notes', "w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
               />
               <FieldError id="reading-notes" error={readingForm.errors.notes} />
             </div>
@@ -1515,14 +1505,14 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              className={btn('secondary', 'sm')}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2 text-xs font-bold text-white transition-all shadow-sm hover:shadow-indigo-200 disabled:opacity-50 cursor-pointer border-0"
+              className={btn('primary', 'sm')}
             >
               {submitting ? 'Saving...' : formData.entry_mode === 'metered' ? 'Save & Calculate' : 'Save'}
             </button>

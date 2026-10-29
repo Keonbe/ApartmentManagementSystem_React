@@ -18,6 +18,7 @@ import {
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { printElement } from '../utils/print';
+import { btn } from '../Components/admin/ui/styles';
 
 // Simple GCash validation: 11-digit PH mobile (09xx) or +639xx, or the literal '*********'
 const isValidGcashNumber = (num) => {
@@ -51,9 +52,9 @@ const DEFAULT_SAMPLE_DATA = {
   isTentative: false,
 };
 
-const SMALL_BTN = 'w-8 h-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
-const DANGER_BTN = 'w-8 h-8 inline-flex items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 hover:bg-rose-50 cursor-pointer transition-colors';
-const ADD_BTN = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const SMALL_BTN = 'w-8 h-8 inline-flex items-center justify-center rounded-control border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+const DANGER_BTN = 'w-8 h-8 inline-flex items-center justify-center rounded-control border border-red-200 bg-white text-red-500 hover:bg-red-50 cursor-pointer transition-colors';
+const ADD_BTN = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-control text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
 const blankText = () => ({ en: '', tl: '' });
 const move = (list, from, to) => {
@@ -135,41 +136,41 @@ function BiInput({ id, label, value, onChange, multiline = false, rows = 3, max,
       maxLength: max,
       onChange: (e) => onChange({ ...v, [lang]: e.target.value }),
       onFocus: (e) => onFieldFocus?.(e.target, (next) => onChange({ ...v, [lang]: next })),
-      className: `${INPUT} ${empty ? 'border-rose-300' : ''} ${multiline ? 'leading-relaxed resize-y' : ''}`,
+      className: `${INPUT} ${empty ? 'border-red-300' : ''} ${multiline ? 'leading-relaxed resize-y' : ''}`,
     };
     const len = (v[lang] || '').length;
     return (
       <div className="flex flex-col gap-1 min-w-0">
         <div className="flex items-center justify-between">
-          <label htmlFor={props.id} className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label htmlFor={props.id} className="text-label font-medium text-slate-600 capitalize">
             {lang === 'en' ? 'English' : 'Tagalog'}
           </label>
           {lang === 'tl' && v.en && !v.tl && (
             <button
               type="button"
               onClick={copyToTl}
-              className="text-[11px] text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer font-semibold flex items-center gap-1"
+              className="text-caption text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer font-semibold flex items-center gap-1"
             >
               <FontAwesomeIcon icon={faCopy} /> Copy from English
             </button>
           )}
         </div>
         {multiline ? <textarea rows={rows} {...props} /> : <input type="text" autoComplete="off" {...props} />}
-        {max && len > max * 0.8 && <span className="text-[11px] text-slate-500 self-end">{len}/{max}</span>}
+        {max && len > max * 0.8 && <span className="text-caption text-slate-500 self-end">{len}/{max}</span>}
       </div>
     );
   };
 
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <span className="text-sm font-semibold text-slate-700">{label}{required && <span className="text-rose-500"> *</span>}</span>}
+      {label && <span className="text-body font-semibold text-slate-700">{label}{required && <span className="text-red-500"> *</span>}</span>}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {box('en')}
         {box('tl')}
       </div>
-      {empty && <p className="text-[11px] text-rose-500 m-0">Required in at least one language.</p>}
-      {!empty && oneSided && <p className="text-[11px] text-amber-700 m-0">One language is blank — the other will be shown in its place.</p>}
-      {hint && <p className="text-[11px] text-slate-500 m-0 leading-relaxed">{hint}</p>}
+      {empty && <p className="text-caption text-red-500 m-0">Required in at least one language.</p>}
+      {!empty && oneSided && <p className="text-caption text-amber-700 m-0">One language is blank — the other will be shown in its place.</p>}
+      {hint && <p className="text-caption text-slate-500 m-0 leading-relaxed">{hint}</p>}
     </div>
   );
 }
@@ -181,7 +182,7 @@ function PlaceholderBar({ variables, onInsert }) {
       type="button"
       title={`${label} — click to insert {{${key}}}`}
       onMouseDown={(e) => { e.preventDefault(); onInsert(`{{${key}}}`); }}
-      className={`px-2 py-1 rounded-md text-[11px] font-mono border cursor-pointer transition-colors ${
+      className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap font-mono cursor-pointer transition-colors ${
         custom
           ? 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'
           : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -192,8 +193,8 @@ function PlaceholderBar({ variables, onInsert }) {
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-      <span className="font-bold text-slate-500 uppercase tracking-wider text-[11px] mr-1">Insert dynamic value:</span>
+    <div className="flex flex-wrap items-center gap-1.5 p-3 rounded-card bg-slate-50 border border-slate-200 text-label">
+      <span className="font-medium text-slate-600 text-label mr-1">Insert dynamic value:</span>
       {BUILTIN_PLACEHOLDERS.map((p) => chip(p.key, p.label, false))}
       {(variables || []).map((v) => chip(v.key, v.label, true))}
     </div>
@@ -554,33 +555,33 @@ const AdminContractEditor = ({ embedded = false }) => {
       </SettingsSection>
 
       {/* Sections Control Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-card border border-slate-200">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-bold text-slate-800 m-0">
+          <h3 className="text-body font-bold text-slate-800 m-0">
             Contract Sections ({draft.terms.sections.length})
           </h3>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <button type="button" onClick={expandAllSections} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded border-0 cursor-pointer text-slate-700 font-semibold">
+          <div className="flex items-center gap-1.5 text-label text-slate-500">
+            <button type="button" onClick={expandAllSections} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-control border-0 cursor-pointer text-slate-700 font-semibold">
               <FontAwesomeIcon icon={faExpandAlt} className="mr-1 text-[10px]" /> Expand All
             </button>
-            <button type="button" onClick={collapseAllSections} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded border-0 cursor-pointer text-slate-700 font-semibold">
+            <button type="button" onClick={collapseAllSections} className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-control border-0 cursor-pointer text-slate-700 font-semibold">
               <FontAwesomeIcon icon={faCompressAlt} className="mr-1 text-[10px]" /> Collapse All
             </button>
           </div>
         </div>
 
         <div className="flex items-center gap-2 max-w-xs w-full">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-full">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-control px-2.5 py-1.5 w-full">
             <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
             <input
               type="text"
               placeholder="Search clauses..."
               value={clauseSearch}
               onChange={(e) => setClauseSearch(e.target.value)}
-              className="bg-transparent border-0 outline-none text-xs w-full text-slate-700"
+              className="bg-transparent border-0 outline-none text-label w-full text-slate-700"
             />
             {clauseSearch && (
-              <button aria-label="Clear search" type="button" onClick={() => setClauseSearch('')} className="bg-transparent border-0 text-slate-500 hover:text-slate-600 cursor-pointer p-0 text-xs">
+              <button aria-label="Clear search" type="button" onClick={() => setClauseSearch('')} className="bg-transparent border-0 text-slate-500 hover:text-slate-600 cursor-pointer p-0 text-label">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             )}
@@ -591,23 +592,23 @@ const AdminContractEditor = ({ embedded = false }) => {
       {filteredSections.map((section, si) => {
         const isCollapsed = collapsedSections[section.id];
         return (
-          <div key={section.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-all">
+          <div key={section.id} className="bg-white border border-slate-200 rounded-card overflow-hidden shadow-card transition-all">
             <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 flex-1 min-w-0">
                 <button aria-label={isCollapsed ? 'Expand section' : 'Collapse section'} aria-expanded={!isCollapsed}
                   type="button"
                   onClick={() => toggleSectionCollapse(section.id)}
-                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-0 text-xs"
+                  className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-0 text-label"
                 >
                   <FontAwesomeIcon icon={isCollapsed ? faChevronRight : faChevronDown} />
                 </button>
-                <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
+                <span className="w-7 h-7 rounded-control bg-indigo-100 text-indigo-700 font-bold text-label flex items-center justify-center shrink-0">
                   {roman(si + 1)}
                 </span>
-                <span className="font-bold text-sm text-slate-800 truncate">
+                <span className="font-bold text-body text-slate-800 truncate">
                   {pick(section.title, 'en') || `Section ${roman(si + 1)}`}
                 </span>
-                <span className="text-xs text-slate-500">({section.clauses.length} clauses)</span>
+                <span className="text-label text-slate-500">({section.clauses.length} clauses)</span>
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -638,16 +639,16 @@ const AdminContractEditor = ({ embedded = false }) => {
 
                 <div className="space-y-4 pt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Clauses</span>
+                    <span className="text-label font-medium text-slate-600">Clauses</span>
                     <button type="button" className={ADD_BTN} onClick={() => addClause(si)}>
                       <FontAwesomeIcon icon={faPlus} /> Add clause
                     </button>
                   </div>
 
                   {section.clauses.map((clause, ci) => (
-                    <div key={clause.id} className="border border-slate-200/80 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <div key={clause.id} className="border border-slate-200/80 rounded-card p-4 bg-slate-50/40 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-600">Clause #{ci + 1}</span>
+                        <span className="text-label font-bold text-slate-600">Clause #{ci + 1}</span>
                         <div className="flex items-center gap-1">
                           <button aria-label="Move clause up" type="button" className={SMALL_BTN} disabled={ci === 0} onClick={() => update((d) => move(d.terms.sections[si].clauses, ci, ci - 1))}>
                             <FontAwesomeIcon icon={faArrowUp} className="text-[10px]" />
@@ -683,7 +684,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       })}
 
       <div className="flex justify-center pt-2">
-        <button type="button" className="btn-interactive inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm border-0 cursor-pointer" onClick={addSection}>
+        <button type="button" className={btn('primary', 'md', 'btn-interactive')} onClick={addSection}>
           <FontAwesomeIcon icon={faPlus} /> Add New Section
         </button>
       </div>
@@ -711,7 +712,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               id="detail-landlord_name" type="text" autoComplete="off" maxLength={LIM.detail}
               value={draft.details.landlord_name || ''}
               onChange={(e) => update((d) => { d.details.landlord_name = e.target.value; })}
-              className={`${INPUT} ${!(draft.details.landlord_name || '').trim() ? 'border-rose-300' : ''}`}
+              className={`${INPUT} ${!(draft.details.landlord_name || '').trim() ? 'border-red-300' : ''}`}
             />
           </Field>
           <Field label="Owner Contact Number" htmlFor="detail-landlord_contact" hint="{{landlord_contact}}">
@@ -746,20 +747,20 @@ const AdminContractEditor = ({ embedded = false }) => {
         icon={faWallet} tone="emerald" title="Payment Accounts & Channels"
         description="Listed wherever {{payment_methods}} appears. Mobile numbers and account details for tenant rent payments."
       >
-        {draft.payment_accounts.length === 0 && <p className="text-sm text-slate-500 m-0">No payment accounts configured.</p>}
+        {draft.payment_accounts.length === 0 && <p className="text-body text-slate-500 m-0">No payment accounts configured.</p>}
         {draft.payment_accounts.map((a, i) => {
           const isGcash = a.type === 'gcash';
           const badNumber = a.account_number && !ACCOUNT_NUMBER_RE.test(a.account_number);
           const gcashInvalid = isGcash && a.account_number && !isValidGcashNumber(a.account_number);
 
           return (
-            <div key={a.id} className="rounded-xl border border-slate-200 p-4 space-y-3 bg-white shadow-sm">
+            <div key={a.id} className="rounded-card border border-slate-200 p-4 space-y-3 bg-white shadow-card">
               <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${isGcash ? 'bg-blue-100 text-blue-700' : a.type === 'bank' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap capitalize ${isGcash ? 'bg-blue-100 text-blue-700' : a.type === 'bank' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
                     {a.type}
                   </span>
-                  <span className="text-xs font-bold text-slate-700">{a.label || `Account #${i + 1}`}</span>
+                  <span className="text-label font-bold text-slate-700">{a.label || `Account #${i + 1}`}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button aria-label="Move account up" type="button" className={SMALL_BTN} disabled={i === 0} onClick={() => update((d) => move(d.payment_accounts, i, i - 1))}>
@@ -793,7 +794,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                   <input
                     id={`acct-${a.id}-label`} type="text" autoComplete="off" maxLength={LIM.accountLabel} value={a.label}
                     onChange={(e) => update((d) => { d.payment_accounts[i].label = e.target.value; })}
-                    className={`${INPUT} ${!a.label.trim() ? 'border-rose-300' : ''}`}
+                    className={`${INPUT} ${!a.label.trim() ? 'border-red-300' : ''}`}
                   />
                 </Field>
 
@@ -826,7 +827,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                         update((d) => { d.payment_accounts[i].account_number = val; });
                       }
                     }}
-                    className={`${INPUT} font-mono ${badNumber || gcashInvalid ? 'border-rose-300' : ''}`}
+                    className={`${INPUT} font-mono ${badNumber || gcashInvalid ? 'border-red-300' : ''}`}
                     placeholder={isGcash ? '0917 123 4567' : 'Account number'}
                   />
                 </Field>
@@ -861,18 +862,18 @@ const AdminContractEditor = ({ embedded = false }) => {
           {draft.variables.map((v, i) => {
             const badKey = !VARIABLE_KEY_RE.test(v.key) || BUILTIN_KEYS.has(v.key) || draft.variables.some((o, j) => j !== i && o.key === v.key);
             return (
-              <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-start bg-slate-50/50 p-3 rounded-xl border border-slate-200">
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-start bg-slate-50/50 p-3 rounded-card border border-slate-200">
                 <Field label="Label *" htmlFor={`var-${i}-label`}>
                   <input id={`var-${i}-label`} type="text" autoComplete="off" maxLength={LIM.variableLabel} value={v.label}
                     onChange={(e) => update((d) => { d.variables[i].label = e.target.value; })}
-                    className={`${INPUT} ${!v.label.trim() ? 'border-rose-300' : ''}`} />
+                    className={`${INPUT} ${!v.label.trim() ? 'border-red-300' : ''}`} />
                 </Field>
                 <Field label="Placeholder Tag" htmlFor={`var-${i}-key`} error={badKey ? 'Lowercase letters, digits, _' : undefined}>
-                  <div className="flex items-center gap-1 font-mono text-sm text-slate-500">
+                  <div className="flex items-center gap-1 font-mono text-body text-slate-500">
                     {'{{'}
                     <input id={`var-${i}-key`} type="text" autoComplete="off" maxLength={40} value={v.key}
                       onChange={(e) => update((d) => { d.variables[i].key = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'); })}
-                      className={`${INPUT} font-mono ${badKey ? 'border-rose-300' : ''}`} />
+                      className={`${INPUT} font-mono ${badKey ? 'border-red-300' : ''}`} />
                     {'}}'}
                   </div>
                 </Field>
@@ -900,18 +901,18 @@ const AdminContractEditor = ({ embedded = false }) => {
   const renderPreview = () => (
     <div className="space-y-5 print:space-y-0">
       {/* Preview Controls Bar */}
-      <div className="print:hidden preview-controls-bar bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-4">
+      <div className="print:hidden preview-controls-bar bg-white border border-slate-200 rounded-card p-4 shadow-card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Tenant Selector for Live Dynamic Adjustment */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+            <span className="text-label font-medium text-slate-700 flex items-center gap-1.5 capitalize">
               <FontAwesomeIcon icon={faUsers} className="text-indigo-600" />
               Preview as Tenant:
             </span>
             <select
               value={selectedTenantId}
               onChange={(e) => setSelectedTenantId(e.target.value)}
-              className="px-3 py-1.5 text-xs font-semibold border border-slate-300 rounded-xl bg-slate-50 text-slate-800 outline-none cursor-pointer focus:border-indigo-500 max-w-xs shadow-sm"
+              className="px-3 py-1.5 text-label font-semibold border border-slate-300 rounded-card bg-slate-50 text-slate-800 outline-none cursor-pointer focus:border-indigo-500 max-w-xs shadow-card"
             >
               <option value="sample">Sample Preview: Juan Dela Cruz (Room A)</option>
               {realTenants.map((t) => {
@@ -927,7 +928,7 @@ const AdminContractEditor = ({ embedded = false }) => {
             <button
               type="button"
               onClick={() => setShowCustomDataEditor(!showCustomDataEditor)}
-              className="px-2.5 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl cursor-pointer transition-colors"
+              className="px-2.5 py-1.5 text-label font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-card cursor-pointer transition-colors"
             >
               <FontAwesomeIcon icon={faEdit} className="mr-1" />
               {showCustomDataEditor ? 'Hide Fields' : 'Customize Preview Info'}
@@ -936,14 +937,14 @@ const AdminContractEditor = ({ embedded = false }) => {
 
           <div className="flex items-center gap-2">
             {/* Language Selector */}
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div className="flex bg-slate-100 p-1 rounded-card border border-slate-200">
               {[['en', 'English'], ['tl', 'Tagalog']].map(([code, label]) => (
                 <button
                   key={code}
                   type="button"
                   onClick={() => setPreviewLang(code)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer border-0 transition-all ${
-                    previewLang === code ? 'bg-white text-indigo-600 shadow-sm' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1 rounded-control text-label font-bold cursor-pointer border-0 transition-all ${
+                    previewLang === code ? 'bg-white text-indigo-600 shadow-card' : 'bg-transparent text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   {label}
@@ -955,7 +956,7 @@ const AdminContractEditor = ({ embedded = false }) => {
             <button
               type="button"
               onClick={handlePrint}
-              className="btn-interactive flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl cursor-pointer shadow-sm"
+              className={btn('secondary', 'sm', 'btn-interactive')}
             >
               <FontAwesomeIcon icon={faPrint} /> Print / PDF
             </button>
@@ -964,41 +965,41 @@ const AdminContractEditor = ({ embedded = false }) => {
 
         {/* Dynamic Tenant Info Editor Drawer */}
         {showCustomDataEditor && (
-          <div className="pt-3 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/50 p-3 rounded-xl animate-fadeIn">
+          <div className="pt-3 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/50 p-3 rounded-card animate-fadeIn">
             <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Tenant Name</label>
+              <label className="text-label font-medium text-slate-600 block mb-1">Tenant Name</label>
               <input
                 type="text"
                 value={customPreviewData.tenantName || ''}
                 onChange={(e) => setCustomPreviewData((p) => ({ ...p, tenantName: e.target.value }))}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white outline-none"
+                className="w-full text-label px-2.5 py-1.5 border border-slate-200 rounded-control bg-white outline-none"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Room / Unit</label>
+              <label className="text-label font-medium text-slate-600 block mb-1">Room / Unit</label>
               <input
                 type="text"
                 value={customPreviewData.roomName || ''}
                 onChange={(e) => setCustomPreviewData((p) => ({ ...p, roomName: e.target.value }))}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white outline-none"
+                className="w-full text-label px-2.5 py-1.5 border border-slate-200 rounded-control bg-white outline-none"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Monthly Rent</label>
+              <label className="text-label font-medium text-slate-600 block mb-1">Monthly Rent</label>
               <input
                 type="text"
                 value={customPreviewData.monthlyRent || ''}
                 onChange={(e) => setCustomPreviewData((p) => ({ ...p, monthlyRent: e.target.value }))}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white outline-none"
+                className="w-full text-label px-2.5 py-1.5 border border-slate-200 rounded-control bg-white outline-none"
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Tenant Phone</label>
+              <label className="text-label font-medium text-slate-600 block mb-1">Tenant Phone</label>
               <input
                 type="text"
                 value={customPreviewData.tenantPhone || ''}
                 onChange={(e) => setCustomPreviewData((p) => ({ ...p, tenantPhone: e.target.value }))}
-                className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white outline-none"
+                className="w-full text-label px-2.5 py-1.5 border border-slate-200 rounded-control bg-white outline-none"
               />
             </div>
           </div>
@@ -1006,7 +1007,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       </div>
 
       {/* Render Official Contract Document with Dynamic Data */}
-      <div ref={contractDocRef} className="max-w-3xl mx-auto shadow-2xl rounded-2xl overflow-hidden print:max-w-none print:shadow-none print:rounded-none print:overflow-visible print:m-0 print:p-0">
+      <div ref={contractDocRef} className="max-w-3xl mx-auto shadow-dialog rounded-card overflow-hidden print:max-w-none print:shadow-none print:rounded-none print:overflow-visible print:m-0 print:p-0">
         <ContractDocument
           template={draft}
           lang={previewLang}
@@ -1024,27 +1025,27 @@ const AdminContractEditor = ({ embedded = false }) => {
     >
       {historyLoading && <p className="text-sm text-slate-500 m-0"><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading history…</p>}
       {!historyLoading && history.length === 0 && (
-        <p className="text-sm text-slate-500 m-0">No saved versions yet — built-in default is currently active.</p>
+        <p className="text-body text-slate-500 m-0">No saved versions yet — built-in default is currently active.</p>
       )}
       {history.length > 0 && (
         <ul className="list-none m-0 p-0 divide-y divide-slate-100">
           {history.map((v) => (
             <li key={v.id} className="py-3 flex flex-wrap items-center gap-3">
-              <span className="w-12 h-8 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0">v{v.version}</span>
+              <span className="w-12 h-8 rounded-control bg-slate-100 text-slate-700 text-label font-bold flex items-center justify-center shrink-0">v{v.version}</span>
               <div className="flex-1 min-w-0">
-                <p className="m-0 text-sm font-semibold text-slate-800">
+                <p className="m-0 text-body font-semibold text-slate-800">
                   {formatDateTime(v.created_at)}{v.created_by_name ? ` · ${v.created_by_name}` : ' · System'}
                   {v.version === meta?.version && (
-                    <span className="ml-2 text-[11px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                    <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ml-2 text-emerald-700 bg-emerald-50 ring-emerald-200 ring-1 ring-inset">
                       In Force
                     </span>
                   )}
                 </p>
-                <p className="m-0 text-xs text-slate-500 truncate">{v.note || 'No change note recorded'}</p>
+                <p className="m-0 text-label text-slate-500 truncate">{v.note || 'No change note recorded'}</p>
               </div>
               {v.version !== meta?.version && (
                 <button type="button" onClick={() => handleLoadVersion(v)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                  className={btn('secondary', 'sm')}>
                   <FontAwesomeIcon icon={faRotateLeft} /> Load into Editor
                 </button>
               )}
@@ -1060,17 +1061,17 @@ const AdminContractEditor = ({ embedded = false }) => {
   const editorContent = (
     <div className="space-y-6 print:space-y-0">
       {/* Top Meta Header */}
-      <div className="print:hidden editor-meta-header flex flex-wrap items-start justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="print:hidden editor-meta-header flex flex-wrap items-start justify-between gap-4 bg-white p-5 rounded-card border border-slate-200 shadow-card">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-slate-900 m-0">Rent Contract Template</h2>
+            <h2 className="text-section font-bold text-slate-900 m-0">Rent Contract Template</h2>
             {meta?.version && (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700">
+              <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-indigo-50 ring-indigo-200 text-indigo-700 ring-1 ring-inset">
                 Version {meta.version}
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 m-0 mt-1">
+          <p className="text-label text-slate-500 m-0 mt-1">
             {!meta ? 'Loading…'
               : meta.is_default ? 'Using built-in contract defaults.'
               : `Saved ${formatDateTime(meta.updated_at)}${meta.updated_by ? ` by ${meta.updated_by}` : ''}`}
@@ -1078,7 +1079,7 @@ const AdminContractEditor = ({ embedded = false }) => {
         </div>
         {draft && (
           <button type="button" onClick={handleResetDefault}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer shadow-sm">
+            className={btn('secondary', 'sm')}>
             <FontAwesomeIcon icon={faUndo} /> Reset Clauses to Default
           </button>
         )}
@@ -1087,7 +1088,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       {loadError && (
         <Callout tone="rose" icon={faExclamationTriangle} title="Could not load the contract template">
           {loadError}{' '}
-          <button type="button" onClick={load} className="font-bold underline bg-transparent border-0 p-0 cursor-pointer text-rose-700">Try again</button>
+          <button type="button" onClick={load} className="font-bold underline bg-transparent border-0 p-0 cursor-pointer text-red-700">Try again</button>
         </Callout>
       )}
 
@@ -1103,23 +1104,23 @@ const AdminContractEditor = ({ embedded = false }) => {
       {draft && (
         <>
           {/* Main Tabs Navigation */}
-          <nav className="print:hidden editor-tabs-nav flex gap-1.5 overflow-x-auto bg-white border border-slate-200 rounded-2xl p-1.5 shadow-sm" aria-label="Contract editor tabs">
+          <nav className="print:hidden editor-tabs-nav flex gap-1.5 overflow-x-auto bg-white border border-slate-200 rounded-card p-1.5 shadow-card" aria-label="Contract editor tabs">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => selectTab(t.id)}
                 aria-current={tab === t.id ? 'page' : undefined}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap border-0 cursor-pointer transition-all ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-card text-label font-bold whitespace-nowrap border-0 cursor-pointer transition-all ${
                   tab === t.id
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-indigo-600 text-white shadow-card'
                     : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <FontAwesomeIcon icon={t.icon} className="text-xs" />
                 <span>{t.label}</span>
                 {t.id === 'terms' && (
-                  <span className={`ml-1 text-[11px] px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ml-1 ${tab === t.id ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
                     {draft.terms.sections.length}
                   </span>
                 )}
@@ -1153,11 +1154,11 @@ const AdminContractEditor = ({ embedded = false }) => {
 
       {/* Sticky Save Bar */}
       {showSaveBar && (
-        <div className="print:hidden save-bar sticky bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-md px-6 py-3 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] rounded-xl animate-fadeIn">
+        <div className="print:hidden save-bar sticky bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-md px-6 py-3 shadow-raised rounded-card animate-fadeIn">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-              <span className="text-xs font-bold text-slate-800">Unsaved template changes</span>
+              <span className="text-label font-bold text-slate-800">Unsaved template changes</span>
             </div>
             <div className="flex-1 max-w-md min-w-[14rem]">
               <input
@@ -1167,7 +1168,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                 maxLength={LIM.note}
                 placeholder="Change summary (e.g. Updated GCash number & signatures)"
                 aria-label="Change note"
-                className={`${INPUT} text-xs py-1.5`}
+                className={`${INPUT} text-label py-1.5`}
               />
             </div>
             <div className="flex items-center gap-2">
@@ -1175,7 +1176,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                 type="button"
                 onClick={handleDiscard}
                 disabled={saving}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 cursor-pointer transition-colors disabled:opacity-50"
+                className={btn('secondary', 'sm')}
               >
                 Discard
               </button>
@@ -1183,7 +1184,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                 type="button"
                 onClick={handleSave}
                 disabled={saving || errors.length > 0}
-                className="btn-interactive px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md border-0 cursor-pointer flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className={btn('primary', 'sm', 'btn-interactive')}
               >
                 <FontAwesomeIcon icon={saving ? faSpinner : faSave} spin={saving} />
                 {saving ? 'Saving…' : 'Save as New Version'}
@@ -1195,13 +1196,13 @@ const AdminContractEditor = ({ embedded = false }) => {
 
       {/* Floating Toast Notification */}
       {toast && (
-        <div className="print:hidden fixed bottom-6 right-6 z-50 max-w-sm w-full bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 flex items-start gap-3 animate-fadeIn" role="status">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-white ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+        <div className="print:hidden fixed bottom-6 right-6 z-50 max-w-sm w-full bg-white rounded-card shadow-dialog border border-slate-200 p-4 flex items-start gap-3 animate-fadeIn" role="status">
+          <div className={`w-8 h-8 rounded-card flex items-center justify-center shrink-0 text-white ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
             <FontAwesomeIcon icon={faCheckCircle} className="text-sm" />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-bold text-slate-800 m-0">{toast.title}</h4>
-            <p className="text-xs text-slate-500 mt-0.5 m-0 leading-relaxed">{toast.message}</p>
+            <h4 className="text-label font-bold text-slate-800 m-0">{toast.title}</h4>
+            <p className="text-label text-slate-500 mt-0.5 m-0 leading-relaxed">{toast.message}</p>
           </div>
           <button aria-label="Dismiss" type="button" onClick={() => setToast(null)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
             <FontAwesomeIcon icon={faTimes} />

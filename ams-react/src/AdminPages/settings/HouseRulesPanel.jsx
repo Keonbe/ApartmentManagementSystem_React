@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react';
 import api from '../../api/axiosConfig';
 import Modal from '../../Components/admin/Modal';
+import { btn } from '../../Components/admin/ui/styles';
 
 const EMPTY_RULE = { title: '', title_fil: '', description: '', description_fil: '', is_highlight: 0, is_active: 1 };
 
@@ -101,9 +102,9 @@ export default function HouseRulesPanel({ scope = 'house' }) {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5">
-        <div><h3 className="m-0 text-base font-extrabold text-slate-800">{copy.title}</h3><p className="m-0 mt-1 text-sm text-slate-500">{copy.blurb}</p></div>
-        <button type="button" onClick={() => setEditing({ ...EMPTY_RULE })} className="inline-flex items-center gap-2 rounded-xl border-0 bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"><Plus className="h-4 w-4" /> Add Rule</button>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-slate-200 bg-white p-5">
+        <div><h3 className="m-0 text-title font-bold text-slate-800">{copy.title}</h3><p className="m-0 mt-1 text-body text-slate-500">{copy.blurb}</p></div>
+        <button type="button" onClick={() => setEditing({ ...EMPTY_RULE })} className={btn('primary', 'md')}><Plus className="h-4 w-4" /> Add Rule</button>
       </div>
       {notice && <p role="status" className="m-0 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
       {error && <p role="alert" className="m-0 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}

@@ -2,6 +2,38 @@
 @import "./assets/styles/responsive/components/tables.responsive.css";
 @import "./assets/styles/animations.user.css";
 
+/* Admin design tokens (Tailwind utilities: text-label, rounded-card, shadow-card…).
+   Sizes are px, not rem, because the root font is 18px on desktop and rem-based
+   sizes would come out ~12% larger than intended. Shared components in
+   Components/admin/ui/ are built on these; prefer them over one-off values.
+     type    caption 12 · label 13 · body 14 · title 16 · section 20 · page 24
+     radius  control 8 (buttons, inputs, badges) · card 12 · dialog 16
+     shadow  card (resting surface) · raised (dropdowns, popovers) · dialog */
+@theme {
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-title: 16px;
+  --text-title--line-height: 22px;
+  --text-section: 20px;
+  --text-section--line-height: 28px;
+  --text-page: 24px;
+  --text-page--line-height: 32px;
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-dialog: 16px;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.04);
+  --shadow-raised: 0 10px 24px -8px rgb(15 23 42 / 0.18);
+  --shadow-dialog: 0 24px 48px -12px rgb(15 23 42 / 0.3);
+
+  --font-admin: 'IBM Plex Sans Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
 :root {
   /* System Tokens */
   --text: #6b6375;

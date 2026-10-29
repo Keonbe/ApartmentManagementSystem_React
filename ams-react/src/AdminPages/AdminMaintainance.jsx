@@ -20,6 +20,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import Modal from '../Components/admin/Modal';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import {
   MAINTENANCE_CATEGORIES, MAINTENANCE_URGENCIES, MAINTENANCE_DEFAULT_URGENCY, MAINTENANCE_TRANSITIONS, MAINTENANCE_STATUS_STYLES,
   urgencyWeight, urgencyColor
@@ -124,16 +125,16 @@ const timelineFor = (r) => {
 // search change without touching row content, not the modal-typing case below.
 const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
   return (
-    <div {...clickable(() => onOpen(req))} className="card-interactive bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+    <div {...clickable(() => onOpen(req))} className="card-interactive bg-white rounded-control p-4 border border-slate-200 shadow-card hover:border-indigo-400 hover:shadow-raised transition-all cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
       <div className="mb-2">
         <div className="flex gap-1.5 flex-wrap min-w-0">
-          <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
-          <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200 bg-slate-50 text-slate-600">{req.category || 'Uncategorized'}</span>
+          <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
+          <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ring-slate-200 bg-slate-50 text-slate-600 ring-1 ring-inset">{req.category || 'Uncategorized'}</span>
           {req.tenantResponsible && (
-            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Bill</span>
+            <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-violet-100 text-violet-700 ring-violet-200 ring-1 ring-inset">Tenant Bill</span>
           )}
           {(req.status === 'Rejected' || req.status === 'Cancelled') && (
-            <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status]}`}>{req.status}</span>
+            <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${MAINTENANCE_STATUS_STYLES[req.status]}`}>{req.status}</span>
           )}
         </div>
       </div>
@@ -144,22 +145,22 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
         <span className="shrink-0 whitespace-nowrap text-[11px] text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
       </div>
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between text-[11px] text-slate-500 gap-2">
+        <div className="flex items-center justify-between text-caption text-slate-500 gap-2">
           <span className="flex items-center gap-1.5 truncate"><FontAwesomeIcon icon={faUser} className="text-[10px]" /> {req.tenant} · {req.unit}</span>
           <span className="flex items-center gap-1 shrink-0"><FontAwesomeIcon icon={faClock} className="text-[10px]" /> {getRelativeTime(req.createdAt)}</span>
         </div>
         <div className="flex justify-between items-center mt-1 border-t border-slate-100 pt-2">
           {req.assignedTo ? (
-            <span className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{req.assignedTo}</span>
+            <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-indigo-50 text-indigo-700">{req.assignedTo}</span>
           ) : (
-            <span className="text-[11px] font-medium text-slate-500 italic">Unassigned</span>
+            <span className="text-caption font-medium text-slate-500 italic">Unassigned</span>
           )}
           <div className="flex items-center gap-2">
             {(req.actualCost ?? req.estimatedCost) > 0 && (
-              <span className="text-[11px] font-bold text-emerald-700">{formatCurrency(req.actualCost ?? req.estimatedCost)}</span>
+              <span className="text-caption font-bold text-emerald-700">{formatCurrency(req.actualCost ?? req.estimatedCost)}</span>
             )}
             {req.attachment && (
-              <span className="text-[11px] text-slate-500 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> 1</span>
+              <span className="text-caption text-slate-500 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> 1</span>
             )}
           </div>
         </div>
@@ -222,13 +223,13 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
     }
   };
 
-  const LABEL = 'block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1';
-  const FIELD = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500';
+  const LABEL = 'block text-label font-medium text-slate-600 mb-1';
+  const FIELD = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500';
 
   return (
     <Modal title="Create New Request" onClose={onClose} busy={isSubmitting} as="form" overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onSubmit={handleSubmit} noValidate>
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
-          <h2 className="text-lg font-bold text-slate-800 m-0">Create New Request</h2>
+          <h2 className="text-title font-bold text-slate-800 m-0">Create New Request</h2>
           <button type="button" aria-label="Close" onClick={onClose} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
         </div>
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
@@ -250,7 +251,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
             </select>
             <FieldError id="newreq-unit" error={form.errors.unit} />
             {newReq.unit && (
-              <p className="text-[11px] text-slate-500 m-0 mt-1">
+              <p className="text-caption text-slate-500 m-0 mt-1">
                 {occupantOf(newReq.unit) ? `Ticket will be linked to ${occupantOf(newReq.unit)}.` : 'Vacant unit — no tenant will be notified.'}
               </p>
             )}
@@ -277,7 +278,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
             <label htmlFor="newreq-description" className={LABEL}>Details</label>
             <textarea rows={3} {...form.fieldA11y('description')} maxLength={LIMITS.message} value={newReq.description}
               onChange={e => setField('description', e.target.value)} onBlur={() => blurText('description')}
-              className={fieldCls('description', 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none')}
+              className={fieldCls('description', 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none')}
               placeholder="Provide more details about the problem..."></textarea>
             <FieldError id="newreq-description" error={form.errors.description} />
             <CharCount value={newReq.description} max={LIMITS.message} />
@@ -285,7 +286,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
 
           <div>
             <label htmlFor="newreq-photo" className={LABEL}>Reference Photo or Video</label>
-            <div className={`w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-center relative bg-slate-50 hover:bg-slate-100 hover:border-indigo-400 transition-colors${invalidCls(form.errors.photo)}`}>
+            <div className={`w-full border-2 border-dashed border-slate-300 rounded-control p-4 text-center relative bg-slate-50 hover:bg-slate-100 hover:border-indigo-400 transition-colors${invalidCls(form.errors.photo)}`}>
               <input
                 type="file"
                 {...form.fieldA11y('photo')}
@@ -300,31 +301,31 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
               <FontAwesomeIcon icon={faUpload} className="text-slate-500 mb-2 text-lg" />
-              <p className="text-xs text-slate-600 m-0">Click or drag a file here to attach</p>
-              <p className="text-[11px] text-slate-500 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to {FILE_RULES.maintenance.maxMB}MB</p>
+              <p className="text-label text-slate-600 m-0">Click or drag a file here to attach</p>
+              <p className="text-caption text-slate-500 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to {FILE_RULES.maintenance.maxMB}MB</p>
             </div>
             <FieldError id="newreq-photo" error={form.errors.photo} />
             {newPhoto && (
-              <div className="flex items-center gap-3 mt-3 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
-                <div className="w-12 h-12 rounded bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 overflow-hidden">
+              <div className="flex items-center gap-3 mt-3 p-2 bg-indigo-50/50 rounded-control border border-indigo-100">
+                <div className="w-12 h-12 rounded-control bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 overflow-hidden">
                   {newPhoto.type.startsWith('video/') ? (
-                    <span className="text-[11px] font-bold text-indigo-700">VIDEO</span>
+                    <span className="text-caption font-bold text-indigo-700">VIDEO</span>
                   ) : (
                     <img src={photoUrl} alt="Thumbnail" className="w-full h-full object-cover" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-700 truncate m-0">{newPhoto.name}</p>
-                  <p className="text-[11px] text-emerald-700 font-semibold m-0">{formatFileSize(newPhoto.size)} · Ready for upload</p>
+                  <p className="text-label font-bold text-slate-700 truncate m-0">{newPhoto.name}</p>
+                  <p className="text-caption text-emerald-700 font-semibold m-0">{formatFileSize(newPhoto.size)} · Ready for upload</p>
                 </div>
-                <button type="button" onClick={() => { setNewPhoto(null); form.clearError('photo'); }} className="text-xs text-red-600 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1">Remove</button>
+                <button type="button" onClick={() => { setNewPhoto(null); form.clearError('photo'); }} className="text-label text-red-600 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1">Remove</button>
               </div>
             )}
           </div>
         </div>
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2 shrink-0">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className={btn('secondary', 'md', 'flex-1')}>Cancel</button>
+          <button type="submit" disabled={isSubmitting} className={btn('primary', 'md', 'flex-1')}>
             {isSubmitting ? 'Creating...' : 'Create Request'}
           </button>
         </div>
@@ -374,23 +375,23 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
   };
 
   return (
-    <Modal title={`${req.title}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
+    <Modal title={`${req.title}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-4xl mx-4 overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
 
         {/* Left side: Detail & Timeline */}
         <div className="flex-1 flex flex-col border-r border-slate-200 max-h-[90vh]">
           <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-start bg-slate-50 shrink-0">
             <div>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{req.code}</span>
-                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency}</span>
-                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200 bg-white text-slate-600">{req.category}</span>
+                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap font-mono text-indigo-600 bg-indigo-100">{req.code}</span>
+                <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${urgencyColor(req.urgency)}`}>{req.urgency}</span>
+                <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span>
+                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ring-slate-200 bg-white text-slate-600 ring-1 ring-inset">{req.category}</span>
                 {req.tenantResponsible && (
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Responsible</span>
+                  <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-violet-100 text-violet-700 ring-violet-200 ring-1 ring-inset">Tenant Responsible</span>
                 )}
               </div>
-              <h2 className="text-xl font-bold text-slate-800 m-0 leading-tight">{req.title}</h2>
-              <div className="flex items-center gap-3 text-xs text-slate-500 mt-1.5 flex-wrap">
+              <h2 className="text-section font-bold text-slate-800 m-0 leading-tight">{req.title}</h2>
+              <div className="flex items-center gap-3 text-label text-slate-500 mt-1.5 flex-wrap">
                 <span className="flex items-center gap-1.5 font-medium"><FontAwesomeIcon icon={faMapPin} className="text-indigo-500" /> {req.tenant} · {req.unit}</span>
                 {req.preferredDate && (
                   <>
@@ -402,7 +403,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                 <span>{req.permissionToEnter ? 'Permission to enter granted' : 'Tenant must be present'}</span>
               </div>
               {req.actualCost !== null && req.actualCost !== undefined && req.status === 'Completed' && (
-                <p className="text-sm font-bold text-emerald-700 m-0 mt-2">Actual Cost: {formatCurrency(req.actualCost)}</p>
+                <p className="text-body font-bold text-emerald-700 m-0 mt-2">Actual Cost: {formatCurrency(req.actualCost)}</p>
               )}
             </div>
             <button aria-label="Close" onClick={onClose} className="p-1 md:hidden text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
@@ -410,23 +411,23 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
 
           <div className="p-6 overflow-y-auto flex-1 space-y-6">
             {req.status === 'Rejected' && req.rejectionReason && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+              <div className="bg-red-50 border border-red-200 rounded-control p-4 text-body text-red-700">
                 <strong>Rejected:</strong> {req.rejectionReason}
               </div>
             )}
 
             <div>
-              <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Description</h4>
-              <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 text-sm text-slate-700 leading-relaxed">{req.description || 'No description provided.'}</div>
+              <h4 className="text-label font-medium text-slate-600 mb-2 m-0">Description</h4>
+              <div className="bg-slate-50 border border-slate-100 rounded-control p-4 text-body text-slate-700 leading-relaxed">{req.description || 'No description provided.'}</div>
             </div>
 
-            <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
+            <div className="bg-violet-50 border border-violet-200 rounded-control p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <FontAwesomeIcon icon={faShieldAlt} className="text-violet-600" />
                   <div>
-                    <p className="text-sm font-bold text-slate-800 m-0">Tenant Responsible</p>
-                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">If enabled, this cost is billed to the tenant (per Terms & Conditions)</p>
+                    <p className="text-body font-bold text-slate-800 m-0">Tenant Responsible</p>
+                    <p className="text-caption text-slate-500 m-0 mt-0.5">If enabled, this cost is billed to the tenant (per Terms & Conditions)</p>
                   </div>
                 </div>
                 <button
@@ -438,11 +439,11 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                   onClick={onToggleTenantResponsible}
                   className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 border-0 cursor-pointer disabled:opacity-50 ${req.tenantResponsible ? 'bg-violet-600' : 'bg-slate-300'}`}
                 >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${req.tenantResponsible ? 'translate-x-6' : 'translate-x-1'}`} />
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-raised transition-transform duration-300 ${req.tenantResponsible ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
               {req.tenantResponsible && settings?.tenantResponsibilityClause && (
-                <div className="mt-3 bg-white border border-violet-100 rounded-lg p-3 text-[11px] text-violet-700 leading-relaxed">
+                <div className="mt-3 bg-white border border-violet-100 rounded-control p-3 text-caption text-violet-700 leading-relaxed">
                   <FontAwesomeIcon icon={faFileContract} className="mr-1.5 text-violet-400" />
                   {settings.tenantResponsibilityClause.substring(0, 200)}...
                 </div>
@@ -451,17 +452,17 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
 
             {req.attachment && (
               <div>
-                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Attached Media</h4>
+                <h4 className="text-label font-medium text-slate-600 mb-2 m-0">Attached Media</h4>
                 {req.attachment.kind === 'video' ? (
-                  <video controls preload="metadata" src={req.attachment.url} className="w-full max-w-md rounded-lg bg-slate-900 border border-slate-200">
+                  <video controls preload="metadata" src={req.attachment.url} className="w-full max-w-md rounded-control bg-slate-900 border border-slate-200">
                     Your browser cannot play this video. <a href={req.attachment.url} target="_blank" rel="noopener noreferrer">Download it</a>.
                   </video>
                 ) : req.attachment.kind === 'pdf' ? (
-                  <a href={req.attachment.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
+                  <a href={req.attachment.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-label font-semibold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-control">
                     <FontAwesomeIcon icon={faFileContract} /> Open PDF attachment
                   </a>
                 ) : (
-                  <a href={req.attachment.url} target="_blank" rel="noopener noreferrer" className="block w-40 h-28 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors">
+                  <a href={req.attachment.url} target="_blank" rel="noopener noreferrer" className="block w-40 h-28 rounded-control overflow-hidden border border-slate-200 hover:border-indigo-500 transition-colors">
                     <img src={req.attachment.url} alt="Maintenance attachment" className="w-full h-full object-cover" />
                   </a>
                 )}
@@ -469,7 +470,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             )}
 
             <div>
-              <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-3 m-0">Timeline</h4>
+              <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Timeline</h4>
               <div className="space-y-3">
                 {timelineFor(req).map(step => (
                   <div key={step.label} className="flex items-center gap-3">
@@ -477,14 +478,14 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                       <FontAwesomeIcon icon={step.icon} className={`text-[11px] ${step.at ? step.tone : 'text-slate-300'}`} />
                     </div>
                     <div className="flex-1 flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
-                      <span className={`text-xs font-bold ${step.at ? 'text-slate-800' : 'text-slate-500'}`}>{step.label}</span>
-                      <time className="font-mono text-[11px] text-slate-500">{step.at ? formatDateTime(step.at) : 'Not yet'}</time>
+                      <span className={`text-label font-bold ${step.at ? 'text-slate-800' : 'text-slate-500'}`}>{step.label}</span>
+                      <time className="font-mono text-caption text-slate-500">{step.at ? formatDateTime(step.at) : 'Not yet'}</time>
                     </div>
                   </div>
                 ))}
               </div>
               {req.resolutionHours !== null && req.resolutionHours !== undefined && (
-                <p className="text-xs text-slate-500 m-0 mt-3">Total resolution time: <strong className="text-slate-700">{formatDuration(req.resolutionHours)}</strong></p>
+                <p className="text-label text-slate-500 m-0 mt-3">Total resolution time: <strong className="text-slate-700">{formatDuration(req.resolutionHours)}</strong></p>
               )}
             </div>
           </div>
@@ -493,28 +494,28 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0 gap-2 flex-wrap">
               <div className="flex gap-2">
                 {allowedNext.includes('Rejected') && (
-                  <button disabled={saving} onClick={() => onOpenAction('reject')} className="flex items-center gap-2 px-4 py-2 bg-white text-red-600 border border-red-200 text-sm font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50">
+                  <button disabled={saving} onClick={() => onOpenAction('reject')} className="flex items-center gap-2 px-4 py-2 bg-white text-red-600 border border-red-200 text-body font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50">
                     <FontAwesomeIcon icon={faBan} /> Reject
                   </button>
                 )}
                 {req.status === 'In Progress' && allowedNext.includes('Pending') && (
-                  <button disabled={saving} onClick={() => onMoveTo('Pending')} className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 text-sm font-semibold rounded-lg hover:bg-slate-100 cursor-pointer transition-colors disabled:opacity-50">
+                  <button disabled={saving} onClick={() => onMoveTo('Pending')} className={btn('secondary', 'md')}>
                     <FontAwesomeIcon icon={faUndo} /> Back to Pending
                   </button>
                 )}
                 {req.status === 'Completed' && allowedNext.includes('In Progress') && (
-                  <button disabled={saving} onClick={() => onMoveTo('In Progress')} className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 text-sm font-semibold rounded-lg hover:bg-slate-100 cursor-pointer transition-colors disabled:opacity-50">
+                  <button disabled={saving} onClick={() => onMoveTo('In Progress')} className={btn('secondary', 'md')}>
                     <FontAwesomeIcon icon={faUndo} /> Reopen
                   </button>
                 )}
               </div>
               {req.status === 'Pending' && (
-                <button disabled={saving} onClick={() => onOpenAction('start')} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors disabled:opacity-50">
+                <button disabled={saving} onClick={() => onOpenAction('start')} className={btn('primary', 'md')}>
                   Start Work <FontAwesomeIcon icon={faArrowRight} />
                 </button>
               )}
               {req.status === 'In Progress' && (
-                <button disabled={saving} onClick={() => onOpenAction('complete')} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 shadow-sm border-0 cursor-pointer transition-colors disabled:opacity-50">
+                <button disabled={saving} onClick={() => onOpenAction('complete')} className={btn('success', 'md')}>
                   Mark Completed <FontAwesomeIcon icon={faCheckCircle} />
                 </button>
               )}
@@ -532,12 +533,12 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             {!isClosed && (
               <div className="mb-4 shrink-0 space-y-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Priority</label>
+                  <label className="block text-label font-medium text-slate-600 mb-1">Priority</label>
                   <select
                     value={req.urgency}
                     disabled={saving}
                     onChange={e => onSaveField({ urgency: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 cursor-pointer"
+                    className="w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500 cursor-pointer"
                   >
                     {req.urgency === MAINTENANCE_DEFAULT_URGENCY && (
                       <option value={MAINTENANCE_DEFAULT_URGENCY} disabled>Needs Triage — select a priority</option>
@@ -546,7 +547,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="detail-assignedTo" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assigned Personnel</label>
+                  <label htmlFor="detail-assignedTo" className="block text-label font-medium text-slate-600 mb-1">Assigned Personnel</label>
                   <input
                     type="text"
                     {...form.fieldA11y('assignedTo')}
@@ -558,12 +559,12 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                     onBlur={saveAssignee}
                     onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                     placeholder="Assign someone..."
-                    className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" + invalidCls(form.errors.assignedTo)}
+                    className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500" + invalidCls(form.errors.assignedTo)}
                   />
                   <FieldError id="detail-assignedTo" error={form.errors.assignedTo} />
                 </div>
                 <div>
-                  <label htmlFor="detail-estimatedCost" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱)</label>
+                  <label htmlFor="detail-estimatedCost" className="block text-label font-medium text-slate-600 mb-1">Estimated Cost (₱)</label>
                   <input
                     type="number"
                     {...form.fieldA11y('estimatedCost')}
@@ -577,29 +578,29 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                     onBlur={saveEstimate}
                     onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else blockNonNumericKeys(e); }}
                     placeholder="e.g. 1500"
-                    className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" + invalidCls(form.errors.estimatedCost)}
+                    className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500" + invalidCls(form.errors.estimatedCost)}
                   />
                   <FieldError id="detail-estimatedCost" error={form.errors.estimatedCost} />
                 </div>
               </div>
             )}
 
-            <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-3 m-0 shrink-0">Work Notes</h4>
+            <h4 className="text-label font-medium text-slate-600 mb-3 m-0 shrink-0">Work Notes</h4>
             <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-1">
               {parseNotes(req.workNotes).map((note, idx) => (
-                <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                  <p className="text-xs text-slate-700 m-0 leading-relaxed whitespace-pre-wrap">{note.text}</p>
-                  {note.timestamp && <p className="text-[11px] text-slate-500 font-medium m-0 mt-2 text-right">{note.timestamp}</p>}
+                <div key={idx} className="bg-white p-3 rounded-control border border-slate-200 shadow-card">
+                  <p className="text-label text-slate-700 m-0 leading-relaxed whitespace-pre-wrap">{note.text}</p>
+                  {note.timestamp && <p className="text-caption text-slate-500 font-medium m-0 mt-2 text-right">{note.timestamp}</p>}
                 </div>
               ))}
               {!req.workNotes && (
-                <div className="text-center py-4 text-slate-500 text-xs italic">No notes added yet.</div>
+                <div className="text-center py-4 text-slate-500 text-label italic">No notes added yet.</div>
               )}
             </div>
 
             <div className="shrink-0 relative">
-              <textarea {...form.fieldA11y('workNote')} aria-label="Add a work note" maxLength={LIMITS.notes} value={newNote} onChange={e => { setNewNote(e.target.value); form.clearError('workNote'); }} rows={2} className={"w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-none shadow-sm" + invalidCls(form.errors.workNote)} placeholder="Add a note..."></textarea>
-              <button type="button" aria-label="Add note" onClick={handleAddNote} disabled={!newNote.trim() || saving} className="absolute right-2 bottom-3 w-7 h-7 rounded bg-indigo-50 flex items-center justify-center text-indigo-600 border-0 cursor-pointer disabled:opacity-50 hover:bg-indigo-100 transition-colors"><FontAwesomeIcon icon={faPaperPlane} className="text-xs" /></button>
+              <textarea {...form.fieldA11y('workNote')} aria-label="Add a work note" maxLength={LIMITS.notes} value={newNote} onChange={e => { setNewNote(e.target.value); form.clearError('workNote'); }} rows={2} className={"w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500 resize-none shadow-card" + invalidCls(form.errors.workNote)} placeholder="Add a note..."></textarea>
+              <button type="button" aria-label="Add note" onClick={handleAddNote} disabled={!newNote.trim() || saving} className="absolute right-2 bottom-3 w-7 h-7 rounded-control bg-indigo-50 flex items-center justify-center text-indigo-600 border-0 cursor-pointer disabled:opacity-50 hover:bg-indigo-100 transition-colors"><FontAwesomeIcon icon={faPaperPlane} className="text-xs" /></button>
             </div>
             <FieldError id="detail-workNote" error={form.errors.workNote} />
             <CharCount value={newNote} max={LIMITS.notes} />
@@ -650,25 +651,25 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
         <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">
           {type === 'start' ? 'Start Work' : type === 'complete' ? 'Mark as Completed' : 'Reject Request'}
         </h3>
-        <p className="text-sm text-slate-500 mb-4 mt-0">{req.code} · {req.title}</p>
+        <p className="text-body text-slate-500 mb-4 mt-0">{req.code} · {req.title}</p>
 
         {type === 'start' && (
           <div className="space-y-3 mb-5">
             <div>
-              <label htmlFor="action-assignedTo" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assign To</label>
+              <label htmlFor="action-assignedTo" className="block text-label font-medium text-slate-600 mb-1">Assign To</label>
               <input type="text" {...form.fieldA11y('assignedTo')} autoComplete="off" maxLength={LIMITS.assignedTo} value={assigneeDraft}
                 onChange={e => { setAssigneeDraft(e.target.value); form.clearError('assignedTo'); }}
                 onBlur={() => { const v = assigneeDraft.trim(); setAssigneeDraft(v); form.validateField('assignedTo', { ...values, assignedTo: v }); }}
-                placeholder="Personnel or contractor" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.assignedTo)} />
+                placeholder="Personnel or contractor" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.assignedTo)} />
               <FieldError id="action-assignedTo" error={form.errors.assignedTo} />
             </div>
             <div>
-              <label htmlFor="action-estimatedCost" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱)</label>
+              <label htmlFor="action-estimatedCost" className="block text-label font-medium text-slate-600 mb-1">Estimated Cost (₱)</label>
               <input type="number" {...form.fieldA11y('estimatedCost')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={estimateDraft}
                 onKeyDown={blockNonNumericKeys}
                 onChange={e => { setEstimateDraft(e.target.value); form.clearError('estimatedCost'); }}
                 onBlur={() => form.validateField('estimatedCost', values)}
-                placeholder="Optional" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.estimatedCost)} />
+                placeholder="Optional" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.estimatedCost)} />
               <FieldError id="action-estimatedCost" error={form.errors.estimatedCost} />
             </div>
           </div>
@@ -676,29 +677,29 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
 
         {type === 'complete' && (
           <div className="mb-5">
-            <label htmlFor="action-actualCost" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Actual Cost (₱) *</label>
+            <label htmlFor="action-actualCost" className="block text-label font-medium text-slate-600 mb-1">Actual Cost (₱) *</label>
             <input type="number" {...form.fieldA11y('actualCost')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={actualCostDraft}
               onKeyDown={blockNonNumericKeys}
               onChange={e => { setActualCostDraft(e.target.value); form.clearError('actualCost'); }}
               onBlur={() => form.validateField('actualCost', values)}
-              placeholder="Enter 0 if there was no cost" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.actualCost)} />
+              placeholder="Enter 0 if there was no cost" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.actualCost)} />
             <FieldError id="action-actualCost" error={form.errors.actualCost} />
             {req.estimatedCost !== null && req.estimatedCost !== undefined && (
-              <p className="text-[11px] text-slate-500 m-0 mt-1">Estimate was {formatCurrency(req.estimatedCost)}.</p>
+              <p className="text-caption text-slate-500 m-0 mt-1">Estimate was {formatCurrency(req.estimatedCost)}.</p>
             )}
           </div>
         )}
 
         {type === 'reject' && (
           <div className="mb-5">
-            <label htmlFor="action-rejectionReason" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason *</label>
+            <label htmlFor="action-rejectionReason" className="block text-label font-medium text-slate-600 mb-1">Reason *</label>
             <textarea rows={3} {...form.fieldA11y('rejectionReason')} maxLength={LIMITS.reason} value={rejectReason}
               onChange={e => { setRejectReason(e.target.value); form.clearError('rejectionReason'); }}
               onBlur={() => { const v = rejectReason.trim(); setRejectReason(v); if (v) form.validateField('rejectionReason', { ...values, rejectionReason: v }); }}
-              placeholder="Explain why this request is being rejected" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" + invalidCls(form.errors.rejectionReason)} />
+              placeholder="Explain why this request is being rejected" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" + invalidCls(form.errors.rejectionReason)} />
             <FieldError id="action-rejectionReason" error={form.errors.rejectionReason} />
             <CharCount value={rejectReason} max={LIMITS.reason} />
-            <p className="text-[11px] text-slate-500 m-0 mt-1">The tenant will be notified with this reason.</p>
+            <p className="text-caption text-slate-500 m-0 mt-1">The tenant will be notified with this reason.</p>
           </div>
         )}
 
@@ -707,11 +708,11 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
             type="button"
             onClick={handleConfirm}
             disabled={saving}
-            className={`flex-1 py-2 text-white rounded text-sm font-semibold border-0 cursor-pointer transition-colors disabled:opacity-40 ${type === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+            className={`flex-1 py-2 text-white rounded-control text-body font-semibold border-0 cursor-pointer transition-colors disabled:opacity-40 ${type === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
           >
             {saving ? 'Saving…' : 'Confirm'}
           </button>
-          <button onClick={onClose} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 cursor-pointer transition-colors">Cancel</button>
+          <button onClick={onClose} className={btn('secondary', 'md', 'flex-1')}>Cancel</button>
         </div>
       </Modal>
   );
@@ -892,13 +893,13 @@ const AdminMaintainance = () => {
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Budget Panel: one summary line; the tiles and breakdowns open under Details. */}
-            <section aria-label="Maintenance budget" className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <section aria-label="Maintenance budget" className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
               <div className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2 shrink-0">
+                <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2 shrink-0">
                   <FontAwesomeIcon icon={faChartBar} className="text-amber-700" aria-hidden="true" />
                   Budget, {monthLabel}
                 </h3>
-                <p className={`m-0 text-xs ${budgetData.isOverBudget ? 'text-red-700 font-semibold' : 'text-slate-600'}`}>
+                <p className={`m-0 text-label ${budgetData.isOverBudget ? 'text-red-700 font-semibold' : 'text-slate-600'}`}>
                   {budgetData.isOverBudget ? (
                     <>Over by {formatCurrency(Math.abs(budgetData.remaining))} · {formatCurrency(budgetData.totalSpent)} spent of {formatCurrency(monthlyBudget)}</>
                   ) : (
@@ -913,7 +914,7 @@ const AdminMaintainance = () => {
                   onClick={toggleBudget}
                   aria-expanded={budgetOpen}
                   aria-controls="maint-budget-details"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer shrink-0"
+                  className={btn('secondary', 'sm', 'shrink-0')}
                 >
                   Details
                   <FontAwesomeIcon icon={faChevronDown} className={`text-[10px] transition-transform ${budgetOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
@@ -921,32 +922,32 @@ const AdminMaintainance = () => {
               </div>
               {budgetOpen && (
               <div id="maint-budget-details" className="p-6 border-t border-slate-200">
-                <p className="text-[11px] text-slate-500 m-0 mb-4">Counts requests resolved this month. Monthly budget is set in Settings.</p>
+                <p className="text-caption text-slate-500 m-0 mb-4">Counts requests resolved this month. Monthly budget is set in Settings.</p>
                 <div className="stagger-children grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
-                    <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(monthlyBudget)}</p>
-                    <p className="text-[11px] text-slate-500 font-semibold m-0 mt-0.5">Monthly Budget</p>
+                  <div className="bg-slate-50 rounded-control p-3 border border-slate-100 text-center">
+                    <p className="text-title font-bold text-slate-800 m-0">{formatCurrency(monthlyBudget)}</p>
+                    <p className="text-caption text-slate-500 font-semibold m-0 mt-0.5">Monthly Budget</p>
                   </div>
-                  <div className={`rounded-lg p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-100'}`}>
-                    <p className={`text-lg font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(budgetData.totalSpent)}</p>
-                    <p className={`text-[11px] font-semibold m-0 mt-0.5 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>Spent (Building)</p>
+                  <div className={`rounded-control p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-100'}`}>
+                    <p className={`text-title font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(budgetData.totalSpent)}</p>
+                    <p className={`text-caption font-semibold m-0 mt-0.5 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>Spent (Building)</p>
                   </div>
-                  <div className="bg-violet-50 rounded-lg p-3 border border-violet-100 text-center">
-                    <p className="text-lg font-bold text-violet-700 m-0">{formatCurrency(budgetData.tenantCharged)}</p>
-                    <p className="text-[11px] text-violet-600 font-semibold m-0 mt-0.5">Tenant Responsible</p>
+                  <div className="bg-violet-50 rounded-control p-3 border border-violet-100 text-center">
+                    <p className="text-title font-bold text-violet-700 m-0">{formatCurrency(budgetData.tenantCharged)}</p>
+                    <p className="text-caption text-violet-600 font-semibold m-0 mt-0.5">Tenant Responsible</p>
                   </div>
-                  <div className={`rounded-lg p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'}`}>
-                    <p className={`text-lg font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-slate-700'}`}>{formatCurrency(budgetData.remaining)}</p>
-                    <p className="text-[11px] text-slate-500 font-semibold m-0 mt-0.5">Remaining</p>
+                  <div className={`rounded-control p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'}`}>
+                    <p className={`text-title font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-slate-700'}`}>{formatCurrency(budgetData.remaining)}</p>
+                    <p className="text-caption text-slate-500 font-semibold m-0 mt-0.5">Remaining</p>
                   </div>
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
-                    <p className="text-lg font-bold text-indigo-600 m-0">{budgetData.usedPct}%</p>
-                    <p className="text-[11px] text-slate-500 font-semibold m-0 mt-0.5">Budget Used</p>
+                  <div className="bg-slate-50 rounded-control p-3 border border-slate-100 text-center">
+                    <p className="text-title font-bold text-indigo-600 m-0">{budgetData.usedPct}%</p>
+                    <p className="text-caption text-slate-500 font-semibold m-0 mt-0.5">Budget Used</p>
                   </div>
                 </div>
 
                 <div className="mb-6">
-                  <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                  <div className="flex justify-between text-caption text-slate-500 mb-1">
                     <span>₱0</span>
                     <span>{formatCurrency(monthlyBudget)}</span>
                   </div>
@@ -954,7 +955,7 @@ const AdminMaintainance = () => {
                     <div className={`h-full rounded-full transition-all duration-500 ${budgetData.isOverBudget ? 'bg-red-500' : budgetData.usedPct >= 80 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, budgetData.usedPct)}%` }}></div>
                   </div>
                   {budgetData.isOverBudget && (
-                    <div className="flex items-center gap-2 mt-2 text-xs text-red-600 font-semibold">
+                    <div className="flex items-center gap-2 mt-2 text-label text-red-600 font-semibold">
                       <FontAwesomeIcon icon={faExclamationTriangle} /> Budget exceeded by {formatCurrency(Math.abs(budgetData.remaining))}!
                     </div>
                   )}
@@ -962,11 +963,11 @@ const AdminMaintainance = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-3 m-0">Spend by Category</h4>
+                    <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Spend by Category</h4>
                     <div className="space-y-2.5">
                       {Object.entries(budgetData.categories).map(([cat, amount]) => (
                         <div key={cat}>
-                          <div className="flex justify-between text-xs mb-1">
+                          <div className="flex justify-between text-label mb-1">
                             <span className="font-semibold text-slate-700">{cat}</span>
                             <span className="text-slate-500">{formatCurrency(amount)}</span>
                           </div>
@@ -976,21 +977,21 @@ const AdminMaintainance = () => {
                         </div>
                       ))}
                       {Object.keys(budgetData.categories).length === 0 && (
-                        <p className="text-xs text-slate-500 m-0">No building-paid maintenance resolved this month.</p>
+                        <p className="text-label text-slate-500 m-0">No building-paid maintenance resolved this month.</p>
                       )}
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-3 m-0">Spend by Unit</h4>
+                    <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Spend by Unit</h4>
                     <div className="space-y-2">
                       {Object.entries(budgetData.perUnit).sort((a, b) => b[1] - a[1]).map(([unit, amount]) => (
-                        <div key={unit} className="flex items-center justify-between bg-slate-50 rounded-lg p-2 border border-slate-100">
-                          <span className="text-xs font-semibold text-slate-700">{unit}</span>
-                          <span className="text-xs font-bold text-indigo-600">{formatCurrency(amount)}</span>
+                        <div key={unit} className="flex items-center justify-between bg-slate-50 rounded-control p-2 border border-slate-100">
+                          <span className="text-label font-semibold text-slate-700">{unit}</span>
+                          <span className="text-label font-bold text-indigo-600">{formatCurrency(amount)}</span>
                         </div>
                       ))}
                       {Object.keys(budgetData.perUnit).length === 0 && (
-                        <p className="text-xs text-slate-500 m-0">No unit costs recorded.</p>
+                        <p className="text-label text-slate-500 m-0">No unit costs recorded.</p>
                       )}
                     </div>
                   </div>
@@ -1001,15 +1002,15 @@ const AdminMaintainance = () => {
 
             {/* View Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex bg-white rounded-lg border border-slate-200 p-1 shrink-0">
-                <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent hover:bg-slate-50'}`}><FontAwesomeIcon icon={faTableCells} /> Kanban</button>
-                <button onClick={() => setViewMode('list')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'list' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent hover:bg-slate-50'}`}><FontAwesomeIcon icon={faList} /> List</button>
+              <div className="flex bg-white rounded-control border border-slate-200 p-1 shrink-0">
+                <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-1.5 rounded-control text-body font-semibold border-0 cursor-pointer ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-800' : 'text-slate-600 bg-transparent hover:bg-slate-50'}`}><FontAwesomeIcon icon={faTableCells} /> Kanban</button>
+                <button onClick={() => setViewMode('list')} className={`flex items-center gap-2 px-4 py-1.5 rounded-control text-body font-semibold border-0 cursor-pointer ${viewMode === 'list' ? 'bg-slate-100 text-slate-800' : 'text-slate-600 bg-transparent hover:bg-slate-50'}`}><FontAwesomeIcon icon={faList} /> List</button>
               </div>
 
               <div className="flex items-center gap-3 flex-1 w-full md:w-auto md:justify-end flex-wrap">
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-all shadow-sm w-full md:max-w-xs">
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-control px-3 py-2 focus-within:border-indigo-500 transition-all shadow-card w-full md:max-w-xs">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
-                  <input aria-label="Search maintenance requests" maxLength={LIMITS.search} type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                  <input aria-label="Search maintenance requests" maxLength={LIMITS.search} type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-body outline-none border-0 p-0 text-slate-800 bg-white" />
                 </div>
 
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-2 shadow-sm w-full sm:w-auto min-w-0">
@@ -1026,7 +1027,7 @@ const AdminMaintainance = () => {
                   </select>
                 </div>
 
-                <button onClick={() => setShowNewModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPlus} /> New Request</button>
+                <button onClick={() => setShowNewModal(true)} className={btn('primary', 'md')}><FontAwesomeIcon icon={faPlus} /> New Request</button>
               </div>
             </div>
 
@@ -1046,60 +1047,60 @@ const AdminMaintainance = () => {
                 {COLUMNS.map(col => {
                   const reqs = filteredRequests.filter(r => col.statuses.includes(r.status));
                   return (
-                    <div key={col.key} className="flex flex-col h-[calc(100vh-24rem)] min-h-[400px] bg-slate-100 rounded-xl border border-slate-200 p-4">
+                    <div key={col.key} className="flex flex-col h-[calc(100vh-24rem)] min-h-[400px] bg-slate-100 rounded-card border border-slate-200 p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <FontAwesomeIcon icon={col.icon} className={col.iconClass} />
-                          <h3 className="text-sm font-bold text-slate-800 m-0">{col.key}</h3>
+                          <h3 className="text-body font-bold text-slate-800 m-0">{col.key}</h3>
                         </div>
-                        <span className="bg-white text-slate-500 text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200">{reqs.length}</span>
+                        <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-white text-slate-500 ring-slate-200 ring-1 ring-inset">{reqs.length}</span>
                       </div>
                       <div className="stagger-children flex-1 overflow-y-auto space-y-3 pr-1">
                         {reqs.map(req => <RequestCard key={req.dbId} req={req} onOpen={openDetail} />)}
-                        {reqs.length === 0 && <p className="text-xs text-slate-600 text-center mt-6">Nothing here.</p>}
+                        {reqs.length === 0 && <p className="text-label text-slate-600 text-center mt-6">Nothing here.</p>}
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                      <th className="py-3 px-4">ID</th>
-                      <th className="py-3 px-4">Issue</th>
-                      <th className="py-3 px-4">Tenant / Unit</th>
-                      <th className="py-3 px-4">Priority / Category</th>
-                      <th className="py-3 px-4">Cost</th>
-                      <th className="py-3 px-4">Assignee</th>
-                      <th className="py-3 px-4">Status</th>
+              <div className="bg-white border border-slate-200 rounded-card overflow-x-auto shadow-card">
+                <table className="w-full text-left text-body whitespace-nowrap">
+                  <thead className={THEAD}>
+                    <tr className="text-label font-medium text-slate-600">
+                      <th className={TH}>ID</th>
+                      <th className={TH}>Issue</th>
+                      <th className={TH}>Tenant / Unit</th>
+                      <th className={TH}>Priority / Category</th>
+                      <th className={TH}>Cost</th>
+                      <th className={TH}>Assignee</th>
+                      <th className={TH}>Status</th>
                     </tr>
                   </thead>
                   <tbody className="stagger-children">
                     {filteredRequests.map(req => (
                       <tr key={req.dbId} {...clickable(() => openDetail(req), { role: null })} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
-                        <td className="py-3 px-4 font-mono text-xs text-slate-500">{req.code}</td>
+                        <td className="py-3 px-4 font-mono text-label text-slate-500">{req.code}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-slate-800">{req.title}</span>
-                            {req.tenantResponsible && <span className="px-1.5 py-0.5 text-[11px] font-bold bg-violet-100 text-violet-700 rounded">T</span>}
+                            {req.tenantResponsible && <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-violet-100 text-violet-700">T</span>}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-700">{req.tenant} <span className="text-slate-500 text-xs ml-1">({req.unit})</span></td>
+                        <td className="py-3 px-4 text-slate-700">{req.tenant} <span className="text-slate-500 text-label ml-1">({req.unit})</span></td>
                         <td className="py-3 px-4">
                           <div className="flex gap-1.5">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
-                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200 bg-white text-slate-600">{req.category}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
+                            <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ring-slate-200 bg-white text-slate-600 ring-1 ring-inset">{req.category}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-xs font-semibold text-slate-600">{(req.actualCost ?? req.estimatedCost) !== null && (req.actualCost ?? req.estimatedCost) !== undefined ? formatCurrency(req.actualCost ?? req.estimatedCost) : '—'}</td>
-                        <td className="py-3 px-4 text-xs font-medium text-slate-600">{req.assignedTo || '—'}</td>
-                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span></td>
+                        <td className="py-3 px-4 text-label font-semibold text-slate-600">{(req.actualCost ?? req.estimatedCost) !== null && (req.actualCost ?? req.estimatedCost) !== undefined ? formatCurrency(req.actualCost ?? req.estimatedCost) : '—'}</td>
+                        <td className="py-3 px-4 text-label font-medium text-slate-600">{req.assignedTo || '—'}</td>
+                        <td className="py-3 px-4"><span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${MAINTENANCE_STATUS_STYLES[req.status] || ''}`}>{req.status}</span></td>
                       </tr>
                     ))}
                     {filteredRequests.length === 0 && (
-                      <tr><td colSpan="7" className="py-8 text-center text-slate-500 text-sm">No maintenance requests found matching criteria.</td></tr>
+                      <tr><td colSpan="7" className="py-8 text-center text-slate-500 text-body">No maintenance requests found matching criteria.</td></tr>
                     )}
                   </tbody>
                 </table>

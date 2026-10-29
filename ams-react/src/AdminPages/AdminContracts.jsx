@@ -25,9 +25,10 @@ import FieldError from '../Components/form/FieldError';
 import ReasonModal from '../Components/form/ReasonModal';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 
 const MAX_LEASE_MONTHS = 24;
-const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500';
+const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500';
 
 // Lease end: a real date after the start, at most 24 months later.
 const checkLeaseEnd = (start, end) => {
@@ -53,7 +54,7 @@ const statusConfig = {
 };
 
 // Unknown/blank statuses must not borrow the green "Active" styling.
-const UNKNOWN_STATUS = { label: 'Unknown', color: 'bg-slate-100 text-slate-500 border-slate-200' };
+const UNKNOWN_STATUS = { label: 'Unknown', color: 'bg-slate-100 text-slate-600 border-slate-200' };
 const statusOf = (s) => statusConfig[String(s || '').toLowerCase()] || UNKNOWN_STATUS;
 
 const formatCurrency = (n) => (Number.isFinite(Number(n)) ? `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
@@ -536,13 +537,13 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           <div className="max-w-6xl mx-auto space-y-6 print:space-y-0 print:max-w-none print:m-0 print:p-0">
 
             {/* Top Navigation Tabs: Contracts Management vs Contract Template Editor */}
-            <div className="print:hidden flex gap-2 bg-slate-200/70 p-1.5 rounded-2xl border border-slate-300/80 max-w-fit shadow-inner">
+            <div className="print:hidden flex gap-2 bg-slate-200/70 p-1.5 rounded-card border border-slate-300/80 max-w-fit shadow-inner">
               <button
                 type="button"
                 onClick={() => setActiveTab('contracts')}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold border-0 cursor-pointer transition-all ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-card text-label font-bold border-0 cursor-pointer transition-all ${
                   activeTab !== 'editor'
-                    ? 'bg-white text-indigo-700 shadow-sm'
+                    ? 'bg-white text-indigo-700 shadow-card'
                     : 'bg-transparent text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -555,9 +556,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               <button
                 type="button"
                 onClick={() => setActiveTab('editor')}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold border-0 cursor-pointer transition-all ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-card text-label font-bold border-0 cursor-pointer transition-all ${
                   activeTab === 'editor'
-                    ? 'bg-white text-indigo-700 shadow-sm'
+                    ? 'bg-white text-indigo-700 shadow-card'
                     : 'bg-transparent text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -572,27 +573,27 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               <>
             {/* ─── EVICTION MONITORING BANNER ─── */}
             {evictionAlertContracts.length > 0 && (
-              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 space-y-3">
+              <div className="bg-red-50 border-2 border-red-300 rounded-card p-5 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-card bg-red-100 text-red-600 flex items-center justify-center shrink-0">
                     <FontAwesomeIcon icon={faGavel} className="text-lg" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-red-800 m-0">⚠ Eviction Threshold Exceeded</h3>
-                    <p className="text-xs text-red-700 m-0 mt-0.5">{evictionAlertContracts.length} tenant(s) have exceeded the {overdueThresholdDays}-day overdue payment threshold. Review and take action.</p>
+                    <h3 className="text-body font-bold text-red-800 m-0">⚠ Eviction Threshold Exceeded</h3>
+                    <p className="text-label text-red-700 m-0 mt-0.5">{evictionAlertContracts.length} tenant(s) have exceeded the {overdueThresholdDays}-day overdue payment threshold. Review and take action.</p>
                   </div>
                 </div>
                 <div className="space-y-2">
                   {evictionAlertContracts.map(c => (
-                    <div key={c.id} className="flex items-center justify-between bg-white rounded-lg border border-red-200 p-3">
+                    <div key={c.id} className="flex items-center justify-between bg-white rounded-control border border-red-200 p-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-xs font-bold">{c.tenant.charAt(0)}</div>
+                        <div className="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-label font-bold">{c.tenant.charAt(0)}</div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-800 m-0">{c.tenant} · Unit {c.unit}</p>
-                          <p className="text-[11px] text-red-600 m-0 mt-0.5">{c.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(c.overdueInfo.outstandingAmount)}</p>
+                          <p className="text-body font-semibold text-slate-800 m-0">{c.tenant} · Unit {c.unit}</p>
+                          <p className="text-caption text-red-600 m-0 mt-0.5">{c.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(c.overdueInfo.outstandingAmount)}</p>
                         </div>
                       </div>
-                      <button onClick={() => handleFlagEviction(c.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 border-0 cursor-pointer transition-colors">
+                      <button onClick={() => handleFlagEviction(c.id)} className={btn('danger', 'sm')}>
                         <FontAwesomeIcon icon={faGavel} /> Flag for Eviction
                       </button>
                     </div>
@@ -602,17 +603,17 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
             )}
 
             {/* Doc completeness notice */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
+            <div className="bg-indigo-50 border border-indigo-100 rounded-control px-4 py-2.5 flex items-center gap-2 text-label text-indigo-700">
               <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
               <span>All contracts require <strong>signed rent agreement</strong> and <strong>notarized copy</strong> to be uploaded. Eviction threshold: <strong>{overdueThresholdDays} days</strong> overdue.{docsIncompleteCount > 0 && <> <strong>{docsIncompleteCount} contract{docsIncompleteCount === 1 ? ' is' : 's are'} still missing documents.</strong></>}</span>
             </div>
 
             {/* Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm focus-within:border-indigo-500 transition-all max-w-xs w-full">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-control px-3 py-2 shadow-card focus-within:border-indigo-500 transition-all max-w-xs w-full">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
-                  <input aria-label="Search contracts" maxLength={LIMITS.search} type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
+                  <input aria-label="Search contracts" maxLength={LIMITS.search} type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-body outline-none border-0 p-0 text-slate-800" />
                 </div>
                 <select aria-label="Filter by status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
                   <option value="all">All Status ({contracts.length})</option><option value="active">Active ({statusCount('active')})</option><option value="expired">Expired ({statusCount('expired')})</option><option value="draft">Draft ({statusCount('draft')})</option><option value="eviction-pending">Eviction Pending ({statusCount('eviction-pending')})</option>
@@ -622,23 +623,23 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 <button
                   type="button"
                   onClick={() => setActiveTab('editor')}
-                  className="btn-interactive flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm cursor-pointer transition-colors"
+                  className={btn('secondary', 'md', 'btn-interactive')}
                 >
                   <FontAwesomeIcon icon={faEdit} className="text-indigo-600" />
                   <span>Edit Template</span>
                 </button>
-                <button onClick={() => { setShowCreateModal(true); setCreateStep(1); contractErrors.setErrors({}); }} className="btn-interactive flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
+                <button onClick={() => { setShowCreateModal(true); setCreateStep(1); contractErrors.setErrors({}); }} className={btn('primary', 'md', 'btn-interactive')}>
                   <FontAwesomeIcon icon={faPlus} /> New Contract
                 </button>
               </div>
             </div>
 
             {/* Contract Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm table-scroll-x">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                    <th className="py-3 px-4">Contract ID</th><th className="py-3 px-4">Tenant</th><th className="py-3 px-4">Unit</th><th className="py-3 px-4">Rent Period</th><th className="py-3 px-4">Rent</th><th className="py-3 px-4">Documents</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
+            <div className="bg-white border border-slate-200 rounded-card overflow-hidden shadow-card table-scroll-x">
+              <table className="w-full text-left text-body">
+                <thead className={THEAD}>
+                  <tr className="text-label font-medium text-slate-600">
+                    <th className={TH}>Contract ID</th><th className={TH}>Tenant</th><th className={TH}>Unit</th><th className={TH}>Rent Period</th><th className={TH}>Rent</th><th className={TH}>Documents</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="stagger-children">
@@ -646,25 +647,25 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     const docStatus = getDocumentStatus(c);
                     return (
                       <tr key={c.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${c.status === 'eviction-pending' ? 'bg-red-50/30' : ''}`}>
-                        <td className="py-3 px-4 font-mono text-xs font-bold text-indigo-600">{c.id}</td>
+                        <td className="py-3 px-4 font-mono text-label font-bold text-indigo-600">{c.id}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-slate-800">{c.tenant}</span>
                             {c.evictionStatus === 'flagged' && <FontAwesomeIcon icon={faGavel} className="text-red-600 text-[10px]" title="Eviction Pending" />}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-600">{c.unit} <span className="text-slate-500 text-xs">({c.type})</span></td>
-                        <td className="py-3 px-4 text-xs text-slate-600">{c.leaseStart} → {c.leaseEnd}</td>
+                        <td className="py-3 px-4 text-slate-600">{c.unit} <span className="text-slate-500 text-label">({c.type})</span></td>
+                        <td className="py-3 px-4 text-label text-slate-600">{c.leaseStart} → {c.leaseEnd}</td>
                         <td className="py-3 px-4 font-semibold text-slate-800">{formatCurrency(c.rent)}/mo</td>
                         <td className="py-3 px-4">
-                          <span className={`flex items-center gap-1.5 text-[11px] font-semibold ${docStatus.color}`}>
+                          <span className={`flex items-center gap-1.5 text-caption font-semibold ${docStatus.color}`}>
                             <FontAwesomeIcon icon={docStatus.icon} className="text-[10px]" /> {docStatus.label}
                           </span>
                         </td>
-                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span></td>
+                        <td className="py-3 px-4"><span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span></td>
                         <td className="py-3 px-4 text-right">
-                          <button type="button" aria-label={`View contract ${c.id} for ${c.tenant}`} title="View contract" onClick={() => openPreview(c)} className="w-7 h-7 rounded text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
-                          <button type="button" aria-label={`Download contract ${c.id} for ${c.tenant} as PDF`} title="Download as PDF" onClick={() => handleDownloadContract(c)} className="w-7 h-7 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
+                          <button type="button" aria-label={`View contract ${c.id} for ${c.tenant}`} title="View contract" onClick={() => openPreview(c)} className="w-7 h-7 rounded-control text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
+                          <button type="button" aria-label={`Download contract ${c.id} for ${c.tenant} as PDF`} title="Download as PDF" onClick={() => handleDownloadContract(c)} className="w-7 h-7 rounded-control text-slate-500 hover:text-slate-700 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
                         </td>
                       </tr>
                     );
@@ -687,8 +688,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
         <Modal busy={generating} title="Create New Contract" onClose={() => setShowCreateModal(false)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-bold text-slate-800 m-0">Create New Contract</h2>
-                <p className="text-xs text-slate-500 m-0 mt-0.5">Step {createStep} of 3</p>
+                <h2 className="text-title font-bold text-slate-800 m-0">Create New Contract</h2>
+                <p className="text-label text-slate-500 m-0 mt-0.5">Step {createStep} of 3</p>
               </div>
               <button aria-label="Close" onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
             </div>
@@ -704,7 +705,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               {createStep === 1 && (
                 <>
                   <div>
-                    <label htmlFor="contract-tenantId" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant *</label>
+                    <label htmlFor="contract-tenantId" className="block text-label font-medium text-slate-600 mb-1">Select Tenant *</label>
                     <select {...contractErrors.fieldA11y('tenantId')} value={form.tenantId} onChange={(e) => { handleTenantSelect(e); contractErrors.clearError('tenantId'); }} className={DATE_INPUT + invalidCls(contractErrors.errors.tenantId)}>
                       <option value="" disabled>Choose a tenant...</option>
                       {tenantOptions.map(t => <option key={t.id} value={t.id}>{t.name} — Unit {t.unit}</option>)}
@@ -712,7 +713,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     <FieldError id="contract-tenantId" error={contractErrors.errors.tenantId} />
                   </div>
                   {form.tenant && (
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-800">
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-control p-3 text-label text-indigo-800">
                       <span className="font-semibold">Auto-filled:</span> Unit {form.unit} ({form.type}) · {formatCurrency(form.rent)}/mo
                     </div>
                   )}
@@ -723,13 +724,13 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="contract-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
+                      <label htmlFor="contract-rent" className="block text-label font-medium text-slate-600 mb-1">Monthly Rent *</label>
                       {/* Read-only: rent is the application's; create_contract.php takes no rent. */}
                       <input type="text" id="contract-rent" name="rent" readOnly aria-describedby="contract-rent-hint" value={formatCurrency(form.rent)} className={`${DATE_INPUT} bg-slate-50 text-slate-600 cursor-default`} />
-                      <p id="contract-rent-hint" className="m-0 mt-1 text-[11px] text-slate-500">Rent comes from the tenant's application.</p>
+                      <p id="contract-rent-hint" className="m-0 mt-1 text-caption text-slate-500">Rent comes from the tenant's application.</p>
                     </div>
                     <div>
-                      <label htmlFor="contract-deposit" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Security Deposit *</label>
+                      <label htmlFor="contract-deposit" className="block text-label font-medium text-slate-600 mb-1">Security Deposit *</label>
                       <input type="number" {...contractErrors.fieldA11y('deposit')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={form.deposit}
                         onKeyDown={blockNonNumericKeys}
                         onChange={e => setContractField('deposit', e.target.value)}
@@ -740,7 +741,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="contract-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent Start *</label>
+                      <label htmlFor="contract-leaseStart" className="block text-label font-medium text-slate-600 mb-1">Rent Start *</label>
                       <input type="date" {...contractErrors.fieldA11y('leaseStart')} max={maxFutureDate()} value={form.leaseStart}
                         onChange={e => setContractField('leaseStart', e.target.value)}
                         onBlur={() => form.leaseStart && contractErrors.validateField('leaseStart', form)}
@@ -748,7 +749,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       <FieldError id="contract-leaseStart" error={contractErrors.errors.leaseStart} />
                     </div>
                     <div>
-                      <label htmlFor="contract-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent End *</label>
+                      <label htmlFor="contract-leaseEnd" className="block text-label font-medium text-slate-600 mb-1">Rent End *</label>
                       <input type="date" {...contractErrors.fieldA11y('leaseEnd')} min={form.leaseStart || undefined} max={maxFutureDate()} value={form.leaseEnd}
                         onChange={e => setContractField('leaseEnd', e.target.value)}
                         onBlur={() => form.leaseEnd && contractErrors.validateField('leaseEnd', form)}
@@ -760,12 +761,12 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               )}
 
               {createStep === 3 && (
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-card p-5 space-y-4">
                   <div className="text-center border-b border-slate-200 pb-4">
-                    <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
-                    <p className="text-[11px] text-slate-500 m-0 mt-1 uppercase tracking-widest">Rent Agreement</p>
+                    <h3 className="text-title font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
+                    <p className="text-label text-slate-600 m-0 mt-1">Rent Agreement</p>
                   </div>
-                  <div className="space-y-2 text-xs text-slate-700">
+                  <div className="space-y-2 text-label text-slate-700">
                     <div className="flex justify-between"><span className="text-slate-500">Tenant:</span><span className="font-semibold">{form.tenant}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Unit:</span><span className="font-semibold">{form.unit} ({form.type})</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Monthly Rent:</span><span className="font-semibold">{formatCurrency(form.rent)}</span></div>
@@ -773,14 +774,14 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     <div className="flex justify-between"><span className="text-slate-500">Rent Period:</span><span className="font-semibold">{form.leaseStart} → {form.leaseEnd}</span></div>
                   </div>
                   <div className="border-t border-slate-200 pt-3">
-                    <p className="text-[11px] text-slate-500 leading-relaxed m-0">
+                    <p className="text-caption text-slate-500 leading-relaxed m-0">
                       This Rent Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                       The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
                       will be charged for payments made after the due date. The security deposit shall be refunded upon 
                       the end of the rent term, subject to property inspection. Both parties agree to the terms herein.
                     </p>
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                  <div className="bg-amber-50 border border-amber-200 rounded-control p-3 text-label text-amber-800">
                     <FontAwesomeIcon icon={faInfoCircle} className="mr-1.5" />
                     <strong>Note:</strong> After generating the contract, upload signed and notarized rent documents via the contract details page.
                   </div>
@@ -790,7 +791,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between">
               {createStep > 1 ? (
-                <button onClick={() => setCreateStep(s => s - 1)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors">
+                <button onClick={() => setCreateStep(s => s - 1)} className={btn('secondary', 'md')}>
                   <FontAwesomeIcon icon={faArrowLeft} /> Back
                 </button>
               ) : <div></div>}
@@ -803,12 +804,12 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     setCreateStep(s => s + 1);
                   }}
                   type="button"
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50"
+                  className={btn('primary', 'md')}
                 >
                   Next <FontAwesomeIcon icon={faArrowRight} />
                 </button>
               ) : (
-                <button type="button" onClick={handleGenerate} disabled={generating} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="button" onClick={handleGenerate} disabled={generating} className={btn('success', 'md')}>
                   <FontAwesomeIcon icon={faFileSignature} /> {generating ? 'Generating…' : 'Generate Contract'}
                 </button>
               )}
@@ -829,28 +830,28 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
       {/* Preview Modal — Enhanced with Official Contract Document & File Tracking */}
       {showPreviewModal && selectedContract && (
-        <Modal title={`Contract ${selectedContract.id}, ${selectedContract.tenant}`} onClose={() => setShowPreviewModal(false)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden max-h-[92vh] flex flex-col">
+        <Modal title={`Contract ${selectedContract.id}, ${selectedContract.tenant}`} onClose={() => setShowPreviewModal(false)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-4xl mx-4 overflow-hidden max-h-[92vh] flex flex-col">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-3 shrink-0">
               <div className="flex items-center gap-2.5">
-                <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{selectedContract.id}</span>
-                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${statusOf(selectedContract.status).color}`}>{statusOf(selectedContract.status).label}</span>
+                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap font-mono text-indigo-600 bg-indigo-100">{selectedContract.id}</span>
+                <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${statusOf(selectedContract.status).color}`}>{statusOf(selectedContract.status).label}</span>
                 {selectedContract.evictionStatus === 'flagged' && (
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-200 text-red-900 border border-red-300">🚨 Eviction Flagged</span>
+                  <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-red-200 text-red-900 ring-red-300 ring-1 ring-inset">🚨 Eviction Flagged</span>
                 )}
-                <span className="text-xs font-semibold text-slate-700 hidden sm:inline ml-1">
+                <span className="text-label font-semibold text-slate-700 hidden sm:inline ml-1">
                   {selectedContract.tenant} · Unit {selectedContract.unit}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
                 {/* Modal Sub-Tabs */}
-                <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-semibold">
+                <div className="flex bg-slate-200/80 p-0.5 rounded-control text-label font-semibold">
                   <button
                     type="button"
                     onClick={() => setModalSubTab('contract')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border-0 cursor-pointer transition-colors ${
-                      modalSubTab === 'contract' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-control border-0 cursor-pointer transition-colors ${
+                      modalSubTab === 'contract' ? 'bg-white text-indigo-700 shadow-card font-bold' : 'bg-transparent text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <FontAwesomeIcon icon={faFileContract} />
@@ -859,8 +860,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   <button
                     type="button"
                     onClick={() => setModalSubTab('files')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border-0 cursor-pointer transition-colors ${
-                      modalSubTab === 'files' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-control border-0 cursor-pointer transition-colors ${
+                      modalSubTab === 'files' ? 'bg-white text-indigo-700 shadow-card font-bold' : 'bg-transparent text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <FontAwesomeIcon icon={faFileUpload} />
@@ -870,11 +871,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
                 {/* Bi-lingual Switcher (Active on Agreement tab) */}
                 {modalSubTab === 'contract' && (
-                  <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-xs shadow-sm">
+                  <div className="flex items-center bg-white border border-slate-200 rounded-control p-0.5 text-label shadow-card">
                     <button
                       type="button"
                       onClick={() => setPreviewLang('en')}
-                      className={`px-2 py-1 rounded font-bold border-0 cursor-pointer transition-colors ${
+                      className={`px-2 py-1 rounded-control font-bold border-0 cursor-pointer transition-colors ${
                         previewLang === 'en' ? 'bg-indigo-600 text-white' : 'bg-transparent text-slate-600 hover:text-slate-900'
                       }`}
                       title="English"
@@ -884,7 +885,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     <button
                       type="button"
                       onClick={() => setPreviewLang('tl')}
-                      className={`px-2 py-1 rounded font-bold border-0 cursor-pointer transition-colors ${
+                      className={`px-2 py-1 rounded-control font-bold border-0 cursor-pointer transition-colors ${
                         previewLang === 'tl' ? 'bg-indigo-600 text-white' : 'bg-transparent text-slate-600 hover:text-slate-900'
                       }`}
                       title="Tagalog"
@@ -904,15 +905,15 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
               {/* Draft contracts banner */}
               {String(selectedContract.status).toLowerCase() === 'draft' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-card p-4 flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-bold text-amber-900 m-0">This contract is still a draft.</p>
-                    <p className="text-[11px] text-amber-700 m-0 mt-0.5">Review the rent contract details below, then activate it to make it binding.</p>
+                    <p className="text-body font-bold text-amber-900 m-0">This contract is still a draft.</p>
+                    <p className="text-caption text-amber-700 m-0 mt-0.5">Review the rent contract details below, then activate it to make it binding.</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleActivateContract(selectedContract.id)}
-                    className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs border-0 cursor-pointer transition-all"
+                    className={btn('success', 'sm', 'shrink-0')}
                   >
                     <FontAwesomeIcon icon={faCheckCircle} className="mr-1.5" /> Activate Contract
                   </button>
@@ -921,10 +922,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
               {/* Terminated contract banner */}
               {selectedContract.status === 'terminated' && (
-                <div className="bg-slate-100 border border-slate-300 rounded-xl p-4">
-                  <p className="text-sm font-bold text-slate-700 m-0">This rent contract was terminated.</p>
+                <div className="bg-slate-100 border border-slate-300 rounded-card p-4">
+                  <p className="text-body font-bold text-slate-700 m-0">This rent contract was terminated.</p>
                   {selectedContract.terminationReason && (
-                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">Reason: {selectedContract.terminationReason}</p>
+                    <p className="text-caption text-slate-500 m-0 mt-0.5">Reason: {selectedContract.terminationReason}</p>
                   )}
                 </div>
               )}
@@ -933,12 +934,12 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               {modalSubTab === 'contract' && (
                 <div className="space-y-4">
                   {/* Quick Dates & Management Bar */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="bg-slate-50 border border-slate-200 rounded-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     {isEditingDates ? (
                       <div className="w-full space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent Start *</label>
+                            <label htmlFor="contract-edit-leaseStart" className="block text-label font-medium text-slate-600 mb-1">Rent Start *</label>
                             <input
                               type="date"
                               {...editErrors.fieldA11y('leaseStart')}
@@ -955,7 +956,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                             <FieldError id="contract-edit-leaseStart" error={editErrors.errors.leaseStart} />
                           </div>
                           <div>
-                            <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent End *</label>
+                            <label htmlFor="contract-edit-leaseEnd" className="block text-label font-medium text-slate-600 mb-1">Rent End *</label>
                             <input
                               type="date"
                               {...editErrors.fieldA11y('leaseEnd')}
@@ -970,13 +971,13 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                           </div>
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                          <button type="button" onClick={() => { setIsEditingDates(false); editErrors.setErrors({}); }} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer">Cancel</button>
-                          <button type="button" onClick={handleSaveDates} disabled={savingDates} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 border-0 cursor-pointer disabled:opacity-50">{savingDates ? 'Saving…' : 'Save Dates'}</button>
+                          <button type="button" onClick={() => { setIsEditingDates(false); editErrors.setErrors({}); }} className={btn('secondary', 'sm')}>Cancel</button>
+                          <button type="button" onClick={handleSaveDates} disabled={savingDates} className={btn('success', 'sm')}>{savingDates ? 'Saving…' : 'Save Dates'}</button>
                         </div>
                       </div>
                     ) : (
                       <>
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                        <div className="flex flex-wrap items-center gap-4 text-label text-slate-600">
                           <div>
                             <span className="text-slate-500">Tenant:</span> <strong className="text-slate-800">{selectedContract.tenant}</strong>
                           </div>
@@ -994,7 +995,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                           <button
                             type="button"
                             onClick={() => setIsEditingDates(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-50 cursor-pointer transition-colors shadow-sm"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-indigo-600 rounded-control text-label font-bold hover:bg-indigo-50 cursor-pointer transition-colors shadow-card"
                           >
                             <FontAwesomeIcon icon={faEdit} className="text-[10px]" />
                             <span>Edit Dates</span>
@@ -1003,7 +1004,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                             <button
                               type="button"
                               onClick={() => handleTerminateContract(selectedContract.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-label font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors"
                             >
                               <FontAwesomeIcon icon={faGavel} /> Terminate Rent Contract
                             </button>
@@ -1014,7 +1015,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </div>
 
                   {/* Document Render with Uploadable E-Signatures */}
-                  <div ref={contractDocRef} className="rounded-2xl border border-slate-200 bg-slate-100/50 p-2 sm:p-4 print:border-none print:bg-white print:p-0">
+                  <div ref={contractDocRef} className="rounded-card border border-slate-200 bg-slate-100/50 p-2 sm:p-4 print:border-none print:bg-white print:p-0">
                     <ContractDocument
                       template={previewTemplate || {}}
                       lang={previewLang}
@@ -1051,7 +1052,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       <button
                         type="button"
                         onClick={() => handleTerminateContract(selectedContract.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-label font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors"
                       >
                         <FontAwesomeIcon icon={faGavel} /> Terminate Rent Contract
                       </button>
@@ -1059,24 +1060,24 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   )}
 
                   {/* Document Upload Tracking */}
-                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-white border border-slate-200 rounded-card overflow-hidden shadow-card">
                     <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
                       <FontAwesomeIcon icon={faFileUpload} className="text-indigo-500" />
-                      <h4 className="text-sm font-bold text-slate-800 m-0">Uploaded Physical / Notarized Documents</h4>
+                      <h4 className="text-body font-bold text-slate-800 m-0">Uploaded Physical / Notarized Documents</h4>
                     </div>
                     <div className="p-5 space-y-4">
                       {/* Signed Lease */}
-                      <div className={`rounded-lg border p-4 ${selectedContract.signedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <div className={`rounded-control border p-4 ${selectedContract.signedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${selectedContract.signedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
+                            <div className={`w-9 h-9 rounded-control flex items-center justify-center ${selectedContract.signedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
                               <FontAwesomeIcon icon={selectedContract.signedLease?.uploaded ? faCheckCircle : faFileSignature} />
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 m-0">Signed Rent Agreement (Physical Scan / PDF)</p>
+                              <p className="text-body font-semibold text-slate-800 m-0">Signed Rent Agreement (Physical Scan / PDF)</p>
                               {selectedContract.signedLease?.uploaded ? (
                                 <div className="flex items-center gap-2 mt-1">
-                                  <p className="text-[11px] text-slate-500 m-0 font-sans">
+                                  <p className="text-caption text-slate-500 m-0 font-sans">
                                     <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-500" />
                                     {selectedContract.signedLease.fileName}
                                   </p>
@@ -1084,22 +1085,22 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                                     href={fileUrl(selectedContract.signedLease.filePath) || '#'}
                                     target="_blank" 
                                     rel="noopener noreferrer" 
-                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
+                                    className="text-caption text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
                                   >
                                     View / Download File
                                   </a>
                                 </div>
                               ) : (
-                                <p className="text-[11px] text-amber-700 m-0 mt-0.5">Not yet uploaded</p>
+                                <p className="text-caption text-amber-700 m-0 mt-0.5">Not yet uploaded</p>
                               )}
                             </div>
                           </div>
                           {selectedContract.signedLease?.uploaded ? (
-                            <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
+                            <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-label font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faTimesCircle} /> Remove
                             </button>
                           ) : (
-                            <button onClick={() => handleUploadFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
+                            <button onClick={() => handleUploadFile(selectedContract.id, 'signedLease')} className={btn('primary', 'sm')}>
                               <FontAwesomeIcon icon={faUpload} /> Upload File
                             </button>
                           )}
@@ -1107,17 +1108,17 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       </div>
 
                       {/* Notarized Lease */}
-                      <div className={`rounded-lg border p-4 ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <div className={`rounded-control border p-4 ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
+                            <div className={`w-9 h-9 rounded-control flex items-center justify-center ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
                               <FontAwesomeIcon icon={selectedContract.notarizedLease?.uploaded ? faCheckCircle : faShieldAlt} />
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 m-0">Notarized Rent Agreement Copy</p>
+                              <p className="text-body font-semibold text-slate-800 m-0">Notarized Rent Agreement Copy</p>
                               {selectedContract.notarizedLease?.uploaded ? (
                                 <div className="flex items-center gap-2 mt-1">
-                                  <p className="text-[11px] text-slate-500 m-0 font-sans">
+                                  <p className="text-caption text-slate-500 m-0 font-sans">
                                     <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-500" />
                                     {selectedContract.notarizedLease.fileName}
                                   </p>
@@ -1125,22 +1126,22 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                                     href={fileUrl(selectedContract.notarizedLease.filePath) || '#'}
                                     target="_blank" 
                                     rel="noopener noreferrer" 
-                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
+                                    className="text-caption text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
                                   >
                                     View / Download File
                                   </a>
                                 </div>
                               ) : (
-                                <p className="text-[11px] text-amber-700 m-0 mt-0.5">Not yet uploaded</p>
+                                <p className="text-caption text-amber-700 m-0 mt-0.5">Not yet uploaded</p>
                               )}
                             </div>
                           </div>
                           {selectedContract.notarizedLease?.uploaded ? (
-                            <button onClick={() => handleRemoveFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
+                            <button onClick={() => handleRemoveFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-label font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faTimesCircle} /> Remove
                             </button>
                           ) : (
-                            <button onClick={() => handleUploadFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
+                            <button onClick={() => handleUploadFile(selectedContract.id, 'notarizedLease')} className={btn('primary', 'sm')}>
                               <FontAwesomeIcon icon={faUpload} /> Upload File
                             </button>
                           )}
@@ -1151,7 +1152,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       {(() => {
                         const ds = getDocumentStatus(selectedContract);
                         return (
-                          <div className={`flex items-center gap-2 text-xs font-semibold ${ds.color} bg-slate-50 border border-slate-100 rounded-lg p-2.5`}>
+                          <div className={`flex items-center gap-2 text-label font-semibold ${ds.color} bg-slate-50 border border-slate-100 rounded-control p-2.5`}>
                             <FontAwesomeIcon icon={ds.icon} />
                             Document Status: {ds.label}
                             {ds.label !== 'Complete' && <span className="text-slate-500 font-normal ml-1">— Please upload all required physical/notarized documents.</span>}
@@ -1163,31 +1164,31 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
                   {/* Eviction Action Panel */}
                   {selectedContract.overdueInfo && (
-                    <div className={`rounded-xl border-2 p-5 space-y-3 ${selectedContract.status === 'eviction-pending' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
+                    <div className={`rounded-card border-2 p-5 space-y-3 ${selectedContract.status === 'eviction-pending' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
                       <div className="flex items-center gap-3">
                         <FontAwesomeIcon icon={faGavel} className={`text-xl ${selectedContract.status === 'eviction-pending' ? 'text-red-600' : 'text-amber-700'}`} />
                         <div>
-                          <h4 className="text-sm font-bold text-slate-800 m-0">
+                          <h4 className="text-body font-bold text-slate-800 m-0">
                             {selectedContract.status === 'eviction-pending' ? '🚨 Eviction Flagged' : '⚠ Overdue Payment Detected'}
                           </h4>
-                          <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                          <p className="text-caption text-slate-500 m-0 mt-0.5">
                             {selectedContract.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(selectedContract.overdueInfo.outstandingAmount)} · Last payment: {selectedContract.overdueInfo.lastPaymentDate}
                           </p>
                         </div>
                       </div>
                       {selectedContract.overdueInfo.daysOverdue >= overdueThresholdDays && (
-                        <div className="bg-white border border-red-200 rounded-lg p-3 text-xs text-red-700">
+                        <div className="bg-white border border-red-200 rounded-control p-3 text-label text-red-700">
                           <FontAwesomeIcon icon={faExclamationTriangle} className="mr-1.5" />
                           This tenant has exceeded the <strong>{overdueThresholdDays}-day</strong> overdue payment threshold configured in System Settings.
                         </div>
                       )}
                       <div className="flex gap-2">
                         {selectedContract.status !== 'eviction-pending' ? (
-                          <button onClick={() => handleFlagEviction(selectedContract.id)} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 border-0 cursor-pointer transition-colors">
+                          <button onClick={() => handleFlagEviction(selectedContract.id)} className={btn('danger', 'sm')}>
                             <FontAwesomeIcon icon={faGavel} /> Flag for Eviction
                           </button>
                         ) : (
-                          <button onClick={() => handleClearEviction(selectedContract.id)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 border-0 cursor-pointer transition-colors">
+                          <button onClick={() => handleClearEviction(selectedContract.id)} className={btn('success', 'sm')}>
                             <FontAwesomeIcon icon={faCheckCircle} /> Clear Eviction Flag
                           </button>
                         )}
@@ -1204,7 +1205,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 <button
                   type="button"
                   onClick={handlePrintAgreement}
-                  className="btn-interactive inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 shadow-sm cursor-pointer transition-colors"
+                  className={btn('secondary', 'sm', 'btn-interactive')}
                 >
                   <FontAwesomeIcon icon={faPrint} /> Print Agreement
                 </button>
@@ -1212,7 +1213,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   <button
                     type="button"
                     onClick={() => window.open('/view-contract?email=' + encodeURIComponent(selectedContract.tenantEmail), '_blank')}
-                    className="btn-interactive inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 cursor-pointer transition-colors"
+                    className="btn-interactive inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-control text-label font-bold hover:bg-indigo-100 cursor-pointer transition-colors"
                   >
                     <FontAwesomeIcon icon={faExternalLinkAlt} /> Open Tenant View
                   </button>
@@ -1226,14 +1227,14 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     setShowPreviewModal(false);
                     setActiveTab('editor');
                   }}
-                  className="btn-interactive inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-200 cursor-pointer transition-colors"
+                  className="btn-interactive inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-control text-label font-semibold hover:bg-slate-200 cursor-pointer transition-colors"
                 >
                   <FontAwesomeIcon icon={faEdit} /> Edit Master Template
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowPreviewModal(false)}
-                  className="btn-interactive px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-900 border-0 cursor-pointer transition-colors"
+                  className="btn-interactive px-4 py-2 bg-slate-800 text-white rounded-control text-label font-bold hover:bg-slate-900 border-0 cursor-pointer transition-colors"
                 >
                   Close
                 </button>

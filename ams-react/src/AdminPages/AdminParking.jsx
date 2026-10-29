@@ -13,13 +13,15 @@ import { LIMITS } from '../utils/validation';
 import CharCount from '../Components/form/CharCount';
 import { fileUrl } from '../api/fileUrl';
 import Modal from '../Components/admin/Modal';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import FilterTabs from '../Components/admin/ui/FilterTabs';
 
 const STATUS_BADGE = {
   Pending: 'bg-amber-100 text-amber-700',
   Assigned: 'bg-emerald-100 text-emerald-700',
   Released: 'bg-slate-100 text-slate-600',
   Rejected: 'bg-red-100 text-red-700',
-  Cancelled: 'bg-slate-100 text-slate-500',
+  Cancelled: 'bg-slate-100 text-slate-600',
 };
 
 const TABS = ['all', 'Pending', 'Assigned', 'Released', 'Rejected', 'Cancelled'];
@@ -149,7 +151,7 @@ export default function AdminParking() {
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
+      <div className="flex flex-1 flex-col overflow-hidden bg-slate-50 text-left font-sans">
         <Header title="Parking Management" />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
@@ -176,14 +178,14 @@ export default function AdminParking() {
             </div>
 
             {notice && (
-              <div className={`rounded-xl border px-4 py-3 text-sm font-semibold flex justify-between gap-3 ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+              <div className={`rounded-card border px-4 py-3 text-body font-semibold flex justify-between gap-3 ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
                 <span>{notice.text}</span>
                 <button type="button" onClick={() => setNotice(null)} className="bg-transparent border-0 cursor-pointer text-current" aria-label="Dismiss"><FontAwesomeIcon icon={faTimes} /></button>
               </div>
             )}
 
             {/* Filter and Search Bar */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+            <div className="rounded-card border border-slate-200 bg-white p-4 sm:p-6 shadow-card">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
                   <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
@@ -192,28 +194,22 @@ export default function AdminParking() {
                     placeholder="Search by tenant, unit, vehicle, plate number or #slot..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                    className="w-full rounded-card border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
                   />
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-between">
-                  <div className="flex gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
-                    {TABS.map(tab => (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={() => setStatusFilter(tab)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer whitespace-nowrap ${statusFilter === tab ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-600 hover:text-slate-900'}`}
-                      >
-                        {tab}{tab !== 'all' && ` (${countOf(tab)})`}
-                      </button>
-                    ))}
-                  </div>
+                  <FilterTabs
+                    label="Filter parking requests by status"
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    options={TABS.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1), count: t === 'all' || loading || error ? undefined : countOf(t) }))}
+                  />
 
                   <button
                     type="button"
                     onClick={fetchParkingReservations}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
+                    className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
                     title="Refresh"
                     aria-label="Refresh"
                   >
@@ -224,19 +220,19 @@ export default function AdminParking() {
             </div>
 
             {/* Reservations Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <table className="w-full min-w-[980px] text-left text-body">
+                  <thead className={THEAD}>
                     <tr>
-                      <th className="px-5 py-3.5">Tenant &amp; Unit</th>
-                      <th className="px-4 py-3.5">Vehicle</th>
-                      <th className="px-4 py-3.5">Plate No.</th>
-                      <th className="px-4 py-3.5">Slot &amp; Term</th>
-                      <th className="px-4 py-3.5">Billing</th>
-                      <th className="px-4 py-3.5 text-center">OR/CR</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-5 py-3.5 text-right">Actions</th>
+                      <th className={TH}>Tenant &amp; Unit</th>
+                      <th className={TH}>Vehicle</th>
+                      <th className={TH}>Plate No.</th>
+                      <th className={TH}>Slot &amp; Term</th>
+                      <th className={TH}>Billing</th>
+                      <th className={`${TH} text-center`}>OR/CR</th>
+                      <th className={`${TH} text-center`}>Status</th>
+                      <th className={`${TH} text-right`}>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="stagger-children divide-y divide-slate-100">
@@ -249,7 +245,7 @@ export default function AdminParking() {
                         <td colSpan="8" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faCar} className="text-xl text-slate-300 shrink-0" />
-                            <span className="text-sm italic">No parking reservations found.</span>
+                            <span className="text-body italic">No parking reservations found.</span>
                           </div>
                         </td>
                       </tr>
@@ -261,50 +257,50 @@ export default function AdminParking() {
                           <tr key={r.id} className="hover:bg-slate-50/80 transition-colors align-top">
                             <td className="px-5 py-4">
                               <p className="font-bold text-slate-800 m-0">{r.tenant}</p>
-                              <span className="inline-flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                              <span className="inline-flex items-center gap-1 text-label text-slate-500 mt-0.5">
                                 <FontAwesomeIcon icon={faBuilding} className="text-[10px] text-indigo-500" />
                                 Unit {r.unit}
                               </span>
                             </td>
 
-                            <td className="px-4 py-4 text-xs text-slate-700">
+                            <td className="px-4 py-4 text-label text-slate-700">
                               <p className="m-0 font-bold">{r.vehicleModel}</p>
-                              <p className="text-[11px] text-slate-500 m-0 mt-0.5 capitalize">{r.vehicleType} • {r.transmission}</p>
+                              <p className="text-caption text-slate-500 m-0 mt-0.5 capitalize">{r.vehicleType} • {r.transmission}</p>
                             </td>
 
-                            <td className="px-4 py-4 text-xs">
-                              <span className="font-mono uppercase font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">{r.plateNumber}</span>
+                            <td className="px-4 py-4 text-label">
+                              <span className="font-mono uppercase font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-control">{r.plateNumber}</span>
                             </td>
 
-                            <td className="px-4 py-4 text-xs">
+                            <td className="px-4 py-4 text-label">
                               <p className="m-0 font-bold text-slate-800">{r.slotNumber ? `Slot #${r.slotNumber}` : '—'}</p>
-                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                              <p className="text-caption text-slate-500 m-0 mt-0.5">
                                 {r.durationMonths} month(s){r.termEndsAt ? ` · ends ${new Date(r.termEndsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
                               </p>
                               {(r.rejectionReason || r.releaseReason) && (
-                                <p className="text-[11px] text-slate-500 m-0 mt-1 italic">{r.rejectionReason || r.releaseReason}</p>
+                                <p className="text-caption text-slate-500 m-0 mt-1 italic">{r.rejectionReason || r.releaseReason}</p>
                               )}
                             </td>
 
-                            <td className="px-4 py-4 text-xs">
+                            <td className="px-4 py-4 text-label">
                               <p className="m-0 font-bold text-indigo-600">{peso(r.totalCost)} total</p>
-                              <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                              <p className="text-caption text-slate-500 m-0 mt-0.5">
                                 {r.billedPeriods.length ? `Billed: ${r.billedPeriods.map(monthLabel).join(', ')}` : 'Not billed yet'}
                               </p>
                             </td>
 
                             <td className="px-4 py-4 text-center">
                               {r.documentPath && r.documentPath !== 'placeholder' ? (
-                                <a href={fileUrl(r.documentPath)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline">
+                                <a href={fileUrl(r.documentPath)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-label text-indigo-600 hover:text-indigo-800 font-bold hover:underline">
                                   <FontAwesomeIcon icon={faEye} /><span>View</span>
                                 </a>
                               ) : (
-                                <span className="text-xs text-slate-500 italic">—</span>
+                                <span className="text-label text-slate-500 italic">—</span>
                               )}
                             </td>
 
                             <td className="px-4 py-4 text-center">
-                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${STATUS_BADGE[r.status] || 'bg-slate-100 text-slate-600'}`}>{r.status}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${STATUS_BADGE[r.status] || 'bg-slate-100 text-slate-600'}`}>{r.status}</span>
                             </td>
 
                             <td className="px-5 py-4 text-right">
@@ -314,7 +310,7 @@ export default function AdminParking() {
                                     type="button"
                                     disabled={busy || capacity.available_slots <= 0}
                                     onClick={() => openDialog('assign', r)}
-                                    className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="rounded-control bg-emerald-50 px-2.5 py-1.5 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     title={capacity.available_slots <= 0 ? 'All slots are assigned' : 'Assign a slot'}
                                   >
                                     <FontAwesomeIcon icon={faCheck} className="mr-1" /> Assign
@@ -323,7 +319,7 @@ export default function AdminParking() {
                                     type="button"
                                     disabled={busy}
                                     onClick={() => openDialog('reject', r)}
-                                    className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors border-0 cursor-pointer disabled:opacity-50"
+                                    className="rounded-control bg-red-50 px-2.5 py-1.5 text-label font-bold text-red-700 hover:bg-red-100 transition-colors border-0 cursor-pointer disabled:opacity-50"
                                     title="Reject request"
                                   >
                                     <FontAwesomeIcon icon={faTimes} className="mr-1" /> Reject
@@ -337,19 +333,19 @@ export default function AdminParking() {
                                       type="button"
                                       disabled={busy || billedThisMonth}
                                       onClick={() => billThisMonth(r)}
-                                      className="rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="rounded-control bg-indigo-50 px-2.5 py-1.5 text-label font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                       title={billedThisMonth ? 'This month is already billed' : "Add this month's parking fee to the tenant's invoice"}
                                     >
                                       <FontAwesomeIcon icon={faFileInvoiceDollar} className="mr-1" /> {billedThisMonth ? 'Billed' : 'Bill this month'}
                                     </button>
                                   ) : (
-                                    <span className="text-[11px] font-semibold text-slate-500 self-center">Auto-billed</span>
+                                    <span className="text-caption font-semibold text-slate-500 self-center">Auto-billed</span>
                                   )}
                                   <button
                                     type="button"
                                     disabled={busy}
                                     onClick={() => openDialog('release', r)}
-                                    className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-colors border-0 cursor-pointer disabled:opacity-50"
+                                    className="rounded-control bg-slate-100 px-2.5 py-1.5 text-label font-bold text-slate-700 hover:bg-slate-200 transition-colors border-0 cursor-pointer disabled:opacity-50"
                                     title="Free this slot"
                                   >
                                     <FontAwesomeIcon icon={faUnlock} className="mr-1" /> Release
@@ -357,7 +353,7 @@ export default function AdminParking() {
                                 </div>
                               )}
                               {!['Pending', 'Assigned'].includes(r.status) && (
-                                <span className="text-xs font-medium italic text-slate-500">Closed</span>
+                                <span className="text-label font-medium italic text-slate-500">Closed</span>
                               )}
                             </td>
                           </tr>
@@ -379,16 +375,16 @@ export default function AdminParking() {
             <h3 className="text-lg font-bold text-slate-800 m-0">
               {dialog.mode === 'assign' ? 'Assign a parking slot' : dialog.mode === 'reject' ? 'Reject parking request' : 'Release parking slot'}
             </h3>
-            <p className="text-sm text-slate-500 m-0">
+            <p className="text-body text-slate-500 m-0">
               {dialog.reservation.tenant} · {dialog.reservation.vehicleModel} ({dialog.reservation.plateNumber})
               {dialog.reservation.slotNumber ? ` · Slot #${dialog.reservation.slotNumber}` : ''}
             </p>
 
             {dialog.mode === 'assign' ? (
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Free slots</label>
+                <label className="text-label font-medium text-slate-600">Free slots</label>
                 {freeSlots.length === 0 ? (
-                  <p className="text-sm text-rose-600 m-0">All {capacity.max_slots} slots are assigned. Release one first.</p>
+                  <p className="text-body text-red-600 m-0">All {capacity.max_slots} slots are assigned. Release one first.</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {freeSlots.map(n => (
@@ -396,14 +392,14 @@ export default function AdminParking() {
                         key={n}
                         type="button"
                         onClick={() => setDialog(d => ({ ...d, slot: n }))}
-                        className={`h-11 w-14 rounded-xl text-sm font-bold border cursor-pointer transition-colors ${dialog.slot === n ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'}`}
+                        className={`h-11 w-14 rounded-card text-body font-bold border cursor-pointer transition-colors ${dialog.slot === n ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'}`}
                       >
                         #{n}
                       </button>
                     ))}
                   </div>
                 )}
-                <p className="text-[11px] text-slate-500 m-0">
+                <p className="text-caption text-slate-500 m-0">
                   {billingMode === 'auto'
                     ? `This month's ${peso(monthlyFee)} fee will be added to the tenant's invoice automatically.`
                     : `Bill ${peso(monthlyFee)} per month with "Bill this month" once the slot is assigned.`}
@@ -411,7 +407,7 @@ export default function AdminParking() {
               </div>
             ) : (
               <div className="space-y-2">
-                <label htmlFor="parking-reason" className="text-xs font-bold uppercase tracking-wide text-slate-500">Reason (sent to the tenant)</label>
+                <label htmlFor="parking-reason" className="text-label font-medium text-slate-600">Reason (sent to the tenant)</label>
                 <textarea
                   id="parking-reason"
                   name="reason"
@@ -421,7 +417,7 @@ export default function AdminParking() {
                   value={dialog.reason}
                   onChange={(e) => setDialog(d => ({ ...d, reason: e.target.value }))}
                   onBlur={() => setDialog(d => ({ ...d, reason: d.reason.trim() }))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-none"
+                  className="w-full rounded-card border border-slate-200 bg-slate-50 p-3 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-none"
                   placeholder={dialog.mode === 'reject' ? 'e.g. OR/CR is unreadable' : 'e.g. Tenant no longer needs parking'}
                 />
                 <CharCount value={dialog.reason} max={LIMITS.reason} className="m-0" />
@@ -429,12 +425,12 @@ export default function AdminParking() {
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setDialog(null)} disabled={busyId !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 cursor-pointer hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={() => setDialog(null)} disabled={busyId !== null} className={btn('secondary', 'md')}>Cancel</button>
               <button
                 type="button"
                 onClick={submitDialog}
                 disabled={!dialogValid || busyId !== null}
-                className={`rounded-xl px-4 py-2 text-sm font-bold text-white border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${dialog.mode === 'assign' ? 'bg-emerald-600 hover:bg-emerald-700' : dialog.mode === 'reject' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-700 hover:bg-slate-800'}`}
+                className={`rounded-card px-4 py-2 text-body font-bold text-white border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${dialog.mode === 'assign' ? 'bg-emerald-600 hover:bg-emerald-700' : dialog.mode === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-700 hover:bg-slate-800'}`}
               >
                 {busyId !== null ? 'Saving…' : dialog.mode === 'assign' ? `Assign slot${dialog.slot ? ` #${dialog.slot}` : ''}` : dialog.mode === 'reject' ? 'Reject request' : 'Release slot'}
               </button>

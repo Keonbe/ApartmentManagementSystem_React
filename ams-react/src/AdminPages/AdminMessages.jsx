@@ -71,7 +71,7 @@ const renderMessageSearchText = (text, query, active) => {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const parts = String(text).split(new RegExp(`(${escaped})`, 'ig'));
   return parts.map((part, index) => part.toLowerCase() === query.toLowerCase()
-    ? <mark key={`${index}-${part}`} className={`rounded px-0.5 ${active ? 'bg-amber-300 text-amber-950' : 'bg-amber-100 text-inherit'}`}>{part}</mark>
+    ? <mark key={`${index}-${part}`} className={`rounded-control px-0.5 ${active ? 'bg-amber-300 text-amber-950' : 'bg-amber-100 text-inherit'}`}>{part}</mark>
     : part);
 };
 
@@ -334,7 +334,7 @@ const AdminMessages = () => {
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden text-left">
         <Header title="Message Manager" />
         <div className="flex-1 min-h-0 p-4 md:p-6">
-          <section className="max-w-7xl mx-auto h-full bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex animate-fade-in-up">
+          <section className="max-w-7xl mx-auto h-full bg-white border border-slate-200 rounded-card shadow-card overflow-hidden flex animate-fade-in-up">
             <aside className={`${activeChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 lg:w-96 flex-col border-r border-slate-200 shrink-0`}>
               <div className="p-5 border-b border-slate-100">
                 <div className="flex items-center justify-between gap-3">
@@ -344,9 +344,9 @@ const AdminMessages = () => {
                   </div>
                   <FontAwesomeIcon icon={faComments} className="text-indigo-500 text-xl" />
                 </div>
-                <label className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus-within:border-indigo-400">
+                <label className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-card border border-slate-200 bg-slate-50 focus-within:border-indigo-400">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
-                  <input maxLength={LIMITS.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tenants or messages" className="w-full bg-transparent outline-none border-0 text-sm text-slate-800" />
+                  <input maxLength={LIMITS.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tenants or messages" className="w-full bg-transparent outline-none border-0 text-body text-slate-800" />
                 </label>
                 <div className="flex items-center gap-1.5 mt-3" role="group" aria-label="Filter conversations">
                   {[
@@ -355,7 +355,7 @@ const AdminMessages = () => {
                     ['guest', `Guest (${conversationCounts.guest})`],
                   ].map(([filter, label]) => (
                     <button key={filter} type="button" onClick={() => setConversationFilter(filter)} aria-pressed={conversationFilter === filter}
-                      className={`text-xs font-medium px-3 py-1.5 rounded-full transition ${conversationFilter === filter ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                      className={`text-label font-medium px-3 py-1.5 rounded-full transition ${conversationFilter === filter ? 'bg-indigo-600 text-white shadow-card' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                       {label}
                     </button>
                   ))}
@@ -378,11 +378,11 @@ const AdminMessages = () => {
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                           </span>
-                          <span className="text-[11px] text-slate-500 shrink-0">{formatTime(conversation.last_message_time)}</span>
+                          <span className="text-caption text-slate-500 shrink-0">{formatTime(conversation.last_message_time)}</span>
                         </div>
                         <div className="mt-1 flex justify-between gap-2 items-center">
-                    <span className="text-xs text-slate-500 truncate">{conversation.matched_message || getConversationPreview(conversation, userId)}</span>
-                          {unread > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
+                    <span className="text-label text-slate-500 truncate">{conversation.matched_message || getConversationPreview(conversation, userId)}</span>
+                          {unread > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-caption font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
                         </div>
                       </div>
                     </button>
@@ -401,13 +401,13 @@ const AdminMessages = () => {
                     {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" aria-live="polite">
                       {activeMessageMatches.length ? <>
                         <span>Match {activeMatchIndex + 1} of {activeMessageMatches.length}</span>
-                        <button type="button" onClick={() => navigateMatch(activeMatchIndex - 1)} aria-label="Previous message match" title="Previous match (Shift+Enter)" className="flex h-7 w-7 items-center justify-center rounded-md border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronUp} /></button>
-                        <button type="button" onClick={() => navigateMatch(activeMatchIndex + 1)} aria-label="Next message match" title="Next match (Enter)" className="flex h-7 w-7 items-center justify-center rounded-md border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronDown} /></button>
+                        <button type="button" onClick={() => navigateMatch(activeMatchIndex - 1)} aria-label="Previous message match" title="Previous match (Shift+Enter)" className="flex h-7 w-7 items-center justify-center rounded-control border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronUp} /></button>
+                        <button type="button" onClick={() => navigateMatch(activeMatchIndex + 1)} aria-label="Next message match" title="Next match (Enter)" className="flex h-7 w-7 items-center justify-center rounded-control border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronDown} /></button>
                       </> : <span>No matches in this chat</span>}
                     </div>}
                   </header>
                   <div ref={messagesContainerRef} className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
-                    {(activeChat.thread_type === 'guest' ? guestMessages : messages).length === 0 ? <p className="text-center text-sm text-slate-500 mt-10">No messages in this conversation yet.</p> : (activeChat.thread_type === 'guest' ? normalizeGuestMessages(guestMessages) : messages).map((message, index) => {
+                    {(activeChat.thread_type === 'guest' ? guestMessages : messages).length === 0 ? <p className="text-center text-body text-slate-500 mt-10">No messages in this conversation yet.</p> : (activeChat.thread_type === 'guest' ? normalizeGuestMessages(guestMessages) : messages).map((message, index) => {
                       const messageKey = message.id || index;
                       const isAdmin = activeChat.thread_type === 'guest' ? String(message.sender_id) === 'admin' : String(message.sender_id) === String(userId);
                       const hasText = Boolean(message.message?.trim());
@@ -425,17 +425,17 @@ const AdminMessages = () => {
                       const isSearchMatch = matchIndex >= 0;
                       const isFocusedMatch = isSearchMatch && matchIndex === activeMatchIndex;
                       return (
-                        <div id={`chat-message-${message.id}`} key={messageKey} className={`message-enter rounded-xl transition-colors duration-500 ${isFocusedMatch ? 'bg-amber-100 ring-2 ring-amber-400' : isSearchMatch ? 'bg-amber-50 ring-1 ring-amber-100' : String(highlightedMessageId) === String(message.id) ? 'bg-amber-100 ring-2 ring-amber-300 animate-pulse' : ''} ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
+                        <div id={`chat-message-${message.id}`} key={messageKey} className={`message-enter rounded-card transition-colors duration-500 ${isFocusedMatch ? 'bg-amber-100 ring-2 ring-amber-400' : isSearchMatch ? 'bg-amber-50 ring-1 ring-amber-100' : String(highlightedMessageId) === String(message.id) ? 'bg-amber-100 ring-2 ring-amber-300 animate-pulse' : ''} ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                           {showDateSeparator && (
                                 <div className="flex justify-center my-5">
-                              <span className="text-slate-500 text-[11px] font-medium">
+                              <span className="text-slate-500 text-caption font-medium">
                                 {formatMessageDateTime(message.created_at)}
                               </span>
                             </div>
                           )}
                           <div className={`group flex items-center gap-1 sm:gap-2 ${isAdmin ? 'justify-end' : 'justify-start'}`}>
                             <div className={`relative flex w-fit min-w-0 max-w-[75%] flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
-                              {message.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-[11px] text-slate-500">
+                              {message.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-caption text-slate-500">
                                 <FontAwesomeIcon icon={faReply} className="text-[10px]" />
                                 <span>{isAdmin ? 'You' : (activeChat.other_user_name || 'Tenant')} replied to {String(message.reply_sender_id) === String(message.sender_id) ? 'themselves' : (isAdmin ? (activeChat.other_user_name || 'Tenant') : 'you')}</span>
                               </div>}
@@ -443,39 +443,39 @@ const AdminMessages = () => {
                                 const replyIsVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(message.reply_attachment_path);
                                 const replyMediaUrl = fileUrl(message.reply_attachment_path);
                                 const scrollToOriginal = () => document.getElementById(`chat-message-${message.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
+                                return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-card border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
                                   {replyIsVideo
                                     ? <video src={replyMediaUrl} preload="metadata" muted playsInline className="block h-24 w-36 object-cover" aria-label="Replied video preview" />
                                     : <img src={replyMediaUrl} alt="Replied image preview" className="block h-24 w-36 object-cover" />}
                                 </button>;
                               })()}
                               <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(message.created_at)}`} className={`transition-colors ${hasText
-                                ? `rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? (expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-md' : 'bg-indigo-600 text-white rounded-br-md') : (expandedTimestampId === messageKey ? 'bg-slate-100 text-slate-800 border border-slate-300 rounded-bl-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md')}`
+                                ? `rounded-card px-4 py-2.5 shadow-card ${isAdmin ? (expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-control' : 'bg-indigo-600 text-white rounded-br-control') : (expandedTimestampId === messageKey ? 'bg-slate-100 text-slate-800 border border-slate-300 rounded-bl-control' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-control')}`
                                 : ''} cursor-pointer`}>
-                              {message.reply_to_id && <p className="m-0 mb-1 truncate text-xs opacity-80">{message.reply_message || (message.reply_attachment_path ? 'Attachment' : 'Message')}</p>}
-                                {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{renderMessageSearchText(message.message, debouncedSearch, isFocusedMatch)}</p>}
+                              {message.reply_to_id && <p className="m-0 mb-1 truncate text-label opacity-80">{message.reply_message || (message.reply_attachment_path ? 'Attachment' : 'Message')}</p>}
+                                {message.message && <p className="m-0 text-body whitespace-pre-wrap break-words">{renderMessageSearchText(message.message, debouncedSearch, isFocusedMatch)}</p>}
                                 {(message.attachment_path || message.file_path || message.attachment_url || message.media_url) && (() => {
                                   const mediaPath = message.attachment_path || message.file_path || message.attachment_url || message.media_url;
                                   const mediaUrl = fileUrl(mediaPath);
                                   const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(mediaPath);
                                   const isImage = /\.(jpg|jpeg|png|gif|webp)(?:\?|$)/i.test(mediaPath);
-                                  if (!isVideo && !isImage) return <a className="mt-2 block text-sm underline" href={mediaUrl} target="_blank" rel="noreferrer">{message.file_name || 'Download attachment'}</a>;
+                                  if (!isVideo && !isImage) return <a className="mt-2 block text-body underline" href={mediaUrl} target="_blank" rel="noreferrer">{message.file_name || 'Download attachment'}</a>;
                                   return isVideo
-                                    ? <div className={`${hasText ? 'mt-2 ' : ''}relative block max-w-full overflow-hidden rounded-lg bg-black`} onClick={(event) => { event.stopPropagation(); if (!event.currentTarget.querySelector('video')?.paused) setMediaPreview({ src: mediaUrl, isVideo: true }); }}>
-                                      <video src={mediaUrl} controls playsInline preload="metadata" aria-label="Message video. Tap again while playing to view full size." className="block max-w-full max-h-64 rounded-lg" />
+                                    ? <div className={`${hasText ? 'mt-2 ' : ''}relative block max-w-full overflow-hidden rounded-control bg-black`} onClick={(event) => { event.stopPropagation(); if (!event.currentTarget.querySelector('video')?.paused) setMediaPreview({ src: mediaUrl, isVideo: true }); }}>
+                                      <video src={mediaUrl} controls playsInline preload="metadata" aria-label="Message video. Tap again while playing to view full size." className="block max-w-full max-h-64 rounded-control" />
                                     </div>
-                                    : <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo: false }); }} aria-label="View full image" className={`${hasText ? 'mt-2 ' : ''}relative block max-w-full overflow-hidden rounded-lg border-0 bg-transparent p-0 cursor-zoom-in`}>
-                                      <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-64 rounded-lg" />
+                                    : <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo: false }); }} aria-label="View full image" className={`${hasText ? 'mt-2 ' : ''}relative block max-w-full overflow-hidden rounded-control border-0 bg-transparent p-0 cursor-zoom-in`}>
+                                      <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-64 rounded-control" />
                                     </button>;
                                 })()}
                               </div>
                               {expandedTimestampId === messageKey && (
-                                <p className={`pointer-events-none absolute top-full z-10 mt-1 w-max max-w-[min(80vw,20rem)] whitespace-normal break-words text-[11px] leading-3.5 text-slate-500 animate-fade-in-up ${isAdmin ? 'right-0 text-right' : 'left-0 text-left'}`}>
+                                <p className={`pointer-events-none absolute top-full z-10 mt-1 w-max max-w-[min(80vw,20rem)] whitespace-normal break-words text-caption leading-3.5 text-slate-500 animate-fade-in-up ${isAdmin ? 'right-0 text-right' : 'left-0 text-left'}`}>
                                   {formatExactMessageDateTime(message.created_at)}
                                 </p>
                               )}
                               {isLatestSentMessage && (
-                                <p className="m-0 mt-1 text-right text-[11px] text-slate-500 font-medium">
+                                <p className="m-0 mt-1 text-right text-caption text-slate-500 font-medium">
                                   {Number(message.is_read) === 1 ? 'Seen' : 'Sent'}
                                 </p>
                               )}
@@ -506,13 +506,13 @@ const AdminMessages = () => {
                         onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
                         placeholder="Write a reply..." className="h-full w-full min-w-0 px-2 bg-transparent border-0 focus:outline-none text-sm" />
                     </div>
-                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
+                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
                   </form>
                   <div className="px-3 md:px-4 pb-2">
                     <FieldError id="admin-reply" error={sendError} />
                   </div>
                 </>
-              ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-8"><div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center text-2xl mb-4"><FontAwesomeIcon icon={faComments} /></div><h3 className="text-lg font-bold text-slate-800 m-0">Select a conversation</h3><p className="text-sm text-slate-500 mt-2">Choose a tenant from the list to view and reply to messages.</p></div>}
+              ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-8"><div className="w-16 h-16 rounded-card bg-indigo-50 text-indigo-500 flex items-center justify-center text-page mb-4"><FontAwesomeIcon icon={faComments} /></div><h3 className="text-title font-bold text-slate-800 m-0">Select a conversation</h3><p className="text-body text-slate-500 mt-2">Choose a tenant from the list to view and reply to messages.</p></div>}
             </section>
           </section>
         </div>
@@ -520,10 +520,10 @@ const AdminMessages = () => {
       {mediaPreview && (
         <Modal title="Full-size message attachment" onClose={() => setMediaPreview(null)} overlayClassName="flex items-center justify-center bg-black/90 p-4" className="relative flex items-center justify-center max-h-full max-w-full">
           <button type="button" onClick={() => setMediaPreview(null)} aria-label="Close full-size preview" className="absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/15 text-white hover:bg-white/25 cursor-pointer">
-            <span aria-hidden="true" className="text-2xl leading-none">×</span>
+            <span aria-hidden="true" className="text-page leading-none">×</span>
           </button>
           {mediaPreview.isVideo
-            ? <video controls autoPlay src={mediaPreview.src} className="max-h-[90vh] max-w-full rounded-lg" />
+            ? <video controls autoPlay src={mediaPreview.src} className="max-h-[90vh] max-w-full rounded-control" />
             : <img src={mediaPreview.src} alt="Full-size message attachment" className="max-h-[90vh] max-w-full object-contain" />}
         </Modal>
       )}

@@ -5,34 +5,34 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 // classes (the page had three different heading styles before).
 
 export const INPUT_BASE =
-  'focus-glow px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm';
+  'focus-glow px-4 py-2.5 rounded-card bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm';
 export const INPUT = `${INPUT_BASE} w-full`;
 export const INPUT_MONO = `${INPUT} font-mono`;
 // Short numeric inputs that sit next to a unit ("12 months").
 export const INPUT_NUMBER = `${INPUT_BASE} text-center font-bold`;
-export const CHECKBOX = 'rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4';
+export const CHECKBOX = 'rounded-control border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4';
 // Tailwind only ships classes it can see written out, so tones are spelled in full.
 const TONES = {
   indigo: 'bg-indigo-50 text-indigo-600',
   violet: 'bg-violet-50 text-violet-600',
   amber: 'bg-amber-50 text-amber-700',
-  rose: 'bg-rose-50 text-rose-600',
+  rose: 'bg-red-50 text-red-600',
   blue: 'bg-blue-50 text-blue-600',
   emerald: 'bg-emerald-50 text-emerald-700',
 };
 
 export function SettingsSection({ icon, tone = 'indigo', title, description, action, children }) {
   return (
-    <section className="bg-white rounded-xl border border-slate-200 shadow-sm">
+    <section className="bg-white rounded-card border border-slate-200 shadow-card">
       <header className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
         {icon && (
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base shrink-0 ${TONES[tone] || TONES.indigo}`}>
+          <div className={`w-9 h-9 rounded-control flex items-center justify-center text-title shrink-0 ${TONES[tone] || TONES.indigo}`}>
             <FontAwesomeIcon icon={icon} />
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-bold text-slate-800 m-0">{title}</h3>
-          {description && <p className="text-xs text-slate-500 m-0 mt-0.5">{description}</p>}
+          <h3 className="text-title font-bold text-slate-800 m-0">{title}</h3>
+          {description && <p className="text-label text-slate-500 m-0 mt-0.5">{description}</p>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
@@ -47,14 +47,14 @@ export function Field({ label, icon, hint, error, htmlFor, children, className =
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       {label && (
-        <label htmlFor={htmlFor} className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+        <label htmlFor={htmlFor} className="text-body font-semibold text-slate-700 flex items-center gap-2">
           {icon && <FontAwesomeIcon icon={icon} className="text-slate-500 text-xs" />}
           {label}
         </label>
       )}
       {children}
-      {error && <p id={`${htmlFor}-error`} role="alert" className="text-red-600 text-xs m-0">{error}</p>}
-      {hint &&<p className="text-[11px] text-slate-500 m-0 leading-relaxed">{hint}</p>}
+      {error && <p id={`${htmlFor}-error`} role="alert" className="text-red-600 text-label m-0">{error}</p>}
+      {hint &&<p className="text-caption text-slate-500 m-0 leading-relaxed">{hint}</p>}
     </div>
   );
 }
@@ -63,15 +63,15 @@ export function Field({ label, icon, hint, error, htmlFor, children, className =
 export function WithUnit({ prefix, suffix, children }) {
   return (
     <div className="flex items-center gap-3">
-      {prefix && <span className="text-sm font-semibold text-slate-500">{prefix}</span>}
+      {prefix && <span className="text-body font-semibold text-slate-500">{prefix}</span>}
       {children}
-      {suffix && <span className="text-sm text-slate-500">{suffix}</span>}
+      {suffix && <span className="text-body text-slate-500">{suffix}</span>}
     </div>
   );
 }
 
 export function Switch({ checked, onChange, label, tone = 'indigo' }) {
-  const on = tone === 'rose' ? 'bg-rose-500' : 'bg-indigo-600';
+  const on = tone === 'rose' ? 'bg-red-500' : 'bg-indigo-600';
   return (
     <button
       type="button"
@@ -82,7 +82,7 @@ export function Switch({ checked, onChange, label, tone = 'indigo' }) {
       className={`touch-compact relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 border-0 cursor-pointer ${checked ? on : 'bg-slate-300'}`}
     >
       <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-card transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
       />
     </button>
   );
@@ -95,7 +95,7 @@ export function PillOption({ selected, onClick, children }) {
       type="button"
       onClick={onClick}
       aria-pressed={!!selected}
-      className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors duration-200 cursor-pointer ${
+      className={`px-3.5 py-1.5 rounded-full text-label font-bold border transition-colors duration-200 cursor-pointer ${
         selected ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
       }`}
     >
@@ -107,17 +107,17 @@ export function PillOption({ selected, onClick, children }) {
 export function Callout({ tone = 'slate', icon, title, children }) {
   const tones = {
     slate: ['bg-slate-50 border-slate-200', 'text-slate-500', 'text-slate-800', 'text-slate-600'],
-    rose: ['bg-rose-50 border-rose-100', 'text-rose-400', 'text-rose-800', 'text-rose-700'],
+    rose: ['bg-red-50 border-red-100', 'text-red-400', 'text-red-800', 'text-red-700'],
     amber: ['bg-amber-50 border-amber-100', 'text-amber-700', 'text-amber-800', 'text-amber-700'],
     violet: ['bg-violet-50 border-violet-100', 'text-violet-500', 'text-violet-800', 'text-violet-800'],
   };
   const [box, iconCls, titleCls, bodyCls] = tones[tone] || tones.slate;
   return (
-    <div className={`border rounded-xl p-4 flex items-start gap-3 ${box}`}>
+    <div className={`border rounded-card p-4 flex items-start gap-3 ${box}`}>
       {icon && <FontAwesomeIcon icon={icon} className={`mt-0.5 ${iconCls}`} />}
       <div className="min-w-0">
-        {title && <p className={`text-xs font-semibold m-0 ${titleCls}`}>{title}</p>}
-        <div className={`text-[11px] leading-relaxed ${title ? 'mt-1' : ''} ${bodyCls}`}>{children}</div>
+        {title && <p className={`text-label font-semibold m-0 ${titleCls}`}>{title}</p>}
+        <div className={`text-caption leading-relaxed ${title ? 'mt-1' : ''} ${bodyCls}`}>{children}</div>
       </div>
     </div>
   );

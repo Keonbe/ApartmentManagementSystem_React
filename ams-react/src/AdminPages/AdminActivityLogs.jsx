@@ -13,11 +13,12 @@ import api from '../api/axiosConfig';
 import { LIMITS } from '../utils/validation';
 import { clickable } from '../utils/clickable';
 import Modal from '../Components/admin/Modal';
+import { TH, btn } from '../Components/admin/ui/styles';
 
 // Icon and colour per category. Keys match LOG_CATEGORIES in backend/config.php;
 // labels come from the server so the two can't drift apart.
 const categoryStyle = {
-  auth:          { icon: faKey,           color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  auth:          { icon: faKey,           color: 'bg-red-100 text-red-700 border-red-200' },
   user:          { icon: faUserShield,    color: 'bg-violet-100 text-violet-700 border-violet-200' },
   tenant:        { icon: faUserPlus,      color: 'bg-blue-100 text-blue-700 border-blue-200' },
   unit:          { icon: faBuilding,      color: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
@@ -169,7 +170,7 @@ export default function AdminActivityLogs() {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <button
                 onClick={() => navigate('/admin-dashboard')}
-                className="flex items-center gap-2 text-xs font-bold text-[#3b4276] bg-white border border-slate-200 rounded-xl px-4 py-2.5 hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
+                className="flex items-center gap-2 text-label font-bold text-[#3b4276] bg-white border border-slate-200 rounded-card px-4 py-2.5 hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer shadow-card"
               >
                 <FontAwesomeIcon icon={faArrowLeft} /> Back to Dashboard
               </button>
@@ -177,14 +178,14 @@ export default function AdminActivityLogs() {
                 <button
                   onClick={fetchLogs}
                   title="Refresh"
-                  className="flex items-center justify-center w-9 h-9 text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer shadow-sm"
+                  className="flex items-center justify-center w-9 h-9 text-slate-600 bg-white border border-slate-200 rounded-card hover:bg-slate-50 cursor-pointer shadow-card"
                 >
                   <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
                 </button>
                 <button
                   onClick={handleExport}
                   disabled={total === 0 || exporting}
-                  className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-2.5 hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={btn('secondary', 'sm')}
                 >
                   <FontAwesomeIcon icon={faDownload} /> {exporting ? 'Exporting…' : `Export CSV (${total})`}
                 </button>
@@ -192,39 +193,39 @@ export default function AdminActivityLogs() {
             </div>
 
             {/* The audit trail is append-only: there is deliberately no way to clear it from the UI. */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+            <div className="bg-white border border-slate-200 rounded-card p-5 shadow-card space-y-4">
               <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus-within:border-indigo-500 focus-within:bg-white transition-all flex-grow">
+                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-card px-4 py-2.5 focus-within:border-indigo-500 focus-within:bg-white transition-all flex-grow">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500" />
                   <input aria-label="Search activity log" maxLength={LIMITS.search}
                     type="text"
                     placeholder="Search action, details, user name or email, or log ID…"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    className="bg-transparent border-none outline-none text-sm text-slate-800 placeholder-slate-400 w-full"
+                    className="bg-transparent border-none outline-none text-body text-slate-800 placeholder-slate-400 w-full"
                   />
                 </div>
                 <select aria-label="Filter by who performed the action"
                   value={performer}
                   onChange={(e) => setFilter(setPerformer)(e.target.value)}
-                  className="px-3 py-2.5 text-xs font-semibold border border-slate-200 rounded-xl bg-white text-slate-700 outline-none focus:border-indigo-500"
+                  className="px-3 py-2.5 text-label font-semibold border border-slate-200 rounded-card bg-white text-slate-700 outline-none focus:border-indigo-500"
                 >
                   <option value="all">All performers</option>
                   <option value="admin">Admins</option>
                   <option value="tenant">Tenants</option>
                   <option value="system">System (no user)</option>
                 </select>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
+                <div className="flex flex-wrap items-center gap-2 text-label text-slate-500">
                   <input type="date" value={from} max={to || undefined} onChange={(e) => setFilter(setFrom)(e.target.value)}
-                    className="px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-700 outline-none focus:border-indigo-500" aria-label="From date" />
+                    className="px-3 py-2 border border-slate-200 rounded-card bg-white text-slate-700 outline-none focus:border-indigo-500" aria-label="From date" />
                   <span>to</span>
                   <input type="date" value={to} min={from || undefined} onChange={(e) => setFilter(setTo)(e.target.value)}
-                    className="px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-700 outline-none focus:border-indigo-500" aria-label="To date" />
+                    className="px-3 py-2 border border-slate-200 rounded-card bg-white text-slate-700 outline-none focus:border-indigo-500" aria-label="To date" />
                 </div>
                 {hasFilters && (
                   <button
                     onClick={() => { setCategory('all'); setPerformer('all'); setSearchInput(''); setSearch(''); setFrom(''); setTo(''); setPage(1); }}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-transparent border-0 cursor-pointer whitespace-nowrap"
+                    className="text-label font-bold text-slate-500 hover:text-slate-800 bg-transparent border-0 cursor-pointer whitespace-nowrap"
                   >
                     Clear filters
                   </button>
@@ -247,25 +248,25 @@ export default function AdminActivityLogs() {
                 ))}
               </div>
 
-              <div className="text-xs text-slate-500 font-medium">
-                {loading ? 'Loading…' : `${total} matching entr${total === 1 ? 'y' : 'ies'}`}
+              <div className="text-label text-slate-500 font-medium">
+                {loading ? 'Loading…' : error ? '' : `${total} matching entr${total === 1 ? 'y' : 'ies'}`}
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/70 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
-                      <th className="px-6 py-4">Log ID</th>
-                      <th className="px-6 py-4">Category</th>
-                      <th className="px-6 py-4">Timestamp</th>
-                      <th className="px-6 py-4">Action</th>
-                      <th className="px-6 py-4">Details</th>
-                      <th className="px-6 py-4">Performed By</th>
+                    <tr className="bg-slate-50/70 border-b border-slate-200 text-label font-medium text-slate-600">
+                      <th className={TH}>Log ID</th>
+                      <th className={TH}>Category</th>
+                      <th className={TH}>Timestamp</th>
+                      <th className={TH}>Action</th>
+                      <th className={TH}>Details</th>
+                      <th className={TH}>Performed By</th>
                     </tr>
                   </thead>
-                  <tbody className="stagger-children divide-y divide-slate-100 text-sm">
+                  <tbody className="stagger-children divide-y divide-slate-100 text-body">
                     {error ? (
                       <tr><td colSpan="6" className="text-center py-12 text-rose-600 text-sm">{error}</td></tr>
                     ) : !loading && logs.length === 0 ? (
@@ -273,8 +274,8 @@ export default function AdminActivityLogs() {
                         <td colSpan="6" className="text-center py-12 text-slate-500">
                           <div className="flex flex-col items-center justify-center gap-2">
                             <FontAwesomeIcon icon={faInfoCircle} className="text-2xl text-slate-300" />
-                            <p className="m-0 text-sm font-semibold">No activity logs found</p>
-                            <p className="m-0 text-xs text-slate-500">Try adjusting your filters or search query.</p>
+                            <p className="m-0 text-body font-semibold">No activity logs found</p>
+                            <p className="m-0 text-label text-slate-500">Try adjusting your filters or search query.</p>
                           </div>
                         </td>
                       </tr>
@@ -282,19 +283,19 @@ export default function AdminActivityLogs() {
                       const style = categoryStyle[log.category] || categoryStyle.system;
                       return (
                         <tr key={log.id} {...clickable(() => setSelectedLog(log), { role: null })} className="hover:bg-slate-50/80 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
-                          <td className="px-6 py-4 font-mono text-xs text-indigo-600 font-semibold">LOG-{String(log.id).padStart(4, '0')}</td>
+                          <td className="px-6 py-4 font-mono text-label text-indigo-600 font-semibold">LOG-{String(log.id).padStart(4, '0')}</td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold border whitespace-nowrap ${style.color}`}>
+                            <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1.5 ${style.color}`}>
                               <FontAwesomeIcon icon={style.icon} className="text-[9px]" />
                               {log.categoryLabel}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{formatDateTime(log.createdAt)}</td>
+                          <td className="px-6 py-4 text-label text-slate-500 whitespace-nowrap">{formatDateTime(log.createdAt)}</td>
                           <td className="px-6 py-4 font-semibold text-slate-800">{log.action}</td>
-                          <td className="px-6 py-4 text-xs text-slate-600 max-w-xs truncate">{log.details}</td>
-                          <td className="px-6 py-4 text-xs text-slate-600 whitespace-nowrap">
+                          <td className="px-6 py-4 text-label text-slate-600 max-w-xs truncate">{log.details}</td>
+                          <td className="px-6 py-4 text-label text-slate-600 whitespace-nowrap">
                             <div className="font-semibold">{log.performerName}</div>
-                            <div className="text-[11px] text-slate-500 uppercase tracking-wide">{log.performerRole}</div>
+                            <div className="text-label text-slate-600 capitalize">{log.performerRole}</div>
                           </td>
                         </tr>
                       );
@@ -305,13 +306,13 @@ export default function AdminActivityLogs() {
 
               {total > 0 && (
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Page {page} of {pages}</span>
+                  <span className="text-label text-slate-500">Page {page} of {pages}</span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
                       aria-label="Previous page"
-                      className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center cursor-pointer text-slate-600 text-xs"
+                      className="w-8 h-8 rounded-control border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center cursor-pointer text-slate-600 text-label"
                     >
                       <FontAwesomeIcon icon={faChevronLeft} />
                     </button>
@@ -319,7 +320,7 @@ export default function AdminActivityLogs() {
                       onClick={() => setPage(p => Math.min(pages, p + 1))}
                       disabled={page === pages}
                       aria-label="Next page"
-                      className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center cursor-pointer text-slate-600 text-xs"
+                      className="w-8 h-8 rounded-control border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center cursor-pointer text-slate-600 text-label"
                     >
                       <FontAwesomeIcon icon={faChevronRight} />
                     </button>
@@ -333,13 +334,13 @@ export default function AdminActivityLogs() {
       </main>
 
       {selectedLog && (
-        <Modal title={`Log details ${selectedLog.id ?? ""}`.trim()} onClose={() => setSelectedLog(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200">
+        <Modal title={`Log details ${selectedLog.id ?? ""}`.trim()} onClose={() => setSelectedLog(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 overflow-hidden border border-slate-200">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap font-mono text-indigo-600 bg-indigo-50 ring-indigo-100 ring-1 ring-inset">
                   LOG-{String(selectedLog.id).padStart(4, '0')}
                 </span>
-                <span className="text-xs text-slate-500 font-medium">Log Details</span>
+                <span className="text-label text-slate-500 font-medium">Log Details</span>
               </div>
               <button onClick={() => setSelectedLog(null)} aria-label="Close" className="text-slate-500 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
                 <FontAwesomeIcon icon={faTimes} className="text-lg" />
@@ -349,40 +350,40 @@ export default function AdminActivityLogs() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Category</span>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border mt-1 ${(categoryStyle[selectedLog.category] || categoryStyle.system).color}`}>
+                  <span className="text-label font-medium text-slate-600 block">Category</span>
+                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1.5 mt-1 ${(categoryStyle[selectedLog.category] || categoryStyle.system).color}`}>
                     <FontAwesomeIcon icon={(categoryStyle[selectedLog.category] || categoryStyle.system).icon} />
                     {selectedLog.categoryLabel}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Timestamp</span>
-                  <span className="text-sm font-semibold text-slate-700 block mt-1">{formatDateTime(selectedLog.createdAt)}</span>
+                  <span className="text-label font-medium text-slate-600 block">Timestamp</span>
+                  <span className="text-body font-semibold text-slate-700 block mt-1">{formatDateTime(selectedLog.createdAt)}</span>
                 </div>
               </div>
 
               <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Action</span>
-                <span className="text-base font-bold text-slate-800 block mt-1">{selectedLog.action}</span>
+                <span className="text-label font-medium text-slate-600 block">Action</span>
+                <span className="text-title font-bold text-slate-800 block mt-1">{selectedLog.action}</span>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Details</span>
-                <p className="m-0 text-sm text-slate-700 leading-relaxed font-mono whitespace-pre-wrap">{selectedLog.details || '—'}</p>
+              <div className="bg-slate-50 border border-slate-200 rounded-card p-4">
+                <span className="text-label font-medium text-slate-600 block mb-1">Details</span>
+                <p className="m-0 text-body text-slate-700 leading-relaxed font-mono whitespace-pre-wrap">{selectedLog.details || '—'}</p>
               </div>
 
               <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Performed By</span>
-                <span className="text-sm font-semibold text-slate-700 block mt-1">
+                <span className="text-label font-medium text-slate-600 block">Performed By</span>
+                <span className="text-body font-semibold text-slate-700 block mt-1">
                   {selectedLog.performerName}
                   {selectedLog.performerEmail && <span className="text-slate-500 font-normal"> · {selectedLog.performerEmail}</span>}
-                  <span className="ml-2 text-[11px] uppercase tracking-wide text-slate-500">({selectedLog.performerRole})</span>
+                  <span className="ml-2 text-label text-slate-600 capitalize">({selectedLog.performerRole})</span>
                 </span>
               </div>
             </div>
 
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-              <button onClick={() => setSelectedLog(null)} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 border-0 cursor-pointer shadow-sm">
+              <button onClick={() => setSelectedLog(null)} className={btn('primary', 'sm')}>
                 Close Details
               </button>
             </div>

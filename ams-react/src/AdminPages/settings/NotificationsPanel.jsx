@@ -5,6 +5,7 @@ import {
 import { SettingsSection, Field, WithUnit, Switch, Callout, INPUT, INPUT_MONO, INPUT_BASE, CHECKBOX } from './SettingsSection';
 import { LIMITS } from '../../utils/validation';
 import { blockNonIntegerKeys, blockNonNumericKeys, numberValue } from '../../Components/form/formHelpers';
+import { btn } from '../../Components/admin/ui/styles';
 
 const TEST_CHANNELS = [
   { key: 'sms', label: 'Test SMS' },
@@ -51,7 +52,7 @@ export default function NotificationsPanel({
               <option value="semaphore">Semaphore (Philippines)</option>
             </select>
             {provider === 'semaphore' && (
-              <p className="text-[11px] text-amber-700 m-0">
+              <p className="text-caption text-amber-700 m-0">
                 Live: every SMS spends Semaphore credits. Admin actions queue their messages and the queue task
                 delivers them within about a minute — it must be scheduled (see the go-live guide).
               </p>
@@ -70,7 +71,7 @@ export default function NotificationsPanel({
             />
             {provider === 'semaphore' && (
               <>
-                <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer mt-1">
+                <label className="flex items-center gap-2 text-label text-slate-700 cursor-pointer mt-1">
                   <input
                     type="checkbox"
                     checked={!!settings.smsSenderApproved}
@@ -80,7 +81,7 @@ export default function NotificationsPanel({
                   Sender name approved by Semaphore
                 </label>
                 {!settings.smsSenderApproved && (
-                  <p className="text-[11px] text-slate-500 m-0">
+                  <p className="text-caption text-slate-500 m-0">
                     Until approved, messages go out under Semaphore's shared <span className="font-mono">SEMAPHORE</span> sender.
                     Check <em>Sender Names</em> in your Semaphore dashboard before ticking this.
                   </p>
@@ -107,13 +108,13 @@ export default function NotificationsPanel({
                     type="button"
                     onClick={onCheckBalance}
                     disabled={checkingBalance || isDirty}
-                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2.5 rounded-card bg-slate-100 hover:bg-slate-200 text-slate-700 text-body font-semibold border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <FontAwesomeIcon icon={checkingBalance ? faSpinner : faDollarSign} spin={checkingBalance} className="mr-2" />
                     Check balance
                   </button>
                   {smsBalance && !smsBalance.error && (
-                    <span className="text-sm text-slate-800">
+                    <span className="text-body text-slate-800">
                       <strong>{smsBalance.credits}</strong> credits
                       {smsBalance.account && <span className="text-slate-500"> · {smsBalance.account}</span>}
                       {smsBalance.cached && smsBalance.checkedAt && (
@@ -123,7 +124,7 @@ export default function NotificationsPanel({
                       )}
                     </span>
                   )}
-                  {smsBalance?.error && <span className="text-xs text-rose-600">{smsBalance.error}</span>}
+                  {smsBalance?.error && <span className="text-label text-red-600">{smsBalance.error}</span>}
                 </div>
               </Field>
             </>
@@ -235,7 +236,7 @@ export default function NotificationsPanel({
                 onChange={(e) => updateSetting('notificationsQuietStart', numberValue(e))}
                 className={`${INPUT_BASE} w-20 text-center`}
               />
-              <span className="text-xs text-slate-500">to</span>
+              <span className="text-label text-slate-500">to</span>
               <input
                 type="number" inputMode="numeric" min="0" max="23" step="1" required
                 aria-label="Quiet hours end"
@@ -244,7 +245,7 @@ export default function NotificationsPanel({
                 onChange={(e) => updateSetting('notificationsQuietEnd', numberValue(e))}
                 className={`${INPUT_BASE} w-20 text-center`}
               />
-              <span className="text-xs text-slate-500">(24-hour)</span>
+              <span className="text-label text-slate-500">(24-hour)</span>
             </div>
           </Field>
 
@@ -290,14 +291,14 @@ export default function NotificationsPanel({
               type="button"
               onClick={() => onTest(key)}
               disabled={testingChannel !== null || isDirty}
-              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold cursor-pointer hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={btn('secondary', 'sm')}
             >
               {testingChannel === key
                 ? <><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Sending…</>
                 : label}
             </button>
           ))}
-          {isDirty && <span className="text-[11px] text-amber-700">Save your changes first — tests use the saved settings.</span>}
+          {isDirty && <span className="text-caption text-amber-700">Save your changes first — tests use the saved settings.</span>}
         </div>
       </SettingsSection>
     </>

@@ -8,6 +8,7 @@ import {
   faEnvelopeOpenText, faEnvelope, faMoneyBillTransfer, faChartBar
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import '@fontsource-variable/ibm-plex-sans';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
 // Phone rules for every admin page (.admin-shell): every page renders this sidebar.
 import '../assets/styles/responsive/admin/admin-shell.responsive.css';
@@ -164,15 +165,15 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {/* Logo Area */}
       <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800 shrink-0 bg-slate-900 z-10 select-none">
         <div className="flex flex-col justify-center">
-          <p className="text-2xl font-bold text-white tracking-wider italic font-serif m-0 leading-none uppercase">AMS</p>
-          <p className="text-[11px] font-medium text-slate-400 m-0 mt-1 whitespace-nowrap tracking-tight font-sans">Apartment Management System</p>
+          <p className="text-2xl font-medium text-white italic font-serif m-0 leading-none">AMS</p>
+          <p className="text-caption font-medium text-slate-400 m-0 mt-1 whitespace-nowrap tracking-tight font-sans">Apartment Management System</p>
         </div>
         {isMobile && (
           <button
             type="button"
             onClick={handleClose}
             aria-label="Close Sidebar"
-            className="admin-sidebar-close-btn btn-interactive text-slate-400 hover:text-white bg-transparent border-0 cursor-pointer p-2 text-xl focus:outline-none"
+            className="admin-sidebar-close-btn btn-interactive text-slate-400 hover:text-white bg-transparent border-0 cursor-pointer p-2 text-section focus:outline-none"
           >
             <FontAwesomeIcon icon={faTimes} />
           </button>
@@ -187,7 +188,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
 
           return (
             <div key={section.title}>
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2 m-0">{section.title}</h2>
+              <h2 className="text-label font-medium text-slate-400 mb-2 px-2 m-0">{section.title}</h2>
               <ul className="space-y-1 p-0 m-0 list-none">
                 {visibleItems.map((item) => (
                   <li key={item.to}>
@@ -195,9 +196,9 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
                       to={item.to}
                       onClick={isMobile ? handleClose : undefined}
                       className={({ isActive }) =>
-                        `admin-sidebar-nav-link btn-interactive flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
+                        `admin-sidebar-nav-link btn-interactive flex items-center gap-3 px-3 py-2 rounded-control transition-colors text-sm no-underline ${
                           isActive
-                            ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                            ? 'bg-indigo-600 text-white font-semibold shadow-card'
                             : 'text-slate-300 hover:bg-slate-800'
                         }`
                       }
@@ -232,7 +233,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       <a
         href="#main"
         onClick={skipToMain}
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-white focus:text-indigo-700 focus:font-semibold focus:shadow-lg focus:ring-2 focus:ring-indigo-500 print:hidden"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-control focus:bg-white focus:text-indigo-700 focus:font-semibold focus:shadow-raised focus:ring-2 focus:ring-indigo-500 print:hidden"
       >
         Skip to main content
       </a>
