@@ -39,6 +39,7 @@ const deskMethodsFor = (label) => {
   if (l.includes('gcash')) return ['gcash'];
   if (l.includes('bank') || l.includes('bdo') || l.includes('bpi')) return ['bank_transfer'];
   if (l.includes('cash') || l.includes('in-person') || l.includes('in person')) return ['cash'];
+  if (l.includes('qr')) return ['bank_transfer', 'gcash'];
   return [];
 };
 const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white';

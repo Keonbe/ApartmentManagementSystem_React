@@ -140,6 +140,7 @@ if ($db_error !== null) {
 
 // Same clock for NOW()/CURDATE(). A numeric offset needs no MySQL timezone
 // tables; Asia/Manila has no DST, so the offset never changes.
+$conn->set_charset('utf8mb4');
 $conn->query("SET time_zone = '" . date('P') . "'");
 
 // Priority 4: Observability
@@ -2007,6 +2008,7 @@ function desk_methods_for_label($label) {
     if (strpos($l, 'gcash') !== false) return ['gcash'];
     if (strpos($l, 'cash') !== false || strpos($l, 'in-person') !== false || strpos($l, 'in person') !== false) return ['cash'];
     if (strpos($l, 'bank') !== false || strpos($l, 'bdo') !== false || strpos($l, 'bpi') !== false) return ['bank_transfer'];
+    if (strpos($l, 'qr') !== false) return ['bank_transfer', 'gcash'];
     return [];
 }
 

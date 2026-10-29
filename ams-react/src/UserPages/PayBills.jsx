@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins, faQrcode, faExpand, faDownload } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { publicAssetUrl } from '../api/fileUrl';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang, dateLocale } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
+import QrPreviewModal from '../Components/QrPreviewModal';
 import InlineAlert from '../Components/InlineAlert';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
@@ -33,11 +35,20 @@ const referenceInputProps = (label = '') => {
 };
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
 
+const getQrTitle = (label) => {
+    if (!label || /^qr\s*ph(\s*slot\s*\d+)?$/i.test(label.trim()) || /^slot\s*\d+$/i.test(label.trim())) {
+        return 'QR Ph (Scan to Pay)';
+    }
+    return label.replace(/\s*\(?slot\s*\d+\)?/i, '').trim() || 'QR Ph (Scan to Pay)';
+};
+
 export default function PayBills() {
     const navigate = useNavigate();
     const { t } = useLang();
     const [selectedMethod, setSelectedMethod] = useState('');
+    const [showQrModal, setShowQrModal] = useState(false);
     const [paymentChannels, setPaymentChannels] = useState([]);
+    const [channelsLoading, setChannelsLoading] = useState(true);
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTimeSlot, setScheduledTimeSlot] = useState('morning');
 
@@ -346,6 +357,7 @@ export default function PayBills() {
 
     useEffect(() => {
         const fetchChannels = async () => {
+            setChannelsLoading(true);
             try {
                 const res = await api.get('/get_payment_channels.php');
                 if (res.data.success && res.data.channels) {
@@ -353,11 +365,11 @@ export default function PayBills() {
                         let icon, color;
                         if (ch.icon === 'gcash') { icon = faWallet; color = 'text-blue-600'; }
                         else if (ch.icon === 'bank') { icon = faUniversity; color = 'text-indigo-600'; }
-                        else if (ch.icon === 'qr') { icon = faMoneyBillWave; color = 'text-blue-500'; }
+                        else if (ch.icon === 'qr') { icon = faQrcode; color = 'text-indigo-600'; }
                         else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; }
                         else { icon = faMoneyBillWave; color = 'text-emerald-600'; }
                         
-                        return { ...ch, icon, color, isGcash: ch.icon === 'gcash' };
+                        return { ...ch, icon, color, isGcash: ch.icon === 'gcash', isQr: ch.icon === 'qr' };
                     });
                     // Splitting a bill across methods rests on manual proofs, so it is
                     // offered with them, after the other methods.
@@ -367,10 +379,19 @@ export default function PayBills() {
                     setPaymentChannels(mapped);
                     if (mapped.length > 0) {
                         setSelectedMethod(mapped[0].id);
+                    } else {
+                        setSelectedMethod('');
                     }
+                } else {
+                    setPaymentChannels([]);
+                    setSelectedMethod('');
                 }
             } catch (error) {
                 console.error("Failed to fetch payment channels:", error);
+                setPaymentChannels([]);
+                setSelectedMethod('');
+            } finally {
+                setChannelsLoading(false);
             }
         };
         fetchChannels();
@@ -995,9 +1016,17 @@ export default function PayBills() {
                             screen-reader support): every method visible, arrow keys move. */}
                         <fieldset className="space-y-2 m-0 p-0 border-0 min-w-0">
                             <legend className="text-sm font-bold text-slate-700 mb-2 p-0">{t('payBills.selectMethod')}</legend>
-                            {paymentChannels.length === 0 && (
+                            {channelsLoading ? (
                                 <p className="m-0 text-sm text-slate-500">Loading payment methods…</p>
-                            )}
+                            ) : paymentChannels.length === 0 ? (
+                                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-1">
+                                    <p className="font-bold m-0 flex items-center gap-1.5">
+                                        <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600" />
+                                        Payment Options Unavailable
+                                    </p>
+                                    <p className="m-0 text-slate-600">All payment channels are currently disabled by apartment management. Online checkouts and proof uploads cannot be processed at this time.</p>
+                                </div>
+                            ) : null}
                             {paymentChannels.map((method) => {
                                 const checked = (currentMethodObj.id ?? selectedMethod) === method.id;
                                 return (
@@ -1015,6 +1044,8 @@ export default function PayBills() {
                                         />
                                         {method.isGcash ? (
                                             <span aria-hidden="true" className="w-9 h-5 rounded bg-blue-600 text-white flex items-center justify-center font-black text-[9px] tracking-tighter select-none shrink-0">GCash</span>
+                                        ) : method.isQr ? (
+                                            <span aria-hidden="true" className="w-9 h-5 rounded bg-indigo-600 text-white flex items-center justify-center font-black text-[8px] tracking-tight select-none shrink-0">QR PH</span>
                                         ) : (
                                             <FontAwesomeIcon icon={method.icon} aria-hidden="true" className={`text-base w-9 shrink-0 ${method.color}`} />
                                         )}
@@ -1049,7 +1080,111 @@ export default function PayBills() {
                         )}
 
                         {currentMethodObj.family === 'manual' && (
-                            <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
+                            <div className="space-y-4 p-4 sm:p-5 bg-slate-50/80 rounded-2xl border border-slate-200 text-left">
+                                {(currentMethodObj.isQr || currentMethodObj.id === 'qrph_manual') && (
+                                    <div className="bg-white rounded-xl p-4 border border-indigo-100 shadow-xs space-y-3">
+                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold">
+                                                    <FontAwesomeIcon icon={faQrcode} />
+                                                </span>
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-800 block">QR Ph Payment</span>
+                                                    <span className="text-[10px] text-slate-500">Scan via GCash, Maya, BDO, BPI, or any bank app</span>
+                                                </div>
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 uppercase tracking-wider">
+                                                InstaPay / PESONet
+                                            </span>
+                                        </div>
+
+                                        {currentMethodObj.qr_data?.image_path ? (
+                                            <div className="flex flex-col items-center text-center py-2 space-y-4">
+                                                {/* Title & subtitle (Never say 'QR Ph Slot 1') */}
+                                                <div className="space-y-1">
+                                                    <h4 className="m-0 text-sm font-extrabold text-indigo-700">
+                                                        {getQrTitle(currentMethodObj.qr_data.label)}
+                                                    </h4>
+                                                    <p className="m-0 text-xs text-slate-500">
+                                                        Interoperable across GCash, Maya, BDO, BPI, and all Philippine bank apps
+                                                    </p>
+                                                </div>
+
+                                                {/* Larger, centered QR card with hover-to-enlarge */}
+                                                <div
+                                                    onClick={() => setShowQrModal(true)}
+                                                    className="group relative cursor-pointer inline-block rounded-2xl p-3 bg-white border-2 border-indigo-100 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all"
+                                                    title="Click to enlarge QR Code"
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowQrModal(true); }}
+                                                >
+                                                    <img
+                                                        src={publicAssetUrl(currentMethodObj.qr_data.image_path)}
+                                                        alt={getQrTitle(currentMethodObj.qr_data.label)}
+                                                        className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl bg-white select-none block"
+                                                    />
+                                                    <div className="absolute inset-0 rounded-2xl bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1.5 font-bold text-xs backdrop-blur-[2px]">
+                                                        <FontAwesomeIcon icon={faExpand} className="text-xl" />
+                                                        <span>Click to Enlarge</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Action buttons: Enlarge modal & Save image */}
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowQrModal(true)}
+                                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold border border-indigo-200 cursor-pointer transition-colors"
+                                                    >
+                                                        <FontAwesomeIcon icon={faExpand} className="text-[11px]" />
+                                                        <span>Enlarge QR</span>
+                                                    </button>
+                                                    <a
+                                                        href={publicAssetUrl(currentMethodObj.qr_data.image_path)}
+                                                        download="qr_ph_payment.png"
+                                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold border border-slate-200 no-underline cursor-pointer transition-colors"
+                                                    >
+                                                        <FontAwesomeIcon icon={faDownload} className="text-[11px]" />
+                                                        <span>Save Image</span>
+                                                    </a>
+                                                </div>
+
+                                                {/* Account Details if provided */}
+                                                {(currentMethodObj.qr_data.account_name || currentMethodObj.qr_data.account_number) && (
+                                                    <div className="w-full max-w-sm p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 shadow-xs text-left">
+                                                        {currentMethodObj.qr_data.account_name && (
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-slate-500 font-medium">Account Name:</span>
+                                                                <span className="font-bold text-slate-800 truncate max-w-[200px]">{currentMethodObj.qr_data.account_name}</span>
+                                                            </div>
+                                                        )}
+                                                        {currentMethodObj.qr_data.account_number && (
+                                                            <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                                                                <span className="text-slate-500 font-medium">Account / Mobile No:</span>
+                                                                <span className="font-mono font-bold text-indigo-600">{currentMethodObj.qr_data.account_number}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                <div className="pt-2 text-[11px] text-slate-500 space-y-1 text-left max-w-sm">
+                                                    <p className="m-0 font-semibold text-slate-700">How to pay:</p>
+                                                    <ol className="m-0 pl-4 space-y-0.5 list-decimal text-slate-600">
+                                                        <li>Scan this QR code with any QR Ph-supported banking or e-wallet app.</li>
+                                                        <li>Transfer the exact amount due (or installment amount).</li>
+                                                        <li>Save the transfer receipt screenshot and note the Reference Number.</li>
+                                                        <li>Enter the Reference Number and upload the receipt below.</li>
+                                                    </ol>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800">
+                                                <strong>No active QR Ph code uploaded.</strong> The landlord has not uploaded a QR code for this slot yet. Please choose another payment method or contact management.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div>
                                     <label htmlFor="pay-payment_reference" className="block text-xs font-bold text-slate-700 mb-1">
                                         {t('payBills.refNo')} <span className="text-red-500">*</span>
@@ -1174,7 +1309,7 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                disabled={isPaying || (currentMethodObj.family === 'split' && !checkSplit(splitParts, splitTotal, scheduledDate).valid) || (payingGroup ? false : (!activeInv || isAwaiting))}
+                                disabled={isPaying || paymentChannels.length === 0 || (currentMethodObj.family === 'split' && !checkSplit(splitParts, splitTotal, scheduledDate).valid) || (payingGroup ? false : (!activeInv || isAwaiting))}
                                 className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed"
                             >
                                 {isPaying ? 'Processing…' : payingGroup
@@ -1337,6 +1472,18 @@ export default function PayBills() {
                 subtext={notice?.subtext}
                 action={notice?.action}
             />
+
+            {/* QR Ph Enlarge Modal */}
+            {currentMethodObj?.qr_data?.image_path && (
+                <QrPreviewModal
+                    isOpen={showQrModal}
+                    onClose={() => setShowQrModal(false)}
+                    imagePath={currentMethodObj.qr_data.image_path}
+                    title={getQrTitle(currentMethodObj.qr_data.label)}
+                    accountName={currentMethodObj.qr_data.account_name}
+                    accountNumber={currentMethodObj.qr_data.account_number}
+                />
+            )}
         </div>
     );
 }

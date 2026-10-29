@@ -24,9 +24,9 @@ const MAX_MONTHS = 24;
 const ADDRESS_MIN = 5;
 const ADDRESS_MAX = 255;
 const docKey = (id) => `doc_${id}`;
-const INPUT_CLS = "w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner text-base sm:text-sm transition-all font-medium disabled:opacity-75 disabled:cursor-not-allowed";
-const LOCKED_CLS = "w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 shadow-inner text-sm font-medium cursor-not-allowed";
-const LABEL_CLS = "text-sm font-bold text-slate-700";
+const INPUT_CLS = "w-full px-4 py-3 rounded-xl bg-slate-50/70 border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-sm text-base sm:text-sm transition-all font-medium hover:border-slate-300 disabled:opacity-75 disabled:cursor-not-allowed";
+const LOCKED_CLS = "w-full px-4 py-3 rounded-xl bg-slate-100/70 border border-slate-200/80 text-slate-500 shadow-sm text-sm font-medium cursor-not-allowed select-none";
+const LABEL_CLS = "text-sm font-bold text-slate-700 select-none";
 
 // Rent, room type and the occupant rules come from the room list and Settings
 // (rent_application.php takes the rent from the room itself). A hardcoded
@@ -52,11 +52,21 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
     const isImage = file && (file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name));
     return (
         <div className="flex flex-col space-y-2">
-            <label htmlFor={`rent-${fieldKey}`} className={LABEL_CLS}>
-                {label}
-                {optional && <span className="text-xs font-normal text-slate-500 ml-1">({t('rent.optional')})</span>}
-                {form.errors[fieldKey] && <span className="text-rose-500"> *</span>}
-            </label>
+            <div className="flex items-center justify-between min-h-[26px]">
+                <label htmlFor={`rent-${fieldKey}`} className={LABEL_CLS}>
+                    {label}
+                    {form.errors[fieldKey] && <span className="text-rose-500 ml-0.5">*</span>}
+                </label>
+                {optional ? (
+                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                        {t('rent.optional') || 'Optional'}
+                    </span>
+                ) : (
+                    <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                        Required
+                    </span>
+                )}
+            </div>
             <div
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
@@ -65,24 +75,32 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
                     setDragging(false);
                     if (e.dataTransfer.files?.[0]) onPick(e.dataTransfer.files[0]);
                 }}
-                className={`rent-app-upload-zone border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-200 relative bg-slate-50 flex flex-col items-center justify-center min-h-[180px] ${dragging ? 'border-indigo-500 bg-indigo-50/50 scale-[1.02]' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-100'}${invalidCls(form.errors[fieldKey])}`}
+                className={`rent-app-upload-zone border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-200 relative bg-slate-50/50 flex flex-col items-center justify-center min-h-[175px] ${dragging ? 'border-indigo-500 bg-indigo-50/50 scale-[1.01]' : 'border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/20'}${invalidCls(form.errors[fieldKey])}`}
             >
                 {!file ? (
                     <>
                         <input
                             type="file"
+                            id={`rent-${fieldKey}`}
                             {...form.fieldA11y(fieldKey)}
                             accept={acceptFor(FILE_RULES.document)}
                             onChange={(e) => { if (e.target.files?.[0]) onPick(e.target.files[0]); e.target.value = ''; }}
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                         />
                         <div className="space-y-3 pointer-events-none p-2 flex flex-col items-center">
-                            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center border border-slate-200">
-                                <UploadCloud className="w-6 h-6 text-indigo-500" />
+                            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center border border-slate-200/80 text-indigo-600">
+                                <UploadCloud className="w-6 h-6" />
                             </div>
-                            <p className="text-xs font-bold text-slate-600 m-0 leading-relaxed">{dropText}<br /><span className="text-indigo-600">{t('rent.browse')}</span></p>
+                            <div>
+                                <p className="text-xs font-bold text-slate-700 m-0 leading-relaxed">
+                                    {dropText} <span className="text-indigo-600 underline underline-offset-2">{t('rent.browse')}</span>
+                                </p>
+                                <p className="text-[11px] text-slate-400 m-0 mt-0.5 font-medium">PDF, PNG, JPG up to 10MB</p>
+                            </div>
                             {keepsPath && (
-                                <p className="text-xs text-emerald-600 font-bold m-0">{t('rent.docOnFile')}</p>
+                                <p className="text-xs text-emerald-600 font-bold m-0 flex items-center gap-1">
+                                    <Check className="w-3.5 h-3.5 inline" /> {t('rent.docOnFile')}
+                                </p>
                             )}
                         </div>
                     </>
@@ -93,7 +111,7 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
                                 src={previewUrl}
                                 alt={`${label} preview`}
                                 onClick={() => onPreview(file, label)}
-                                className="w-full h-24 object-cover rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
+                                className="w-full h-28 object-cover rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                             />
                         ) : (
                             <div className="w-full h-24 bg-indigo-50 flex flex-col items-center justify-center rounded-xl border border-indigo-200 text-indigo-600">
@@ -101,7 +119,7 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
                                 <button type="button" onClick={() => onPreview(file, label)} className="min-h-[44px] bg-indigo-600 text-white text-sm font-bold px-4 rounded-lg shadow-sm cursor-pointer border-0">{t('rent.viewPdf')}</button>
                             </div>
                         )}
-                        <p className="text-xs font-bold text-slate-600 m-0 truncate w-full px-2">
+                        <p className="text-xs font-bold text-slate-700 m-0 truncate w-full px-2">
                             {file.name} <span className="font-normal text-slate-500">({formatFileSize(file.size)})</span>
                         </p>
                         <button type="button" onClick={onRemove} className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-sm font-bold min-h-[44px] rounded-xl transition-colors cursor-pointer border-0">{t('common.remove')}</button>
@@ -540,21 +558,21 @@ export default function RentApplication() {
     );
 
     return (
-        <div className="rent-app-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
+        <div className="rent-app-root w-full min-h-[calc(100vh-76px)] bg-slate-50/70 py-8 md:py-12 px-4 sm:px-6 lg:px-10 box-border flex flex-col items-center">
+            <div className="w-full max-w-5xl xl:max-w-6xl space-y-8 flex flex-col justify-start text-left">
 
-                <div className="rent-app-header-row border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="rent-app-header-row pb-5 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="rent-app-heading text-4xl font-sans font-black m-0 tracking-tight select-none text-slate-900">
+                        <h1 className="rent-app-heading text-3xl sm:text-4xl font-sans font-black m-0 tracking-tight select-none text-slate-900">
                             {t('rent.heading')}
                         </h1>
-                        <p className="text-slate-500 text-sm mt-1 m-0 font-medium">
+                        <p className="text-slate-500 text-sm mt-1.5 m-0 font-medium">
                             {t('rent.subtitle')}
                         </p>
                     </div>
 
                     {['pending review', 'pending', 'approved', 'active'].includes(applicationStatus?.toLowerCase()) && (
-                        <div className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border border-current self-start sm:self-center transition-all duration-300 ${isPendingReview ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                        <div className={`flex items-center space-x-3 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border transition-all duration-300 self-start sm:self-center ${isPendingReview ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                             {isPendingReview ? <Hourglass className="w-5 h-5" aria-hidden="true" /> : <Check className="w-5 h-5" />}
                             <div className="flex flex-col text-left">
                                 <span className="text-xs opacity-75 leading-none">{t('rent.statusLabel')}</span>
@@ -601,10 +619,14 @@ export default function RentApplication() {
                         </div>
                     )
                 ) : (
-                    <form className="rent-app-form-card bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-900/5 p-6 md:p-10 space-y-10" onSubmit={handleFormSubmit} noValidate>
+                    <form className="rent-app-form-card bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-900/[0.03] p-6 sm:p-8 md:p-10 space-y-10" onSubmit={handleFormSubmit} noValidate>
 
-                        <div className="space-y-5">
-                            <h3 className="text-xl font-black m-0 border-b border-slate-100 pb-3 text-slate-900">{t('rent.personalDetails')}</h3>
+                        {/* Section 1: Personal Details */}
+                        <div className="space-y-6">
+                            <div className="border-b border-slate-100 pb-3">
+                                <h3 className="text-xl font-black m-0 text-slate-900">{t('rent.personalDetails')}</h3>
+                                <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Applicant contact and identity details on file</p>
+                            </div>
                             <div className="rent-app-personal-grid grid grid-cols-1 md:grid-cols-4 gap-5">
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-firstName" className={LABEL_CLS}>{t('rent.firstName')}</label>
@@ -620,7 +642,7 @@ export default function RentApplication() {
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-suffix" className={LABEL_CLS}>
-                                        {t('rent.suffix')} <span className="text-xs font-normal text-slate-500 ml-1">({t('rent.optional')})</span>
+                                        {t('rent.suffix')} <span className="text-xs font-normal text-slate-400 ml-1">({t('rent.optional')})</span>
                                     </label>
                                     <input
                                         type="text"
@@ -680,11 +702,22 @@ export default function RentApplication() {
                                     <FieldError id="rent-gender" error={form.errors.gender} className="m-0" />
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Section 2: Rental Preferences & Move-in Details */}
+                        <div className="space-y-6">
+                            <div className="border-b border-slate-100 pb-3">
+                                <h3 className="text-xl font-black m-0 text-slate-900">Rental Preferences</h3>
+                                <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Specify your residential history, move-in target, and lease terms</p>
+                            </div>
 
                             <div className="flex flex-col space-y-1.5">
-                                <label htmlFor="rent-previousAddress" className={LABEL_CLS}>
-                                    {t('rent.previousAddress')} {form.errors.previousAddress && <span className="text-rose-500 ml-0.5">*</span>}
-                                </label>
+                                <div className="flex items-center justify-between">
+                                    <label htmlFor="rent-previousAddress" className={LABEL_CLS}>
+                                        {t('rent.previousAddress')} {form.errors.previousAddress && <span className="text-rose-500 ml-0.5">*</span>}
+                                    </label>
+                                    <span className="text-xs text-slate-400 font-medium">Recent residential address</span>
+                                </div>
                                 <input
                                     type="text"
                                     {...form.fieldA11y('previousAddress')}
@@ -701,14 +734,17 @@ export default function RentApplication() {
                                 <FieldError id="rent-previousAddress" error={form.errors.previousAddress} className="m-0" />
                             </div>
 
+                            {/* 3 Perfectly Aligned Columns */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                {/* 1. Occupants */}
                                 <div className="flex flex-col">
-                                    <label htmlFor="rent-occupants" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
-                                        <span>{t('rent.occupants')} {form.errors.occupants && <span className="text-rose-500 ml-0.5">*</span>}</span>
-                                        <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{t('rent.occupantsSurcharge')}</span>
-                                    </label>
-                                    <div className="flex flex-col">
+                                    <div className="flex items-center justify-between h-7 mb-2">
+                                        <label htmlFor="rent-occupants" className={LABEL_CLS}>
+                                            {t('rent.occupants')} {form.errors.occupants && <span className="text-rose-500 ml-0.5">*</span>}
+                                        </label>
+                                    </div>
                                     <input
+                                        id="rent-occupants"
                                         type="number"
                                         {...form.fieldA11y('occupants')}
                                         inputMode="numeric"
@@ -721,19 +757,29 @@ export default function RentApplication() {
                                         onKeyDown={blockNonIntegerKeys}
                                         onChange={handleOccupantsInput}
                                         onBlur={() => form.validateField('occupants', values)}
-                                        className={INPUT_CLS + invalidCls(form.errors.occupants)}
+                                        className={`${INPUT_CLS} ${invalidCls(form.errors.occupants)}`}
                                         required
                                     />
-                                    <FieldError id="rent-occupants" error={form.errors.occupants} className="mt-1 m-0" />
+                                    <div className="min-h-[22px] mt-1.5">
+                                        {form.errors.occupants ? (
+                                            <FieldError id="rent-occupants" error={form.errors.occupants} className="m-0" />
+                                        ) : (
+                                            <p className="m-0 text-xs text-indigo-600 font-semibold leading-relaxed">
+                                                {t('rent.occupantsSurcharge')}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
+
+                                {/* 2. Months of Rent */}
                                 <div className="flex flex-col">
-                                    <label htmlFor="rent-monthsOfRent" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
-                                        <span>{t('rent.monthsOfRent')} {form.errors.monthsOfRent && <span className="text-rose-500 ml-0.5">*</span>}</span>
-                                        <span className="text-xs font-semibold text-slate-500">{t('rent.monthsMax').replace('{min}', minMonths)}</span>
-                                    </label>
-                                    <div className="flex flex-col">
+                                    <div className="flex items-center justify-between h-7 mb-2">
+                                        <label htmlFor="rent-monthsOfRent" className={LABEL_CLS}>
+                                            {t('rent.monthsOfRent')} {form.errors.monthsOfRent && <span className="text-rose-500 ml-0.5">*</span>}
+                                        </label>
+                                    </div>
                                     <input
+                                        id="rent-monthsOfRent"
                                         type="number"
                                         {...form.fieldA11y('monthsOfRent')}
                                         inputMode="numeric"
@@ -746,17 +792,28 @@ export default function RentApplication() {
                                         onKeyDown={blockNonIntegerKeys}
                                         onChange={handleMonthsInput}
                                         onBlur={() => form.validateField('monthsOfRent', values)}
-                                        className={INPUT_CLS + invalidCls(form.errors.monthsOfRent)}
+                                        className={`${INPUT_CLS} ${invalidCls(form.errors.monthsOfRent)}`}
                                         required
                                     />
-                                    <FieldError id="rent-monthsOfRent" error={form.errors.monthsOfRent} className="mt-1 m-0" />
+                                    <div className="min-h-[22px] mt-1.5">
+                                        {form.errors.monthsOfRent ? (
+                                            <FieldError id="rent-monthsOfRent" error={form.errors.monthsOfRent} className="m-0" />
+                                        ) : (
+                                            <p className="m-0 text-xs text-slate-500 font-medium leading-relaxed">
+                                                {t('rent.monthsMax').replace('{min}', minMonths)}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
+
+                                {/* 3. Move In By */}
                                 <div className="flex flex-col">
-                                    <div className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
-                                        <label htmlFor="rent-prefMoveInDate">Move In By {form.errors.prefMoveInDate && <span className="text-rose-500 ml-0.5">*</span>}</label>
+                                    <div className="flex items-center justify-between h-7 mb-2">
+                                        <label htmlFor="rent-prefMoveInDate" className={LABEL_CLS}>
+                                            {t('rent.moveInBy') || 'Move In By'} {form.errors.prefMoveInDate && <span className="text-rose-500 ml-0.5">*</span>}
+                                        </label>
                                         {!isReadOnly && (
-                                            <label htmlFor="rent-isAsap" className="flex min-h-[44px] items-center gap-2 cursor-pointer ml-2 bg-indigo-50 px-3 rounded-full border border-indigo-100 hover:bg-indigo-100 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-400">
+                                            <label htmlFor="rent-isAsap" className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 hover:bg-indigo-100 transition-colors cursor-pointer select-none">
                                                 <input
                                                     id="rent-isAsap"
                                                     type="checkbox"
@@ -769,19 +826,18 @@ export default function RentApplication() {
                                                             form.clearError('prefMoveInDate');
                                                         }
                                                     }}
-                                                    className="h-4 w-4 accent-indigo-600 cursor-pointer"
+                                                    className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer"
                                                 />
-                                                <span className="text-xs font-bold text-indigo-700 select-none">{t('rent.anyTime')}</span>
+                                                <span>{t('rent.anyTime') || 'Any time'}</span>
                                             </label>
                                         )}
                                     </div>
-                                    <div className="flex flex-col">
                                     {isASAP ? (
                                         <input
                                             type="text"
-                                            value="Any time"
+                                            value="Any time (Flexible)"
                                             disabled
-                                            className={INPUT_CLS + " text-slate-500 font-bold"}
+                                            className={`${INPUT_CLS} bg-slate-100/70 text-slate-600 font-bold cursor-not-allowed select-none`}
                                         />
                                     ) : (
                                         <input
@@ -793,58 +849,115 @@ export default function RentApplication() {
                                             disabled={isReadOnly}
                                             onChange={(e) => { setPrefMoveInDate(e.target.value); form.clearError('prefMoveInDate'); }}
                                             onBlur={() => form.validateField('prefMoveInDate', values)}
-                                            className={INPUT_CLS + invalidCls(form.errors.prefMoveInDate)}
+                                            className={`${INPUT_CLS} ${invalidCls(form.errors.prefMoveInDate)}`}
                                             required
                                         />
                                     )}
-                                    {!isASAP && !isReadOnly && <p className="mt-1 mb-0 text-xs text-slate-500">{moveInRangeText(moveInWindow)}</p>}
-                                    <FieldError id="rent-prefMoveInDate" error={form.errors.prefMoveInDate} className="mt-1 m-0" />
+                                    <div className="min-h-[22px] mt-1.5">
+                                        {form.errors.prefMoveInDate ? (
+                                            <FieldError id="rent-prefMoveInDate" error={form.errors.prefMoveInDate} className="m-0" />
+                                        ) : !isASAP && !isReadOnly ? (
+                                            <p className="m-0 text-xs text-slate-500 font-medium leading-relaxed">{moveInRangeText(moveInWindow)}</p>
+                                        ) : (
+                                            <p className="m-0 text-xs text-emerald-600 font-medium leading-relaxed">No fixed move-in deadline</p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-5">
-                            <h3 className="text-xl font-black m-0 border-b border-slate-100 pb-3 text-slate-900">{t('rent.roomDetails')}</h3>
+                        {/* Section 3: Room & Rate Overview */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <div>
+                                    <h3 className="text-xl font-black m-0 text-slate-900">{t('rent.roomDetails')}</h3>
+                                    <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Selected apartment unit and estimated monthly billing</p>
+                                </div>
+                                {!isReadOnly && !isEditing && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRoomModal(true)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl border border-indigo-200/60 transition-colors cursor-pointer"
+                                    >
+                                        <span>{selectedRoomId ? t('rent.changeRoom') : t('rent.chooseRoom')}</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            <input type="hidden" id="rent-roomName" {...form.fieldA11y('roomName')} value={selectedRoomId || ''} readOnly />
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="rent-roomType" className="text-sm font-bold text-slate-800 select-none">{t('rent.roomType')}</label>
-                                    <input id="rent-roomType" type="text" value={selectedRoom?.type || '—'} disabled className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-base sm:text-sm select-none cursor-not-allowed shadow-inner" />
-                                </div>
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="rent-roomName" className="text-sm font-bold text-slate-800 select-none flex justify-between">
-                                        {t('rent.assignedRoom')}
-                                        {!isReadOnly && !isEditing && (
-                                            <button type="button" onClick={() => setShowRoomModal(true)} className="min-h-[44px] px-2 -mr-2 text-sm text-indigo-600 font-bold hover:underline bg-transparent border-0 cursor-pointer">{selectedRoomId ? t('rent.changeRoom') : t('rent.chooseRoom')}</button>
-                                        )}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        {...form.fieldA11y('roomName')}
-                                        value={selectedRoomId ? t('rent.roomName', { room: selectedRoomId }) : t('rent.noRoomYet')}
-                                        disabled
-                                        className={`w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-base sm:text-sm select-none cursor-not-allowed shadow-inner${invalidCls(form.errors.roomName)}`}
-                                    />
-                                    <FieldError id="rent-roomName" error={form.errors.roomName} className="m-0" />
-                                </div>
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="rent-monthlyRent" className="text-sm font-bold text-slate-800 select-none">{t('rent.monthlyRent')}</label>
-                                    <input
-                                        id="rent-monthlyRent"
-                                        type="text"
-                                        value={monthlyRent === null ? '—' : `₱${monthlyRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                                        disabled
-                                        className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-indigo-700 font-black text-lg select-none cursor-not-allowed shadow-inner"
-                                    />
-                                    {surcharge > 0 && (
-                                        <span className="text-xs text-emerald-600 font-bold mt-1">
-                                            {t('rent.extraOccupantFee').replace('{amount}', surcharge.toLocaleString())}
+                                {/* Room Type Card */}
+                                <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between min-h-[125px]">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('rent.roomType')}</span>
+                                        <span className="text-[11px] font-bold text-slate-600 bg-white px-2.5 py-0.5 rounded-full border border-slate-200/80 shadow-2xs">Layout</span>
+                                    </div>
+                                    <div className="my-2">
+                                        <span className="text-xl font-black text-slate-900 block">
+                                            {selectedRoom?.type || 'Studio'}
                                         </span>
-                                    )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 m-0 font-medium">Self-contained private unit</p>
+                                </div>
+
+                                {/* Assigned Room Card */}
+                                <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between min-h-[125px] ${form.errors.roomName ? 'border-rose-300 bg-rose-50/30 ring-2 ring-rose-200' : selectedRoomId ? 'bg-indigo-50/30 border-indigo-200/80' : 'bg-slate-50/70 border-slate-200/80'}`}>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('rent.assignedRoom')}</span>
+                                        {!isReadOnly && !isEditing && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowRoomModal(true)}
+                                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 transition-colors cursor-pointer"
+                                            >
+                                                {selectedRoomId ? t('rent.changeRoom') : t('rent.chooseRoom')}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="my-2">
+                                        <span className="text-xl font-black text-indigo-950 block">
+                                            {selectedRoomId ? t('rent.roomName', { room: selectedRoomId }) : t('rent.noRoomYet')}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <FieldError id="rent-roomName" error={form.errors.roomName} className="m-0" />
+                                        {!form.errors.roomName && (
+                                            <p className="text-xs text-slate-500 m-0 font-medium">
+                                                {selectedRoom ? `Floor ${selectedRoom.floor || 1} • Unit Available` : 'Choose a vacant unit to proceed'}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Monthly Rent Card */}
+                                <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex flex-col justify-between min-h-[125px]">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">{t('rent.monthlyRent')}</span>
+                                        <span className="text-[11px] font-bold text-indigo-700 bg-white px-2.5 py-0.5 rounded-full border border-indigo-200/60 shadow-2xs">Estimated</span>
+                                    </div>
+                                    <div className="my-2">
+                                        <span className="text-2xl font-black text-indigo-700 block">
+                                            {monthlyRent === null ? '—' : `₱${monthlyRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                                            <span className="text-xs font-bold text-indigo-500 ml-1">/ month</span>
+                                        </span>
+                                    </div>
+                                    <div>
+                                        {surcharge > 0 ? (
+                                            <p className="text-xs text-emerald-600 font-bold m-0">
+                                                {t('rent.extraOccupantFee').replace('{amount}', surcharge.toLocaleString())}
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-slate-500 m-0 font-medium">
+                                                Standard base rate for {occupants || 1} occupant(s)
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Section 4: Verification Documents */}
                         <div className="space-y-6">
                             <div className="border-b border-slate-100 pb-3">
                                 <h3 className="text-xl font-black m-0 text-slate-900">{t('rent.verificationDocs')}</h3>
@@ -862,10 +975,32 @@ export default function RentApplication() {
                                 ) : requirementsState === 'error' ? (
                                     <p role="alert" className="m-0 rounded-xl bg-rose-50 p-4 text-sm font-semibold text-rose-700">{t('rent.docsLoadFailed')}</p>
                                 ) : requirements.length === 0 ? (
-                                    <p className="m-0 text-sm font-semibold text-slate-500">{t('rent.noDocsRequired')}</p>
+                                    <div className="p-8 rounded-2xl bg-slate-50/70 border border-slate-200/80 text-center flex flex-col items-center justify-center">
+                                        <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2.5 border border-emerald-100">
+                                            <Check className="w-6 h-6" />
+                                        </div>
+                                        <p className="m-0 text-sm font-bold text-slate-800">{t('rent.noDocsRequired')}</p>
+                                        <p className="m-0 text-xs text-slate-400 mt-1 font-medium">No identity or verification documents are required for this application submission.</p>
+                                    </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {requirements.map(docCard)}
+                                    <div className={`grid gap-5 sm:gap-6 ${
+                                        requirements.length === 1
+                                            ? 'grid-cols-1 max-w-xl mx-auto'
+                                            : 'grid-cols-1 md:grid-cols-2'
+                                    }`}>
+                                        {requirements.map((r, idx) => {
+                                            const isLastOdd = requirements.length % 2 === 1 && idx === requirements.length - 1 && requirements.length > 1;
+                                            if (isLastOdd) {
+                                                return (
+                                                    <div key={r.id} className="md:col-span-2 flex justify-center">
+                                                        <div className="w-full md:w-[calc(50%-0.75rem)]">
+                                                            {docCard(r)}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return docCard(r);
+                                        })}
                                     </div>
                                 )
                             )}
@@ -876,66 +1011,96 @@ export default function RentApplication() {
                             <InlineAlert className="w-full" onDismiss={() => setNotice('')}>{notice}</InlineAlert>
                             <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                                 {!isReadOnly && (
-                                    <div className="flex w-full min-w-0 flex-col items-start gap-3 pr-3 sm:flex-1">
-                                        <div className="flex w-full min-w-0 items-start gap-3">
-                                            <label className="group relative -ml-2.5 -mt-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+                                    <div className="flex w-full min-w-0 flex-col items-start gap-3.5 sm:flex-1">
+                                        <label className="flex items-start gap-3 cursor-pointer group select-none">
+                                            <div className="relative flex items-center justify-center mt-0.5 shrink-0">
                                                 <input
                                                     type="checkbox"
+                                                    id="rent-agreeTerms"
                                                     {...form.fieldA11y('agreeTerms')}
                                                     checked={agreePrivacy}
                                                     onChange={(e) => { setAgreePrivacy(e.target.checked); form.clearError('agreeTerms'); }}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="flex h-6 w-6 items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
+                                                <div className="flex h-5 w-5 items-center justify-center rounded-md border-2 border-slate-300 bg-white transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
                                                     <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreePrivacy ? 'scale-100' : 'scale-0'}`} />
                                                 </div>
-                                            </label>
-                                            <label htmlFor="rent-agreeTerms" className="min-w-0 text-sm font-semibold text-slate-700">
+                                            </div>
+                                            <span className="min-w-0 text-sm font-semibold text-slate-700 leading-snug">
                                                 {t('rent.agreeTerms')}{' '}
-                                                <button type="button" onClick={() => setShowTermsModal(true)} className="inline cursor-pointer border-0 bg-transparent p-0 font-semibold text-indigo-600 underline underline-offset-2 hover:text-indigo-700">
+                                                <button type="button" onClick={() => setShowTermsModal(true)} className="inline cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 underline underline-offset-2 hover:text-indigo-800">
                                                     {t('rent.termsLink')}
                                                 </button>
-                                            </label>
-                                        </div>
-                                        <FieldError id="rent-agreeTerms" error={form.errors.agreeTerms} className="m-0" />
+                                            </span>
+                                        </label>
+                                        <FieldError id="rent-agreeTerms" error={form.errors.agreeTerms} className="m-0 pl-8" />
 
-                                        <div className="flex w-full min-w-0 items-start gap-3">
-                                            <label className="group relative -ml-2.5 -mt-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+                                        <label className="flex items-start gap-3 cursor-pointer group select-none">
+                                            <div className="relative flex items-center justify-center mt-0.5 shrink-0">
                                                 <input
                                                     type="checkbox"
+                                                    id="rent-agreeRules"
                                                     {...form.fieldA11y('agreeRules')}
                                                     checked={agreeRules}
                                                     onChange={(e) => { setAgreeRules(e.target.checked); form.clearError('agreeRules'); }}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="flex h-6 w-6 items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
+                                                <div className="flex h-5 w-5 items-center justify-center rounded-md border-2 border-slate-300 bg-white transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
                                                     <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreeRules ? 'scale-100' : 'scale-0'}`} />
                                                 </div>
-                                            </label>
-                                            <label htmlFor="rent-agreeRules" className="min-w-0 text-sm font-semibold text-slate-700">
+                                            </div>
+                                            <span className="min-w-0 text-sm font-semibold text-slate-700 leading-snug">
                                                 {t('rent.rulesAgreement')}{' '}
-                                                <button type="button" onClick={(e) => { e.preventDefault(); setIsRulesModalOpen(true); }} className="inline cursor-pointer border-0 bg-transparent p-0 font-semibold text-indigo-600 underline hover:text-indigo-800">
+                                                <button type="button" onClick={(e) => { e.preventDefault(); setIsRulesModalOpen(true); }} className="inline cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 underline hover:text-indigo-800">
                                                     {t('rent.rulesLink')}
                                                 </button>.
-                                            </label>
-                                        </div>
-                                        <FieldError id="rent-agreeRules" error={form.errors.agreeRules} className="m-0" />
+                                            </span>
+                                        </label>
+                                        <FieldError id="rent-agreeRules" error={form.errors.agreeRules} className="m-0 pl-8" />
+
+                                        <label className="flex items-start gap-3 cursor-pointer group select-none">
+                                            <div className="relative flex items-center justify-center mt-0.5 shrink-0">
+                                                <input
+                                                    type="checkbox"
+                                                    id="rent-agreeBoth"
+                                                    checked={agreePrivacy && agreeRules}
+                                                    onChange={(e) => {
+                                                        const checked = e.target.checked;
+                                                        setAgreePrivacy(checked);
+                                                        setAgreeRules(checked);
+                                                        if (checked) {
+                                                            form.clearError('agreeTerms');
+                                                            form.clearError('agreeRules');
+                                                        }
+                                                    }}
+                                                    className="peer sr-only"
+                                                />
+                                                <div className="flex h-5 w-5 items-center justify-center rounded-md border-2 border-slate-300 bg-white transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
+                                                    <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${(agreePrivacy && agreeRules) ? 'scale-100' : 'scale-0'}`} />
+                                                </div>
+                                            </div>
+                                            <span className="min-w-0 text-sm font-semibold text-slate-700 leading-snug">
+                                                {t('rent.agreeBoth')}
+                                            </span>
+                                        </label>
                                     </div>
                                 )}
 
-                                {isPendingReview ? (
-                                    <div className="text-center p-4 bg-amber-50 rounded-2xl border border-amber-200 text-amber-700 text-sm font-bold w-full">
-                                        {t('rent.pendingMsg')}
-                                    </div>
-                                ) : (
-                                    <button
-                                        type="submit"
-                                        disabled={submitting}
-                                        className={`rent-app-submit-btn w-full sm:w-auto font-black px-12 py-4 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30 text-white cursor-pointer' : submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 text-white cursor-pointer hover:-translate-y-1 active:translate-y-0'}`}
-                                    >
-                                        {submitting ? 'Submitting…' : applicationStatus === 'accepted' ? t('rent.proceedPayment') : t('rent.submitApp')}
-                                    </button>
-                                )}
+                                <div className="shrink-0 w-full sm:w-auto self-stretch sm:self-center flex items-center justify-end">
+                                    {isPendingReview ? (
+                                        <div className="text-center p-4 bg-amber-50 rounded-2xl border border-amber-200 text-amber-700 text-sm font-bold w-full">
+                                            {t('rent.pendingMsg')}
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="submit"
+                                            disabled={submitting}
+                                            className={`rent-app-submit-btn w-full sm:w-auto font-black px-10 py-3.5 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30 text-white cursor-pointer' : submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 text-white cursor-pointer hover:-translate-y-0.5 active:translate-y-0'}`}
+                                        >
+                                            {submitting ? 'Submitting…' : applicationStatus === 'accepted' ? t('rent.proceedPayment') : t('rent.submitApp')}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </form>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faHourglassHalf, faCheckCircle, faArrowRight, faArrowLeft,
-    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faEye, faFilePdf
+    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faEye, faFilePdf, faQrcode
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
@@ -32,6 +32,7 @@ export default function TrackApplication() {
     const [application, setApplication] = useState(null);
     const [error, setError] = useState(null);
     const [paymentChannels, setPaymentChannels] = useState([]);
+    const [channelsLoading, setChannelsLoading] = useState(true);
     const [selectedMethod, setSelectedMethod] = useState('');
     const [paying, setPaying] = useState(false);
     const [contractFile, setContractFile] = useState(null);
@@ -304,6 +305,7 @@ export default function TrackApplication() {
         };
 
         const fetchChannels = async () => {
+            setChannelsLoading(true);
             try {
                 const res = await api.get('/get_payment_channels.php');
                 if (res.data.success && res.data.channels) {
@@ -311,7 +313,7 @@ export default function TrackApplication() {
                         let icon, color, isDigital;
                         if (ch.icon === 'gcash') { icon = faWallet; color = 'text-blue-600'; isDigital = true; }
                         else if (ch.icon === 'bank') { icon = faUniversity; color = 'text-indigo-600'; isDigital = true; }
-                        else if (ch.icon === 'qr') { icon = faMoneyBillWave; color = 'text-blue-500'; isDigital = true; }
+                        else if (ch.icon === 'qr') { icon = faQrcode; color = 'text-indigo-400'; isDigital = true; }
                         else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; isDigital = true; }
                         else { icon = faMoneyBillWave; color = 'text-emerald-600'; isDigital = false; }
                         
@@ -320,10 +322,19 @@ export default function TrackApplication() {
                     setPaymentChannels(mapped);
                     if (mapped.length > 0) {
                         setSelectedMethod(mapped[0].id);
+                    } else {
+                        setSelectedMethod('');
                     }
+                } else {
+                    setPaymentChannels([]);
+                    setSelectedMethod('');
                 }
             } catch (error) {
                 console.error("Failed to fetch payment channels:", error);
+                setPaymentChannels([]);
+                setSelectedMethod('');
+            } finally {
+                setChannelsLoading(false);
             }
         };
         fetchChannels();
@@ -617,7 +628,9 @@ export default function TrackApplication() {
                     <fieldset className="p-0 border-0 min-w-0">
                         <legend className="mb-2 p-0 text-sm font-bold text-slate-100">Payment method</legend>
                         <div className="track-app-payment-methods grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {paymentChannels.length > 0 ? paymentChannels.map((method) => {
+                            {channelsLoading ? (
+                                <p className="m-0 text-sm text-slate-300">Loading payment methods…</p>
+                            ) : paymentChannels.length > 0 ? paymentChannels.map((method) => {
                                 const chosen = selectedMethod === method.id;
                                 return (
                                     <button
@@ -635,12 +648,14 @@ export default function TrackApplication() {
                                     </button>
                                 );
                             }) : (
-                                <p className="m-0 text-sm text-slate-300">Loading payment methods…</p>
+                                <div className="sm:col-span-2 p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs text-amber-200">
+                                    <strong>Payment options currently unavailable.</strong> Apartment management has disabled all payment channels. Please contact management for assistance.
+                                </div>
                             )}
                         </div>
                     </fieldset>
                     <InlineAlert onDismiss={() => setPayError('')}>{payError}</InlineAlert>
-                    <button type="button" onClick={handleInitialPayment} disabled={paying} className={`${BTN_PRIMARY} w-full sm:w-auto min-h-[48px] text-base`}>
+                    <button type="button" onClick={handleInitialPayment} disabled={paying || paymentChannels.length === 0} className={`${BTN_PRIMARY} w-full sm:w-auto min-h-[48px] text-base`}>
                         {paying ? 'Processing…' : `Pay ${peso(moveInBalance)}`}
                     </button>
                 </>

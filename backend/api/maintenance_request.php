@@ -20,6 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $auth = require_user($conn);
 $user_id = $auth['id'];
 
+if ($auth['role'] !== 'admin' && get_setting($conn, 'service_maintenance_active', 'true') === 'false') {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Maintenance service is currently disabled by management."]);
+    exit;
+}
+
 $category = normalize_maintenance_category($_POST['issueType'] ?? '');
 // Priority is an admin call, not a tenant self-declaration — any urgency the
 // client sends is ignored. Every new ticket starts as "Needs Triage" and only

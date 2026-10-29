@@ -28,6 +28,15 @@ const DEFAULTS = {
   paymentChGcashManual: true,
   paymentChBankManual: true,
   paymentChInPerson: true,
+  paymentChQrphManual: true,
+  qrphActiveSlot: 1,
+  qrphSlots: [
+    { slot: 1, label: 'QR Ph Slot 1', image_path: '', account_name: '', account_number: '' },
+    { slot: 2, label: 'QR Ph Slot 2', image_path: '', account_name: '', account_number: '' },
+    { slot: 3, label: 'QR Ph Slot 3', image_path: '', account_name: '', account_number: '' },
+    { slot: 4, label: 'QR Ph Slot 4', image_path: '', account_name: '', account_number: '' },
+    { slot: 5, label: 'QR Ph Slot 5', image_path: '', account_name: '', account_number: '' },
+  ],
   duplicateReferencePolicy: 'warn',    // reused GCash/bank reference: 'warn' = flag to the admin, 'block' = refuse
   paymongoSecretKey: '',
   paymongoPublicKey: '',
@@ -90,7 +99,7 @@ export const getSystemSettings = async () => {
         moveInMaxDays: parseInt(dbSettings.move_in_max_days || DEFAULTS.moveInMaxDays),
         maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || DEFAULTS.maintenanceMonthlyBudget),
         tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || DEFAULTS.tenantResponsibilityClause,
-        paymentMode: (dbSettings.payment_mode === 'sandbox' || dbSettings.payment_mode === 'manual') ? dbSettings.payment_mode : DEFAULTS.paymentMode,
+        paymentMode: ['manual', 'sandbox', 'both'].includes(dbSettings.payment_mode) ? dbSettings.payment_mode : DEFAULTS.paymentMode,
         paymentSandboxEnabled: dbSettings.payment_sandbox_enabled === '1' || dbSettings.payment_sandbox_enabled === 1 || dbSettings.payment_sandbox_enabled === true,
         paymentChGcashSandbox: dbSettings.payment_ch_gcash_sandbox === '1' || dbSettings.payment_ch_gcash_sandbox === 1 || dbSettings.payment_ch_gcash_sandbox === true,
         paymentChBankSandbox: dbSettings.payment_ch_bank_sandbox === '1' || dbSettings.payment_ch_bank_sandbox === 1 || dbSettings.payment_ch_bank_sandbox === true,
@@ -98,6 +107,19 @@ export const getSystemSettings = async () => {
         paymentChGcashManual: dbSettings.payment_ch_gcash_manual === '1' || dbSettings.payment_ch_gcash_manual === 1 || dbSettings.payment_ch_gcash_manual === true,
         paymentChBankManual: dbSettings.payment_ch_bank_manual === '1' || dbSettings.payment_ch_bank_manual === 1 || dbSettings.payment_ch_bank_manual === true,
         paymentChInPerson: dbSettings.payment_ch_in_person === '1' || dbSettings.payment_ch_in_person === 1 || dbSettings.payment_ch_in_person === true,
+        paymentChQrphManual: dbSettings.payment_ch_qrph_manual === undefined || dbSettings.payment_ch_qrph_manual === '1' || dbSettings.payment_ch_qrph_manual === 1 || dbSettings.payment_ch_qrph_manual === true,
+        qrphActiveSlot: parseInt(dbSettings.qrph_active_slot || 1, 10),
+        qrphSlots: (() => {
+          const raw = dbSettings.qrph_slots;
+          if (Array.isArray(raw)) return raw;
+          if (typeof raw === 'string') {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) return parsed;
+            } catch { /* fallback */ }
+          }
+          return DEFAULTS.qrphSlots;
+        })(),
         paymongoSecretKey: dbSettings.paymongo_secret_key || DEFAULTS.paymongoSecretKey,
         paymongoPublicKey: dbSettings.paymongo_public_key || DEFAULTS.paymongoPublicKey,
         paymongoWebhookSecret: dbSettings.paymongo_webhook_secret || DEFAULTS.paymongoWebhookSecret,
@@ -165,7 +187,7 @@ export const saveSystemSettings = async (settings) => {
       move_in_max_days: String(settings.moveInMaxDays ?? DEFAULTS.moveInMaxDays),
       maintenance_monthly_budget: settings.maintenanceMonthlyBudget,
       tenant_responsibility_clause: settings.tenantResponsibilityClause,
-      payment_mode: settings.paymentMode === 'sandbox' ? 'sandbox' : 'manual',
+      payment_mode: ['manual', 'sandbox', 'both'].includes(settings.paymentMode) ? settings.paymentMode : 'manual',
       payment_sandbox_enabled: settings.paymentSandboxEnabled ? '1' : '0',
       payment_ch_gcash_sandbox: settings.paymentChGcashSandbox ? '1' : '0',
       payment_ch_bank_sandbox: settings.paymentChBankSandbox ? '1' : '0',
@@ -173,6 +195,9 @@ export const saveSystemSettings = async (settings) => {
       payment_ch_gcash_manual: settings.paymentChGcashManual ? '1' : '0',
       payment_ch_bank_manual: settings.paymentChBankManual ? '1' : '0',
       payment_ch_in_person: settings.paymentChInPerson ? '1' : '0',
+      payment_ch_qrph_manual: settings.paymentChQrphManual ? '1' : '0',
+      qrph_active_slot: String(settings.qrphActiveSlot || 1),
+      qrph_slots: settings.qrphSlots || DEFAULTS.qrphSlots,
       paymongo_secret_key: settings.paymongoSecretKey || '',
       paymongo_public_key: settings.paymongoPublicKey || '',
       paymongo_webhook_secret: settings.paymongoWebhookSecret || '',

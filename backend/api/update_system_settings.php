@@ -161,6 +161,32 @@ foreach ($input as $key => $value) {
     if ($key === 'visitor_overstay_hours' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 168)) {
         $refuse("Visitor overstay threshold must be a whole number between 1 and 168 hours.");
     }
+    if ($key === 'qrph_active_slot' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 5)) {
+        $refuse("Active QR Ph slot must be between 1 and 5.");
+    }
+    if ($key === 'qrph_slots') {
+        $decoded = is_string($value) ? json_decode($value, true) : $value;
+        if (!is_array($decoded) || count($decoded) > 5) {
+            $refuse("QR Ph slots must be a list of up to 5 slots.");
+        }
+        $clean_slots = [];
+        foreach ($decoded as $idx => $s) {
+            $slot_num = (int)($s['slot'] ?? ($idx + 1));
+            if ($slot_num < 1 || $slot_num > 5) $refuse("Invalid slot number.");
+            $label = mb_substr(trim((string)($s['label'] ?? '')), 0, 100);
+            $image_path = mb_substr(trim((string)($s['image_path'] ?? '')), 0, 255);
+            $account_name = mb_substr(trim((string)($s['account_name'] ?? '')), 0, 100);
+            $account_number = mb_substr(trim((string)($s['account_number'] ?? '')), 0, 50);
+            $clean_slots[] = [
+                'slot' => $slot_num,
+                'label' => $label,
+                'image_path' => $image_path,
+                'account_name' => $account_name,
+                'account_number' => $account_number,
+            ];
+        }
+        $value = json_encode($clean_slots, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
     if ($key === 'payment_window_days' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 30)) {
         $refuse("Payment window must be a whole number of days between 1 and 30.", ["paymentWindowDays" => "Enter 1 to 30 days."]);
     }

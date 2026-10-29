@@ -285,7 +285,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
               </div>
               <button
                 className="btn-interactive w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-colors flex items-center gap-3 bg-transparent border-none cursor-pointer"
-                onClick={() => { setIsProfileOpen(false); navigate('/admin-settings'); }}
+                onClick={() => { setIsProfileOpen(false); navigate('/admin-account-settings'); }}
               >
                 <FontAwesomeIcon icon={faUserCog} className="text-gray-400 w-4" />
                 <span>Account Settings</span>

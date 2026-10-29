@@ -22,6 +22,46 @@ if (!$invoice_id || !$channel) {
     exit;
 }
 
+if (($auth['role'] ?? '') !== 'admin') {
+    if (get_setting($conn, 'service_pay_bills_active', 'true') === 'false') {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Payment service is currently disabled by management."]);
+        exit;
+    }
+    $raw_mode = get_setting($conn, 'payment_mode', 'manual');
+    $mode = in_array($raw_mode, ['sandbox', 'both', 'manual'], true) ? $raw_mode : 'manual';
+    if ($mode === 'manual') {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Online sandbox payment is currently disabled."]);
+        exit;
+    }
+    $sandbox_master = get_setting($conn, 'payment_sandbox_enabled', '1');
+    $sandbox_enabled = ($sandbox_master === '1' || $sandbox_master === 'true' || $mode === 'sandbox' || $mode === 'both');
+    if (!$sandbox_enabled) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Online payment sandbox is currently disabled."]);
+        exit;
+    }
+    $channel_key_map = [
+        'gcash_sandbox' => 'payment_ch_gcash_sandbox',
+        'gcash' => 'payment_ch_gcash_sandbox',
+        'bank_sandbox' => 'payment_ch_bank_sandbox',
+        'bank' => 'payment_ch_bank_sandbox',
+        'paymaya' => 'payment_ch_maya',
+        'maya' => 'payment_ch_maya',
+        'card' => 'payment_ch_bank_sandbox'
+    ];
+    $ch_key = $channel_key_map[$channel] ?? null;
+    if ($ch_key) {
+        $ch_val = get_setting($conn, $ch_key, 'true');
+        if ($ch_val === 'false' || $ch_val === '0') {
+            http_response_code(403);
+            echo json_encode(["success" => false, "message" => "The selected payment option is currently disabled by management."]);
+            exit;
+        }
+    }
+}
+
 // Map frontend channels to PayMongo types
 $paymongo_types = [
     'gcash_sandbox' => ['gcash'],

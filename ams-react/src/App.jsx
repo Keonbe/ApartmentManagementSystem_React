@@ -1,11 +1,12 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
 import ChatWidget from './Components/ChatWidget';
 
 // Components
 import TopBar from './Components/TopBar';
+import ServiceRouteGuard from './Components/ServiceRouteGuard';
 
 // User Pages
 import Home from './UserPages/Home';
@@ -50,6 +51,9 @@ const AdminNotifications = lazy(() => import('./AdminPages/AdminNotifications'))
 const AdminContracts = lazy(() => import('./AdminPages/AdminContracts'));
 const AdminServicePage = lazy(() => import('./AdminPages/AdminServicePage'));
 const AdminAccountSettings = lazy(() => import('./AdminPages/AdminAccountSettings'));
+const AdminPaymentOptions = lazy(() => import('./AdminPages/AdminPaymentOptions'));
+const AdminDocumentRequirements = lazy(() => import('./AdminPages/AdminDocumentRequirements'));
+const AdminOtherSettings = lazy(() => import('./AdminPages/AdminOtherSettings'));
 const AdminActivityLogs = lazy(() => import('./AdminPages/AdminActivityLogs'));
 const AdminUsers = lazy(() => import('./AdminPages/AdminUsers'));
 const AdminVisitors = lazy(() => import('./AdminPages/AdminVisitors'));
@@ -112,6 +116,21 @@ function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
   }
   
   return children;
+}
+
+function AdminSettingsRedirect() {
+  const [params] = useSearchParams();
+  const tab = params.get('tab');
+  if (tab === 'payments' || tab === 'payment-options') {
+    return <Navigate to="/admin-payment-options" replace />;
+  }
+  if (tab === 'requirements') {
+    return <Navigate to="/admin-requirements" replace />;
+  }
+  if (tab && tab !== 'account') {
+    return <Navigate to={`/admin-other-settings?tab=${encodeURIComponent(tab)}`} replace />;
+  }
+  return <Navigate to="/admin-account-settings" replace />;
 }
 
 function BaseAppLayout({ children, hasRentedRoom }) {
@@ -215,15 +234,15 @@ function AppContent() {
         
         {/* SECURED TENANT DASHBOARDS */}
         <Route path="/services" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/pay-bills" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/parking-reservation" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/cctv-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/service-catalog" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceCatalog /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/service-booking" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceBooking /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/maintenance-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/pay-bills" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey="service_pay_bills_active"><BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
+        <Route path="/parking-reservation" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey="service_parking_active"><BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
+        <Route path="/cctv-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey="service_cctv_active"><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
+        <Route path="/service-catalog" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey={['service_cleaning_active', 'service_laundry_active', 'service_other_active']}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceCatalog /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
+        <Route path="/service-booking" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey={['service_cleaning_active', 'service_laundry_active', 'service_other_active']}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceBooking /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
+        <Route path="/maintenance-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey="service_maintenance_active"><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/track-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><TrackApplication /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/upload-payment" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><PaymentUpload /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/upload-payment" element={<ProtectedRoute><ServiceRouteGuard settingKey="service_pay_bills_active" fallbackPath="/pay-bills"><BaseAppLayout hasRentedRoom={hasRentedRoom}><PaymentUpload /></BaseAppLayout></ServiceRouteGuard></ProtectedRoute>} />
         <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-room" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
@@ -232,7 +251,7 @@ function AppContent() {
         <Route path="/my-requests" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/visitor-management" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserVisitors /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/visitor-management" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey="service_visitor_management_active"><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserVisitors /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
         <Route path="/user-utilities" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserUtilities /></BaseAppLayout></TenantProtectedRoute>} />
         
         {/* AUTH PATHS */}
@@ -259,7 +278,11 @@ function AppContent() {
         {/* The template is edited on the Contracts page's Template Editor tab; old links land there. */}
         <Route path="/admin-contract-editor" element={<AdminProtectedRoute><Navigate to="/admin-contracts?tab=editor" replace /></AdminProtectedRoute>} />
         <Route path="/admin-services" element={<AdminProtectedRoute><AdminServicePage /></AdminProtectedRoute>} />
-        <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
+        <Route path="/admin-account-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
+        <Route path="/admin-payment-options" element={<AdminProtectedRoute><AdminPaymentOptions /></AdminProtectedRoute>} />
+        <Route path="/admin-requirements" element={<AdminProtectedRoute><AdminDocumentRequirements /></AdminProtectedRoute>} />
+        <Route path="/admin-other-settings" element={<AdminProtectedRoute><AdminOtherSettings /></AdminProtectedRoute>} />
+        <Route path="/admin-settings" element={<AdminProtectedRoute><AdminSettingsRedirect /></AdminProtectedRoute>} />
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
         <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
         <Route path="/admin-utilities" element={<AdminProtectedRoute><AdminUtilities /></AdminProtectedRoute>} />
