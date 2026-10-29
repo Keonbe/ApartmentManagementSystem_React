@@ -31,6 +31,7 @@ import { fileUrl } from '../api/fileUrl';
 import AdminHouseholdList from '../Components/AdminHouseholdList';
 import DepositOutcome from '../Components/DepositOutcome';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, btn } from '../Components/admin/ui/styles';
 
 // ==========================================
@@ -48,7 +49,7 @@ const daysRemaining = (leaseEnd) => {
 const AdminTenants = () => {
   const [tenants, setTenants] = useState([]);
   const [archivedTenants, setArchivedTenants] = useState(initialArchivedTenants);
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useUrlFilter('filter', 'all', ['all', 'active', 'pending-move-out', 'moved-out', 'archived']);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);

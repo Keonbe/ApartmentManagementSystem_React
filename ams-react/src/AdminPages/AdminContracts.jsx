@@ -25,6 +25,7 @@ import FieldError from '../Components/form/FieldError';
 import ReasonModal from '../Components/form/ReasonModal';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 
 const MAX_LEASE_MONTHS = 24;
@@ -59,14 +60,28 @@ const statusOf = (s) => statusConfig[String(s || '').toLowerCase()] || UNKNOWN_S
 
 const formatCurrency = (n) => (Number.isFinite(Number(n)) ? `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
+// A contract still in force that lacks its signed or notarised copy (same rule as
+// the Dashboard's "missing documents" count in dashboard_stats.php).
+const IN_FORCE = ['draft', 'active', 'eviction-pending'];
+const missingDocs = (c) => IN_FORCE.includes(String(c.status || '').toLowerCase()) && (!c.signedLease?.uploaded || !c.notarizedLease?.uploaded);
+// An active contract whose rent term ends within `days` (from today).
+const endingSoon = (c, days) => {
+  if (String(c.status || '').toLowerCase() !== 'active' || !c.leaseEnd) return false;
+  const end = new Date(c.leaseEnd + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = (end - today) / 86400000;
+  return diff >= 0 && diff <= days;
+};
+
 const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || defaultTab;
-  const setActiveTab = (tab) => setSearchParams({ tab });
+  // Keeps the other params (the status filter from a Dashboard link) when the tab changes.
+  const setActiveTab = (tab) => setSearchParams((prev) => { const p = new URLSearchParams(prev); p.set('tab', tab); return p; });
 
   const [contracts, setContracts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useUrlFilter('status', 'all', ['all', 'active', 'expired', 'draft', 'eviction-pending', 'docs-missing', 'ending']);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -176,8 +191,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   // it in the render body (which fired an un-awaited request per render and left
   // the threshold permanently undefined).
   const [overdueThresholdDays, setOverdueThresholdDays] = useState(15);
+  const [endingDays, setEndingDays] = useState(30);
   useEffect(() => {
-    getSystemSettings().then(s => setOverdueThresholdDays(s.overdueThresholdDays || 15));
+    getSystemSettings().then(s => { setOverdueThresholdDays(s.overdueThresholdDays || 15); setEndingDays(s.leaseEndReminderDays ?? 30); });
   }, []);
 
   // Count overdue contracts exceeding threshold. Only an 'active' contract
@@ -194,10 +210,13 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
       const matchSearch = (c.tenant || '').toLowerCase().includes(q) ||
                           (c.unit || '').toLowerCase().includes(q) ||
                           (c.id || '').toLowerCase().includes(q);
-      const matchStatus = filterStatus === 'all' || String(c.status || '').toLowerCase() === filterStatus;
+      const matchStatus = filterStatus === 'all'
+        || (filterStatus === 'docs-missing' ? missingDocs(c)
+          : filterStatus === 'ending' ? endingSoon(c, endingDays)
+          : String(c.status || '').toLowerCase() === filterStatus);
       return matchSearch && matchStatus;
     });
-  }, [contracts, searchQuery, filterStatus]);
+  }, [contracts, searchQuery, filterStatus, endingDays]);
 
   const handleTenantSelect = (e) => {
     const selected = tenantOptions.find(t => t.id == e.target.value);
@@ -512,7 +531,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   // The status filter shows each count and the documents notice says how many are
   // incomplete (a row of count cards used to repeat them).
   const statusCount = (status) => contracts.filter(c => c.status === status).length;
-  const docsIncompleteCount = contracts.filter(c => !c.signedLease?.uploaded || !c.notarizedLease?.uploaded).length;
+  const docsIncompleteCount = contracts.filter(missingDocs).length;
 
   const getDocumentStatus = (contract) => {
     const signed = contract.signedLease?.uploaded || false;

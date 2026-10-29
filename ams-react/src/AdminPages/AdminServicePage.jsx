@@ -28,6 +28,7 @@ import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import ServiceCatalogModal from '../Components/ServiceCatalogModal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 
 const initialServices = [
@@ -143,7 +144,7 @@ const CONFIRM_MESSAGES = {
 const AdminServicePage = () => {
   const navigate = useNavigate();
   const [services, setServices] = useState(initialServices);
-  const [activeTab, setActiveTab] = useState('services');
+  const [activeTab, setActiveTab] = useUrlFilter('tab', 'services', ['services', 'cctv', 'parking']);
   const [cctvRequests, setCctvRequests] = useState([]);
   const [parkingReservations, setParkingReservations] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
@@ -246,6 +247,9 @@ const AdminServicePage = () => {
   const pendingCctvCount = cctvRequests.filter(r => r.status === 'Pending').length;
   const pendingParkingCount = parkingReservations.filter(r => r.status === 'Pending').length;
   const pendingServiceCount = serviceRequests.filter(r => r.status === 'Pending').length;
+  // ?status=Pending (from the Dashboard) narrows the bookings list; a note says so and undoes it.
+  const [bookingStatus, setBookingStatus] = useUrlFilter('status', 'all', ['all', 'Pending']);
+  const visibleServiceRequests = bookingStatus === 'Pending' ? serviceRequests.filter(r => r.status === 'Pending') : serviceRequests;
   const activeCatalogCount = catalog.filter(s => s.isActive).length;
   //Completed work whose charge never reached an invoice (e.g. no active lease at the time)
   const unbilledCount = serviceRequests.filter(r => r.status === 'Completed' && !r.isInvoiced).length;
@@ -625,6 +629,12 @@ const AdminServicePage = () => {
                     {/*ServiceBookingsTable*/}
                     {activeTab === 'services' && (
                       <>
+                        {bookingStatus === 'Pending' && (
+                          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-slate-200 bg-slate-50 px-4 py-2.5 text-body text-slate-700">
+                            <span>Showing pending bookings only ({visibleServiceRequests.length}).</span>
+                            <button type="button" onClick={() => setBookingStatus('all')} className="cursor-pointer border-0 bg-transparent p-0 text-body font-semibold text-indigo-700 underline">Show all</button>
+                          </div>
+                        )}
                         {unbilledCount > 0 && (
                           <div className="mb-4 flex items-center gap-3 rounded-card border border-amber-200 bg-amber-50 px-4 py-3">
                             <FontAwesomeIcon icon={faReceipt} className="text-amber-700" />
@@ -651,8 +661,8 @@ const AdminServicePage = () => {
                               </tr>
                             </thead>
                             <tbody className="stagger-children divide-y divide-slate-100">
-                              {serviceRequests.length > 0 ? (
-                                serviceRequests.map(req => (
+                              {visibleServiceRequests.length > 0 ? (
+                                visibleServiceRequests.map(req => (
                                   <tr key={req.id} className="transition-colors hover:bg-slate-50">
                                     <td className="px-4 py-3 font-medium text-slate-800">{req.tenant || 'Unknown'}</td>
                                     <td className="px-4 py-3 text-slate-600">{req.unit}</td>

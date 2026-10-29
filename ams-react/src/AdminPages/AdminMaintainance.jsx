@@ -20,6 +20,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import {
   MAINTENANCE_CATEGORIES, MAINTENANCE_URGENCIES, MAINTENANCE_DEFAULT_URGENCY, MAINTENANCE_TRANSITIONS, MAINTENANCE_STATUS_STYLES,
@@ -102,6 +103,9 @@ const COLUMNS = [
   { key: 'Completed', statuses: ['Completed'], icon: faCheckCircle, iconClass: 'text-emerald-700' },
   { key: 'Rejected / Cancelled', statuses: ['Rejected', 'Cancelled'], icon: faBan, iconClass: 'text-red-600' },
 ];
+
+// Statuses that still need work (what the Dashboard counts as open).
+const OPEN_STATUSES = ['Pending', 'In Progress'];
 
 const emptyNewReq = { title: '', issueType: 'Plumbing', unit: '', priority: 'Medium', description: '' };
 
@@ -739,8 +743,11 @@ const AdminMaintainance = () => {
   const [saving, setSaving] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterPriority, setFilterPriority] = useState('All');
+  const [filterPriority, setFilterPriority] = useUrlFilter('priority', 'All', ['All', MAINTENANCE_DEFAULT_URGENCY, ...MAINTENANCE_URGENCIES.map(u => u.value)]);
   const [filterType, setFilterType] = useState('All');
+  // ?scope= comes from the Dashboard: it counts urgent requests that are still open
+  // and triage requests not yet started, so its links narrow the board the same way.
+  const [scope, setScope] = useUrlFilter('scope', 'all', ['all', 'open', 'pending']);
 
   const [selectedId, setSelectedId] = useState(null);
   const [actionModal, setActionModal] = useState(null);
@@ -799,10 +806,11 @@ const AdminMaintainance = () => {
         const matchSearch = !q || [r.title, r.unit, r.tenant, r.code].some(v => (v || '').toLowerCase().includes(q));
         const matchPriority = filterPriority === 'All' || r.urgency === filterPriority;
         const matchType = filterType === 'All' || r.category === filterType;
-        return matchSearch && matchPriority && matchType;
+        const matchScope = scope === 'all' || (scope === 'open' ? OPEN_STATUSES.includes(r.status) : r.status === 'Pending');
+        return matchSearch && matchPriority && matchType && matchScope;
       })
       .sort((a, b) => urgencyWeight(b.urgency) - urgencyWeight(a.urgency) || (parseDate(a.createdAt) - parseDate(b.createdAt)));
-  }, [requests, searchQuery, filterPriority, filterType]);
+  }, [requests, searchQuery, filterPriority, filterType, scope]);
 
   const monthlyBudget = settings?.maintenanceMonthlyBudget ?? 50000;
   const monthLabel = new Date().toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
@@ -1031,8 +1039,15 @@ const AdminMaintainance = () => {
               </div>
             </div>
 
-            {loadError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 flex items-center gap-2">
+            {scope !== 'all' && (
+              <p role="status" className="m-0 flex flex-wrap items-center gap-2 rounded-control border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-label text-indigo-700">
+                Showing {scope === 'open' ? 'open (pending or in progress)' : 'pending'} requests only, as counted on the Dashboard.
+                <button type="button" onClick={() => setScope('all')} className="cursor-pointer border-0 bg-transparent p-0 text-label font-semibold text-indigo-800 underline">Show all</button>
+              </p>
+            )}
+
+            {loadError && requests.length > 0 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-body rounded-control px-4 py-3 flex items-center gap-2">
                 <FontAwesomeIcon icon={faExclamationTriangle} /> {loadError}
               </div>
             )}

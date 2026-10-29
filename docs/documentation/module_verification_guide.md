@@ -1426,7 +1426,7 @@ Completing or cancelling a booking also marks its admin intake notification `Res
 
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
-| `dashboard_stats.php` | GET | `require_admin` | — | `success`, `stats` (`total_revenue`, `pending_dues`, `overdue_dues`, `overdue_count`, `collection_rate`, …), `income_data[]` (6 months), `pending_actions`, `rooms_summary`, `activity_logs` | `401` no token · `403` tenant |
+| `dashboard_stats.php` | GET | `require_admin` | — | `success`, `stats` (`total_revenue`, `pending_dues`, `overdue_dues`, `overdue_count`, `collection_rate`, …), `income_data[]` (6 months), `pending_actions`, `attention` (per-line counts for the Dashboard "Needs your attention" list, `incomplete` when a group could not be counted), `rooms_summary`, `activity_logs` | `401` no token · `403` tenant |
 | `get_report_data.php` | GET | `require_admin` | `timeframe` = `monthly` / `quarterly` / `yearly`, `month`, `quarter`, `year` | `success`, `data` incl. `incomeStatement`, `revenueStreams[]`, `diversification`, `unitIncome[]`, `trendPoints[]`, `outstandingBalances[]`, `paymentRecords[]`, `tenantList[]`, `maintAvgResolutionHours` | `401` · `403` |
 | `get_utilities_report_data.php` | GET | `require_admin` | same as above | see [§10.1](#101-api-contract) | `401` · `403` |
 
@@ -1528,6 +1528,11 @@ Expected values marked *audit DB* came from the database this audit ran against,
 | **M8F-10** | Money | Maintenance expense uses actual cost and resolution date | Seed data — request #4 (Completed, actual ₱800, resolved 2026-05-27) | `GET …?timeframe=monthly&month=5&year=2026` | `maintenanceExpenses` 800, `maintAvgResolutionHours` 217 | `SELECT actual_cost, created_at, resolved_at FROM maintenance_requests WHERE id=4;` |
 | **M8F-11** | Money | Utility recovery ratio is computed | Seed data | `GET …?timeframe=monthly&month=8&year=2026` | `diversification.utilityRecoveryRatio` is the real paid ÷ invoiced share (*audit DB*: 75.5), not a fixed 100 | `SELECT SUM(CASE WHEN status='paid' THEN water+electricity END)/SUM(water+electricity) FROM invoices WHERE status<>'cancelled' AND YEAR(created_at)=2026 AND MONTH(created_at)=8;` |
 | **M8F-12** | Happy | Dashboard counts overdue invoices | Seed data | `GET dashboard_stats.php` (admin) | `stats.overdue_dues` equals the M8F-04 total; `pending_actions.invoices` lists the `overdue` invoices | — |
+| **M8F-13** | Money | Attention counts are per tenant and never count advance rent | Admin token; a tenant with a past-due bill and an advance-rent invoice | `GET dashboard_stats.php` | `attention.overdue_tenants` +1 and `overdue_invoices` +1 for the past-due bill only; the advance invoice adds nothing (`tests/api/dashboard_attention.test.js`) | `invoices` with `advance_months IS NOT NULL` excluded |
+| **M8F-14** | Happy | Each Dashboard line equals the page it opens | Seed data | Open every line of "Needs your attention" | The filtered page lists exactly that many rows (Payments `?status=overdue`, Applications `?status=pending`, Maintenance `?priority=Urgent&scope=open`, Contracts `?status=docs-missing`, …) | Live check, all 13 seeded lines |
+| **M8F-15** | Edge | A 0-day rent-end reminder is 0, not the 30-day default | `lease_end_reminder_days = 0` | `GET dashboard_stats.php` | `attention.contracts_ending_days` = 0 | Restore the setting |
+| **M8F-16** | Fail | One failing count does not take the dashboard down | A table behind one group renamed | `GET dashboard_stats.php` | `200`, `success: true`, `stats` present, `attention.incomplete: true`, that group's keys absent | Rename the table back (`tests/api/dashboard_attention.test.js`) |
+| **M8F-17** | Fail | A failed dashboard request never reads as ₱0 or "All caught up" | Admin UI | Block `dashboard_stats.php`, open `/admin-dashboard` | One "Couldn't load the dashboard" error with Try again; Try again restores the page | — |
 
 **Restore:**
 

@@ -9,6 +9,7 @@ import {
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { LIMITS } from '../utils/validation';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 
@@ -17,7 +18,7 @@ export default function AdminCctv() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useUrlFilter('tab', 'all', ['all', 'pending', 'approved', 'rejected']);
 
   const loadCctvRequests = async () => {
     try {

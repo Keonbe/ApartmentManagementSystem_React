@@ -619,7 +619,7 @@ const AdminReports = () => {
                     <FontAwesomeIcon icon={faSlidersH} className="text-indigo-600" />
                     Report Scoping & Filters
                   </h2>
-                  <p className="text-xs text-slate-500 m-0 mt-1">Select scope and dates to dynamically calculate income statements, revenue streams, and property operations.</p>
+                  <p className="text-label text-slate-500 m-0 mt-1">Select scope and dates to dynamically calculate income statements, revenue streams, and property operations.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -1930,7 +1930,7 @@ const AdminReports = () => {
                     <FontAwesomeIcon icon={faWrench} className="text-indigo-600" />
                     Maintenance Work Orders Audit Log
                   </h3>
-                  <span className="text-xs text-slate-500 print:hidden">Tickets filed in scope</span>
+                  <span className="text-label text-slate-500 print:hidden">Tickets filed in scope</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-label border-collapse">
@@ -2192,8 +2192,8 @@ const AdminReports = () => {
                       <FontAwesomeIcon icon={faShieldAlt} className="text-lg" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800 m-0">Management Gaps Detection</h3>
-                      <p className="text-[11px] text-slate-500 m-0 mt-0.5">Automated identification of reporting gaps and management attention areas</p>
+                      <h3 className="text-body font-bold text-slate-800 m-0">Management Gaps Detection</h3>
+                      <p className="text-caption text-slate-500 m-0 mt-0.5">Automated identification of reporting gaps and management attention areas</p>
                     </div>
                   </div>
                   <div className="p-6 space-y-5">

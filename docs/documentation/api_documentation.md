@@ -990,6 +990,13 @@ Returns dashboard statistics for admin. `require_admin()`; runs `promote_overdue
 - Collection rate for the month (cancelled invoices excluded)
 - Monthly income chart data (6 months, cancelled excluded)
 - Action queues (applications, open invoices, maintenance) and recent activity log
+- `attention`: what the admin has to act on, one count per Dashboard "Needs your attention" line (fixed number of queries, never per row; read-only):
+  - Money: `proofs_to_verify`, `cash_visits`, `failed_payments` (distinct tenants), `overdue_invoices`, `overdue_tenants` (a past-due bill; advance-rent invoices are a prepayment and never count), `refunds_to_review`, `readings_to_invoice`.
+  - Tenants: `applications_to_review` (Pending Review + Pending Deposit), `move_in_due` (Approved), `move_out_requests`, `requests_to_decide` (admin-queue notifications), `new_inquiries`.
+  - Contracts: `eviction_pending`, `contracts_missing_docs` (draft/active/eviction-pending without the signed or notarized file), `contracts_draft`, `contracts_ending` within `contracts_ending_days` (setting `lease_end_reminder_days`, 0 allowed).
+  - Building: `maintenance_urgent` (Pending/In Progress), `maintenance_triage` (Pending), `visitors_pending`, `visitors_overstayed` (setting `visitor_overstay_hours`), `parking_requests`, `cctv_requests`, `service_requests`.
+  - If one group's query fails the group's keys are left out and `attention.incomplete` is `true` (logged server-side); the rest of the response is unaffected. The page then never shows "All caught up".
+  - Each count equals the rows of the page its line links to (`/admin-payments?status=overdue`, `/admin-maintenance?priority=Urgent&scope=open`, …).
 
 ---
 

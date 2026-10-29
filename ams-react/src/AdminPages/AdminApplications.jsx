@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
+import { useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faTimes, faCalendarAlt, faPhone, faEnvelope,
@@ -75,6 +76,7 @@ const STATUS_OPTIONS = [
     emptyText: 'No cancelled applications'
   },
 ];
+const ALL_STATUS_GROUPS = STATUS_OPTIONS.map(s => s.id);
 
 const AdminApplications = () => {
   const [applications, setApplications] = useState([]);
@@ -91,7 +93,27 @@ const AdminApplications = () => {
   const [scheduleAttachment, setScheduleAttachment] = useState(null);
   const [scheduling, setScheduling] = useState(false);
 
-  const [selectedStatuses, setSelectedStatuses] = useState(['pending', 'approved', 'moved_in', 'rejected', 'cancelled']);
+  // The selected status groups live in the URL, so a Dashboard link works even while
+  // this page is already open, and a refresh or bookmark keeps the filter:
+  // no ?status = all groups, ?status=none = none, else a comma list (?status=pending,approved).
+  const [urlParams, setUrlParams] = useSearchParams();
+  const rawStatus = urlParams.get('status');
+  const selectedStatuses = useMemo(() => {
+    if (rawStatus === null) return ALL_STATUS_GROUPS;
+    if (rawStatus === 'none') return [];
+    const picked = rawStatus.split(',').filter(g => ALL_STATUS_GROUPS.includes(g));
+    return picked.length ? picked : ALL_STATUS_GROUPS;
+  }, [rawStatus]);
+  const setSelectedStatuses = (next) => {
+    const list = typeof next === 'function' ? next(selectedStatuses) : next;
+    setUrlParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (list.length === ALL_STATUS_GROUPS.length) p.delete('status');
+      else if (list.length === 0) p.set('status', 'none');
+      else p.set('status', ALL_STATUS_GROUPS.filter(g => list.includes(g)).join(','));
+      return p;
+    }, { replace: true });
+  };
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('ams_admin_app_view') || 'table');
   const [showStatusFilter, setShowStatusFilter] = useState(false);
   const filterDropdownRef = useRef(null);

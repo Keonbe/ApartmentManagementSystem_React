@@ -278,10 +278,10 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
           </button>
 
           {isProfileOpen && (
-            <div className="admin-header-profile-dropdown animate-scale-in absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-gray-200 py-2 z-50 transform origin-top-right transition-all">
-              <div className="px-4 py-3 border-b border-gray-100 mb-2">
-                <p className="text-sm font-semibold text-gray-800 m-0">Admin Dashboard</p>
-                <p className="text-xs text-gray-500 m-0 mt-0.5 truncate">admin@system.com</p>
+            <div className="admin-header-profile-dropdown animate-scale-in absolute right-0 mt-3 w-56 bg-white rounded-card shadow-raised border border-slate-200 py-2 z-50 transform origin-top-right transition-all">
+              <div className="px-4 py-3 border-b border-slate-100 mb-2">
+                <p className="text-body font-semibold text-slate-800 m-0">Admin Dashboard</p>
+                <p className="text-label text-slate-500 m-0 mt-0.5 truncate">admin@system.com</p>
               </div>
               <button
                 className="btn-interactive w-full text-left px-4 py-2.5 text-body text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-3 bg-transparent border-none cursor-pointer"

@@ -20,6 +20,7 @@ import { clickable } from '../utils/clickable';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { btn } from '../Components/admin/ui/styles';
 
 // update_system_settings.php: 0–30 days before due; every 1–30 days when overdue.
@@ -68,7 +69,7 @@ const AdminNotifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useUrlFilter('filter', 'all', FILTERS.map(f => f.key));
   const [showSettings, setShowSettings] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [archivingAll, setArchivingAll] = useState(false);

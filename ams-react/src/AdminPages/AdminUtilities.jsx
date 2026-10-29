@@ -18,6 +18,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 
@@ -79,7 +80,7 @@ export default function AdminUtilities() {
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState('');
   const [roomFilter, setRoomFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useUrlFilter('tab', 'all', ['all', 'pending', 'invoiced']);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);

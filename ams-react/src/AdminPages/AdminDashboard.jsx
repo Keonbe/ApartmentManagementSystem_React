@@ -4,15 +4,19 @@ import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faDollarSign, faUsers, faBuilding, faExclamationTriangle, 
-  faCheckCircle, faClock, faChartLine, faChartPie, faWrench, faKey,
+  faChartLine, faChartPie, faWrench, faKey,
   faChartBar, faTable, faUserPlus, faInfoCircle,
-  faDownload, faHistory, faFileInvoiceDollar, faCogs, faFileSignature,
-  faClipboardList, faArrowRight, faBullhorn, faChevronRight
+  faHistory, faCogs, faFileSignature,
+  faClipboardList, faArrowRight, faBullhorn
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { clickable } from '../utils/clickable';
 import StatCard from '../Components/admin/StatCard';
+import AttentionList from '../Components/admin/AttentionList';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import LoadError from '../Components/admin/ui/LoadError';
+import { Skeleton, SkeletonBlock, SkeletonList } from '../Components/admin/ui/Skeleton';
 
 // Keyed on the 12 activity-log categories (LOG_CATEGORIES in config.php). The
 // widget used to key on legacy names (invoice, payment, rent_application), so
@@ -28,7 +32,7 @@ const LOG_CATEGORY_STYLE = {
   contract: { icon: faFileSignature, color: 'bg-indigo-100 text-indigo-600' },
   service: { icon: faClipboardList, color: 'bg-teal-100 text-teal-600' },
   inquiry: { icon: faInfoCircle, color: 'bg-sky-100 text-sky-700' },
-  communication: { icon: faBullhorn, color: 'bg-rose-100 text-rose-600' },
+  communication: { icon: faBullhorn, color: 'bg-red-100 text-red-600' },
   system: { icon: faCogs, color: 'bg-slate-100 text-slate-600' },
 };
 
@@ -48,7 +52,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [chartView, setChartView] = useState('bar'); 
   const [selectedMonth, setSelectedMonth] = useState(null);
-  const [activeLowerTab, setActiveLowerTab] = useState('actions');
+  const [activeLowerTab, setActiveLowerTab] = useState('units');
 
   const [stats, setStats] = useState({
     total_revenue: 0,
@@ -71,16 +75,21 @@ const AdminDashboard = () => {
   });
   const [incomeData, setIncomeData] = useState([]);
   const [newTenants, setNewTenants] = useState([]);
-  const [pendingActions, setPendingActions] = useState({
-    applications: [],
-    invoices: [],
-    maintenance: []
-  });
+  const [attention, setAttention] = useState({});
   const [roomsSummary, setRoomsSummary] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  // True when the stats request failed: one page-level error replaces the whole
+  // dashboard, so no card ever reads "₱0" or "All caught up" for data that never loaded.
+  const [statsError, setStatsError] = useState(false);
+
+  const kpiStatus = loading ? 'loading' : undefined;
+  // A figure from the stats response, or "—" while it is loading.
+  const fig = (v) => (kpiStatus ? '—' : v);
 
   const fetchDashboardData = async () => {
+    setLoading(true);
+    setStatsError(false);
     try {
       const statsRes = await api.get('dashboard_stats.php');
       if (statsRes.data && statsRes.data.success) {
@@ -88,18 +97,16 @@ const AdminDashboard = () => {
         setIncomeData(statsRes.data.income_data || []);
         setNewTenants(statsRes.data.new_tenants || []);
         
-        const actions = statsRes.data.pending_actions || { applications: [], invoices: [], maintenance: [] };
-        setPendingActions(actions);
+        setAttention(statsRes.data.attention || {});
+        if (!statsRes.data.attention) setStatsError(true);
         setRoomsSummary(statsRes.data.rooms_summary || []);
         setActivityLogs(statsRes.data.activity_logs || []);
-        
-        const totalPending = (actions.applications?.length || 0) + (actions.invoices?.length || 0) + (actions.maintenance?.length || 0);
-        if (totalPending === 0) {
-          setActiveLowerTab('units');
-        }
+      } else {
+        setStatsError(true);
       }
     } catch (error) {
       console.error("Failed to fetch dashboard data", error);
+      setStatsError(true);
     } finally {
       setLoading(false);
     }
@@ -133,9 +140,6 @@ const AdminDashboard = () => {
   const rentCollectionRate = stats.collection_rate !== undefined ? stats.collection_rate : 0;
   const activeMonthData = incomeData.find(d => d.month === selectedMonth || d.key === selectedMonth);
 
-  const totalPendingActions = (pendingActions?.applications?.length || 0) + 
-                              (pendingActions?.invoices?.length || 0) + 
-                              (pendingActions?.maintenance?.length || 0);
 
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
@@ -146,102 +150,118 @@ const AdminDashboard = () => {
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8">
-
-            {/* Core KPI Cards Grid */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
-              <StatCard 
-                icon={faDollarSign} 
-                title="Monthly Revenue" 
-                value={formatCurrency(stats.total_revenue)} 
-                color="emerald" 
-                trend={stats.revenue_trend}
-                subtext={stats.last_month_revenue > 0 ? `vs ${formatCurrency(stats.last_month_revenue)} last mo` : 'Current month collected'}
-                tooltip="Total rent and utility payments collected this month" 
-              />
-              <StatCard 
-                icon={faExclamationTriangle} 
-                title="Pending Dues" 
-                value={formatCurrency(stats.pending_dues)} 
-                color={stats.pending_dues > 0 ? "red" : "slate"} 
-                isBadTrend={stats.overdue_count > 0}
-                subtext={stats.overdue_count > 0 ? `${stats.overdue_count} overdue invoice${stats.overdue_count > 1 ? 's' : ''}` : 'No overdue accounts'}
-                tooltip="Outstanding tenant balances across all units" 
-                onClick={() => navigate('/admin-payments')} 
-              />
-              <StatCard 
-                icon={faChartPie} 
-                title="Occupancy Rate" 
-                value={`${stats.occupancy_rate}%`} 
-                subtext={`${stats.occupied_rooms} / ${stats.total_rooms} Units Occupied`} 
-                color="blue" 
-                progress={stats.occupancy_rate} 
-                tooltip="Percentage of building units currently occupied"
-              />
-              <StatCard 
-                icon={faKey} 
-                title="Vacant Units" 
-                value={stats.vacant_rooms} 
-                subtext="Available for Rent" 
-                color="slate" 
-                onClick={() => navigate('/admin-units')} 
-                tooltip="Vacant apartment units ready for occupancy"
-              />
-              <StatCard 
-                icon={faClipboardList} 
-                title="Applications" 
-                value={stats.pending_applications} 
-                subtext={stats.pending_applications > 0 ? "Review required" : "All reviewed"} 
-                color={stats.pending_applications > 0 ? "amber" : "indigo"} 
-                onClick={() => navigate('/admin-applications')} 
-                tooltip="Prospective tenant applications awaiting approval"
-              />
-              <StatCard 
-                icon={faWrench} 
-                title="Maintenance" 
-                value={stats.open_maintenance} 
-                subtext={stats.urgent_maintenance > 0 ? `${stats.urgent_maintenance} Urgent request${stats.urgent_maintenance > 1 ? 's' : ''}` : "Active work orders"} 
-                color={stats.urgent_maintenance > 0 ? "red" : "amber"} 
-                isBadTrend={stats.urgent_maintenance > 0}
-                onClick={() => navigate('/admin-maintenance')} 
-                tooltip="Open maintenance tickets submitted by tenants"
-              />
-            </div>
+            {statsError && !loading ? (
+              <div className="bg-white rounded-card border border-slate-200 shadow-card">
+                <LoadError
+                  title="Couldn't load the dashboard"
+                  message="This is not an all-clear: the dashboard data did not load, so no figures are shown."
+                  onRetry={fetchDashboardData}
+                />
+              </div>
+            ) : (<>
 
             {/* Income Overview Chart & Secondary Status */}
+            {/* Top: KPIs and the money chart on the left, what needs doing on the right */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="lg:col-span-2 space-y-6 min-w-0">
+              {/* Core KPI Cards Grid */}
+              <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <StatCard 
+                  icon={faDollarSign} 
+                  title="Monthly Revenue" 
+                  value={formatCurrency(stats.total_revenue)} 
+                  color="emerald" 
+                  trend={stats.revenue_trend}
+                  subtext={stats.last_month_revenue > 0 ? `vs ${formatCurrency(stats.last_month_revenue)} last mo` : 'Current month collected'}
+                  tooltip="Total rent and utility payments collected this month" 
+                  status={kpiStatus}
+                />
+                <StatCard 
+                  icon={faExclamationTriangle} 
+                  title="Pending Dues" 
+                  value={formatCurrency(stats.pending_dues)} 
+                  color={stats.pending_dues > 0 ? "red" : "slate"} 
+                  isBadTrend={stats.overdue_count > 0}
+                  subtext={stats.overdue_count > 0 ? `${stats.overdue_count} overdue invoice${stats.overdue_count > 1 ? 's' : ''}` : 'No overdue accounts'}
+                  tooltip="Outstanding tenant balances across all units" 
+                  status={kpiStatus}
+                  onClick={() => navigate('/admin-payments')} 
+                />
+                <StatCard 
+                  icon={faChartPie} 
+                  title="Occupancy Rate" 
+                  value={`${stats.occupancy_rate}%`} 
+                  subtext={`${stats.occupied_rooms} / ${stats.total_rooms} Units Occupied`} 
+                  color="blue" 
+                  progress={stats.occupancy_rate} 
+                  tooltip="Percentage of building units currently occupied"
+                  status={kpiStatus}
+                />
+                <StatCard 
+                  icon={faKey} 
+                  title="Vacant Units" 
+                  value={stats.vacant_rooms} 
+                  subtext="Available for Rent" 
+                  color="slate" 
+                  onClick={() => navigate('/admin-units')} 
+                  tooltip="Vacant apartment units ready for occupancy"
+                  status={kpiStatus}
+                />
+                <StatCard 
+                  icon={faClipboardList} 
+                  title="Applications" 
+                  value={stats.pending_applications} 
+                  subtext={stats.pending_applications > 0 ? "Review required" : "All reviewed"} 
+                  color={stats.pending_applications > 0 ? "amber" : "indigo"} 
+                  onClick={() => navigate('/admin-applications')} 
+                  tooltip="Prospective tenant applications awaiting approval"
+                  status={kpiStatus}
+                />
+                <StatCard 
+                  icon={faWrench} 
+                  title="Maintenance" 
+                  value={stats.open_maintenance} 
+                  subtext={stats.urgent_maintenance > 0 ? `${stats.urgent_maintenance} Urgent request${stats.urgent_maintenance > 1 ? 's' : ''}` : "Active work orders"} 
+                  color={stats.urgent_maintenance > 0 ? "red" : "amber"} 
+                  isBadTrend={stats.urgent_maintenance > 0}
+                  onClick={() => navigate('/admin-maintenance')} 
+                  tooltip="Open maintenance tickets submitted by tenants"
+                  status={kpiStatus}
+                />
+              </div>
               
               {/* Income Overview Chart Block */}
-              <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="bg-white rounded-card border border-slate-200 shadow-card flex flex-col">
                 
                 {/* Header */}
                 <div className="p-5 md:p-6 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3">
                   <div>
-                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0">
+                    <h3 className="text-title font-bold text-slate-800 flex items-center gap-2 m-0">
                       <FontAwesomeIcon icon={faChartLine} className="text-indigo-600" /> Income & Cash Flow Overview
                     </h3>
-                    <p className="text-xs text-slate-500 m-0 mt-1">6-month rolling breakdown: Collected revenue vs Pending dues</p>
+                    <p className="text-label text-slate-500 m-0 mt-1">6-month rolling breakdown: Collected revenue vs Pending dues</p>
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                    <div className="flex bg-slate-100 p-1 rounded-control">
                       <button 
                         onClick={() => setChartView('bar')} 
                         title="Bar Chart"
-                        className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer border-0 transition-colors ${chartView === 'bar' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-3 py-1 rounded-control text-label font-semibold cursor-pointer border-0 transition-colors ${chartView === 'bar' ? 'bg-white text-slate-800 shadow-card' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
                       >
                         <FontAwesomeIcon icon={faChartBar} />
                       </button>
                       <button 
                         onClick={() => setChartView('line')} 
                         title="Line Chart"
-                        className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer border-0 transition-colors ${chartView === 'line' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-3 py-1 rounded-control text-label font-semibold cursor-pointer border-0 transition-colors ${chartView === 'line' ? 'bg-white text-slate-800 shadow-card' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
                       >
                         <FontAwesomeIcon icon={faChartLine} />
                       </button>
                       <button 
                         onClick={() => setChartView('table')} 
                         title="Data Table"
-                        className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer border-0 transition-colors ${chartView === 'table' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-3 py-1 rounded-control text-label font-semibold cursor-pointer border-0 transition-colors ${chartView === 'table' ? 'bg-white text-slate-800 shadow-card' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
                       >
                         <FontAwesomeIcon icon={faTable} />
                       </button>
@@ -250,19 +270,19 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Quick Summary Metrics Ribbon */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50/70 border-b border-slate-100 px-4 md:px-6 py-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50/70 border-b border-slate-100 px-4 md:px-6 py-3 text-label">
                   <div>
                     <span className="text-slate-500 font-medium">6-Mo Total Collected</span>
-                    <p className="font-bold text-emerald-700 text-sm m-0 mt-0.5">{formatCurrency(stats.total_6m_collected)}</p>
+                    <p className="font-bold text-emerald-700 text-body m-0 mt-0.5">{fig(formatCurrency(stats.total_6m_collected))}</p>
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium">Monthly Average</span>
-                    <p className="font-bold text-slate-700 text-sm m-0 mt-0.5">{formatCurrency(stats.avg_monthly_income)}</p>
+                    <p className="font-bold text-slate-700 text-body m-0 mt-0.5">{fig(formatCurrency(stats.avg_monthly_income))}</p>
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium">Collection Efficiency</span>
-                    <p className={`font-bold text-sm m-0 mt-0.5 ${rentCollectionRate >= 90 ? 'text-emerald-700' : rentCollectionRate >= 70 ? 'text-amber-700' : 'text-red-600'}`}>
-                      {rentCollectionRate}%
+                    <p className={`font-bold text-body m-0 mt-0.5 ${kpiStatus ? 'text-slate-700' : rentCollectionRate >= 90 ? 'text-emerald-700' : rentCollectionRate >= 70 ? 'text-amber-700' : 'text-red-600'}`}>
+                      {fig(`${rentCollectionRate}%`)}
                     </p>
                   </div>
                 </div>
@@ -270,23 +290,23 @@ const AdminDashboard = () => {
                 {/* Chart Canvas Area */}
                 <div className="p-4 md:p-6 flex-1 flex flex-col">
                   {loading ? (
-                    <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
-                      <FontAwesomeIcon icon={faClock} className="animate-spin mr-2" /> Loading financial data...
-                    </div>
+                    <SkeletonBlock label="Loading income chart…" className="h-48 flex items-end gap-3 px-2">
+                      {['h-1/3', 'h-1/2', 'h-2/5', 'h-3/4', 'h-3/5', 'h-5/6'].map((h) => <Skeleton key={h} className={`flex-1 ${h}`} />)}
+                    </SkeletonBlock>
                   ) : incomeData.length === 0 ? (
-                    <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
+                    <div className="h-48 flex items-center justify-center text-slate-500 text-body">
                       No income records found
                     </div>
                   ) : chartView === 'bar' ? (
                     <div className="flex flex-col">
                       {/* Legend */}
-                      <div className="flex justify-end items-center gap-4 text-xs text-slate-500 mb-2">
+                      <div className="flex justify-end items-center gap-4 text-label text-slate-500 mb-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
+                          <span className="w-3 h-3 rounded-control bg-emerald-500 inline-block"></span>
                           <span>Collected</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="w-3 h-3 rounded bg-amber-400 inline-block"></span>
+                          <span className="w-3 h-3 rounded-control bg-amber-400 inline-block"></span>
                           <span>Pending</span>
                         </div>
                       </div>
@@ -304,13 +324,13 @@ const AdminDashboard = () => {
                           return (
                             <div 
                               key={d.key || d.month} 
-                              className="flex flex-col items-center flex-1 min-w-0 gap-2 group relative cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                              className="flex flex-col items-center flex-1 min-w-0 gap-2 group relative cursor-pointer rounded-control outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                               {...clickable(() => setSelectedMonth(isSelected ? null : d.month))}
                               aria-pressed={isSelected}
                               aria-label={`${d.full_month || d.month}: collected ${formatCurrency(d.collected)}, pending ${formatCurrency(d.pending)}`}
                             >
                               {/* Hover / Active Tooltip */}
-                              <div className={`absolute bottom-full mb-2 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-[11px] p-2.5 rounded-lg shadow-xl transition-all z-50 w-36 pointer-events-none ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 translate-y-2'}`}>
+                              <div className={`absolute bottom-full mb-2 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-caption p-2.5 rounded-control shadow-raised transition-all z-50 w-36 pointer-events-none ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 translate-y-2'}`}>
                                 <p className="font-bold text-slate-200 border-b border-slate-700 pb-1 mb-1.5">{d.full_month || d.month}</p>
                                 <div className="flex justify-between mb-1"><span className="text-slate-400">Collected:</span><span className="font-bold text-emerald-400">{formatCurrency(d.collected)}</span></div>
                                 <div className="flex justify-between mb-1"><span className="text-slate-400">Pending:</span><span className="font-bold text-amber-400">{formatCurrency(d.pending)}</span></div>
@@ -318,14 +338,14 @@ const AdminDashboard = () => {
                               </div>
                               
                               {/* Amount Label above bar */}
-                              <span className="text-[11px] font-semibold text-slate-500 group-hover:text-slate-700 transition-colors whitespace-nowrap">
+                              <span className="text-caption font-semibold text-slate-500 group-hover:text-slate-700 transition-colors whitespace-nowrap">
                                 <span className="sm:hidden">{formatCompactCurrency(totalBilled)}</span>
                                 <span className="hidden sm:inline">{totalBilled > 0 ? formatCurrency(totalBilled) : '₱0'}</span>
                               </span>
 
                               {/* The Stacked Bar */}
                               <div 
-                                className={`w-full max-w-[2.75rem] rounded-t-md relative overflow-hidden flex flex-col justify-end transition-all ${totalBilled === 0 ? 'bg-slate-200' : 'bg-slate-100'} ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2' : 'group-hover:opacity-90'}`} 
+                                className={`w-full max-w-[2.75rem] rounded-t-control relative overflow-hidden flex flex-col justify-end transition-all ${totalBilled === 0 ? 'bg-slate-200' : 'bg-slate-100'} ${isSelected ? 'ring-2 ring-indigo-500 ring-offset-2' : 'group-hover:opacity-90'}`} 
                                 style={{ height: dynamicHeight }}
                               >
                                 <div className="w-full bg-amber-400 absolute top-0 left-0 transition-all opacity-90" style={{ height: pendingPercent }}></div>
@@ -333,7 +353,7 @@ const AdminDashboard = () => {
                               </div>
 
                               {/* Month Label */}
-                              <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-indigo-600' : 'text-slate-500 group-hover:text-slate-800'}`}>
+                              <span className={`text-label font-bold transition-colors ${isSelected ? 'text-indigo-600' : 'text-slate-500 group-hover:text-slate-800'}`}>
                                 {d.month}
                               </span>
                             </div>
@@ -344,7 +364,7 @@ const AdminDashboard = () => {
                   ) : chartView === 'line' ? (
                     <div className="h-48 relative flex flex-col justify-between pb-6 px-4">
                       {/* Legend */}
-                      <div className="flex justify-end items-center gap-4 text-xs text-slate-500 mb-2">
+                      <div className="flex justify-end items-center gap-4 text-label text-slate-500 mb-2">
                         <div className="flex items-center gap-1.5">
                           <span className="w-3 h-1.5 rounded-full bg-indigo-500 inline-block"></span>
                           <span>Collected</span>
@@ -377,11 +397,11 @@ const AdminDashboard = () => {
                             return (
                               <div 
                                 key={d.key || d.month}
-                                className={`absolute w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow-md cursor-pointer hover:scale-150 transition-transform pointer-events-auto z-10 group ${isSelected ? 'scale-150 bg-indigo-100 ring-2 ring-indigo-400' : ''}`}
+                                className={`absolute w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 shadow-raised cursor-pointer hover:scale-150 transition-transform pointer-events-auto z-10 group ${isSelected ? 'scale-150 bg-indigo-100 ring-2 ring-indigo-400' : ''}`}
                                 style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
                                 onClick={() => setSelectedMonth(isSelected ? null : d.month)}
                               >
-                                <div className={`absolute -top-16 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-[11px] p-2 rounded shadow-lg opacity-0 transition-all z-30 w-32 pointer-events-none ${isSelected ? 'opacity-100' : 'group-hover:opacity-100'}`}>
+                                <div className={`absolute -top-16 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-caption p-2 rounded-control shadow-raised opacity-0 transition-all z-30 w-32 pointer-events-none ${isSelected ? 'opacity-100' : 'group-hover:opacity-100'}`}>
                                   <p className="font-bold text-slate-200 m-0 mb-1">{d.full_month || d.month}</p>
                                   <div className="flex justify-between"><span className="text-slate-400">Collected</span><span className="font-bold text-emerald-400">{formatCurrency(d.collected)}</span></div>
                                   <div className="flex justify-between"><span className="text-slate-400">Pending</span><span className="font-bold text-amber-400">{formatCurrency(d.pending)}</span></div>
@@ -397,7 +417,7 @@ const AdminDashboard = () => {
                         {incomeData.map((d) => (
                           <span 
                             key={`lbl-${d.key || d.month}`} 
-                            className={`text-xs font-bold transition-colors cursor-pointer ${selectedMonth === d.month ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-800'}`}
+                            className={`text-label font-bold transition-colors cursor-pointer ${selectedMonth === d.month ? 'text-indigo-600 font-bold' : 'text-slate-500 hover:text-slate-800'}`}
                             onClick={() => setSelectedMonth(selectedMonth === d.month ? null : d.month)}
                           >
                             {d.month}
@@ -408,15 +428,15 @@ const AdminDashboard = () => {
                   ) : (
                     /* Table View */
                     <div className="overflow-x-auto max-h-56">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                            <th className="py-2.5 px-3">Period</th>
-                            <th className="py-2.5 px-3 text-right">Invoices</th>
-                            <th className="py-2.5 px-3 text-right">Total Billed</th>
-                            <th className="py-2.5 px-3 text-right">Collected</th>
-                            <th className="py-2.5 px-3 text-right">Pending</th>
-                            <th className="py-2.5 px-3 text-right">Collection Rate</th>
+                      <table className="w-full text-left text-label">
+                        <thead className={THEAD}>
+                          <tr className="text-label font-medium text-slate-600">
+                            <th className={TH}>Period</th>
+                            <th className={`${TH} text-right`}>Invoices</th>
+                            <th className={`${TH} text-right`}>Total Billed</th>
+                            <th className={`${TH} text-right`}>Collected</th>
+                            <th className={`${TH} text-right`}>Pending</th>
+                            <th className={`${TH} text-right`}>Collection Rate</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -437,7 +457,7 @@ const AdminDashboard = () => {
                                 <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{formatCurrency(d.collected)}</td>
                                 <td className="py-2.5 px-3 text-right font-bold text-amber-700">{formatCurrency(d.pending)}</td>
                                 <td className="py-2.5 px-3 text-right">
-                                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${rate >= 90 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${rate >= 90 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
                                     {rate}%
                                   </span>
                                 </td>
@@ -451,15 +471,15 @@ const AdminDashboard = () => {
                   
                   {/* Selected Month Interactive Drilldown Banner */}
                   {selectedMonth && activeMonthData && (
-                    <div className="mt-4 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 text-xs text-indigo-950 flex flex-wrap justify-between items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="mt-4 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-card border border-indigo-100 text-label text-indigo-950 flex flex-wrap justify-between items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-indigo-900">{activeMonthData.full_month || activeMonthData.month} Summary</span>
-                          <span className="bg-indigo-100 text-indigo-700 text-[11px] px-2 py-0.5 rounded-full font-semibold">
+                          <span className="font-bold text-body text-indigo-900">{activeMonthData.full_month || activeMonthData.month} Summary</span>
+                          <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-indigo-100 text-indigo-700">
                             {activeMonthData.count || 0} Invoice{activeMonthData.count !== 1 ? 's' : ''}
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-slate-600 text-xs">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-slate-600 text-label">
                           <span>Collected: <strong className="text-emerald-700">{formatCurrency(activeMonthData.collected)}</strong></span>
                           <span>Pending: <strong className="text-amber-700">{formatCurrency(activeMonthData.pending)}</strong></span>
                           <span>Billed: <strong>{formatCurrency(Math.max((activeMonthData.collected || 0) + (activeMonthData.pending || 0), activeMonthData.billed || 0))}</strong></span>
@@ -467,13 +487,13 @@ const AdminDashboard = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <button 
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className={btn('secondary', 'sm')}
                           onClick={() => setSelectedMonth(null)}
                         >
                           Dismiss
                         </button>
                         <button 
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors flex items-center gap-1.5"
+                          className={btn('primary', 'sm')}
                           onClick={() => navigate('/admin-payments')}
                         >
                           <span>Manage Invoices</span>
@@ -485,122 +505,41 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Status Summaries & Newest Tenants */}
-              <div className="flex flex-col gap-6">
-                
-                {/* Building Status Widget */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
-                      <FontAwesomeIcon icon={faBuilding} className="text-blue-600" /> Building Health
-                    </h3>
-                  </div>
-                  
-                  <div className="space-y-5">
-                    <div>
-                      <div className="flex justify-between items-center mb-1 text-xs">
-                        <span className="font-medium text-slate-600">Occupancy Capacity</span>
-                        <span className="font-bold text-slate-800">{stats.occupancy_rate}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${stats.occupancy_rate}%` }}></div>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1.5 m-0">{stats.occupied_rooms} occupied out of {stats.total_rooms} total building units</p>
-                    </div>
+              </div>
 
-                    <div>
-                      <div className="flex justify-between items-center mb-1 text-xs">
-                        <span className="font-medium text-slate-600">Current Month Rent Collection</span>
-                        <span className="font-bold text-slate-800">{rentCollectionRate}%</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div className={`h-2 rounded-full transition-all ${rentCollectionRate >= 90 ? 'bg-emerald-500' : rentCollectionRate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${rentCollectionRate}%` }}></div>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1.5 m-0">
-                        {stats.pending_dues > 0 ? `${formatCurrency(stats.pending_dues)} remaining balance` : 'All invoices settled'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Newest Approved Tenants */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex-1 flex flex-col">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
-                      <FontAwesomeIcon icon={faUserPlus} className="text-emerald-700" /> Newest Tenants
-                    </h3>
-                    <button onClick={() => navigate('/admin-tenants')} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">
-                      View All
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-3 flex-1 overflow-y-auto pr-1">
-                    {loading ? (
-                       <div className="text-xs text-slate-500 text-center py-4">Loading tenants...</div>
-                    ) : newTenants.length === 0 ? (
-                       <div className="text-xs text-slate-500 text-center py-4">No recent tenants</div>
-                    ) : newTenants.map((t, idx) => (
-                      <div key={idx} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-100">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
-                          {t.name ? t.name.charAt(0) : '?'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-slate-800 m-0 truncate">{t.name}</p>
-                          <p className="text-[11px] text-slate-500 m-0 flex items-center gap-1">
-                            <FontAwesomeIcon icon={faBuilding} className="text-[9px]" /> Unit {t.unit}
-                          </p>
-                        </div>
-                        <div className="text-[11px] font-medium text-slate-500 shrink-0 bg-slate-100 px-2 py-1 rounded">
-                          {t.date}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
+              {/* What needs doing: first on phones, beside the KPIs on wider screens */}
+              <div className="order-first lg:order-none">
+                <AttentionList attention={attention} loading={loading} onRetry={fetchDashboardData} />
               </div>
             </div>
 
-            {/* Third Row: Operational Command Center & Management Hub */}
+            {/* Third Row: unit matrix / activity, and newest tenants */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
               {/* Left (Col 2): Operations Command Center */}
-              <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="lg:col-span-2 bg-white rounded-card border border-slate-200 shadow-card flex flex-col">
                 
                 {/* Tab Header */}
                 <div className="p-4 md:px-6 md:py-4 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3">
-                  <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
+                  <h3 className="text-title font-bold text-slate-800 m-0 flex items-center gap-2">
                     <FontAwesomeIcon icon={faCogs} className="text-indigo-600" /> Operational Command
                   </h3>
 
-                  <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold">
-                    <button
-                      onClick={() => setActiveLowerTab('actions')}
-                      className={`px-3 py-1.5 rounded-md cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'actions' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
-                    >
-                      <FontAwesomeIcon icon={faClipboardList} />
-                      <span>Action Queue</span>
-                      {totalPendingActions > 0 && (
-                        <span className="bg-amber-500 text-white text-[11px] px-1.5 py-0.2 rounded-full font-bold">
-                          {totalPendingActions}
-                        </span>
-                      )}
-                    </button>
-
+                  <div className="flex bg-slate-100 p-1 rounded-control text-label font-semibold">
                     <button
                       onClick={() => setActiveLowerTab('units')}
-                      className={`px-3 py-1.5 rounded-md cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'units' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                      className={`px-3 py-1.5 rounded-control cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'units' ? 'bg-white text-indigo-700 shadow-card' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                       <FontAwesomeIcon icon={faBuilding} />
                       <span>Unit Matrix</span>
-                      <span className="text-[11px] text-slate-500 font-normal">
-                        ({roomsSummary.length})
+                      <span className="text-caption text-slate-500 font-normal">
+                        ({fig(roomsSummary.length)})
                       </span>
                     </button>
 
                     <button
                       onClick={() => setActiveLowerTab('activity')}
-                      className={`px-3 py-1.5 rounded-md cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'activity' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                      className={`px-3 py-1.5 rounded-control cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'activity' ? 'bg-white text-indigo-700 shadow-card' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                       <FontAwesomeIcon icon={faHistory} />
                       <span>Activity Log</span>
@@ -611,125 +550,22 @@ const AdminDashboard = () => {
                 {/* Tab Content */}
                 <div className="p-5 md:p-6 flex-1 overflow-y-auto max-h-[22rem]">
                   
-                  {/* TAB 1: ACTION QUEUE */}
-                  {activeLowerTab === 'actions' && (
-                    <div className="space-y-4">
-                      {totalPendingActions === 0 ? (
-                        <div className="py-8 text-center flex flex-col items-center justify-center">
-                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl mb-3">
-                            <FontAwesomeIcon icon={faCheckCircle} />
-                          </div>
-                          <h4 className="text-sm font-bold text-slate-800 m-0">All Operational Queues Clear</h4>
-                          <p className="text-xs text-slate-500 mt-1 max-w-sm">No pending applications, unverified payments, or active maintenance bottlenecks at this time.</p>
-                          <div className="flex gap-2 mt-4">
-                            <button onClick={() => navigate('/admin-units')} className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border-0 cursor-pointer transition-colors">
-                              View Unit Inventory
-                            </button>
-                            <button onClick={() => navigate('/admin-announcements')} className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-0 cursor-pointer transition-colors">
-                              Post Announcement
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {/* Pending Applications */}
-                          {(pendingActions?.applications || []).map(app => (
-                            <div key={`app-${app.id}`} className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/70 flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs shrink-0">
-                                  <FontAwesomeIcon icon={faUserPlus} />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-xs font-bold text-slate-800 m-0">{app.name}</p>
-                                    <span className="bg-amber-100 text-amber-800 text-[11px] px-1.5 py-0.2 rounded font-semibold">Rent Application</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                                    Requested Unit <strong>{app.unit}</strong> • {formatCurrency(app.rent)}/mo • {app.date}
-                                  </p>
-                                </div>
-                              </div>
-                              <button 
-                                onClick={() => navigate('/admin-applications')}
-                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors whitespace-nowrap"
-                              >
-                                Review
-                              </button>
-                            </div>
-                          ))}
-
-                          {/* Pending Invoices / Payments */}
-                          {(pendingActions?.invoices || []).map(inv => (
-                            <div key={`inv-${inv.id}`} className="p-3.5 bg-rose-50/60 rounded-xl border border-rose-200/70 flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-xs shrink-0">
-                                  <FontAwesomeIcon icon={faDollarSign} />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-xs font-bold text-slate-800 m-0">{inv.tenant || 'Tenant'}</p>
-                                    <span className={`text-[11px] px-1.5 py-0.2 rounded font-semibold ${inv.is_overdue ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
-                                      {inv.is_overdue ? 'Overdue' : 'Pending Payment'}
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                                    Unit {inv.unit} • <strong>{formatCurrency(inv.amount)}</strong> • Due {inv.due_date}
-                                  </p>
-                                </div>
-                              </div>
-                              <button 
-                                onClick={() => navigate('/admin-payments')}
-                                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors whitespace-nowrap"
-                              >
-                                Verify
-                              </button>
-                            </div>
-                          ))}
-
-                          {/* Active Maintenance */}
-                          {(pendingActions?.maintenance || []).map(maint => (
-                            <div key={`maint-${maint.id}`} className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-200/70 flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs shrink-0">
-                                  <FontAwesomeIcon icon={faWrench} />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-xs font-bold text-slate-800 m-0">{maint.category || 'Maintenance'}</p>
-                                    <span className={`text-[11px] px-1.5 py-0.2 rounded font-semibold ${maint.urgency?.toLowerCase() === 'emergency' || maint.urgency?.toLowerCase() === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
-                                      {maint.urgency || 'Normal'}
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                                    Unit {maint.unit} ({maint.tenant}) • Submitted {maint.date}
-                                  </p>
-                                </div>
-                              </div>
-                              <button 
-                                onClick={() => navigate('/admin-maintenance')}
-                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors whitespace-nowrap"
-                              >
-                                Open Ticket
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {loading ? (
+                    <SkeletonList rows={5} label="Loading…" />
+                  ) : null}
 
                   {/* TAB 2: UNIT MATRIX */}
-                  {activeLowerTab === 'units' && (
+                  {!kpiStatus && activeLowerTab === 'units' && (
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-100 pb-2">
+                      <div className="flex justify-between items-center text-label text-slate-500 border-b border-slate-100 pb-2">
                         <div className="flex gap-4">
                           <span className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
-                            <span>Occupied ({stats.occupied_rooms})</span>
+                            <span>Occupied ({fig(stats.occupied_rooms)})</span>
                           </span>
                           <span className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block"></span>
-                            <span>Vacant ({stats.vacant_rooms})</span>
+                            <span>Vacant ({fig(stats.vacant_rooms)})</span>
                           </span>
                         </div>
                         <button
@@ -748,7 +584,7 @@ const AdminDashboard = () => {
                             <div
                               key={room.id}
                               onClick={() => navigate('/admin-units')}
-                              className={`card-interactive p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${
+                              className={`card-interactive p-3 rounded-card border transition-all cursor-pointer hover:shadow-raised ${
                                 isOccupied 
                                   ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' 
                                   : isReserved
@@ -757,8 +593,8 @@ const AdminDashboard = () => {
                               }`}
                             >
                               <div className="flex justify-between items-start">
-                                <span className="font-extrabold text-sm text-slate-800">{room.id}</span>
-                                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
+                                <span className="font-bold text-body text-slate-800">{room.id}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${
                                   isOccupied 
                                     ? 'bg-emerald-100 text-emerald-800' 
                                     : isReserved
@@ -768,8 +604,8 @@ const AdminDashboard = () => {
                                   {isOccupied ? 'Occupied' : isReserved ? 'Reserved' : 'Vacant'}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 m-0 mt-1">{room.floor} • {room.type}</p>
-                              <p className="text-xs font-semibold m-0 mt-2 truncate text-slate-700">
+                              <p className="text-caption text-slate-500 m-0 mt-1">{room.floor} • {room.type}</p>
+                              <p className="text-label font-semibold m-0 mt-2 truncate text-slate-700">
                                 {isOccupied || isReserved ? room.tenant || (isReserved ? 'Reserved' : 'Active Tenant') : formatCurrency(room.rent)}
                               </p>
                             </div>
@@ -780,25 +616,25 @@ const AdminDashboard = () => {
                   )}
 
                   {/* TAB 3: ACTIVITY LOGS */}
-                  {activeLowerTab === 'activity' && (
+                  {!kpiStatus && activeLowerTab === 'activity' && (
                     <div className="space-y-3">
                       {(activityLogs || []).length === 0 ? (
-                        <div className="text-xs text-slate-500 text-center py-8">No recent activity logged</div>
+                        <div className="text-label text-slate-500 text-center py-8">No recent activity logged</div>
                       ) : (
                         <div className="divide-y divide-slate-100">
                           {(activityLogs || []).map(log => (
-                            <div key={log.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start gap-3 hover:bg-slate-50/50 rounded-lg transition-colors">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${(LOG_CATEGORY_STYLE[log.category] || LOG_CATEGORY_STYLE.system).color}`}>
+                            <div key={log.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start gap-3 hover:bg-slate-50/50 rounded-control transition-colors">
+                              <div className={`w-8 h-8 rounded-control flex items-center justify-center shrink-0 mt-0.5 ${(LOG_CATEGORY_STYLE[log.category] || LOG_CATEGORY_STYLE.system).color}`}>
                                 <FontAwesomeIcon icon={(LOG_CATEGORY_STYLE[log.category] || LOG_CATEGORY_STYLE.system).icon} className="text-xs" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-2">
-                                  <p className="text-xs font-bold text-slate-800 m-0 truncate">{log.action}</p>
-                                  <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap shrink-0">
+                                  <p className="text-label font-bold text-slate-800 m-0 truncate">{log.action}</p>
+                                  <span className="text-caption text-slate-500 font-medium whitespace-nowrap shrink-0">
                                     {formatLogDate(log.created_at)}
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                                <p className="text-caption text-slate-500 m-0 mt-0.5">
                                   {log.details || `Performed by ${log.first_name ? `${log.first_name} ${log.last_name || ''}`.trim() : 'System'}`}
                                 </p>
                               </div>
@@ -810,7 +646,7 @@ const AdminDashboard = () => {
                       <div className="pt-2 text-center border-t border-slate-100">
                         <button 
                           onClick={() => navigate('/admin-activity-logs')}
-                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer"
+                          className="text-label font-semibold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer"
                         >
                           View Full Audit History →
                         </button>
@@ -821,109 +657,45 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Right: Quick Tools & Actions Launcher (Col 1) */}
-              <div className="flex flex-col gap-5">
-                
-                {/* 4 Fast Action Shortcuts */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-sm font-bold text-slate-800 mb-3.5 flex items-center gap-2 m-0">
-                    <FontAwesomeIcon icon={faCogs} className="text-indigo-600" /> Management Hub
-                  </h3>
-                  
-                  <div className="space-y-2.5">
-                    <button 
-                      onClick={() => navigate('/admin-contracts')} 
-                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-indigo-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                          <FontAwesomeIcon icon={faFileSignature} className="text-xs" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 m-0">Create Rent Agreement</p>
-                          <p className="text-[11px] text-slate-500 m-0">Generate contract for approved tenant</p>
-                        </div>
-                      </div>
-                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-indigo-600 text-xs transition-colors" />
+              {/* Right: newest tenants */}
+              <div className="flex flex-col">
+                {/* Newest Approved Tenants */}
+                <div className="bg-white rounded-card border border-slate-200 shadow-card p-6 flex-1 flex flex-col">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-body font-bold text-slate-800 flex items-center gap-2 m-0">
+                      <FontAwesomeIcon icon={faUserPlus} className="text-emerald-700" /> Newest Tenants
+                    </h3>
+                    <button onClick={() => navigate('/admin-tenants')} className="text-label text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">
+                      View All
                     </button>
-
-                    <button 
-                      onClick={() => navigate('/admin-payments')} 
-                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-emerald-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                          <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-xs" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 m-0">Record / Verify Payment</p>
-                          <p className="text-[11px] text-slate-500 m-0">Log cash or verify bank transfer</p>
-                        </div>
-                      </div>
-                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-emerald-600 text-xs transition-colors" />
-                    </button>
-
-                    <button 
-                      onClick={() => navigate('/admin-announcements')} 
-                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-amber-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-                          <FontAwesomeIcon icon={faBullhorn} className="text-xs" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 m-0">Broadcast Notice</p>
-                          <p className="text-[11px] text-slate-500 m-0">Notify all building tenants</p>
-                        </div>
-                      </div>
-                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-amber-600 text-xs transition-colors" />
-                    </button>
-
-                    <button 
-                      onClick={() => navigate('/admin-reports')} 
-                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-blue-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                          <FontAwesomeIcon icon={faDownload} className="text-xs" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 m-0">Financial & Occupancy Reports</p>
-                          <p className="text-[11px] text-slate-500 m-0">Export income, billing & tenant data</p>
-                        </div>
-                      </div>
-                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-blue-600 text-xs transition-colors" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Building Portfolio Quick Card */}
-                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-xl shadow-sm p-5 text-white flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300">Property Overview</span>
-                      <span className="text-[11px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full font-semibold">ams_db</span>
-                    </div>
-                    <h4 className="text-sm font-bold m-0 text-white">Apartment Building Portfolio</h4>
-                    <p className="text-xs text-slate-400 mt-1 m-0">13 Total Units • 3 Floors • Studio Layouts</p>
                   </div>
                   
-                  <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
-                    <div>
-                      <span className="text-[11px] text-slate-400">Total Rented</span>
-                      <p className="font-bold text-emerald-400 text-sm m-0">{stats.occupied_rooms} / {stats.total_rooms} Units</p>
-                    </div>
-                    <button 
-                      onClick={() => navigate('/admin-reports')}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors"
-                    >
-                      View Reports
-                    </button>
+                  <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+                    {loading ? (
+                       <SkeletonList rows={3} label="Loading newest tenants…" />
+                    ) : newTenants.length === 0 ? (
+                       <div className="text-label text-slate-500 text-center py-4">No recent tenants</div>
+                    ) : newTenants.map((t, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-control transition-colors cursor-pointer border border-transparent hover:border-slate-100">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-label shrink-0">
+                          {t.name ? t.name.charAt(0) : '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-body font-semibold text-slate-800 m-0 truncate">{t.name}</p>
+                          <p className="text-caption text-slate-500 m-0 flex items-center gap-1">
+                            <FontAwesomeIcon icon={faBuilding} className="text-[9px]" /> Unit {t.unit}
+                          </p>
+                        </div>
+                        <div className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-slate-600 shrink-0 bg-slate-100">
+                          {t.date}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
               </div>
             </div>
+            </>)}
 
           </div>
         </div>

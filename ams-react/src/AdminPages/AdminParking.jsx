@@ -13,6 +13,7 @@ import { LIMITS } from '../utils/validation';
 import CharCount from '../Components/form/CharCount';
 import { fileUrl } from '../api/fileUrl';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 
@@ -42,7 +43,7 @@ export default function AdminParking() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useUrlFilter('tab', 'all', TABS);
   const [busyId, setBusyId] = useState(null);
 
   // { mode: 'assign' | 'reject' | 'release', reservation, slot, reason }

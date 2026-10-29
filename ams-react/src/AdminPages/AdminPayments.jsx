@@ -22,6 +22,7 @@ import { printElement } from '../utils/print';
 import { clickable } from '../utils/clickable';
 import StatCard from '../Components/admin/StatCard';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, btn } from '../Components/admin/ui/styles';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
@@ -101,13 +102,13 @@ const AdminPayments = () => {
   const [selectedTenantId, setSelectedTenantId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOption, setSortOption] = useState('name-asc');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', ['all', 'unpaid', 'paid', 'pending-verification', 'scheduled', 'processing', 'payment-failed', 'overdue']);
   // Security Deposit Ledger controls (client-side over the contracts list).
   const [depositSearch, setDepositSearch] = useState('');
   const [depositFilter, setDepositFilter] = useState('all');
   const [depositSort, setDepositSort] = useState('tenant-asc');
   const [contracts, setContracts] = useState([]);
-  const [activeTab, setActiveTab] = useState('billing');
+  const [activeTab, setActiveTab] = useUrlFilter('tab', 'billing', ['billing', 'deposits']);
   const [loading, setLoading] = useState(true);
   const [previewProof, setPreviewProof] = useState(null);
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -394,7 +395,7 @@ const AdminPayments = () => {
                             (statusFilter === 'scheduled' && t.status === 'scheduled') ||
                             (statusFilter === 'processing' && t.status === 'processing') ||
                             (statusFilter === 'payment-failed' && t.status === 'payment-failed') ||
-                            (statusFilter === 'overdue' && t.status === 'overdue');
+                            (statusFilter === 'overdue' && t.overdueInvoices > 0); // any past-due bill, as the Overdue Accounts card and the Dashboard count it
       return matchesSearch && matchesStatus;
     });
     return filtered.sort((a, b) => {

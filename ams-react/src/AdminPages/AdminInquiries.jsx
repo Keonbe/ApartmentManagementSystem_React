@@ -23,6 +23,7 @@ const EMPTY_LOG = { full_name: '', contact_no: '', email: '', room_name: '', mes
 import { getSystemSettings } from '../config/systemSettings';
 import WaitlistPanel from '../Components/WaitlistPanel';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 
@@ -43,9 +44,9 @@ export default function AdminInquiries() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [view, setView] = useState('inquiries');
+  const [view, setView] = useUrlFilter('view', 'inquiries', ['inquiries', 'reservations']);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', [...new Set([...INQUIRY_TABS, ...RESERVATION_TABS])]);
 
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);

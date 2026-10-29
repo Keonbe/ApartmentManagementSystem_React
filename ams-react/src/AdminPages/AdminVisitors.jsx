@@ -41,6 +41,7 @@ const DENY_REASON_OPTIONS = [
 import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 import Modal from '../Components/admin/Modal';
+import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 
@@ -72,7 +73,7 @@ export default function AdminVisitors() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', ['all', 'pending_approval', 'checked_in', 'overstayed', 'checked_out', 'denied', 'cancelled']);
   const [unitFilter, setUnitFilter] = useState('all');
 
   // Modals

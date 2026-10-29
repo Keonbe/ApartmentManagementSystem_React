@@ -358,6 +358,106 @@ try {
     }
     $stmt->close();
 
+    // 10b. Needs attention: what an admin has to act on, one count per item, each
+    // matching the filtered list the Dashboard links to. One query per table (a
+    // fixed number, never per row); advance-rent invoices are a prepayment, not a debt.
+    $attention = [];
+    // A failing count (a table this deployment lacks, say) must not take the whole
+    // dashboard down. That group is left out and `incomplete` tells the page, so a
+    // missing count is never read as "nothing waiting".
+    $attn = function ($sql, $types = '', ...$params) use ($conn, &$attention) {
+        try {
+            $stmt = $conn->prepare($sql);
+            if ($types !== '') $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            return $row ?: [];
+        } catch (Throwable $e) {
+            error_log('dashboard_stats attention: ' . $e->getMessage());
+            $attention['incomplete'] = true;
+            return null;
+        }
+    };
+    $fill = function ($row, array $keys) use (&$attention) {
+        if ($row === null) return;
+        foreach ($keys as $k) $attention[$k] = (int)($row[$k] ?? 0);
+    };
+
+    // Same reads and fallbacks as the sweeps in config.php (0 is a valid reminder lead).
+    $overstayHours = 24;
+    $endingDays = 30;
+    try {
+        $overstayHours = (int)get_setting($conn, 'visitor_overstay_hours', 24);
+        if ($overstayHours <= 0) $overstayHours = 24;
+        $endingDays = max(0, (int)get_setting($conn, 'lease_end_reminder_days', 30));
+    } catch (Throwable $e) {
+        error_log('dashboard_stats attention settings: ' . $e->getMessage());
+    }
+
+    $keys = ['proofs_to_verify', 'cash_visits', 'failed_payments', 'overdue_invoices', 'overdue_tenants'];
+    $fill($attn("
+        SELECT
+            -- Per tenant, like the Payments list these lines open (one desk action each).
+            COUNT(DISTINCT CASE WHEN status = 'pending-verification' THEN user_id END) AS proofs_to_verify,
+            COUNT(DISTINCT CASE WHEN status = 'scheduled' THEN user_id END) AS cash_visits,
+            COUNT(DISTINCT CASE WHEN status = 'payment-failed' THEN user_id END) AS failed_payments,
+            SUM(due_date IS NOT NULL AND due_date < CURDATE()) AS overdue_invoices,
+            COUNT(DISTINCT CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN user_id END) AS overdue_tenants
+        FROM invoices
+        WHERE LOWER(status) IN " . billing_open_status_sql() . " $advanceMonthsFilter
+    "), $keys);
+
+    $fill($attn("
+        SELECT
+            SUM(LOWER(status) IN ('pending review', 'pending deposit')) AS applications_to_review,
+            SUM(status = 'Approved') AS move_in_due,
+            SUM(status = 'pending-move-out') AS move_out_requests
+        FROM rent_applications
+    "), ['applications_to_review', 'move_in_due', 'move_out_requests']);
+
+    $fill($attn("
+        SELECT
+            SUM(status IN ('Pending', 'In Progress') AND urgency = 'Urgent') AS maintenance_urgent,
+            SUM(status = 'Pending' AND urgency = 'Needs Triage') AS maintenance_triage
+        FROM maintenance_requests
+    "), ['maintenance_urgent', 'maintenance_triage']);
+
+    $fill($attn("
+        SELECT
+            SUM(status = 'pending_approval') AS visitors_pending,
+            SUM(status = 'checked_in' AND TIMESTAMPDIFF(HOUR, check_in_at, NOW()) >= ?) AS visitors_overstayed
+        FROM visitor_logs
+    ", 'i', $overstayHours), ['visitors_pending', 'visitors_overstayed']);
+
+    // Small request queues, one round trip.
+    $fill($attn("
+        SELECT
+            (SELECT COUNT(*) FROM parking_reservations WHERE status = 'Pending') AS parking_requests,
+            (SELECT COUNT(*) FROM cctv_requests WHERE status = 'Pending') AS cctv_requests,
+            (SELECT COUNT(*) FROM service_requests WHERE status = 'Pending') AS service_requests,
+            (SELECT COUNT(*) FROM refund_requests WHERE status = 'Pending Review') AS refunds_to_review,
+            (SELECT COUNT(*) FROM inquiries WHERE status = 'New') AS new_inquiries,
+            (SELECT COUNT(*) FROM utility_readings WHERE is_invoiced = 0) AS readings_to_invoice
+    "), ['parking_requests', 'cctv_requests', 'service_requests', 'refunds_to_review', 'new_inquiries', 'readings_to_invoice']);
+
+    // Contracts still in force; "missing documents" is the same rule as the Contracts page filter.
+    $fill($attn("
+        SELECT
+            SUM(status = 'eviction-pending' OR eviction_status = 'flagged') AS eviction_pending,
+            SUM(status IN ('draft', 'active', 'eviction-pending')
+                AND (signed_lease_path IS NULL OR signed_lease_path = '' OR notarized_lease_path IS NULL OR notarized_lease_path = '')) AS contracts_missing_docs,
+            SUM(status = 'draft') AS contracts_draft,
+            SUM(status = 'active' AND lease_end BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)) AS contracts_ending
+        FROM lease_contracts
+    ", 'i', $endingDays), ['eviction_pending', 'contracts_missing_docs', 'contracts_draft', 'contracts_ending']);
+    $attention['contracts_ending_days'] = $endingDays;
+
+    // Requests only decided from the admin queue (Notifications page).
+    $fill($attn("SELECT COUNT(*) AS requests_to_decide FROM notifications WHERE status = 'Pending' AND type IN ('occupancy_request', 'household_request', 'lease_extension_request')"), ['requests_to_decide']);
+
+    $response['attention'] = $attention;
+
     // 11. Recent Activity Logs (Audit stream)
     $response['activity_logs'] = [];
     $stmt = $conn->prepare("
