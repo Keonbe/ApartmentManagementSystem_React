@@ -22,12 +22,15 @@ import {
   faPen,
   faTrash,
   faReceipt,
-  faPlay
+  faPlay,
+  faPalette
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import ServiceCatalogModal from '../Components/ServiceCatalogModal';
+import ServiceAppearanceModal from '../Components/ServiceAppearanceModal';
+import { getServiceAppearance, parseServiceAppearance } from '../config/serviceAppearance';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
@@ -125,6 +128,45 @@ const initialServices = [
   },
 ];
 
+const tenantUtilityServices = [
+  {
+    id: 'addons',
+    title: 'Add-On Services (Portal Hub)',
+    description: 'The front-facing bookable card for cleaning, laundry, and other unit services in the tenant portal.',
+    price: 'Catalog',
+    unit: 'based',
+    isLocked: false,
+    isActive: true,
+  },
+  {
+    id: 'my-requests',
+    title: 'My Requests',
+    description: 'Tenant dashboard utility to review active and past tickets, permits, and CCTV requests.',
+    price: 'Always',
+    unit: 'enabled',
+    isLocked: true,
+    isActive: true,
+  },
+  {
+    id: 'announcements',
+    title: 'Announcements',
+    description: 'Building notice board and memorandum center for active tenants.',
+    price: 'Always',
+    unit: 'enabled',
+    isLocked: true,
+    isActive: true,
+  },
+  {
+    id: 'payment-history',
+    title: 'Payment History',
+    description: 'Ledger and official receipt download center for past monthly rental settlements.',
+    price: 'Always',
+    unit: 'enabled',
+    isLocked: true,
+    isActive: true,
+  },
+];
+
 // Mirrors SERVICE_TRANSITIONS in backend/config.php.
 const SERVICE_TRANSITIONS = {
   'Pending': ['Approved', 'Rejected', 'Cancelled'],
@@ -160,12 +202,20 @@ const AdminServicePage = () => {
   const [savingService, setSavingService] = useState(false);
   const [modalSession, setModalSession] = useState(0);
 
+  // Service Appearance Customization State
+  const [customAppearanceMap, setCustomAppearanceMap] = useState({});
+  const [appearanceModalOpen, setAppearanceModalOpen] = useState(false);
+  const [appearanceTarget, setAppearanceTarget] = useState(null);
+
   const loadData = async () => {
     try {
       //1.FetchActiveServicesStatusFromSystemSettings
       const settingsRes = await api.get('get_system_settings.php');
       if (settingsRes.data.success && settingsRes.data.settings) {
         const sysSettings = settingsRes.data.settings;
+        if (sysSettings.service_appearance) {
+          setCustomAppearanceMap(parseServiceAppearance(sysSettings.service_appearance));
+        }
         setServices(prev =>
           prev.map(s => {
             if (s.isLocked) return { ...s, isActive: true };
@@ -244,6 +294,45 @@ const AdminServicePage = () => {
     const load = async () => { await loadData(); };
     load();
   }, []);
+
+  // Listen for live system settings sync
+  useEffect(() => {
+    const handleSync = (e) => {
+      if (e?.detail?.service_appearance) {
+        setCustomAppearanceMap(parseServiceAppearance(e.detail.service_appearance));
+      }
+    };
+    window.addEventListener('system-settings-updated', handleSync);
+    return () => window.removeEventListener('system-settings-updated', handleSync);
+  }, []);
+
+  const openAppearanceModal = (service) => {
+    setAppearanceTarget(service);
+    setAppearanceModalOpen(true);
+  };
+
+  const handleSaveAppearance = async ({ serviceId, color, icon }) => {
+    const updated = {
+      ...customAppearanceMap,
+      [serviceId]: { color, icon },
+    };
+    setCustomAppearanceMap(updated);
+
+    const payload = {
+      service_appearance: JSON.stringify(updated),
+    };
+    try {
+      const res = await api.post('update_system_settings.php', payload);
+      if (res.data.success) {
+        window.dispatchEvent(new CustomEvent('system-settings-updated', { detail: payload }));
+      } else {
+        alert('Failed to save appearance: ' + (res.data.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Failed to save service appearance:', err);
+      alert(err.response?.data?.message || 'Failed to save appearance. Please try again.');
+    }
+  };
 
   const activeServiceCount = services.filter(s => s.isActive).length;
   const pendingCctvCount = cctvRequests.filter(r => r.status === 'Pending').length;
@@ -469,7 +558,36 @@ const AdminServicePage = () => {
               </div>
               <div className="stagger-children grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
                 {services.map(service => (
-                  <ServiceCard key={service.id} service={withCatalogPrice(service)} onToggle={() => toggleService(service.id)} />
+                  <ServiceCard
+                    key={service.id}
+                    service={withCatalogPrice(service)}
+                    onToggle={() => toggleService(service.id)}
+                    onCustomize={openAppearanceModal}
+                    customAppearanceMap={customAppearanceMap}
+                  />
+                ))}
+              </div>
+            </section>
+
+            {/* Tenant Portal Utilities & Records Appearance */}
+            <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
+              <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <h3 className="text-title font-semibold text-slate-800 m-0">Tenant Portal Utilities & Navigation</h3>
+                  <p className="text-body text-slate-500 m-0 mt-1">
+                    Customize preset colors and icons for standard tenant account services and records.
+                  </p>
+                </div>
+              </div>
+              <div className="stagger-children grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+                {tenantUtilityServices.map(service => (
+                  <ServiceCard
+                    key={service.id}
+                    service={service}
+                    isUtility
+                    onCustomize={openAppearanceModal}
+                    customAppearanceMap={customAppearanceMap}
+                  />
                 ))}
               </div>
             </section>
@@ -927,17 +1045,36 @@ const AdminServicePage = () => {
         onClose={() => { setModalOpen(false); setEditingService(null); }}
         onSave={handleSaveService}
       />
+
+      {/*ServiceAppearanceCustomizationModal*/}
+      <ServiceAppearanceModal
+        key={appearanceTarget?.id || 'none'}
+        isOpen={appearanceModalOpen}
+        service={appearanceTarget}
+        currentAppearance={appearanceTarget ? getServiceAppearance(appearanceTarget.id, { service_appearance: customAppearanceMap }) : null}
+        onClose={() => { setAppearanceModalOpen(false); setAppearanceTarget(null); }}
+        onSave={handleSaveAppearance}
+      />
     </div>
   );
 };
 
-const ServiceCard = ({ service, onToggle }) => {
+const ServiceCard = ({
+  service,
+  onToggle,
+  onCustomize,
+  customAppearanceMap,
+  isUtility = false,
+}) => {
+  const appearance = getServiceAppearance(service.id, { service_appearance: customAppearanceMap });
+  const activeIcon = appearance.icon || service.icon;
+
   return (
     <div className={`card-interactive flex h-full flex-col rounded-card border p-5 shadow-card transition-all ${service.isActive ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-75'}`}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-card bg-slate-100">
-            <FontAwesomeIcon icon={service.icon} className={`text-lg ${service.iconColor}`} />
+          <div className={`flex h-11 w-11 items-center justify-center rounded-xl border shadow-2xs ${appearance.colorConfig.bgLight} ${appearance.colorConfig.borderLight} ${appearance.colorConfig.text}`}>
+            <FontAwesomeIcon icon={activeIcon} className="text-xl" />
           </div>
           <div>
             <h4 className="text-body font-semibold text-slate-800 m-0">{service.title}</h4>
@@ -954,30 +1091,32 @@ const ServiceCard = ({ service, onToggle }) => {
           </div>
         </div>
 
-        {/* Functional/Locked Toggle Switch Button */}
-        {service.isLocked ? (
-          <button
-            type="button"
-            disabled
-            role="switch"
-            aria-checked="true"
-            aria-label={`${service.title} (always on)`}
-            title="Core module is always enabled"
-            className="touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center rounded-full border-2 border-transparent bg-indigo-600 opacity-80"
-          >
-            <span className="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-card ring-0 translate-x-5" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggle}
-            role="switch"
-            aria-checked={!!service.isActive}
-            aria-label={`${service.title} enabled`}
-            className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
-          >
-            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-card ring-0 transition duration-200 ease-in-out ${service.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
-          </button>
+        {/* Functional/Locked Toggle Switch Button (Hidden for pure utilities) */}
+        {!isUtility && (
+          service.isLocked ? (
+            <button
+              type="button"
+              disabled
+              role="switch"
+              aria-checked="true"
+              aria-label={`${service.title} (always on)`}
+              title="Core module is always enabled"
+              className="touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center rounded-full border-2 border-transparent bg-indigo-600 opacity-80"
+            >
+              <span className="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-card ring-0 translate-x-5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onToggle}
+              role="switch"
+              aria-checked={!!service.isActive}
+              aria-label={`${service.title} enabled`}
+              className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
+            >
+              <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-card ring-0 transition duration-200 ease-in-out ${service.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          )
         )}
       </div>
       <p className="mb-4 flex-1 text-label text-slate-500 leading-relaxed m-0">{service.description}</p>
@@ -986,6 +1125,19 @@ const ServiceCard = ({ service, onToggle }) => {
           {service.price}
           <span className="ml-1 text-caption font-medium">{service.unit}</span>
         </p>
+
+        {/* Customize Appearance Action Button */}
+        {onCustomize && (
+          <button
+            type="button"
+            onClick={() => onCustomize(service)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
+            title="Customize preset color and icon for tenant portal"
+          >
+            <FontAwesomeIcon icon={faPalette} className="text-xs text-indigo-500" />
+            <span>Customize Look</span>
+          </button>
+        )}
       </div>
     </div>
   );

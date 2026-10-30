@@ -1,8 +1,13 @@
 /* =====================================================
-   SERVICES PAGE — services.responsive.css
+   SERVICES PAGE & SERVICE CATALOG — services.responsive.css
    Domain: user
-   Base: Tailwind utilities in Services.jsx
+   Base: Tailwind utilities in Services.jsx & ServiceCatalog.jsx
    ===================================================== */
+
+/* Service Hub Card responsive touches */
+.service-hub-card {
+  min-height: 230px;
+}
 
 @media (max-width: 768px) {
   .services-root {
@@ -15,9 +20,10 @@
   }
 
   .services-subtext {
-    font-size: 0.8125rem !important;
+    font-size: 0.875rem !important;
   }
 
+  /* Catalog card fallback compatibility */
   .services-card {
     padding: 1.25rem !important;
     border-radius: 1.25rem !important;
@@ -41,6 +47,11 @@
     justify-content: center !important;
     font-size: 0.875rem !important;
   }
+
+  .service-hub-card {
+    padding: 1.25rem !important;
+    min-height: auto;
+  }
 }
 
 @media (max-width: 480px) {
@@ -53,6 +64,10 @@
   }
 
   .services-card {
+    padding: 1rem !important;
+  }
+
+  .service-hub-card {
     padding: 1rem !important;
   }
 }
