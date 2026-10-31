@@ -148,10 +148,11 @@ function BaseAppLayout({ children, hasRentedRoom }) {
         username={username || "Guest"} 
         onLoginClick={() => navigate('/login')} 
       />
-      <main className="w-full flex-grow flex flex-col justify-start overflow-x-hidden">
+      {/* overflow-x-clip, not hidden: hidden makes <main> a scroll container and breaks position: sticky inside pages */}
+      <main className="w-full flex-grow flex flex-col justify-start overflow-x-clip">
         {children}
       </main>
-      <footer className="w-full bg-[#3b4276] py-5 text-center select-none shrink-0 border-t border-white/10">
+      <footer className="w-full bg-[#3b4276] px-4 py-5 text-center select-none shrink-0 border-t border-white/10">
         <p className="m-0 text-white/70 text-xs font-medium tracking-wider">
           &copy; 2026 Apartment Management System. All Rights Reserved.
         </p>

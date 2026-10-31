@@ -70,7 +70,6 @@ const translations = {
     'home.viewServices': 'View Services',
 
     // --- Preview ---
-    'preview.featured': 'Featured Listing',
     'preview.title': 'Apartment in Silang',
     'preview.location': 'Maguyam Silang, Cavite',
     'preview.parking': 'Motorcycle Parking',
@@ -1180,7 +1179,6 @@ const translations = {
     'home.viewServices': 'Tingnan ang Services',
 
     // --- Preview ---
-    'preview.featured': 'Tampok na Listahan',
     'preview.title': 'Apartment sa Silang',
     'preview.location': 'Maguyam Silang, Cavite',
     'preview.parking': 'Paradahan ng Motor',
