@@ -136,8 +136,13 @@ The API base URL comes from `VITE_API_BASE_URL` ([src/api/env.js](ams-react/src/
 ```bash
 cd websocket-server
 npm install
+cp .env.example .env   # Windows cmd: copy .env.example .env; optional, see below
 node server.js         # Socket.IO on port 3001 (PORT in websocket-server/.env)
 ```
+
+`websocket-server/.env` is gitignored. Without it the server uses the same values as `.env.example` (`DB_HOST=localhost`, `DB_USER=root`, empty `DB_PASSWORD`, `DB_NAME=ams_db`, `PORT=3001`), so you only need the file when your database or port differs. `node_modules/` is never committed: always run `npm install` after cloning. `backend/vendor/` (PHPMailer) **is** committed, so the backend needs no `composer install`.
+
+> **Updating an existing checkout?** Older commits tracked `websocket-server/node_modules/` and `websocket-server/.env`, so the first `git pull` after they were untracked deletes both from your disk. Before pulling, copy `websocket-server/.env` somewhere safe (a server that relies on it especially). After pulling, put it back and run `npm install` in `websocket-server/`, then restart `node server.js`.
 
 The frontend connects via `VITE_CHAT_SOCKET_URL` (default `http://localhost:3001` in development). When the socket is down, chat falls back to HTTP polling of the PHP endpoints.
 
@@ -159,7 +164,7 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
 | **Tenant** (active lease) | `maria.santos@gmail.com` | `tenant123` | `/login` → `/my-room` |
 | **Applicant** (application pending review) | `gloria.tan@gmail.com` | `tenant123` | `/login` → `/track-application` |
 
-`seed_mock_data.sql` seeds more tenants (`jose.reyes@gmail.com`, `pedro.cruz@gmail.com`, `rosa.delacruz@gmail.com`, …); all use `tenant123`. **Change the admin password before any real deployment.**
+`seed_mock_data.sql` seeds more tenants (`jose.reyes@gmail.com`, `pedro.cruz@gmail.com`, `rosa.delacruz@gmail.com`, …); all use `tenant123`. These logins are demo data only: never run the seed on a deployed system, and **change the admin password before any real deployment.**
 
 ---
 

@@ -10,7 +10,7 @@ This page covers how AMS chooses its settings in each environment, and what chan
 
 | Piece | Local | Production |
 |---|---|---|
-| PHP API | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `https://apartmentmanagementsystemreact-production.up.railway.app/api/` |
+| PHP API | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `https://ams-api.example.com/api/` |
 | Database | MariaDB on XAMPP (`localhost:3306/ams_db`) | Separate Railway MariaDB service, reachable only on its **private** host |
 | Frontend | Vite dev server `http://localhost:5173`, or `ams-react/dist/` served by Apache | **Not deployed yet** |
 
@@ -120,7 +120,7 @@ The Docker image runs PHP 8.2, where `new mysqli()` **throws** when it can't con
 1. Railway → API service → **Variables**: set the `DB_*` references, `DB_NAME=ams_db` and `APP_ENV=production`.
 2. **Deploy latest commit**, then test:
    ```bash
-   API=https://apartmentmanagementsystemreact-production.up.railway.app/api
+   API=https://ams-api.example.com/api
    curl -s "$API/get_invoices.php"          # {"success":false,"message":"Authentication required"}
    curl -s -X POST "$API/login.php" -H "Content-Type: application/json" \
      -d '{"email_address":"admin@gmail.com","password":"<ADMIN_PASSWORD>"}'

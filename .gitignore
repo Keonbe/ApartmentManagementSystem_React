@@ -47,3 +47,7 @@ tests/api/.test-cache/
 
 # Playwright MCP screenshots/snapshots
 .playwright-mcp/
+
+# npm dependencies (install with npm install) and the stray uploaded slot QR photo
+node_modules/
+backend/qr_codes/*.jpg
