@@ -251,6 +251,30 @@ foreach ($input as $key => $value) {
         $refuse("Maximum occupants per unit must be a whole number between 1 and 20.");
     }
 
+    // Tenant Glass theme backdrop (Other Settings -> Glass Mode). Every visitor's
+    // page loads the image, so only a file upload_glass_background.php created
+    // (or '' for the built-in photo) is accepted. Checked only when it changes:
+    // the settings form posts every key, and a file removed by hand must not
+    // block saving the parking fee.
+    if ($key === 'glass_bg_image' && ($existing[$key] ?? '') !== $value) {
+        if ($value !== '' && !is_valid_glass_bg_path($value)) {
+            $refuse("Upload the background image again, or reset to the default photo.", ["glassBgImage" => "This image was not found."]);
+        }
+        $replaced_glass_bg = $existing[$key] ?? '';
+    }
+    if ($key === 'glass_overlay_opacity' && (!ctype_digit($value) || (int)$value > 95)) {
+        $refuse("The Glass overlay must be a whole number from 0 to 95 percent.", ["glassOverlayOpacity" => "Enter 0 to 95."]);
+    }
+    if ($key === 'glass_blur' && (!ctype_digit($value) || (int)$value > 20)) {
+        $refuse("The Glass background blur must be a whole number from 0 to 20 pixels.", ["glassBlur" => "Enter 0 to 20."]);
+    }
+    if ($key === 'glass_tint') {
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $value)) {
+            $refuse("The Glass tint must be a colour like #0f172a.", ["glassTint" => "Use a #rrggbb colour."]);
+        }
+        $value = strtolower($value);
+    }
+
     if (array_key_exists($key, $existing) && $existing[$key] === $value) continue;
 
     $stmt->bind_param("sss", $key, $value, $value);
@@ -259,6 +283,12 @@ foreach ($input as $key => $value) {
 }
 $stmt->close();
 $conn->commit();
+
+// The backdrop it replaced is unused now. Removed only after the commit, so a
+// refused save never leaves the setting pointing at a deleted file.
+if (!empty($replaced_glass_bg) && in_array('glass_bg_image', $changed, true)) {
+    delete_glass_bg_file($replaced_glass_bg);
+}
 
 // The audit entry names what actually changed; it used to say "Updated multiple configuration keys" every time.
 if ($changed) {

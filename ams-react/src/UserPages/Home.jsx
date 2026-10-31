@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, Mail, MapPin, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import ApartmentPic from '../assets/Apartment_Pic.webp';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/home.responsive.css';
@@ -30,17 +29,13 @@ export default function Home({ onCardClick, username }) {
     }, []);
 
     return (
-        <div className="home-hero w-full min-h-[calc(100vh-76px)] relative flex items-center justify-start overflow-hidden box-border">
+        // Always the Glass theme (App.jsx): the photo is the shared Glass backdrop
+        // the admin sets in Other Settings. The panel is drawn for a dark
+        // backdrop already, so it opts out of the colour remap (ut-native).
+        <div className="home-hero ut-native w-full min-h-[calc(100vh-76px)] relative flex items-center justify-start overflow-hidden box-border">
 
-            {/*Full Bleed Background Image Asset*/}
-            <div className="absolute inset-0 z-0">
-                <img
-                    src={ApartmentPic}
-                    alt=""
-                    className="home-bg-image w-full h-full object-cover animate-fade-in"
-                />
-                <div className="home-gradient-overlay absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-transparent"></div>
-            </div>
+            {/* Darkens the left side under the panel; the backdrop's own tint covers the rest. */}
+            <div className="home-gradient-overlay absolute inset-0 z-0 bg-gradient-to-r from-slate-950/60 via-slate-950/25 to-transparent" aria-hidden="true"></div>
 
             {/*Clean Floating Content Panel Layout*/}
             <div className="home-content-container w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">

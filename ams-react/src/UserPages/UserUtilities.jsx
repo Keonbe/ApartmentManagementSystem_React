@@ -86,7 +86,7 @@ export default function UserUtilities() {
               >
                 <FontAwesomeIcon icon={faArrowLeft} className="text-sm" aria-hidden="true" />
               </button>
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 m-0 tracking-tight" style={{ color: '#3b4276' }}>
+              <h1 className="text-2xl sm:text-3xl font-black m-0 tracking-tight text-brand">
                 {t('utilities.title')}
               </h1>
             </div>
@@ -323,7 +323,7 @@ export default function UserUtilities() {
                     </>)}
 
                     {/* Total Combined Summary Block */}
-                    <div className="md:col-span-4 p-5 rounded-2xl bg-slate-900 text-white flex flex-col justify-between space-y-3">
+                    <div className="ut-native md:col-span-4 p-5 rounded-2xl bg-slate-900 text-white flex flex-col justify-between space-y-3">
                       <div>
                         <span className="text-xs font-bold text-slate-300 block">
                           {t('utilities.totalSubtotal')}

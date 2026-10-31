@@ -1,0 +1,14 @@
+# Tenant Glass theme backdrops (upload_glass_background.php). Public on purpose:
+# guests see the photo on Home, so unlike backend/uploads/ these are served
+# directly. No directory listing, nothing here runs as a script, and the
+# browser must not second-guess the image type.
+
+Options -Indexes
+
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps|phar|pht|cgi|pl|py|sh|svg|html?)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

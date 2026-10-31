@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~85 s, 320 tests (19 files)
+npm test           # ~90 s, 419 tests (28 files)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -77,6 +77,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 |---|---|---|
 | `auth.test.js` | 8 | Login, wrong password, `email_address` field, 401/403 gates, forged `X-User-Id`, archived account and its old session |
 | `settings.test.js` | 33 | Atomic save (one bad key saves nothing), bounds for `min_lease_duration`, `payment_window_days`, `max_rent_ahead_months`, `max_parking_slots`, injection value; move-in window: shipped 0 / 365, a pair saves together, earliest 61 / -1 / 1.5 / text and latest 0 / 366 / empty → 422, latest below the earliest (same request or stored) → 422, 0 allowed, numbers in `get_system_settings.php` |
+| `glass_theme.test.js` | 28 | Glass theme backdrop: shipped defaults readable by guests (numbers as numbers); overlay 0-95, blur 0-20, tint `#rrggbb` (stored lower-case) with bad values → 422; `glass_bg_image` only accepts an uploaded `site_assets/glass_bg_*` file (traversal, other folders, URLs, markup, a missing file → 422, nothing saved), but an unchanged stored path never blocks other settings; tenant refused. `upload_glass_background.php`: tenant 403, no session 401, no file / non-image named `.png` / under 640 px → 422; a real image gets a generated name and is not live until saved; saving a new one or resetting deletes the replaced file |
 | `extension.test.js` | 20 | Extension range (min shrinks to what fits), request, pending/overdue/move-out blocks, `extensionRange` for admin only, admin Extend Rent and `lease_renewals` |
 | `visitors.test.js` | 6 | Pre-registrations dated by expected arrival, `checked_in` vs `overstayed` at the 24 h boundary, tenant scoping, SQL-injection search |
 | `dashboard_attention.test.js` | 7 | Dashboard `attention` counts (`dashboard_stats.php`): admin only, existing stats kept, proofs / overdue bills / overdue tenants move by one while an advance-rent invoice adds nothing, pending CCTV only, seeded move-out request, one failing count (table renamed) leaves a 200 with `attention.incomplete` and the other groups, a 0-day rent-end reminder reads as 0 not 30 |

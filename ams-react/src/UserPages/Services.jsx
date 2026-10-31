@@ -346,15 +346,17 @@ export default function Services() {
                                     </div>
 
                                     {/* Bottom Action CTA Button */}
-                                    <div className="pt-5 mt-6 border-t border-slate-100 flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
+                                    {/* The label gives way first (truncates), so a longer Filipino button
+                                        label stays on one line and every card keeps the same footer. */}
+                                    <div className="pt-5 mt-6 border-t border-slate-100 flex items-center justify-between gap-3">
+                                        <span className="min-w-0 truncate text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
                                             {t('services.badgeHub')}
                                         </span>
                                         <button
                                             type="button"
                                             tabIndex={-1}
                                             aria-hidden="true"
-                                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all group-hover:scale-[1.03] border-0 cursor-pointer ${colorConfig.btn}`}
+                                            className={`inline-flex shrink-0 max-w-full items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold leading-tight shadow-sm transition-all group-hover:scale-[1.03] border-0 cursor-pointer ${colorConfig.btn}`}
                                         >
                                             <span>{service.buttonText}</span>
                                             <FontAwesomeIcon

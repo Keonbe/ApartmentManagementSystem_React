@@ -208,7 +208,7 @@ export default function ServiceBooking() {
     }
 
     const inputClass = "focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]";
-    const labelClass = "text-sm font-bold text-slate-700";
+    const labelClass = "text-sm font-bold text-brand";
 
     return (
         <div className="service-booking-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
@@ -217,8 +217,7 @@ export default function ServiceBooking() {
                 {/*Top Header Row*/}
                 <div className="border-b border-slate-200 pb-4">
                     <h1
-                        className="service-booking-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
-                        style={{ color: '#3b4276' }}
+                        className="service-booking-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
                     >
                         {t('serviceBooking.heading')}
                     </h1>
@@ -244,13 +243,12 @@ export default function ServiceBooking() {
 
                         {/*Service Selector*/}
                         <div className="flex flex-col space-y-2 md:col-span-2">
-                            <label htmlFor="service-serviceId" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.selectService')}</label>
+                            <label htmlFor="service-serviceId" className={labelClass}>{t('serviceBooking.selectService')}</label>
                             <select
                                 {...form.fieldA11y('serviceId')}
                                 value={serviceId}
                                 onChange={handleServiceChange}
                                 className={`service-booking-select ${inputClass}${invalidCls(form.errors.serviceId)}`}
-                                style={{ color: '#1e293b' }}
                                 required
                             >
                                 <option value="" disabled hidden>{t('serviceBooking.selectServicePlaceholder')}</option>
@@ -267,7 +265,7 @@ export default function ServiceBooking() {
                         {selected && (
                             <div className="md:col-span-2 flex items-start gap-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
                                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
-                                    <FontAwesomeIcon icon={iconFor(selected.icon)} className="text-xl text-[#3b4276]" />
+                                    <FontAwesomeIcon icon={iconFor(selected.icon)} className="text-xl text-brand" />
                                 </div>
                                 <div className="min-w-0">
                                     <h3 className="text-base font-bold text-slate-800 m-0">{selected.name}</h3>
@@ -287,7 +285,7 @@ export default function ServiceBooking() {
                         {/*Quantity Field-OnlyForNonSessionPricing*/}
                         {isQuantified && (
                             <div className="flex flex-col space-y-2">
-                                <label htmlFor="service-quantity" className={labelClass} style={{ color: '#3b4276' }}>
+                                <label htmlFor="service-quantity" className={labelClass}>
                                     {t('serviceBooking.quantity')} ({unitLabel(selected.pricingUnit)})
                                 </label>
                                 <input
@@ -302,7 +300,6 @@ export default function ServiceBooking() {
                                     onChange={(e) => { setQuantityInput(e.target.value); form.clearError('quantity'); }}
                                     onBlur={() => form.validateField('quantity', values)}
                                     className={`service-booking-input ${inputClass}${invalidCls(form.errors.quantity)}`}
-                                    style={{ color: '#1e293b' }}
                                     required
                                 />
                                 <FieldError id="service-quantity" error={form.errors.quantity} className="m-0" />
@@ -324,7 +321,7 @@ export default function ServiceBooking() {
 
                         {/*Preferred Date Field*/}
                         <div className="flex flex-col space-y-2">
-                            <label htmlFor="service-preferredDate" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.preferredDate')}</label>
+                            <label htmlFor="service-preferredDate" className={labelClass}>{t('serviceBooking.preferredDate')}</label>
                             <input
                                 type="date"
                                 {...form.fieldA11y('preferredDate')}
@@ -334,7 +331,6 @@ export default function ServiceBooking() {
                                 onChange={(e) => { setPreferredDate(e.target.value); form.clearError('preferredDate'); }}
                                 onBlur={() => preferredDate && form.validateField('preferredDate', values)}
                                 className={`service-booking-input ${inputClass}${invalidCls(form.errors.preferredDate)}`}
-                                style={{ color: '#1e293b' }}
                                 required
                             />
                             <FieldError id="service-preferredDate" error={form.errors.preferredDate} className="m-0" />
@@ -342,13 +338,12 @@ export default function ServiceBooking() {
 
                         {/*Time Window Selector*/}
                         <div className="flex flex-col space-y-2">
-                            <label htmlFor="service-preferredTimeSlot" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.preferredTimeSlot')}</label>
+                            <label htmlFor="service-preferredTimeSlot" className={labelClass}>{t('serviceBooking.preferredTimeSlot')}</label>
                             <select
                                 {...form.fieldA11y('preferredTimeSlot')}
                                 value={preferredTimeSlot}
                                 onChange={(e) => { setPreferredTimeSlot(e.target.value); form.clearError('preferredTimeSlot'); }}
                                 className={`service-booking-select ${inputClass}${invalidCls(form.errors.preferredTimeSlot)}`}
-                                style={{ color: '#1e293b' }}
                                 required
                             >
                                 <option value="" disabled hidden>{t('serviceBooking.selectTime')}</option>
@@ -360,7 +355,7 @@ export default function ServiceBooking() {
 
                         {/*Additional Notes Area*/}
                         <div className="flex flex-col space-y-2 md:col-span-2">
-                            <label htmlFor="service-notes" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.notes')}</label>
+                            <label htmlFor="service-notes" className={labelClass}>{t('serviceBooking.notes')}</label>
                             <textarea
                                 rows={4}
                                 {...form.fieldA11y('notes')}
@@ -370,7 +365,6 @@ export default function ServiceBooking() {
                                 onChange={(e) => { setNotes(e.target.value); form.clearError('notes'); }}
                                 onBlur={() => { const v = notes.trim(); setNotes(v); form.validateField('notes', { ...values, notes: v }); }}
                                 className={"service-booking-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none" + invalidCls(form.errors.notes)}
-                                style={{ color: '#1e293b' }}
                             />
                             <FieldError id="service-notes" error={form.errors.notes} className="m-0" />
                             <CharCount value={notes} max={LIMITS.notes} className="m-0" />
@@ -378,7 +372,7 @@ export default function ServiceBooking() {
 
                         {/*File Upload Drag and Drop Area*/}
                         <div className="flex flex-col space-y-2 md:col-span-2">
-                            <label htmlFor="service-uploadedFile" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.attachment')}</label>
+                            <label htmlFor="service-uploadedFile" className={labelClass}>{t('serviceBooking.attachment')}</label>
                             <div
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}

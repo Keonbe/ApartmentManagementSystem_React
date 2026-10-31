@@ -35,7 +35,7 @@ export default function UserAnnouncements() {
                 
                 <div className="border-b border-slate-200 pb-4 flex items-center justify-between">
                     <div>
-                        <h1 className="user-announcements-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none flex items-center gap-3" style={{ color: '#3b4276' }}>
+                        <h1 className="user-announcements-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none flex items-center gap-3 text-brand">
                             <FontAwesomeIcon icon={faBullhorn} className="text-indigo-500 text-2xl sm:text-3xl" />
                             {t('announcements.heading')}
                         </h1>

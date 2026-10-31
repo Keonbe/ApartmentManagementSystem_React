@@ -86,8 +86,7 @@ export default function CctvRequest() {
                 <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1
-                            className="cctv-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
-                            style={{ color: '#3b4276' }}
+                            className="cctv-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
                         >
                             {t('cctv.heading')}
                         </h1>
@@ -103,7 +102,7 @@ export default function CctvRequest() {
 
                     {/*Incident Date Input Field Box Layout*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="cctv-incidentDate" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('cctv.incidentDate')}</label>
+                        <label htmlFor="cctv-incidentDate" className="text-sm font-bold text-brand">{t('cctv.incidentDate')}</label>
                         <input
                             type="date"
                             {...form.fieldA11y('incidentDate')}
@@ -113,7 +112,6 @@ export default function CctvRequest() {
                             onChange={(e) => { setIncidentDate(e.target.value); form.clearError('incidentDate'); }}
                             onBlur={() => incidentDate && form.validateField('incidentDate', values)}
                             className={"cctv-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.incidentDate)}
-                            style={{ color: '#1e293b' }}
                             required
                         />
                         <FieldError id="cctv-incidentDate" error={form.errors.incidentDate} className="m-0" />
@@ -121,13 +119,12 @@ export default function CctvRequest() {
 
                     {/*Estimated Time Select Component Dropdown Menu*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="cctv-incidentTime" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('cctv.incidentTime')}</label>
+                        <label htmlFor="cctv-incidentTime" className="text-sm font-bold text-brand">{t('cctv.incidentTime')}</label>
                         <select
                             {...form.fieldA11y('incidentTime')}
                             value={incidentTime}
                             onChange={(e) => { setIncidentTime(e.target.value); form.clearError('incidentTime'); }}
                             className={"cctv-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.incidentTime)}
-                            style={{ color: '#1e293b' }}
                             required
                         >
                             <option value="" disabled hidden>{t('cctv.selectHour')}</option>
@@ -143,13 +140,12 @@ export default function CctvRequest() {
 
                     {/*Corridor Location Dropdown Menu Layout Component*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="cctv-locationDetails" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('cctv.location')}</label>
+                        <label htmlFor="cctv-locationDetails" className="text-sm font-bold text-brand">{t('cctv.location')}</label>
                         <select
                             {...form.fieldA11y('locationDetails')}
                             value={locationDetails}
                             onChange={(e) => { setLocationDetails(e.target.value); form.clearError('locationDetails'); }}
                             className={"cctv-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.locationDetails)}
-                            style={{ color: '#1e293b' }}
                             required
                         >
                             <option value="" disabled hidden>{t('cctv.selectFloor')}</option>
@@ -163,7 +159,7 @@ export default function CctvRequest() {
 
                     {/*Reason for Request text input area box layout Component*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="cctv-reasonRequest" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('cctv.reason')}</label>
+                        <label htmlFor="cctv-reasonRequest" className="text-sm font-bold text-brand">{t('cctv.reason')}</label>
                         <textarea
                             rows={3}
                             {...form.fieldA11y('reasonRequest')}
@@ -173,7 +169,6 @@ export default function CctvRequest() {
                             onChange={(e) => { setReasonRequest(e.target.value); form.clearError('reasonRequest'); }}
                             onBlur={() => { const v = reasonRequest.trim(); setReasonRequest(v); if (v) form.validateField('reasonRequest', { ...values, reasonRequest: v }); }}
                             className={"cctv-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none" + invalidCls(form.errors.reasonRequest)}
-                            style={{ color: '#1e293b' }}
                             required
                         />
                         <FieldError id="cctv-reasonRequest" error={form.errors.reasonRequest} className="m-0" />

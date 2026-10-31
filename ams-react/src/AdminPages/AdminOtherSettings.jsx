@@ -20,6 +20,7 @@ import HouseRulesPanel from './settings/HouseRulesPanel';
 import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import MinorsPanel from './settings/MinorsPanel';
+import GlassModePanel from './settings/GlassModePanel';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -172,7 +173,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure leasing policies, parking, notifications, maintenance, floor rates, and building rules.
+                Configure leasing policies, parking, notifications, maintenance, the tenant Glass theme, floor rates, and building rules.
               </p>
             </div>
 
@@ -282,6 +283,9 @@ const AdminOtherSettings = () => {
                 </div>
                 <div data-tab="maintenance" hidden={activeTab !== 'maintenance'} className="space-y-6">
                   <MaintenancePanel {...panelProps} />
+                </div>
+                <div data-tab="glass-mode" hidden={activeTab !== 'glass-mode'} className="space-y-6">
+                  <GlassModePanel {...panelProps} />
                 </div>
               </form>
             )}

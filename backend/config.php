@@ -3552,6 +3552,34 @@ function is_masked_secret($value) {
     return is_string($value) && strpos($value, SECRET_MASK_PREFIX) === 0;
 }
 
+// ── Tenant Glass theme backdrop (Other Settings → Glass Mode) ──
+// upload_glass_background.php writes the photo to backend/site_assets/, which is
+// public (guests see it on Home) but runs no scripts. setting glass_bg_image
+// holds the path relative to backend/, or '' for the app's built-in photo.
+// Only names this app generated are accepted, so the stored value can never
+// point anywhere else or carry markup into the page's <img src>.
+const GLASS_BG_DIR = 'site_assets';
+const GLASS_BG_PATH_PATTERN = '/^site_assets\/glass_bg_[0-9]+_[a-f0-9]{8}\.(jpg|jpeg|png|webp)$/';
+
+function glass_bg_absolute_path($relative) {
+    return __DIR__ . '/' . $relative;
+}
+
+function is_valid_glass_bg_path($relative) {
+    return is_string($relative)
+        && preg_match(GLASS_BG_PATH_PATTERN, $relative) === 1
+        && is_file(glass_bg_absolute_path($relative));
+}
+
+// Deletes an uploaded backdrop no longer in use. Only ever a file matching the
+// generated pattern, so a bad value cannot reach outside site_assets/.
+function delete_glass_bg_file($relative) {
+    if (is_string($relative) && preg_match(GLASS_BG_PATH_PATTERN, $relative) === 1) {
+        $path = glass_bg_absolute_path($relative);
+        if (is_file($path)) @unlink($path);
+    }
+}
+
 // ── External channels: SMS & email (checklist 6.6 / 6.7) ──
 // These helpers are the shared rules every sender must obey. The services that
 // actually talk to a provider are built on top of them; nothing here sends.

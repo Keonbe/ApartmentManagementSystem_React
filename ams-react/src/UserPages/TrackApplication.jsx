@@ -8,7 +8,6 @@ import {
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import fileUrl from '../api/fileUrl';
-import ApartmentPic from '../assets/Apartment_Pic.webp';
 import { useLang, dateLocale } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';
@@ -313,7 +312,7 @@ export default function TrackApplication() {
                         let icon, color, isDigital;
                         if (ch.icon === 'gcash') { icon = faWallet; color = 'text-blue-600'; isDigital = true; }
                         else if (ch.icon === 'bank') { icon = faUniversity; color = 'text-indigo-600'; isDigital = true; }
-                        else if (ch.icon === 'qr') { icon = faQrcode; color = 'text-indigo-400'; isDigital = true; }
+                        else if (ch.icon === 'qr') { icon = faQrcode; color = 'text-indigo-600'; isDigital = true; }
                         else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; isDigital = true; }
                         else { icon = faMoneyBillWave; color = 'text-emerald-600'; isDigital = false; }
                         
@@ -376,9 +375,9 @@ export default function TrackApplication() {
 
     if (loading) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-950 text-white">
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 text-slate-900">
                 <div className="flex flex-col items-center gap-4" role="status">
-                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-300 animate-spin" aria-hidden="true" />
+                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-700 animate-spin" aria-hidden="true" />
                     <p className="m-0 text-lg font-semibold">Loading your application…</p>
                 </div>
             </div>
@@ -396,27 +395,27 @@ export default function TrackApplication() {
     const canCancel = ['pending', 'action', 'approved'].includes(status);
 
     // Dark-page building blocks, so every card and button matches.
-    const PANEL = 'bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl';
+    const PANEL = 'bg-white border border-slate-200 rounded-2xl';
     const BTN_PRIMARY = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-    const BTN_QUIET = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-semibold border border-white/15 cursor-pointer transition-colors';
+    const BTN_QUIET = 'inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 text-sm font-semibold border border-slate-200 cursor-pointer transition-colors';
     const CHIP_TONE = {
-        done: 'text-emerald-300 bg-emerald-400/10 border-emerald-400/30',
-        action: 'text-amber-300 bg-amber-400/10 border-amber-400/30',
-        waiting: 'text-sky-300 bg-sky-400/10 border-sky-400/30',
-        stopped: 'text-rose-300 bg-rose-400/10 border-rose-400/30',
-        neutral: 'text-slate-200 bg-white/10 border-white/20',
+        done: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+        action: 'text-amber-700 bg-amber-50 border-amber-200',
+        waiting: 'text-sky-700 bg-sky-50 border-sky-200',
+        stopped: 'text-rose-700 bg-rose-50 border-rose-200',
+        neutral: 'text-slate-700 bg-slate-100 border-slate-300',
     };
 
     // ── Step bodies: what opens under the current (or stopped) step ──
 
     const newDateBody = (
-        <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 sm:p-5">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
             {application?.rejection_reason && (
-                <p className="m-0 mb-4 border-l-2 border-amber-300/60 pl-3 text-sm leading-relaxed text-amber-100">
+                <p className="m-0 mb-4 border-l-2 border-amber-200 pl-3 text-sm leading-relaxed text-amber-900">
                     {application.rejection_reason}
                 </p>
             )}
-            <label htmlFor="resubmit-date" className="block text-sm font-bold text-amber-200 mb-2">New move-in date</label>
+            <label htmlFor="resubmit-date" className="block text-sm font-bold text-amber-800 mb-2">New move-in date</label>
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
                 <input
                     id="resubmit-date"
@@ -427,30 +426,30 @@ export default function TrackApplication() {
                     max={moveInLimits.max}
                     aria-invalid={dateError ? true : undefined}
                     aria-describedby={dateError ? 'resubmit-date-error resubmit-date-hint' : 'resubmit-date-hint'}
-                    className="[color-scheme:dark] min-h-[44px] px-4 rounded-xl bg-slate-950 border border-amber-400/40 text-white focus:outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-300/40"
+                    className="min-h-[44px] px-4 rounded-xl bg-slate-50 border border-amber-200 text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40"
                 />
                 <button
                     type="button"
                     onClick={handleResubmitDate}
                     disabled={submittingDate}
-                    className="min-h-[44px] px-5 rounded-xl bg-amber-300 hover:bg-amber-200 text-slate-950 text-sm font-bold border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="min-h-[44px] px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {submittingDate ? 'Sending…' : 'Send new date'}
                 </button>
             </div>
-            <p id="resubmit-date-hint" className="m-0 mt-2 text-sm text-amber-100/90">{moveInRangeText(moveInWindow)}</p>
+            <p id="resubmit-date-hint" className="m-0 mt-2 text-sm text-amber-900">{moveInRangeText(moveInWindow)}</p>
             <FieldError id="resubmit-date" error={dateError} />
         </div>
     );
 
     const refundCard = application?.refund && (
-        <div className={`rounded-xl p-4 border ${application.refund.status === 'Rejected' ? 'bg-rose-400/10 border-rose-400/30' : application.refund.status === 'Refunded' ? 'bg-emerald-400/10 border-emerald-400/30' : 'bg-sky-400/10 border-sky-400/30'}`}>
-            <p className="m-0 text-sm font-bold text-white">
+        <div className={`rounded-xl p-4 border ${application.refund.status === 'Rejected' ? 'bg-rose-50 border-rose-200' : application.refund.status === 'Refunded' ? 'bg-emerald-50 border-emerald-200' : 'bg-sky-50 border-sky-200'}`}>
+            <p className="m-0 text-sm font-bold text-slate-900">
                 Refund of {peso(application.refund.amount)}: {application.refund.status}
             </p>
-            <p className="m-0 mt-1 text-sm leading-relaxed text-slate-200">
+            <p className="m-0 mt-1 text-sm leading-relaxed text-slate-700">
                 {application.refund.status === 'Rejected'
-                    ? <>Management did not approve this refund{application.refund.decision_reason ? <>: <strong className="text-white">{application.refund.decision_reason}</strong></> : '.'}</>
+                    ? <>Management did not approve this refund{application.refund.decision_reason ? <>: <strong className="text-slate-900">{application.refund.decision_reason}</strong></> : '.'}</>
                     : application.refund.status === 'Refunded'
                     ? `Paid out via ${application.refund.payout_method}${application.refund.payout_reference ? ` (ref. ${application.refund.payout_reference})` : ''}.`
                     : 'Management is reviewing this refund. Open My Refunds to reply if they asked for more information.'}
@@ -462,10 +461,10 @@ export default function TrackApplication() {
     const rejectedBody = (
         <div className="space-y-4">
             {(application?.rejection_reason || application?.rejection_attachment_path) && (
-                <div className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-4">
-                    <p className="m-0 text-sm font-bold text-rose-200">Reason</p>
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                    <p className="m-0 text-sm font-bold text-rose-800">Reason</p>
                     {application.rejection_reason && (
-                        <p className="m-0 mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{application.rejection_reason}</p>
+                        <p className="m-0 mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{application.rejection_reason}</p>
                     )}
                     {application.rejection_attachment_path && (
                         application.rejection_attachment_path.toLowerCase().endsWith('.pdf') ? (
@@ -474,8 +473,8 @@ export default function TrackApplication() {
                             </a>
                         ) : (
                             <a href={fileUrl(application.rejection_attachment_path)} target="_blank" rel="noopener noreferrer" className="mt-3 block w-fit">
-                                <img src={fileUrl(application.rejection_attachment_path)} alt="Attachment from management" className="max-h-56 max-w-full rounded-xl border border-rose-400/30 object-cover bg-slate-950" />
-                                <span className="mt-1 block text-sm font-semibold text-rose-200 underline">Open the full image</span>
+                                <img src={fileUrl(application.rejection_attachment_path)} alt="Attachment from management" className="max-h-56 max-w-full rounded-xl border border-rose-200 object-cover bg-slate-50" />
+                                <span className="mt-1 block text-sm font-semibold text-rose-800 underline">Open the full image</span>
                             </a>
                         )
                     )}
@@ -499,15 +498,15 @@ export default function TrackApplication() {
 
     // A picked contract file, before it is uploaded.
     const pickedContract = contractFile && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm">
-            <span className="min-w-0 truncate text-white" title={contractFile.name}>
-                {contractFile.name} <span className="text-slate-300">({formatFileSize(contractFile.size)})</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm">
+            <span className="min-w-0 truncate text-slate-900" title={contractFile.name}>
+                {contractFile.name} <span className="text-slate-600">({formatFileSize(contractFile.size)})</span>
             </span>
             <span className="flex items-center gap-3 shrink-0">
-                <button type="button" onClick={() => openContractPreview(contractFile)} className="inline-flex items-center gap-1.5 bg-transparent border-0 p-0 text-sm font-semibold text-indigo-300 hover:text-indigo-200 cursor-pointer">
+                <button type="button" onClick={() => openContractPreview(contractFile)} className="inline-flex items-center gap-1.5 bg-transparent border-0 p-0 text-sm font-semibold text-indigo-700 hover:text-indigo-700 cursor-pointer">
                     <FontAwesomeIcon icon={faEye} aria-hidden="true" /> Preview
                 </button>
-                <button type="button" onClick={clearContractFile} className="bg-transparent border-0 p-0 text-sm font-semibold text-rose-300 hover:text-rose-200 cursor-pointer">Remove</button>
+                <button type="button" onClick={clearContractFile} className="bg-transparent border-0 p-0 text-sm font-semibold text-rose-700 hover:text-rose-700 cursor-pointer">Remove</button>
             </span>
         </div>
     );
@@ -518,8 +517,8 @@ export default function TrackApplication() {
                 <FontAwesomeIcon icon={faFileContract} aria-hidden="true" /> {t('trackApp.viewPrintContract')}
             </button>
             <form onSubmit={handleContractUpload} className="track-app-upload-form space-y-3" noValidate>
-                <label htmlFor="contract-file" className="block text-sm font-bold text-slate-100">
-                    Signed contract <span className="font-normal text-slate-300">(PDF, up to 5 MB)</span>
+                <label htmlFor="contract-file" className="block text-sm font-bold text-slate-800">
+                    Signed contract <span className="font-normal text-slate-600">(PDF, up to 5 MB)</span>
                 </label>
                 <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
                     <input
@@ -531,7 +530,7 @@ export default function TrackApplication() {
                         aria-invalid={contractError ? true : undefined}
                         aria-describedby={contractError ? 'contract-file-error' : undefined}
                         onChange={validateAndSetContractFile}
-                        className="flex-1 min-w-0 text-sm text-slate-200 bg-white/5 border border-white/15 rounded-xl p-2 file:mr-3 file:min-h-[36px] file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+                        className="flex-1 min-w-0 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-2 file:mr-3 file:min-h-[36px] file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
                     />
                     <button type="submit" disabled={!contractFile || uploadingContract} className={BTN_PRIMARY}>
                         <FontAwesomeIcon icon={uploadingContract ? faHourglassHalf : faUpload} className={uploadingContract ? 'animate-spin' : ''} aria-hidden="true" />
@@ -546,9 +545,9 @@ export default function TrackApplication() {
 
     // The signed copy is on file: shown above the payment, with a way to replace it.
     const signedContractRow = application?.signed_lease_path && (
-        <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 space-y-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="m-0 flex items-center gap-2 text-sm font-semibold text-emerald-200">
+                <p className="m-0 flex items-center gap-2 text-sm font-semibold text-emerald-800">
                     <FontAwesomeIcon icon={faCheckCircle} aria-hidden="true" /> Your signed contract is on file.
                 </p>
                 <span className="flex flex-wrap items-center gap-2">
@@ -556,7 +555,7 @@ export default function TrackApplication() {
                         <FontAwesomeIcon icon={faEye} aria-hidden="true" /> View
                     </button>
                     {/* The input stays focusable (sr-only, not hidden), so the label works from the keyboard. */}
-                    <label className={`${BTN_QUIET} focus-within:ring-2 focus-within:ring-indigo-300`}>
+                    <label className={`${BTN_QUIET} focus-within:ring-2 focus-within:ring-indigo-500`}>
                         {t('trackApp.reupload')}
                         <input
                             key={contractInputKey}
@@ -588,48 +587,48 @@ export default function TrackApplication() {
         <div className="space-y-4">
             {signedContractRow}
 
-            <dl className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2 text-sm">
+            <dl className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-sm">
                 <div className="flex justify-between gap-3">
-                    <dt className="text-slate-300">One month's advance rent</dt>
-                    <dd className="m-0 font-semibold text-white tabular-nums">{peso(application?.pending_base_rent || application?.monthly_rent)}</dd>
+                    <dt className="text-slate-600">One month's advance rent</dt>
+                    <dd className="m-0 font-semibold text-slate-900 tabular-nums">{peso(application?.pending_base_rent || application?.monthly_rent)}</dd>
                 </div>
                 <div className="flex justify-between gap-3">
-                    <dt className="text-slate-300">Security deposit (one month)</dt>
-                    <dd className="m-0 font-semibold text-white tabular-nums">{peso(application?.pending_security_deposit || application?.monthly_rent)}</dd>
+                    <dt className="text-slate-600">Security deposit (one month)</dt>
+                    <dd className="m-0 font-semibold text-slate-900 tabular-nums">{peso(application?.pending_security_deposit || application?.monthly_rent)}</dd>
                 </div>
                 {Number(application?.pending_amount_paid) > 0 && (
                     <div className="flex justify-between gap-3">
-                        <dt className="text-slate-300">Paid so far</dt>
-                        <dd className="m-0 font-semibold text-emerald-300 tabular-nums">−{peso(application.pending_amount_paid)}</dd>
+                        <dt className="text-slate-600">Paid so far</dt>
+                        <dd className="m-0 font-semibold text-emerald-700 tabular-nums">−{peso(application.pending_amount_paid)}</dd>
                     </div>
                 )}
-                <div className="flex justify-between gap-3 border-t border-white/10 pt-3">
-                    <dt className="font-bold text-white">{Number(application?.pending_amount_paid) > 0 ? 'Balance to pay' : 'Total to pay'}</dt>
-                    <dd className="m-0 text-xl font-extrabold text-indigo-200 tabular-nums">{peso(moveInBalance)}</dd>
+                <div className="flex justify-between gap-3 border-t border-slate-200 pt-3">
+                    <dt className="font-bold text-slate-900">{Number(application?.pending_amount_paid) > 0 ? 'Balance to pay' : 'Total to pay'}</dt>
+                    <dd className="m-0 text-xl font-extrabold text-indigo-800 tabular-nums">{peso(moveInBalance)}</dd>
                 </div>
             </dl>
 
             {application?.pending_invoice_status !== 'pending-verification' && application?.pending_rejection_reason && (
-                <div role="alert" className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-4 text-sm leading-relaxed text-slate-100">
-                    <strong className="text-rose-200">Payment returned.</strong> Management returned your payment: <strong className="text-white">{application.pending_rejection_reason}</strong>. Please pay again below.
+                <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-relaxed text-slate-800">
+                    <strong className="text-rose-800">Payment returned.</strong> Management returned your payment: <strong className="text-slate-900">{application.pending_rejection_reason}</strong>. Please pay again below.
                 </div>
             )}
 
             {application?.pending_invoice_status === 'pending-verification' ? (
-                <p className="m-0 rounded-xl border border-sky-400/30 bg-sky-400/10 p-4 text-sm leading-relaxed text-slate-100">
-                    Your payment {application.pending_payment_method ? <>by <strong className="text-white">{application.pending_payment_method}</strong> </> : ''}is being verified by management. This step completes by itself once they confirm it, and you will be notified.
+                <p className="m-0 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-relaxed text-slate-800">
+                    Your payment {application.pending_payment_method ? <>by <strong className="text-slate-900">{application.pending_payment_method}</strong> </> : ''}is being verified by management. This step completes by itself once they confirm it, and you will be notified.
                 </p>
             ) : application?.pending_payment_method === 'Cash on Hand' ? (
-                <p className="m-0 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm leading-relaxed text-slate-100">
-                    Please pay <strong className="text-white">{peso(moveInBalance)}</strong> in cash at the management office. This step completes once management records it, and you will be notified.
+                <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-slate-800">
+                    Please pay <strong className="text-slate-900">{peso(moveInBalance)}</strong> in cash at the management office. This step completes once management records it, and you will be notified.
                 </p>
             ) : (
                 <>
                     <fieldset className="p-0 border-0 min-w-0">
-                        <legend className="mb-2 p-0 text-sm font-bold text-slate-100">Payment method</legend>
+                        <legend className="mb-2 p-0 text-sm font-bold text-slate-800">Payment method</legend>
                         <div className="track-app-payment-methods grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {channelsLoading ? (
-                                <p className="m-0 text-sm text-slate-300">Loading payment methods…</p>
+                                <p className="m-0 text-sm text-slate-600">Loading payment methods…</p>
                             ) : paymentChannels.length > 0 ? paymentChannels.map((method) => {
                                 const chosen = selectedMethod === method.id;
                                 return (
@@ -638,17 +637,17 @@ export default function TrackApplication() {
                                         type="button"
                                         aria-pressed={chosen}
                                         onClick={() => { setSelectedMethod(method.id); setPayError(''); }}
-                                        className={`flex items-center justify-between gap-3 min-h-[48px] px-4 rounded-xl border text-sm font-semibold text-left cursor-pointer transition-colors ${chosen ? 'bg-indigo-500/20 border-indigo-300 text-white' : 'bg-white/5 border-white/15 text-slate-200 hover:bg-white/10'}`}
+                                        className={`flex items-center justify-between gap-3 min-h-[48px] px-4 rounded-xl border text-sm font-semibold text-left cursor-pointer transition-colors ${chosen ? 'bg-indigo-50 border-indigo-300 text-white' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
                                     >
                                         <span className="flex items-center gap-3">
-                                            <FontAwesomeIcon icon={method.icon} className={chosen ? 'text-indigo-200' : 'text-slate-300'} aria-hidden="true" />
+                                            <FontAwesomeIcon icon={method.icon} className={chosen ? 'text-indigo-800' : 'text-slate-600'} aria-hidden="true" />
                                             {method.label}
                                         </span>
-                                        {chosen && <FontAwesomeIcon icon={faCheck} className="text-indigo-200" aria-hidden="true" />}
+                                        {chosen && <FontAwesomeIcon icon={faCheck} className="text-indigo-800" aria-hidden="true" />}
                                     </button>
                                 );
                             }) : (
-                                <div className="sm:col-span-2 p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs text-amber-200">
+                                <div className="sm:col-span-2 p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800">
                                     <strong>Payment options currently unavailable.</strong> Apartment management has disabled all payment channels. Please contact management for assistance.
                                 </div>
                             )}
@@ -680,25 +679,19 @@ export default function TrackApplication() {
 
     return (
         <div className="track-app-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-8 sm:py-10 px-4 md:px-12 text-left">
-            {/* The apartment photo behind a dark overlay (the page keeps its dark look). */}
-            <div className="absolute inset-0 z-0" aria-hidden="true">
-                <img src={ApartmentPic} alt="" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-900/90 to-slate-950/95"></div>
-            </div>
-
             <div className="w-full max-w-5xl z-10 relative flex flex-col gap-6">
                 <button
                     type="button"
                     onClick={() => navigate('/home')}
-                    className="self-start inline-flex items-center gap-2 min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-slate-200 hover:text-white cursor-pointer"
+                    className="self-start inline-flex items-center gap-2 min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-slate-700 hover:text-slate-900 cursor-pointer"
                 >
                     <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" /> {t('trackApp.backHome')}
                 </button>
 
-                <header className="track-app-header flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-white/10 pb-5">
+                <header className="track-app-header flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-slate-200 pb-5">
                     <div>
-                        <h1 className="m-0 text-3xl sm:text-4xl font-extrabold tracking-tight text-white">{t('trackApp.heading')}</h1>
-                        <p className="m-0 mt-2 text-sm sm:text-base text-slate-300">
+                        <h1 className="m-0 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">{t('trackApp.heading')}</h1>
+                        <p className="m-0 mt-2 text-sm sm:text-base text-slate-600">
                             {application
                                 ? <>Rent application for {roomLabel}{application.created_at ? <>, sent {dayLabel(application.created_at)}</> : null}</>
                                 : t('trackApp.subtext')}
@@ -718,8 +711,8 @@ export default function TrackApplication() {
                 {!application ? (
                     /* No application yet: an invitation, not a dead end. */
                     <section className={`${PANEL} p-8 sm:p-10 text-center max-w-xl mx-auto`}>
-                        <h2 className="m-0 text-2xl font-bold text-white">You haven't applied for a room yet</h2>
-                        <p className="m-0 mt-2 text-sm sm:text-base leading-relaxed text-slate-300">
+                        <h2 className="m-0 text-2xl font-bold text-slate-900">You haven't applied for a room yet</h2>
+                        <p className="m-0 mt-2 text-sm sm:text-base leading-relaxed text-slate-600">
                             Choose an available room and send your application. You can follow every step here afterwards.
                         </p>
                         <button type="button" onClick={() => navigate('/preview')} className={`${BTN_PRIMARY} mt-6`}>
@@ -731,10 +724,10 @@ export default function TrackApplication() {
                     <section className={`${PANEL} p-6 sm:p-8 space-y-4`}>
                         {status === 'pending-move-out' ? (
                             <>
-                                <h2 className="text-xl font-bold text-white">You've given notice to move out</h2>
-                                <p className="text-sm sm:text-base leading-relaxed text-slate-300">
+                                <h2 className="text-xl font-bold text-slate-900">You've given notice to move out</h2>
+                                <p className="text-sm sm:text-base leading-relaxed text-slate-600">
                                     {application.requested_move_out_date
-                                        ? <>Your move-out date is <strong className="text-white">{dayLabel(application.requested_move_out_date)}</strong>. </>
+                                        ? <>Your move-out date is <strong className="text-slate-900">{dayLabel(application.requested_move_out_date)}</strong>. </>
                                         : null}
                                     Management will contact you about the room inspection and your deposit.
                                 </p>
@@ -744,8 +737,8 @@ export default function TrackApplication() {
                             </>
                         ) : (
                             <>
-                                <h2 className="text-xl font-bold text-white">Your tenancy has ended</h2>
-                                <p className="text-sm sm:text-base leading-relaxed text-slate-300">
+                                <h2 className="text-xl font-bold text-slate-900">Your tenancy has ended</h2>
+                                <p className="text-sm sm:text-base leading-relaxed text-slate-600">
                                     Your rent for {roomLabel} has ended and the room clearance is complete. You can apply for a room again whenever you are ready.
                                 </p>
                                 <button type="button" onClick={() => navigate('/preview')} className={BTN_PRIMARY}>
@@ -766,35 +759,35 @@ export default function TrackApplication() {
                         </section>
 
                         <aside className={`${PANEL} p-5 sm:p-6`}>
-                            <h2 className="m-0 text-base font-bold text-white">Your rent details</h2>
+                            <h2 className="m-0 text-base font-bold text-slate-900">Your rent details</h2>
                             <dl className="m-0 mt-4 space-y-3 text-sm">
                                 <div className="flex justify-between gap-3">
-                                    <dt className="text-slate-300">Room</dt>
-                                    <dd className="m-0 font-semibold text-white">{application.room_name ? `Room ${application.room_name}` : '—'}{application.room_type ? `, ${application.room_type}` : ''}</dd>
+                                    <dt className="text-slate-600">Room</dt>
+                                    <dd className="m-0 font-semibold text-slate-900">{application.room_name ? `Room ${application.room_name}` : '—'}{application.room_type ? `, ${application.room_type}` : ''}</dd>
                                 </div>
                                 <div className="flex justify-between gap-3">
-                                    <dt className="text-slate-300">Monthly rent</dt>
-                                    <dd className="m-0 font-semibold text-white tabular-nums">{peso(application.monthly_rent)}</dd>
+                                    <dt className="text-slate-600">Monthly rent</dt>
+                                    <dd className="m-0 font-semibold text-slate-900 tabular-nums">{peso(application.monthly_rent)}</dd>
                                 </div>
                                 <div className="flex justify-between gap-3">
-                                    <dt className="text-slate-300">Rent term</dt>
-                                    <dd className="m-0 font-semibold text-white">{application.months_of_rent} month{Number(application.months_of_rent) === 1 ? '' : 's'}</dd>
+                                    <dt className="text-slate-600">Rent term</dt>
+                                    <dd className="m-0 font-semibold text-slate-900">{application.months_of_rent} month{Number(application.months_of_rent) === 1 ? '' : 's'}</dd>
                                 </div>
                                 <div className="flex justify-between gap-3">
-                                    <dt className="text-slate-300">Occupants</dt>
-                                    <dd className="m-0 font-semibold text-white">{application.occupants} {Number(application.occupants) === 1 ? 'person' : 'people'}</dd>
+                                    <dt className="text-slate-600">Occupants</dt>
+                                    <dd className="m-0 font-semibold text-slate-900">{application.occupants} {Number(application.occupants) === 1 ? 'person' : 'people'}</dd>
                                 </div>
                                 <div className="flex justify-between gap-3">
-                                    <dt className="text-slate-300">Preferred move-in</dt>
-                                    <dd className="m-0 font-semibold text-white text-right">{application.preferred_move_in_date ? dayLabel(application.preferred_move_in_date) : 'As soon as possible'}</dd>
+                                    <dt className="text-slate-600">Preferred move-in</dt>
+                                    <dd className="m-0 font-semibold text-slate-900 text-right">{application.preferred_move_in_date ? dayLabel(application.preferred_move_in_date) : 'As soon as possible'}</dd>
                                 </div>
                             </dl>
                             {canCancel && (
-                                <div className="mt-5 border-t border-white/10 pt-4">
-                                    <button type="button" onClick={() => setCancelApplication(true)} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-rose-300 hover:text-rose-200 cursor-pointer underline-offset-2 hover:underline">
+                                <div className="mt-5 border-t border-slate-200 pt-4">
+                                    <button type="button" onClick={() => setCancelApplication(true)} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-rose-700 hover:text-rose-700 cursor-pointer underline-offset-2 hover:underline">
                                         Cancel application
                                     </button>
-                                    <p className="m-0 mt-1 text-sm text-slate-300">Possible until you move in.</p>
+                                    <p className="m-0 mt-1 text-sm text-slate-600">Possible until you move in.</p>
                                 </div>
                             )}
                         </aside>

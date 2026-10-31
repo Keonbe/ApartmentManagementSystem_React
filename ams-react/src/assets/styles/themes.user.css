@@ -1,0 +1,146 @@
+/* =====================================================
+   USER-SIDE THEMES — themes.user.css (imported from src/index.css)
+
+   The tenant pages are written once, in the light palette. A wrapper
+   (UserThemeScope / BaseAppLayout in App.jsx) carries the theme class:
+     .ut-root                   every user-side scope
+     .ut-light | .ut-dark | .ut-glass
+   themes.generated.css remaps the colours those pages use (bg-white,
+   text-slate-800, bg-indigo-50 …) for Dark and Glass; this file adds the
+   layout pieces. Two escape hatches:
+     .ut-native   a piece already drawn for a dark backdrop (the TopBar's bar,
+                  Home's panel, a photo caption): keeps the original palette.
+     .ut-themed   re-applies the theme inside a .ut-native piece (the
+                  TopBar's dropdowns and dialogs).
+   The admin side never gets .ut-root, so it is unaffected.
+   ===================================================== */
+@import "./themes.generated.css";
+
+/* ---------- Tokens ---------- */
+.ut-dark {
+  --ut-page: #0b1120;
+  --ut-surface: #121a2d;
+  --ut-raised: #182238;
+  --ut-bar: #0d1424;
+  color-scheme: dark;
+}
+
+.ut-glass {
+  --ut-page: transparent;
+  --ut-surface: rgb(15 23 42 / 0.64);
+  --ut-nested: rgb(255 255 255 / 0.045);
+  --ut-raised: rgb(15 23 42 / 0.95);
+  --ut-bar: rgb(2 6 23 / 0.5);
+  color-scheme: dark;
+}
+
+/* Overscroll and the strip under a short page match the theme. */
+:root:has(.ut-dark) {
+  background: #0b1120;
+}
+
+:root:has(.ut-glass) {
+  background: #020617;
+}
+
+/* ---------- Page surfaces ---------- */
+/* The layout and each page's root paint the page colour (pages set their own
+   bg-slate-50 / bg-slate-100 for the light theme). In Glass they are clear so
+   the backdrop shows. Unlayered, so it outranks the page's utility class. */
+.ut-dark.ut-root,
+.ut-glass.ut-root {
+  background-color: var(--ut-page);
+}
+
+.ut-dark .ut-route > :first-child:not(.fixed),
+.ut-glass .ut-route > :first-child:not(.fixed) {
+  background-color: transparent;
+}
+
+/* A card inside a card: a faint lift instead of stacking two translucent
+   layers (which would read as a darker hole). */
+.ut-glass .bg-white > * {
+  --background-color-white: var(--ut-nested);
+}
+
+/* Things that float over other content need to be near-opaque to stay
+   readable: dialogs, sheets, dropdowns, sticky bars. */
+.ut-root:is(.ut-dark, .ut-glass) :is([role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], .modal-card-anim, .sheet-mobile, .absolute.bg-white, .fixed.bg-white, .sticky.bg-white) {
+  --background-color-white: var(--ut-raised);
+}
+
+/* ---------- Footer ---------- */
+/* The TopBar (and its mobile drawer) keeps the brand indigo in every theme;
+   only its dropdowns and dialogs follow the theme (.ut-themed in TopBar.jsx). */
+.ut-root:is(.ut-dark, .ut-glass) .ut-footer {
+  background-color: var(--ut-bar);
+}
+
+/* ---------- Glass backdrop (GlassBackdrop in Components/UserTheme.jsx) ---------- */
+/* z-index -1 paints it above the canvas and below every block, so no
+   stacking context is added and page dialogs keep their usual order. */
+.ut-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: #0b1120;
+}
+
+.ut-backdrop-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: fadeIn 0.6s ease both;
+}
+
+.ut-backdrop-tint {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---------- Motion ---------- */
+/* Each route fades and rises in. `backwards` only: once it ends the wrapper
+   keeps no transform, which would otherwise become the containing block of
+   every position:fixed dialog on the page. */
+.ut-route {
+  animation: utRouteIn 0.34s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes utRouteIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Switching theme cross-fades colours for a moment (UserTheme.jsx adds and
+   removes the class) instead of snapping. */
+.ut-switching,
+.ut-switching *,
+.ut-switching *::before,
+.ut-switching *::after {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    fill 0.35s ease,
+    box-shadow 0.35s ease !important;
+}
+
+@media print {
+  .ut-backdrop {
+    display: none;
+  }
+
+  .ut-root {
+    background: #ffffff !important;
+  }
+}

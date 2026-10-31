@@ -35,8 +35,7 @@ export default function SuccessModal({ isOpen, onClose, message = "Successfully 
 
                 {/*BrandHeader*/}
                 <div
-                    className="modal-ams-logo text-3xl italic font-bold tracking-wider select-none uppercase m-0"
-                    style={{ color: '#3b4276' }}
+                    className="modal-ams-logo text-3xl italic font-bold tracking-wider select-none uppercase m-0 text-brand"
                 >
                     AMS
                 </div>

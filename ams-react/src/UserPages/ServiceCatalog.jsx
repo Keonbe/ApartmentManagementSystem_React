@@ -87,8 +87,7 @@ export default function ServiceCatalog() {
                 {/*PageTitle*/}
                 <div className="border-b border-slate-200 pb-4">
                     <h1
-                        className="services-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
-                        style={{ color: '#3b4276' }}
+                        className="services-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
                     >
                         {t('serviceCatalog.heading')}
                     </h1>
@@ -122,7 +121,7 @@ export default function ServiceCatalog() {
                                 <div className="services-icon-box w-20 h-20 sm:w-32 sm:h-auto rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm bg-slate-100 transition-transform duration-300 group-hover:scale-105">
                                     <FontAwesomeIcon
                                         icon={iconFor(row.icon)}
-                                        className="text-2xl sm:text-4xl text-[#3b4276]"
+                                        className="text-2xl sm:text-4xl text-brand"
                                     />
                                 </div>
 
@@ -131,7 +130,6 @@ export default function ServiceCatalog() {
                                     <div className="space-y-1">
                                         <h2
                                             className="services-card-title text-lg sm:text-xl font-bold m-0 tracking-tight"
-                                            style={{ color: '#1e293b' }}
                                         >
                                             {row.name}
                                         </h2>

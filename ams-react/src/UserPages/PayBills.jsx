@@ -653,7 +653,7 @@ export default function PayBills() {
                 
                 {/* Named after the bill on screen, not today's month: an overdue bill is from an earlier one. */}
                 <div className="border-b border-slate-200 pb-4">
-                    <h1 className="pay-bills-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
+                    <h1 className="pay-bills-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
                         {payingGroup ? groupWord : t('payBills.heading')}{!payingGroup && billDetails.billingPeriod ? `: ${billDetails.billingPeriod}` : ''}
                     </h1>
                     <p className="pay-bills-subtext text-slate-500 text-sm mt-1 m-0">
@@ -872,7 +872,7 @@ export default function PayBills() {
                     <div className={`pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border-2 ${activeGroup.kind === 'bundle' ? 'border-rose-200' : 'border-indigo-200'} shadow-md p-5 sm:p-8 space-y-5`}>
                         <div className="flex justify-between items-start border-b border-slate-100 pb-3 gap-3">
                             <div>
-                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{groupWord}</h3>
+                                <h3 className="text-lg font-bold m-0 text-brand">{groupWord}</h3>
                                 <p className="text-xs text-slate-500 m-0 mt-0.5">
                                     {activeGroup.kind === 'bundle'
                                         ? `One payment for ${activeGroup.months.length} bills. You get one combined receipt, and each billing period keeps its own invoice and receipt.`
@@ -919,9 +919,11 @@ export default function PayBills() {
                     </div>
                     ) : (
                     <div className="pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                            <div>
-                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
+                        {/* Title, then the links on their own row: the same layout in
+                            English and Filipino (the longer labels used to squeeze the title). */}
+                        <div className="flex flex-col items-start gap-1 border-b border-slate-100 pb-3">
+                            <div className="min-w-0">
+                                <h3 className="text-lg font-bold m-0 text-brand whitespace-nowrap">{t('payBills.statementLedger')}</h3>
                                 {/* Past due: the period the bill covers, not a due date already gone. */}
                                 {dueStatus?.isOverdue ? (
                                     <p className="text-xs text-slate-500 m-0 mt-0.5">
@@ -933,11 +935,11 @@ export default function PayBills() {
                                     </p>
                                 )}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-x-2">
                                 <button 
                                     type="button" 
                                     onClick={() => navigate('/user-utilities')}
-                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px] whitespace-nowrap"
                                 >
                                     <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
                                     <span>Meter Readings</span>
@@ -945,7 +947,7 @@ export default function PayBills() {
                                 <button 
                                     type="button" 
                                     onClick={() => navigate('/payment-history')}
-                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px] whitespace-nowrap"
                                 >
                                     <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
                                     <span>{t('payBills.viewPrevious')}</span>
@@ -1010,7 +1012,7 @@ export default function PayBills() {
 
                     {/*Right Grid Parameter Block: Clearing Channel Allocation Panel Controls*/}
                     <div className="pay-bills-card card-interactive md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
-                        <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3" style={{ color: '#3b4276' }}>{t('payBills.paymentSettings')}</h3>
+                        <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3 text-brand">{t('payBills.paymentSettings')}</h3>
                         
                         {/* Native radios (was a custom dropdown with no keyboard or
                             screen-reader support): every method visible, arrow keys move. */}
@@ -1283,7 +1285,9 @@ export default function PayBills() {
                             (Replaces an "Automatic Payment" checkbox that was
                             never saved or acted on.) */}
                         {(advance?.available || advance?.credits?.length > 0) && (
-                            <div className="p-4 rounded-2xl border bg-slate-50/50 border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                            // Stacked at every width: the box sits in a narrow column, where a
+                            // side-by-side button squeezed the text to a few words a line.
+                            <div className="p-4 rounded-2xl border bg-slate-50/50 border-slate-100 flex flex-col items-start gap-3 text-left">
                                 <div className="space-y-0.5">
                                     <div className="flex items-center space-x-2 text-slate-800 font-bold text-sm">
                                         <FontAwesomeIcon icon={faCalendarPlus} className="text-indigo-400 text-xs" />
@@ -1296,7 +1300,7 @@ export default function PayBills() {
                                 <button
                                     type="button"
                                     onClick={() => document.getElementById('pay-in-advance')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="shrink-0 px-4 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-bold cursor-pointer hover:bg-indigo-50"
+                                    className="min-h-[36px] px-4 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-bold cursor-pointer hover:bg-indigo-50"
                                 >
                                     {prepaidCount > 0 ? t('payBills.viewPrepaid') : t('payBills.payAheadBtn')}
                                 </button>
@@ -1333,7 +1337,7 @@ export default function PayBills() {
                                 <FontAwesomeIcon icon={faCalendarPlus} />
                             </div>
                             <div>
-                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Pay in advance</h3>
+                                <h3 className="text-lg font-bold m-0 text-brand">Pay in advance</h3>
                                 <p className="text-xs text-slate-500 m-0 mt-0.5">
                                     Prepay upcoming months in one payment. Each month's rent invoice is still issued on your usual rent day and paid from your advance, with its own receipt.
                                 </p>
