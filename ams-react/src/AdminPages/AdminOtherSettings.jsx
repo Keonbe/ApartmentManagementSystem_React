@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
+import { apiErrorSummary } from '../utils/apiError';
 import {
   OTHER_SETTINGS_TABS,
   OTHER_SETTINGS_TAB_IDS,
@@ -138,7 +139,7 @@ const AdminOtherSettings = () => {
       showToast('success', 'Settings Saved', 'Your changes are saved and apply across the system.');
     } catch (error) {
       console.error('Failed to save settings:', error);
-      showToast('error', 'Save Failed', error?.response?.data?.message || error?.message || 'Failed to save system settings. Please try again.');
+      showToast('error', 'Save Failed', apiErrorSummary(error, 'Failed to save system settings. Please try again.'));
     } finally {
       setIsSavingSettings(false);
     }

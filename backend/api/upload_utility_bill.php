@@ -20,8 +20,22 @@ function bill_fail($code, $msg) {
 
 // Admin attaches (or replaces / removes) the provider's bill on a reading.
 $admin_id = (int)require_admin($conn);
-$reading_id = (int)($_POST['reading_id'] ?? 0);
 $remove = !empty($_POST['remove']);
+$file = $remove ? null : ($_FILES['bill'] ?? null);
+$ext = $file ? strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)) : '';
+$bill_error = '';
+if (!$remove) {
+    if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) $bill_error = "Choose the bill file to attach.";
+    elseif (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || ($file['error'] === UPLOAD_ERR_OK && $file['size'] > 10 * 1024 * 1024)) $bill_error = "The bill file exceeds the 10MB size limit.";
+    elseif ($file['error'] !== UPLOAD_ERR_OK) $bill_error = "The upload failed. Please try again.";
+    elseif (!in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'], true)) $bill_error = "Invalid bill format. Allowed: JPG, PNG, PDF.";
+}
+$errors = array_filter([
+    'reading_id' => v_id($_POST['reading_id'] ?? null, 'Utility reading'),
+    'bill' => $bill_error,
+]);
+if ($errors) validation_fail($errors);
+$reading_id = (int)$_POST['reading_id'];
 
 $stmt = $conn->prepare("SELECT id, room_name, user_id, billing_period, bill_file_path FROM utility_readings WHERE id = ?");
 $stmt->bind_param("i", $reading_id);
@@ -32,17 +46,10 @@ if (!$reading) bill_fail(404, "Utility reading not found.");
 
 $new_path = null;
 if (!$remove) {
-    $file = $_FILES['bill'] ?? null;
-    if (!$file || $file['error'] !== UPLOAD_ERR_OK) bill_fail(400, "Choose the bill file to attach.");
-    if ($file['size'] > 10 * 1024 * 1024) bill_fail(422, "The bill file exceeds the 10MB size limit.");
-
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'], true)) bill_fail(422, "Invalid bill format. Allowed: JPG, PNG, PDF.");
-
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
-    if (!in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) bill_fail(422, "File content does not match allowed formats.");
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) validation_fail(['bill' => "File content does not match allowed formats."]);
 
     $dir = '../uploads/utility_bills/';
     if (!file_exists($dir)) mkdir($dir, 0755, true);
@@ -53,8 +60,13 @@ if (!$remove) {
 
 $upd = $conn->prepare("UPDATE utility_readings SET bill_file_path = ? WHERE id = ?");
 $upd->bind_param("si", $new_path, $reading_id);
-$upd->execute();
+$saved = $upd->execute();
 $upd->close();
+if (!$saved) {
+    // Keep the old file: the row still points at it.
+    if ($new_path) @unlink(__DIR__ . '/../' . $new_path);
+    bill_fail(500, "Failed to save the bill. Please try again.");
+}
 
 // The replaced / removed file is no longer referenced by any row.
 if (!empty($reading['bill_file_path'])) {

@@ -13,20 +13,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
-$invoice_id = trim((string)($input['invoiceId'] ?? ''));
-$reason = trim((string)($input['reason'] ?? ''));
+$input = json_decode(file_get_contents("php://input"), true);
+if (!is_array($input)) $input = [];
 
-if ($invoice_id === '') {
-    http_response_code(400);
-    echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
-    exit;
-}
-if ($reason === '') {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "A rejection reason is required so the tenant knows what to fix."]);
-    exit;
-}
+$errors = array_filter([
+    'invoiceId' => v_str($input['invoiceId'] ?? '', 'Invoice', 1, 50),
+    // proof_rejection_reason is varchar(255).
+    'reason' => trim((string)($input['reason'] ?? '')) === ''
+        ? 'A rejection reason is required so the tenant knows what to fix.'
+        : v_str($input['reason'], 'Reason', 3, 255),
+]);
+if ($errors) validation_fail($errors);
+$invoice_id = trim((string)$input['invoiceId']);
+$reason = trim((string)$input['reason']);
 
 $conn->begin_transaction();
 try {

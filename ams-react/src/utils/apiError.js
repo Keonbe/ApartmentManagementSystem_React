@@ -13,6 +13,14 @@ export const apiErrorMessage = (errOrRes, fallback = 'Something went wrong. Plea
   return fallback;
 };
 
+// Every problem a failed call reported, as one string: each field error once
+// (a validation_fail() response lists them all), else the message. For pages
+// that show errors in a toast rather than under each field.
+export const apiErrorSummary = (errOrRes, fallback) => {
+  const messages = [...new Set(Object.values(apiFieldErrors(errOrRes)))];
+  return messages.length > 1 ? messages.join(' ') : apiErrorMessage(errOrRes, fallback);
+};
+
 // Field-level errors from a failed call, as { field: message }. Reads both
 // shapes: an `errors` map (values may be strings or arrays of strings) and the
 // single `{message, field}` the backend plan's validation_fail() will send.

@@ -3054,6 +3054,67 @@ function password_policy_error($pw) {
     return $missing ? "Password needs " . implode(', ', $missing) . "." : '';
 }
 
+// ---- Input validation ----------------------------------------------------
+// An endpoint collects every bad field as $errors[field] = message, with the
+// field names the form uses, and calls validation_fail($errors) once, so the
+// form can mark all of them together (apiFieldErrors / applyServerErrors in
+// ams-react). The v_* checkers return '' when the value is fine.
+
+// Sends {success:false, message:<first error>, errors:{field:msg}, field:<first>}
+// and exits.
+function validation_fail(array $errors, $status = 422) {
+    $field = array_key_first($errors);
+    http_response_code($status);
+    echo json_encode(["success" => false, "message" => $errors[$field], "errors" => $errors, "field" => $field]);
+    exit;
+}
+
+function v_str($value, $label, $min, $max, $required = true) {
+    if ($value !== null && !is_scalar($value)) return "$label is invalid.";
+    $s = trim((string)$value);
+    if ($s === '') return $required ? "$label is required." : '';
+    $len = mb_strlen($s);
+    if ($len < $min) return "$label must be at least $min characters.";
+    if ($len > $max) return "$label must be $max characters or fewer.";
+    return '';
+}
+
+// Money: numeric, within range. The default max fits decimal(10,2).
+function v_amount($value, $label, $min = 0, $max = 99999999.99, $allow_zero = true) {
+    if ($value === null || (is_string($value) && trim($value) === '')) return "$label is required.";
+    if (!is_numeric($value)) return "$label must be a number.";
+    $n = (float)$value;
+    if ($n == 0 && !$allow_zero) return "$label must be more than zero.";
+    if ($n < $min) return "$label cannot be less than " . number_format($min, 2) . ".";
+    if ($n > $max) return "$label cannot be more than " . number_format($max, 2) . ".";
+    return '';
+}
+
+function v_int_range($value, $label, $min, $max) {
+    if ($value === null || $value === '') return "$label is required.";
+    if (filter_var($value, FILTER_VALIDATE_INT) === false) return "$label must be a whole number.";
+    $n = (int)$value;
+    if ($n < $min || $n > $max) return "$label must be between $min and $max.";
+    return '';
+}
+
+// A real calendar date in $format (round-trip, so 2026-02-30 is refused).
+function v_date($value, $label, $required = true, $format = 'Y-m-d') {
+    if (!is_scalar($value) || trim((string)$value) === '') return $required ? "$label is required." : '';
+    $s = trim((string)$value);
+    $d = DateTime::createFromFormat('!' . $format, $s);
+    return ($d && $d->format($format) === $s) ? '' : "$label is not a valid date.";
+}
+
+function v_enum($value, $label, array $allowed, $required = true) {
+    if ($value === null || $value === '') return $required ? "$label is required." : '';
+    return (is_scalar($value) && in_array((string)$value, array_map('strval', $allowed), true)) ? '' : "$label is not a valid choice.";
+}
+
+function v_id($value, $label) {
+    return (filter_var($value, FILTER_VALIDATE_INT) !== false && (int)$value > 0) ? '' : "$label is missing or invalid.";
+}
+
 // Ends every session a user holds, optionally keeping the caller's own token.
 // Called whenever a password, role or archive state changes, so the old
 // credentials or privileges stop working at once (security audit A-8).

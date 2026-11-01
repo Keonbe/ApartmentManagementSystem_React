@@ -14,21 +14,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $auth = require_user($conn);
 $user_id = $auth['id'];
 $input = json_decode(file_get_contents("php://input"), true);
+if (!is_array($input)) $input = [];
 $app_id = $input['id'] ?? 0;
-$new_date = $input['preferred_move_in_date'] ?? '';
+$new_date = trim((string)($input['preferred_move_in_date'] ?? ''));
 
-if ($app_id <= 0 || empty($new_date)) {
-    http_response_code(422);
-    echo json_encode(['success' => false, 'message' => 'Missing application ID or date.']);
-    exit;
-}
 // Same rule as the application form (the picker's min alone let 2023-02-01 through).
-$date_error = move_in_date_error($conn, $new_date);
-if ($date_error !== '') {
-    http_response_code(422);
-    echo json_encode(['success' => false, 'message' => $date_error, 'field' => 'preferred_move_in_date']);
-    exit;
-}
+$errors = array_filter([
+    'id' => v_id($app_id, 'Application'),
+    'preferred_move_in_date' => $new_date === '' ? 'Choose a move-in date.' : move_in_date_error($conn, $new_date),
+]);
+if ($errors) validation_fail($errors);
+$app_id = (int)$app_id;
 
 $stmt = $conn->prepare("UPDATE rent_applications SET preferred_move_in_date = ?, status = 'Pending Review', rejection_reason = NULL WHERE id = ? AND user_id = ? AND status = 'Action Required'");
 $stmt->bind_param("sii", $new_date, $app_id, $user_id);

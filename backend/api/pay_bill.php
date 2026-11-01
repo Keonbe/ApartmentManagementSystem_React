@@ -16,7 +16,7 @@ $user_id = $auth['id'];
 
 $input = json_decode(file_get_contents("php://input"), true);
 
-if (!$input) {
+if (!is_array($input)) {
     echo json_encode(["success" => false, "message" => "No data received"]);
     exit;
 }
@@ -34,10 +34,15 @@ $payment_reference = $input['paymentReference'] ?? null;
 // it is never written to the database.
 unset($input['proofOfPaymentPath']);
 
-if (empty($invoice_id) || empty($payment_method)) {
-    echo json_encode(["success" => false, "message" => "Invoice ID and payment method are required."]);
-    exit;
-}
+$errors = array_filter([
+    'invoiceId' => v_str($invoice_id, 'Invoice', 1, 50),
+    'paymentMethod' => v_str($payment_method, 'Payment method', 1, 50),
+    'paymentReference' => v_str($payment_reference, 'Reference number', 1, 100, false),
+]);
+if ($errors) validation_fail($errors);
+$invoice_id = trim((string)$invoice_id);
+$payment_method = trim((string)$payment_method);
+$payment_reference = ($payment_reference === null || trim((string)$payment_reference) === '') ? null : trim((string)$payment_reference);
 
 // The In-Person Payment channel (get_payment_channels.php) declares a cash
 // payment at the office. Its label is stored as 'Cash on Hand': that is the name

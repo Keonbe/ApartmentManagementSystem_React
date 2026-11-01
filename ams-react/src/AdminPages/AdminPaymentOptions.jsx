@@ -4,6 +4,7 @@ import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
+import { apiErrorSummary } from '../utils/apiError';
 import PaymentsPanel from './settings/PaymentsPanel';
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -68,7 +69,7 @@ const AdminPaymentOptions = () => {
       showToast(
         'error',
         'Save Failed',
-        error?.response?.data?.message || error?.message || 'Failed to save payment options. Please try again.'
+        apiErrorSummary(error, 'Failed to save payment options. Please try again.')
       );
     } finally {
       setIsSavingSettings(false);

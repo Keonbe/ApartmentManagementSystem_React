@@ -33,26 +33,37 @@ $billing_period = trim((string)($input['billing_period'] ?? ''));
 $reading_date = trim((string)($input['reading_date'] ?? '')) ?: date('Y-m-d');
 $notes = trim((string)($input['notes'] ?? ''));
 
-if ($room_name === '' || $billing_period === '') fail(422, "Room name and billing period are required.");
-if (!is_valid_utility_period($billing_period)) fail(422, "Billing period must be a month in YYYY-MM format.");
-
-$stmt = $conn->prepare("SELECT id FROM rooms WHERE id = ?");
-$stmt->bind_param("s", $room_name);
-$stmt->execute();
-$room_exists = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-if (!$room_exists) fail(422, "Unit {$room_name} does not exist.");
-
-// Only an occupied unit has someone to bill. A vacant or unoccupied unit is
-// refused instead of saving a reading nobody can be invoiced for.
-$tenancy = get_room_tenancy($conn, $room_name);
-$user_id = $tenancy ? (int)$tenancy['user_id'] : null;
-if (!$user_id) fail(422, "Unit {$room_name} has no tenant right now. Readings can only be recorded for an occupied unit.");
-
-$date = DateTime::createFromFormat('!Y-m-d', $reading_date);
-if (!$date || $date->format('Y-m-d') !== $reading_date) fail(422, "Reading date must be a valid date (YYYY-MM-DD).");
-if ($reading_date > date('Y-m-d')) fail(422, "Reading date cannot be in the future.");
-if ($reading_date < $billing_period . '-01') fail(422, "Reading date cannot be before the start of the billing period.");
+// The fields every entry mode shares are checked together, so the form marks
+// all of them at once (keys are AdminUtilities.jsx's field names).
+$errors = [];
+$user_id = null;
+if ($room_name === '') {
+    $errors['room_name'] = "Choose a unit.";
+} else {
+    $stmt = $conn->prepare("SELECT id FROM rooms WHERE id = ?");
+    $stmt->bind_param("s", $room_name);
+    $stmt->execute();
+    $room_exists = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$room_exists) {
+        $errors['room_name'] = "Unit {$room_name} does not exist.";
+    } else {
+        // Only an occupied unit has someone to bill. A vacant or unoccupied unit is
+        // refused instead of saving a reading nobody can be invoiced for.
+        $tenancy = get_room_tenancy($conn, $room_name);
+        $user_id = $tenancy ? (int)$tenancy['user_id'] : null;
+        if (!$user_id) $errors['room_name'] = "Unit {$room_name} has no tenant right now. Readings can only be recorded for an occupied unit.";
+    }
+}
+if ($billing_period === '') $errors['billing_period'] = "Billing period is required.";
+elseif (!is_valid_utility_period($billing_period)) $errors['billing_period'] = "Billing period must be a month in YYYY-MM format.";
+if (v_date($reading_date, 'Reading date') !== '') $errors['reading_date'] = "Reading date must be a valid date (YYYY-MM-DD).";
+elseif ($reading_date > date('Y-m-d')) $errors['reading_date'] = "Reading date cannot be in the future.";
+elseif (empty($errors['billing_period']) && $reading_date < $billing_period . '-01') $errors['reading_date'] = "Reading date cannot be before the start of the billing period.";
+$entry_mode_raw = $input['entry_mode'] ?? 'metered';
+if (!in_array($entry_mode_raw, ['metered', 'total', 'bill'], true)) $errors['entry_mode'] = "Choose how the utilities are recorded: provider bill, meter readings or total only.";
+if (mb_strlen($notes) > 500) $errors['notes'] = "The note can be up to 500 characters.";
+if ($errors) validation_fail($errors);
 
 // Readings form a chain: each one's "previous" is the reading before it. Adding
 // one out of order would leave the later reading computed from the wrong base.
@@ -72,10 +83,7 @@ if ($later) {
 // single total (and a note) with no meter readings. It bills through the same
 // sync as a metered reading and does not break the meter chain: later metered
 // readings take their "previous" from the last metered row.
-$entry_mode_raw = $input['entry_mode'] ?? 'metered';
-if (!in_array($entry_mode_raw, ['metered', 'total', 'bill'], true)) fail(422, "Choose how the utilities are recorded: provider bill, meter readings or total only.");
 $entry_mode = $entry_mode_raw;
-if (mb_strlen($notes) > 500) fail(422, "The note can be up to 500 characters.");
 
 // The latest earlier meter value per utility, from any row that has one (a
 // metered reading, or a provider bill where a reading was also noted). Bill rows
@@ -94,33 +102,41 @@ $stmt->close();
 // information only and is never multiplied by a rate.
 $bill_mode = $entry_mode === 'bill';
 if ($bill_mode) {
-    $amount_or_fail = function ($key, $label) use ($input) {
+    // Each check records its error under the field and returns null; all are
+    // reported together below.
+    $amount_or_error = function ($key, $label) use ($input, &$errors) {
         $v = number_field($input, $key, 0.0);
-        if ($v === null) fail(422, "{$label} bill amount must be a number.");
-        if ($v < 0) fail(422, "{$label} bill amount cannot be negative.");
-        if ($v > 1000000) fail(422, "{$label} bill amount can be at most ₱1,000,000.");
-        return round($v, 2);
+        if ($v === null) $errors[$key] = "{$label} bill amount must be a number.";
+        elseif ($v < 0) $errors[$key] = "{$label} bill amount cannot be negative.";
+        elseif ($v > 1000000) $errors[$key] = "{$label} bill amount can be at most ₱1,000,000.";
+        else return round($v, 2);
+        return null;
     };
-    $water_bill = $amount_or_fail('water_bill_amount', 'Water');
-    $electric_bill = $amount_or_fail('electric_bill_amount', 'Electricity');
-    if ($water_bill <= 0 && $electric_bill <= 0) fail(422, "Enter the water or electricity bill amount (at least one above ₱0).");
+    $water_bill = $amount_or_error('water_bill_amount', 'Water');
+    $electric_bill = $amount_or_error('electric_bill_amount', 'Electricity');
+    if ($water_bill !== null && $electric_bill !== null && $water_bill <= 0 && $electric_bill <= 0) {
+        $errors['water_bill_amount'] = "Enter the water or electricity bill amount (at least one above ₱0).";
+    }
 
     // Optional meter value: stored with its consumption only when one is given.
-    $reading_or_fail = function ($key, $label, $prev) use ($input, $room_name) {
+    $reading_or_error = function ($key, $label, $prev) use ($input, $room_name, &$errors) {
         $v = number_field($input, $key);
-        if (array_key_exists($key, $input) && $input[$key] !== '' && $input[$key] !== null && $v === null) fail(422, "{$label} meter reading must be a number.");
-        if ($v === null) return [null, null, null];
-        if ($v < 0) fail(422, "Meter readings cannot be negative.");
-        if ($v > 1000000) fail(422, "{$label} meter reading is too large.");
-        $v = round($v, 2);
-        if ($prev !== null && $v < (float)$prev) {
-            fail(422, "{$label} reading ({$v}) is lower than the previous reading (" . (float)$prev . ") for Unit {$room_name}. Check the meter value.");
+        if (array_key_exists($key, $input) && $input[$key] !== '' && $input[$key] !== null && $v === null) $errors[$key] = "{$label} meter reading must be a number.";
+        elseif ($v === null) return [null, null, null];
+        elseif ($v < 0) $errors[$key] = "Meter readings cannot be negative.";
+        elseif ($v > 1000000) $errors[$key] = "{$label} meter reading is too large.";
+        elseif ($prev !== null && round($v, 2) < (float)$prev) {
+            $errors[$key] = "{$label} reading (" . round($v, 2) . ") is lower than the previous reading (" . (float)$prev . ") for Unit {$room_name}. Check the meter value.";
+        } else {
+            $v = round($v, 2);
+            // The first reading on record is the starting point: no consumption yet.
+            return $prev === null ? [null, $v, null] : [(float)$prev, $v, round($v - (float)$prev, 2)];
         }
-        // The first reading on record is the starting point: no consumption yet.
-        return $prev === null ? [null, $v, null] : [(float)$prev, $v, round($v - (float)$prev, 2)];
+        return [null, null, null];
     };
-    [$water_prev_reading, $water_curr_reading, $water_consumption] = $reading_or_fail('water_curr_reading', 'Water', $prev_meter['water_prev'] ?? null);
-    [$electric_prev_reading, $electric_curr_reading, $electric_consumption] = $reading_or_fail('electric_curr_reading', 'Electricity', $prev_meter['electric_prev'] ?? null);
+    [$water_prev_reading, $water_curr_reading, $water_consumption] = $reading_or_error('water_curr_reading', 'Water', $prev_meter['water_prev'] ?? null);
+    [$electric_prev_reading, $electric_curr_reading, $electric_consumption] = $reading_or_error('electric_curr_reading', 'Electricity', $prev_meter['electric_prev'] ?? null);
+    if ($errors) validation_fail($errors);
     $water_rate_per_unit = null;
     $electric_rate_per_unit = null;
     $water_amount = $water_bill;
@@ -131,11 +147,10 @@ if ($bill_mode) {
 
 if ($entry_mode === 'total') {
     $total_amount = number_field($input, 'total_amount');
-    if ($total_amount === null || $total_amount <= 0) fail(422, "Enter the total amount paid (greater than ₱0).");
-    if ($total_amount > 1000000) fail(422, "The total amount is too large.");
+    if ($total_amount === null || $total_amount <= 0) validation_fail(['total_amount' => "Enter the total amount paid (greater than ₱0)."]);
+    if ($total_amount > 1000000) validation_fail(['total_amount' => "The total amount is too large."]);
     $total_amount = round($total_amount, 2);
     if (!empty($input['items'])) fail(422, "Extra utilities are not used when recording a total only.");
-    if (mb_strlen($notes) > 500) fail(422, "The note can be up to 500 characters.");
 
     $stmt = $conn->prepare("INSERT INTO utility_readings (room_name, user_id, billing_period, reading_date, entry_mode, total_amount, notes, recorded_by) VALUES (?, ?, ?, ?, 'total', ?, ?, ?)");
     $stmt->bind_param("sissdsi", $room_name, $user_id, $billing_period, $reading_date, $total_amount, $notes, $admin_id);
@@ -176,20 +191,18 @@ $electric_rate_per_unit = number_field($input, 'electric_rate_per_unit', $prev ?
 $water_other_fees = number_field($input, 'water_other_fees', 0.00);
 $electric_other_fees = number_field($input, 'electric_other_fees', 0.00);
 
-if ($water_curr_reading === null || $electric_curr_reading === null) fail(422, "Current water and electricity meter readings are required and must be numbers.");
-if ($water_curr_reading < 0 || $electric_curr_reading < 0) fail(422, "Meter readings cannot be negative.");
-if ($water_rate_per_unit === null || $water_rate_per_unit <= 0 || $water_rate_per_unit > 1000) fail(422, "Water rate must be greater than ₱0 and at most ₱1,000 per m³.");
-if ($electric_rate_per_unit === null || $electric_rate_per_unit <= 0 || $electric_rate_per_unit > 1000) fail(422, "Electricity rate must be greater than ₱0 and at most ₱1,000 per kWh.");
-if ($water_other_fees === null || $water_other_fees < 0 || $electric_other_fees === null || $electric_other_fees < 0) fail(422, "Other fees cannot be negative.");
-
 // A meter never runs backwards. Previously a lower value was clamped to zero
 // consumption, hiding a typo or a replaced meter and under-billing the month.
-if ($water_curr_reading < $water_prev_reading) {
-    fail(422, "Water reading ({$water_curr_reading}) is lower than the previous reading ({$water_prev_reading}) for Unit {$room_name}. Check the meter value.");
+foreach (['water' => ['Water', $water_curr_reading, $water_prev_reading], 'electric' => ['Electricity', $electric_curr_reading, $electric_prev_reading]] as $u => [$label, $curr, $prev_reading]) {
+    if ($curr === null) $errors["{$u}_curr_reading"] = "The current {$label} meter reading is required and must be a number.";
+    elseif ($curr < 0) $errors["{$u}_curr_reading"] = "Meter readings cannot be negative.";
+    elseif ($curr < $prev_reading) $errors["{$u}_curr_reading"] = "{$label} reading ({$curr}) is lower than the previous reading ({$prev_reading}) for Unit {$room_name}. Check the meter value.";
 }
-if ($electric_curr_reading < $electric_prev_reading) {
-    fail(422, "Electricity reading ({$electric_curr_reading}) is lower than the previous reading ({$electric_prev_reading}) for Unit {$room_name}. Check the meter value.");
-}
+if ($water_rate_per_unit === null || $water_rate_per_unit <= 0 || $water_rate_per_unit > 1000) $errors['water_rate_per_unit'] = "Water rate must be greater than ₱0 and at most ₱1,000 per m³.";
+if ($electric_rate_per_unit === null || $electric_rate_per_unit <= 0 || $electric_rate_per_unit > 1000) $errors['electric_rate_per_unit'] = "Electricity rate must be greater than ₱0 and at most ₱1,000 per kWh.";
+if ($water_other_fees === null || $water_other_fees < 0) $errors['water_other_fees'] = "Other fees cannot be negative.";
+if ($electric_other_fees === null || $electric_other_fees < 0) $errors['electric_other_fees'] = "Other fees cannot be negative.";
+if ($errors) validation_fail($errors);
 
 $water_consumption = round($water_curr_reading - $water_prev_reading, 2);
 $water_amount = round($water_consumption * $water_rate_per_unit, 2);

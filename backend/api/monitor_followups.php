@@ -28,14 +28,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
-$kind = (string)($input['kind'] ?? '');
-$id = (int)($input['id'] ?? 0);
-if (!in_array($kind, ['payment', 'document'], true) || $id <= 0) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Choose a tenant or application to remind."]);
-    exit;
-}
+$input = json_decode(file_get_contents("php://input"), true);
+if (!is_array($input)) $input = [];
+$errors = array_filter([
+    'kind' => v_enum($input['kind'] ?? '', 'Reminder type', ['payment', 'document']),
+    'id' => v_id($input['id'] ?? null, 'Tenant or application'),
+]);
+if ($errors) validation_fail($errors);
+$kind = (string)$input['kind'];
+$id = (int)$input['id'];
 
 $list = $kind === 'payment' ? followup_overdue_tenants($conn) : followup_missing_documents($conn);
 $item = null;

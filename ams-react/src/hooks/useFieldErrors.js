@@ -55,13 +55,18 @@ export default function useFieldErrors(validators = {}, { idPrefix = '' } = {}) 
     return !first;
   };
 
-  // Puts server field errors onto the form. True if the response named a field.
+  // Puts server field errors onto the form. True if the response named a field
+  // that is on screen; false otherwise (no field, or only fields this form does
+  // not show, e.g. a name taken from the profile), so the caller shows the
+  // message as a banner instead of losing it.
   const applyServerErrors = (errOrRes) => {
     const fieldErrors = apiFieldErrors(errOrRes);
     const names = Object.keys(fieldErrors);
     if (!names.length) return false;
     setErrors((prev) => ({ ...prev, ...fieldErrors }));
-    focusField(names[0]);
+    const shown = names.filter((name) => document.getElementById(idFor(name)));
+    if (!shown.length) return false;
+    focusField(shown[0]);
     return true;
   };
 

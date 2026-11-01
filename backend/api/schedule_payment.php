@@ -11,41 +11,28 @@ $auth = require_user($conn);
 $user_id = $auth['id'];
 
 $data = json_decode(file_get_contents("php://input"), true);
+if (!is_array($data)) $data = [];
 $invoice_id = $data['invoice_id'] ?? null;
 $scheduled_date = $data['scheduled_date'] ?? null;
 $scheduled_time_slot = $data['scheduled_time_slot'] ?? null;
 
-if (!$invoice_id || !$scheduled_date || !$scheduled_time_slot) {
-    echo json_encode(["success" => false, "message" => "Missing required fields"]);
-    exit;
-}
-
 // A schedule is a promise to show up and pay, so it has to be a real future
 // date — the endpoint previously accepted any string, including past dates.
-$parsed_date = DateTime::createFromFormat('Y-m-d', $scheduled_date);
-if (!$parsed_date || $parsed_date->format('Y-m-d') !== $scheduled_date) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Invalid scheduled date."]);
-    exit;
+$errors = array_filter([
+    'invoice_id' => v_str($invoice_id, 'Invoice', 1, 50),
+    'scheduled_date' => v_date($scheduled_date, 'Schedule date'),
+    'scheduled_time_slot' => v_enum($scheduled_time_slot, 'Time slot', ['morning', 'afternoon', 'evening']),
+]);
+if (empty($errors['scheduled_date'])) {
+    $today = new DateTime(date('Y-m-d'));
+    $parsed_date = DateTime::createFromFormat('!Y-m-d', $scheduled_date);
+    if ($parsed_date < $today) {
+        $errors['scheduled_date'] = "Scheduled date cannot be in the past.";
+    } elseif ((int)$today->diff($parsed_date)->format('%a') > 60) {
+        $errors['scheduled_date'] = "Scheduled date cannot be more than 60 days ahead.";
+    }
 }
-$today = new DateTime(date('Y-m-d'));
-if ($parsed_date < $today) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Scheduled date cannot be in the past."]);
-    exit;
-}
-if ((int)$today->diff($parsed_date)->format('%a') > 60) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Scheduled date cannot be more than 60 days ahead."]);
-    exit;
-}
-
-$allowed_slots = ['morning', 'afternoon', 'evening'];
-if (!in_array($scheduled_time_slot, $allowed_slots, true)) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Invalid time slot."]);
-    exit;
-}
+if ($errors) validation_fail($errors);
 
 // Claim the invoice and scope by owner in the same statement, rather than
 // checking ownership in a separate SELECT and then updating by id alone.

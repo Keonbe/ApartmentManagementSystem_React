@@ -31,21 +31,26 @@ while ($row = $res->fetch_assoc()) {
 }
 
 // All keys save together or not at all: one rejected key used to leave the
-// keys before it saved.
+// keys before it saved. Every key is checked, and all refusals are reported
+// together: $refuse stops only the current key.
+class SettingRefused extends Exception {
+    public $errors;
+    public function __construct($message, $errors = null) {
+        parent::__construct($message);
+        $this->errors = $errors;
+    }
+}
 $conn->begin_transaction();
-$refuse = function ($message, $errors = null) use ($conn) {
-    $conn->rollback();
-    http_response_code(422);
-    $body = ["success" => false, "message" => $message];
-    if ($errors) $body["errors"] = $errors;
-    echo json_encode($body);
-    exit;
+$refuse = function ($message, $errors = null) {
+    throw new SettingRefused($message, $errors);
 };
+$refused = [];
 
 $stmt = $conn->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
 $changed = [];
 
 foreach ($input as $key => $value) {
+  try {
     if (!is_string($key) || !preg_match('/^[A-Za-z0-9_]{1,100}$/', $key)) {
         $refuse("Invalid setting key.");
     }
@@ -287,8 +292,17 @@ foreach ($input as $key => $value) {
     $stmt->bind_param("sss", $key, $value, $value);
     $stmt->execute();
     $changed[] = in_array($key, $secret_keys, true) ? "$key (value hidden)" : $key;
+  } catch (SettingRefused $e) {
+    // Field keys are the settings form's camelCase names (systemSettings.js).
+    $field = is_string($key) ? lcfirst(str_replace('_', '', ucwords($key, '_'))) : (string)$key;
+    $refused += $e->errors ?: [$field => $e->getMessage()];
+  }
 }
 $stmt->close();
+if ($refused) {
+    $conn->rollback();
+    validation_fail($refused);
+}
 $conn->commit();
 
 // The photo it replaced stays in the recent list; switching can push an old

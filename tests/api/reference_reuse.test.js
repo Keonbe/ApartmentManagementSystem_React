@@ -292,7 +292,7 @@ describe('refusals leave nothing behind', () => {
     const before = proofCount();
     const res = await upload(maria, 'INV-TEST-RR-LONG', 'X'.repeat(101));
     expect(res.status).toBe(422);
-    expect(res.body.message).toMatch(/too long/);
+    expect(res.body.message).toMatch(/100 characters or fewer/);
     expect(proofCount()).toBe(before);
     expect((await bill('INV-TEST-RR-LONG')).status).toBe('pending');
   });

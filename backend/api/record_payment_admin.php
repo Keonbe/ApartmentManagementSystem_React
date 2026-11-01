@@ -24,17 +24,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $amount_paid = isset($input['amountPaid']) && $input['amountPaid'] !== '' ? $input['amountPaid'] : null;
     $payments = $input['payments'] ?? null;
 
-    if (empty($invoice_id)) {
-        echo json_encode(["success" => false, "message" => "Invalid target invoice parameter."]);
-        exit;
-    }
+    $single_entry = !is_array($payments);
+    $errors = array_filter([
+        'invoiceId' => v_str($invoice_id, 'Invoice', 1, 50),
+        'amountPaid' => $single_entry && ($amount_paid === null || !is_numeric($amount_paid) || (float)$amount_paid <= 0) ? 'Enter the amount received.' : '',
+        'paymentReference' => v_str($payment_reference, 'Reference number', 1, 100, false),
+    ]);
+    if ($errors) validation_fail($errors);
 
-    if (!is_array($payments)) {
-        if ($amount_paid === null || !is_numeric($amount_paid) || (float)$amount_paid <= 0) {
-            http_response_code(422);
-            echo json_encode(["success" => false, "message" => "Enter the amount received.", "errors" => ["amountPaid" => "Enter the amount received."]]);
-            exit;
-        }
+    if ($single_entry) {
         $legacy_method = strtolower((string)$payment_method);
         if (in_array($legacy_method, ['bdo', 'bpi'], true)) {
             $payments = [['method' => 'bank_transfer', 'bank_name' => strtoupper($legacy_method), 'amount' => (float)$amount_paid, 'reference_number' => $payment_reference]];
@@ -45,6 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $checked = normalize_payment_portions($payments, 2);
     if (!$checked['ok']) {
+        // The single-method form can mark the field; the split form shows the
+        // message itself (it has no per-portion error slots).
+        if ($single_entry) {
+            $msg = $checked['message'];
+            validation_fail([stripos($msg, 'reference') !== false ? 'paymentReference' : (stripos($msg, 'bank') !== false ? 'paymentMethod' : 'amountPaid') => $msg]);
+        }
         http_response_code(422);
         echo json_encode(["success" => false, "message" => $checked['message']]);
         exit;

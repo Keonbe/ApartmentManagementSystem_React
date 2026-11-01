@@ -47,10 +47,14 @@ $mode = $in['billing_mode'] ?? '';
 $rate = $in['default_rate'] ?? null;
 $active = array_key_exists('is_active', $in) ? (int)!empty($in['is_active']) : 1;
 
-if ($name === '' || mb_strlen($name) > 60) type_fail(422, "Enter a name up to 60 characters.");
-if (mb_strlen($unit_label) > 20) type_fail(422, "The unit label can be at most 20 characters.");
-if (!in_array($mode, ['metered', 'flat'], true)) type_fail(422, "Billing mode must be metered or flat.");
-if (!is_numeric($rate) || (float)$rate < 0 || (float)$rate > 100000) type_fail(422, "Enter a rate or fee between 0 and 100,000.");
+$errors = array_filter([
+    'id' => $method === 'PUT' ? v_id($in['id'] ?? null, 'Utility type') : '',
+    'name' => $name === '' || mb_strlen($name) > 60 ? "Enter a name up to 60 characters." : '',
+    'unit_label' => v_str($unit_label, 'The unit label', 1, 20, false),
+    'billing_mode' => in_array($mode, ['metered', 'flat'], true) ? '' : "Billing mode must be metered or flat.",
+    'default_rate' => !is_numeric($rate) || (float)$rate < 0 || (float)$rate > 100000 ? "Enter a rate or fee between 0 and 100,000." : '',
+]);
+if ($errors) validation_fail($errors);
 $rate = round((float)$rate, 2);
 $unit_label = $unit_label === '' ? null : $unit_label;
 
@@ -76,10 +80,17 @@ if ($method === 'POST') {
     exit;
 }
 
-$id = (int)($in['id'] ?? 0);
+$id = (int)$in['id'];
+// An unchanged save also leaves affected_rows at 0, so existence is checked first.
+$exists = $conn->prepare("SELECT 1 FROM utility_types WHERE id = ?");
+$exists->bind_param("i", $id);
+$exists->execute();
+$found = (bool)$exists->get_result()->fetch_row();
+$exists->close();
+if (!$found) type_fail(404, "Utility type not found.");
 $stmt = $conn->prepare("UPDATE utility_types SET name = ?, unit_label = ?, billing_mode = ?, default_rate = ?, is_active = ? WHERE id = ?");
 $stmt->bind_param("sssdii", $name, $unit_label, $mode, $rate, $active, $id);
-$stmt->execute();
+if (!$stmt->execute()) type_fail(500, "Could not save the utility type.");
 log_activity($conn, $admin_id, 'utilities', 'Updated Utility Type', "$name (#$id)");
 echo json_encode(["success" => true, "message" => "Utility type saved."]);
 $conn->close();

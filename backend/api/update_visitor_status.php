@@ -22,17 +22,22 @@ function fail($code, $message) {
 }
 
 $input = json_decode(file_get_contents("php://input"), true);
-if (!$input) fail(400, "Invalid JSON payload.");
+if (!is_array($input)) fail(400, "Invalid JSON payload.");
 
-$id = (int)($input['id'] ?? $input['rawId'] ?? 0);
-$action = trim($input['action'] ?? $input['status'] ?? '');
-$checkout_notes = trim($input['checkoutNotes'] ?? $input['checkout_notes'] ?? '');
-$admin_notes = trim($input['adminNotes'] ?? $input['admin_notes'] ?? '');
+$raw_id = $input['id'] ?? $input['rawId'] ?? null;
+$action = trim((string)($input['action'] ?? $input['status'] ?? ''));
+$checkout_notes = trim((string)($input['checkoutNotes'] ?? $input['checkout_notes'] ?? ''));
+$admin_notes = trim((string)($input['adminNotes'] ?? $input['admin_notes'] ?? ''));
 
-if (!$id || $action === '') fail(422, "Visitor ID and action are required.");
 // Same UI caps as the forms (LIMITS.notes / LIMITS.reason in validation.js).
-if (mb_strlen($checkout_notes) > 1000) fail(422, "Checkout note must be 1000 characters or fewer.");
-if (mb_strlen($admin_notes) > 1000) fail(422, "Note must be 1000 characters or fewer.");
+$errors = array_filter([
+    'id' => v_id($raw_id, 'Visitor'),
+    'action' => v_enum($action, 'Action', ['checked_in', 'approve', 'denied', 'reject', 'cancel', 'checked_out', 'checkout']),
+    'checkoutNotes' => v_str($checkout_notes, 'Checkout note', 1, 1000, false),
+    'adminNotes' => v_str($admin_notes, 'Note', 1, 1000, false),
+]);
+if ($errors) validation_fail($errors);
+$id = (int)$raw_id;
 
 $q = $conn->prepare("SELECT * FROM visitor_logs WHERE id = ?");
 $q->bind_param("i", $id);

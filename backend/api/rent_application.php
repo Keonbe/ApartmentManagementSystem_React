@@ -56,13 +56,6 @@ if ($app_id !== null && $app_id !== '' && !ctype_digit((string)$app_id)) {
 }
 $app_id = empty($app_id) ? null : (int)$app_id;
 
-// Occupants: the applicant plus their household, up to the configured maximum.
-$max_occupants = max_occupants_per_unit($conn);
-if (!ctype_digit((string)$occupants) || (int)$occupants < 1 || (int)$occupants > $max_occupants) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Occupants must be between 1 and $max_occupants."]);
-    exit;
-}
 $agree_terms = filter_var($_POST['agreeTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
 if ($app_id === null && !empty($user_id)) {
@@ -112,47 +105,39 @@ if ($app_id !== null) {
 }
 $is_update = $app_id !== null;
 
-if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($email) || empty($gender) || empty($occupants) || empty($months_of_rent)) {
-    echo json_encode(["success" => false, "message" => "Please fill in all required personal details."]);
-    exit;
-}
-
+// Every personal-detail field is checked together so the form can mark all of
+// them at once (keys are RentApplication.jsx's field names). Lengths follow
+// the rent_applications columns.
+$max_occupants = max_occupants_per_unit($conn);
 // The rent term follows the admin's Minimum Rent Duration setting; 24 matches
 // the form's MAX_MONTHS.
 $min_months = max(1, (int)get_setting($conn, 'min_lease_duration', 3));
-if (!ctype_digit((string)$months_of_rent) || (int)$months_of_rent < $min_months || (int)$months_of_rent > 24) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Months of rent must be between $min_months and 24."]);
-    exit;
-}
-$months_of_rent = (int)$months_of_rent;
-
-// "ASAP" sends no date; a chosen one must be today or later (and not years out).
-if ($preferred_move_in_date !== null && ($date_error = move_in_date_error($conn, $preferred_move_in_date)) !== '') {
-    application_fail(422, $date_error, 'preferredMoveInDate');
-}
-
-// Stored normalized as +639XXXXXXXXX (the form has a fixed +63 prefix).
-$contact_no = normalize_ph_mobile($contact_no);
-if ($contact_no === null) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX)."]);
-    exit;
-}
-
-// Where the applicant lived before (asked at the manager interview, Q5).
+$normalized_contact = normalize_ph_mobile($contact_no);
 $address_len = mb_strlen($previous_address);
-if ($address_len < 5 || $address_len > 255) {
-    application_fail(422, $address_len === 0 ? "Please enter your previous address." : "Previous address must be 5 to 255 characters.", 'previousAddress');
-}
-if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]|<\s*script/i', $previous_address)) {
-    application_fail(422, "Previous address contains characters that are not allowed.", 'previousAddress');
-}
-
-if (!$agree_terms) {
-    echo json_encode(["success" => false, "message" => "You must agree to the Terms & Conditions before submitting your application."]);
-    exit;
-}
+$errors = array_filter([
+    'firstName' => v_str($first_name, 'First name', 1, 100),
+    'middleName' => v_str($middle_name, 'Middle name', 1, 100, false),
+    'lastName' => v_str($last_name, 'Last name', 1, 100),
+    'suffix' => v_str($suffix, 'Suffix', 1, 20, false),
+    'email' => trim((string)$email) === '' ? 'Email is required.'
+        : (!filter_var(trim((string)$email), FILTER_VALIDATE_EMAIL) || mb_strlen(trim((string)$email)) > 150 ? 'Enter a valid email address.' : ''),
+    'gender' => v_str($gender, 'Gender', 1, 20),
+    // Stored normalized as +639XXXXXXXXX (the form has a fixed +63 prefix).
+    'contactNo' => $normalized_contact === null ? 'Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).' : '',
+    // Occupants: the applicant plus their household, up to the configured maximum.
+    'occupants' => ctype_digit((string)$occupants) && (int)$occupants >= 1 && (int)$occupants <= $max_occupants ? '' : "Occupants must be between 1 and $max_occupants.",
+    'monthsOfRent' => ctype_digit((string)$months_of_rent) && (int)$months_of_rent >= $min_months && (int)$months_of_rent <= 24 ? '' : "Months of rent must be between $min_months and 24.",
+    // "ASAP" sends no date; a chosen one must be inside the move-in window.
+    'prefMoveInDate' => $preferred_move_in_date !== null ? move_in_date_error($conn, $preferred_move_in_date) : '',
+    // Where the applicant lived before (asked at the manager interview, Q5).
+    'previousAddress' => $address_len === 0 ? "Please enter your previous address."
+        : ($address_len < 5 || $address_len > 255 ? "Previous address must be 5 to 255 characters."
+        : (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]|<\s*script/i', $previous_address) ? "Previous address contains characters that are not allowed." : '')),
+    'roomName' => v_str($room_name, 'Unit', 1, 50),
+    'agreeTerms' => $agree_terms ? '' : "You must agree to the Terms & Conditions before submitting your application.",
+]);
+$contact_no = $normalized_contact;
+$months_of_rent = (int)$months_of_rent;
 
 // Documents: one upload per active requirement (Settings → Application
 // Requirements), sent as doc_<requirement id>. Keys for unknown or inactive
@@ -176,34 +161,41 @@ foreach ($requirements as $req) {
     $label = $req['label'];
     $file = $_FILES[$key] ?? null;
     if ($file !== null && is_array($file['name'])) {
-        application_fail(422, "Upload one file for \"$label\".", $key);
+        $errors[$key] = "Upload one file for \"$label\".";
+        continue;
     }
     if ($file === null || $file['error'] === UPLOAD_ERR_NO_FILE) {
         if ($req['is_required'] && !isset($on_file[$req['id']])) {
-            application_fail(422, "Please upload your $label.", $key);
+            $errors[$key] = "Please upload your $label.";
         }
         continue;
     }
     if ($file['error'] !== UPLOAD_ERR_OK) {
-        application_fail(422, in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
-            ? "\"$label\" exceeds the 10MB size limit." : "The upload of \"$label\" failed. Please try again.", $key);
+        $errors[$key] = in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
+            ? "\"$label\" exceeds the 10MB size limit." : "The upload of \"$label\" failed. Please try again.";
+        continue;
     }
     if ($file['size'] > $max_size) {
-        application_fail(422, "\"$label\" exceeds the 10MB size limit.", $key);
+        $errors[$key] = "\"$label\" exceeds the 10MB size limit.";
+        continue;
     }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, $allowed_extensions, true)) {
-        application_fail(422, "\"$label\" must be a JPEG, PNG or PDF file.", $key);
+        $errors[$key] = "\"$label\" must be a JPEG, PNG or PDF file.";
+        continue;
     }
     // Server-side content check, not the browser's claimed type (B-4).
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
     if (!in_array($mime, $allowed_mime_types, true)) {
-        application_fail(422, "\"$label\" must be a JPEG, PNG or PDF file.", $key);
+        $errors[$key] = "\"$label\" must be a JPEG, PNG or PDF file.";
+        continue;
     }
     $uploads[$req['id']] = ['tmp' => $file['tmp_name'], 'ext' => $ext, 'label' => $label];
 }
+// Personal details and documents are reported together.
+if ($errors) validation_fail($errors);
 
 // The client-supplied rent is a display value only; take the figure that
 // actually governs billing from the room itself (H4).

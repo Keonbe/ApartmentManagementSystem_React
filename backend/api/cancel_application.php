@@ -6,9 +6,15 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id');
 require_once '../config.php';
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 $auth = require_user($conn);
-$input = json_decode(file_get_contents('php://input'), true) ?: [];
-$id = (int)($input['id'] ?? 0); $reason = trim($input['reason'] ?? '');
-if (!$id || $reason === '') { http_response_code(422); echo json_encode(['success' => false, 'message' => 'A cancellation reason is required.']); exit; }
+$input = json_decode(file_get_contents('php://input'), true);
+if (!is_array($input)) $input = [];
+// rent_applications.rejection_reason is varchar(255).
+$errors = array_filter([
+    'id' => v_id($input['id'] ?? null, 'Application'),
+    'reason' => trim((string)($input['reason'] ?? '')) === '' ? 'A cancellation reason is required.' : v_str($input['reason'], 'Reason', 3, 255),
+]);
+if ($errors) validation_fail($errors);
+$id = (int)$input['id']; $reason = trim((string)$input['reason']);
 $conn->begin_transaction();
 try {
     $q = $conn->prepare("SELECT room_name, status FROM rent_applications WHERE id = ? AND user_id = ? AND status IN ('Approved', 'Pending Review', 'Pending')"); $q->bind_param('ii', $id, $auth['id']); $q->execute(); $app = $q->get_result()->fetch_assoc(); $q->close();

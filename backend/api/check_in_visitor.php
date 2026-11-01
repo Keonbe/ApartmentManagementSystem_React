@@ -44,19 +44,6 @@ function parse_visit_datetime($raw) {
     return DateTime::createFromFormat('Y-m-d\TH:i', $raw) ?: DateTime::createFromFormat('Y-m-d H:i:s', $raw);
 }
 
-if (mb_strlen($visitor_name) > 150) fail(422, "Visitor name must be 150 characters or fewer.");
-// Philippine mobile only, stored as +639XXXXXXXXX like every other contact
-// number (the form has a fixed +63 prefix).
-if ($contact_number !== '') {
-    $contact_number = normalize_ph_mobile($contact_number);
-    if ($contact_number === null) fail(422, "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).");
-}
-if (mb_strlen($purpose) > 255) fail(422, "Purpose must be 255 characters or fewer.");
-if (!in_array($id_type, VISITOR_ID_TYPES, true)) fail(422, "Invalid ID type.");
-if ($id_number === '') fail(422, "ID number is required.");
-if (mb_strlen($id_number) > 50) fail(422, "ID number must be 50 characters or fewer.");
-if (mb_strlen($vehicle_plate) > 30) fail(422, "Vehicle plate must be 30 characters or fewer.");
-
 // The visitor management module can be switched off entirely — this used to
 // only hide the Services card; the endpoint kept accepting registrations.
 // Walk-ins are unaffected: an admin logging someone already at the door
@@ -65,34 +52,53 @@ if (!$isAdmin && get_setting($conn, 'service_visitor_management_active', 'true')
     fail(403, "Visitor registration is currently unavailable.");
 }
 
+// Every field is checked and all problems are reported together. Keys are the
+// form fields: AdminVisitors (unit, visitDate/visitTime, checkOutDate/
+// checkOutTime) and UserVisitors (expectedDate/expectedTime, expectedOutDate/
+// expectedOutTime) split each date/time into two inputs; the error goes on the
+// time input.
+$errors = [];
+$errors['visitorName'] = $visitor_name === '' ? "Visitor name is required." : v_str($visitor_name, 'Visitor name', 1, 150);
+// Philippine mobile only, stored as +639XXXXXXXXX like every other contact
+// number (the form has a fixed +63 prefix).
+if ($contact_number === '') {
+    $errors['contactNumber'] = "Contact number is required.";
+} else {
+    $contact_number = normalize_ph_mobile($contact_number);
+    if ($contact_number === null) $errors['contactNumber'] = "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).";
+}
+$errors['purpose'] = $purpose === '' ? "Purpose is required." : v_str($purpose, 'Purpose', 1, 255);
+$errors['idType'] = in_array($id_type, VISITOR_ID_TYPES, true) ? '' : "Invalid ID type.";
+$errors['idNumber'] = $id_number === '' ? "ID number is required." : v_str($id_number, 'ID number', 1, 50);
+$errors['vehiclePlate'] = v_str($vehicle_plate, 'Vehicle plate', 1, 30, false);
+
 if ($isAdmin) {
     $room_name = trim($input['unit'] ?? $input['room_name'] ?? '');
-    if ($room_name === '') fail(422, "Unit is required.");
-
-    $r = $conn->prepare("SELECT 1 FROM rooms WHERE id = ?");
-    $r->bind_param("s", $room_name);
-    $r->execute();
-    $room_exists = (bool)$r->get_result()->fetch_assoc();
-    $r->close();
-    if (!$room_exists) fail(422, "Unit $room_name does not exist.");
+    if ($room_name === '') {
+        $errors['unit'] = "Unit is required.";
+    } else {
+        $r = $conn->prepare("SELECT 1 FROM rooms WHERE id = ?");
+        $r->bind_param("s", $room_name);
+        $r->execute();
+        if (!$r->get_result()->fetch_assoc()) $errors['unit'] = "Unit $room_name does not exist.";
+        $r->close();
+    }
 
     // The host is whoever currently rents the unit, never a posted userId.
     $target_user_id = null;
-    $u_stmt = $conn->prepare("SELECT user_id FROM rent_applications WHERE room_name = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
-    $u_stmt->bind_param("s", $room_name);
-    $u_stmt->execute();
-    $u_res = $u_stmt->get_result()->fetch_assoc();
-    $u_stmt->close();
-    if ($u_res) $target_user_id = (int)$u_res['user_id'];
+    if (empty($errors['unit'])) {
+        $u_stmt = $conn->prepare("SELECT user_id FROM rent_applications WHERE room_name = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
+        $u_stmt->bind_param("s", $room_name);
+        $u_stmt->execute();
+        $u_res = $u_stmt->get_result()->fetch_assoc();
+        $u_stmt->close();
+        if ($u_res) $target_user_id = (int)$u_res['user_id'];
+    }
 } else {
     $tenancy = get_active_tenancy($conn, $auth['id']);
     if (!$tenancy) fail(403, "Only tenants with an active rental can register visitors.");
     $room_name = $tenancy['room_name'];
     $target_user_id = $auth['id'];
-}
-
-if ($visitor_name === '' || $contact_number === '' || $purpose === '') {
-    fail(422, "Visitor name, contact number and purpose are required.");
 }
 
 // Expected arrival: required for a tenant's pre-registration (check_in_at is
@@ -105,52 +111,63 @@ if ($visitor_name === '' || $contact_number === '' || $purpose === '') {
 // check_in_at.
 $expected_at = null;
 $check_in_at = date('Y-m-d H:i:s');
+$check_in_ref = null;
 if ($isAdmin) {
-    if ($visit_at_raw === '') fail(422, "Check-in date/time is required.");
-    $visit_dt = parse_visit_datetime($visit_at_raw);
-    if (!$visit_dt) fail(422, "Check-in date/time must be a valid date/time.");
-    if ($visit_dt > new DateTime('+5 minutes')) fail(422, "Check-in date/time cannot be in the future.");
-    if ($visit_dt < new DateTime('-24 hours')) fail(422, "Check-in date/time can be back-dated by at most 24 hours.");
-    $check_in_at = $visit_dt->format('Y-m-d H:i:s');
-    $check_in_ref = $visit_dt;
-}
-if (!$isAdmin) {
-    if ($expected_at_raw === '') fail(422, "Expected check-in date/time is required.");
-    $expected_dt = parse_visit_datetime($expected_at_raw);
-    if (!$expected_dt) fail(422, "Expected arrival must be a valid date/time.");
+    $visit_dt = $visit_at_raw === '' ? null : parse_visit_datetime($visit_at_raw);
+    if ($visit_at_raw === '') $errors['visitTime'] = "Check-in date/time is required.";
+    elseif (!$visit_dt) $errors['visitTime'] = "Check-in date/time must be a valid date/time.";
+    elseif ($visit_dt > new DateTime('+5 minutes')) $errors['visitTime'] = "Check-in date/time cannot be in the future.";
+    elseif ($visit_dt < new DateTime('-24 hours')) $errors['visitTime'] = "Check-in date/time can be back-dated by at most 24 hours.";
+    else {
+        $check_in_at = $visit_dt->format('Y-m-d H:i:s');
+        $check_in_ref = $visit_dt;
+    }
+} else {
+    $expected_dt = $expected_at_raw === '' ? null : parse_visit_datetime($expected_at_raw);
     $now = new DateTime();
-    $max = (clone $now)->modify('+30 days');
-    if ($expected_dt < $now->modify('-1 hour')) fail(422, "Expected arrival cannot be in the past.");
-    if ($expected_dt > $max) fail(422, "Expected arrival must be within 30 days.");
-    $expected_at = $expected_dt->format('Y-m-d H:i:s');
-    $check_in_ref = $expected_dt;
+    if ($expected_at_raw === '') $errors['expectedTime'] = "Expected check-in date/time is required.";
+    elseif (!$expected_dt) $errors['expectedTime'] = "Expected arrival must be a valid date/time.";
+    elseif ($expected_dt < (clone $now)->modify('-1 hour')) $errors['expectedTime'] = "Expected arrival cannot be in the past.";
+    elseif ($expected_dt > (clone $now)->modify('+30 days')) $errors['expectedTime'] = "Expected arrival must be within 30 days.";
+    else {
+        $expected_at = $expected_dt->format('Y-m-d H:i:s');
+        $check_in_ref = $expected_dt;
+    }
 }
 
 // Expected check-out: required for both roles, after the check-in and within
 // 30 days of it. Informational — overstay still uses visitor_overstay_hours.
-if ($expected_out_raw === '') fail(422, "Expected check-out date/time is required.");
-$expected_out_dt = parse_visit_datetime($expected_out_raw);
-if (!$expected_out_dt) fail(422, "Expected check-out must be a valid date/time.");
-if ($expected_out_dt <= $check_in_ref) fail(422, "Expected check-out must be after the check-in date/time.");
-if ($expected_out_dt > (clone $check_in_ref)->modify('+30 days')) fail(422, "Expected check-out must be within 30 days of check-in.");
-if ($isAdmin && $expected_out_dt < new DateTime('-5 minutes')) fail(422, "Expected check-out cannot be in the past.");
+$out_key = $isAdmin ? 'checkOutTime' : 'expectedOutTime';
+$expected_out_dt = $expected_out_raw === '' ? null : parse_visit_datetime($expected_out_raw);
+if ($expected_out_raw === '') $errors[$out_key] = "Expected check-out date/time is required.";
+elseif (!$expected_out_dt) $errors[$out_key] = "Expected check-out must be a valid date/time.";
+elseif ($check_in_ref && $expected_out_dt <= $check_in_ref) $errors[$out_key] = "Expected check-out must be after the check-in date/time.";
+elseif ($check_in_ref && $expected_out_dt > (clone $check_in_ref)->modify('+30 days')) $errors[$out_key] = "Expected check-out must be within 30 days of check-in.";
+elseif ($isAdmin && $expected_out_dt < new DateTime('-5 minutes')) $errors[$out_key] = "Expected check-out cannot be in the past.";
+
+// Government ID photo: images only, 5MB, checked by extension and content (security audit B-7).
+$file = isset($_FILES['idPhoto']) && $_FILES['idPhoto']['error'] !== UPLOAD_ERR_NO_FILE ? $_FILES['idPhoto'] : null;
+$ext = $file ? strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)) : '';
+if ($file) {
+    if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] > 5 * 1024 * 1024) {
+        $errors['idPhoto'] = "ID photo must be an image of 5MB or less.";
+    } elseif (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+        $errors['idPhoto'] = "ID photo must be a JPG, PNG or WEBP image.";
+    } else {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) $errors['idPhoto'] = "ID photo content is not a valid image.";
+    }
+}
+
+$errors = array_filter($errors);
+if ($errors) validation_fail($errors);
 $expected_check_out_at = $expected_out_dt->format('Y-m-d H:i:s');
 $expected_out_label = date('M j, Y g:i A', strtotime($expected_check_out_at));
 
-// Government ID photo: images only, 5MB, checked by extension and content (security audit B-7).
 $id_photo_path = null;
-if (isset($_FILES['idPhoto']) && $_FILES['idPhoto']['error'] !== UPLOAD_ERR_NO_FILE) {
-    $file = $_FILES['idPhoto'];
-    if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] > 5 * 1024 * 1024) fail(422, "ID photo must be an image of 5MB or less.");
-
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) fail(422, "ID photo must be a JPG, PNG or WEBP image.");
-
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) fail(422, "ID photo content is not a valid image.");
-
+if ($file) {
     $upload_dir = "../uploads/visitors/";
     if (!file_exists($upload_dir)) mkdir($upload_dir, 0755, true);
     $filename = "visitor_id_" . time() . "_" . bin2hex(random_bytes(8)) . "." . $ext;
@@ -162,7 +179,10 @@ $initial_status = $isAdmin ? 'checked_in' : 'pending_approval';
 
 $stmt = $conn->prepare("INSERT INTO visitor_logs (user_id, room_name, visitor_name, contact_number, id_type, id_number, id_photo_path, purpose, vehicle_plate, status, expected_at, expected_check_out_at, created_by, check_in_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 $stmt->bind_param("isssssssssssis", $target_user_id, $room_name, $visitor_name, $contact_number, $id_type, $id_number, $id_photo_path, $purpose, $vehicle_plate, $initial_status, $expected_at, $expected_check_out_at, $auth['id'], $check_in_at);
-if (!$stmt->execute()) fail(500, "Failed to record the visitor.");
+if (!$stmt->execute()) {
+    if ($id_photo_path) @unlink(__DIR__ . '/../' . $id_photo_path);
+    fail(500, "Failed to record the visitor.");
+}
 $new_id = $stmt->insert_id;
 $stmt->close();
 

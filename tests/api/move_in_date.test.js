@@ -124,17 +124,17 @@ describe('rent_application.php preferred move-in date', () => {
   };
   const lizaApps = async () => (await one('SELECT COUNT(*) AS c FROM rent_applications WHERE user_id = 17')).c;
 
-  it('refuses a past preferred date with field preferredMoveInDate; nothing is saved', async () => {
+  it('refuses a past preferred date on the prefMoveInDate field; nothing is saved', async () => {
     const before = await lizaApps();
     const res = await apply({ isAsap: '0', preferredMoveInDate: '2023-02-01' });
     expect(res.status).toBe(422);
-    expect(res.body.field).toBe('preferredMoveInDate');
+    expect(res.body.errors.prefMoveInDate).toMatch(/cannot be in the past/);
     expect(await lizaApps()).toBe(before);
   });
 
   it('ASAP sends no date and is not checked (gets past the date rule)', async () => {
     const res = await apply({ isAsap: '1', preferredMoveInDate: '' });
     // Fails later on the missing documents, not on the date.
-    expect(res.body.field).not.toBe('preferredMoveInDate');
+    expect(res.body.errors?.prefMoveInDate).toBeUndefined();
   });
 });

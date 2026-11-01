@@ -24,15 +24,36 @@ $payment_method = $_POST['payment_method'] ?? $_POST['paymentMethod'] ?? 'GCash'
 $sender_name = $_POST['sender_name'] ?? $_POST['senderName'] ?? null;
 $bank_name = trim((string)($_POST['bank_name'] ?? $_POST['bankName'] ?? ''));
 
-if (preg_match('/bank|bdo|bpi|metrobank|landbank|rcbc|unionbank|security|maya bank/i', (string)$payment_method)) {
-    if (!in_array($bank_name, PHILIPPINE_BANKS, true)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Choose a supported originating bank."]);
-        exit;
-    }
-} else {
-    $bank_name = '';
+$proof_file = null;
+if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
+    $proof_file = $_FILES['proof'];
+} else if (isset($_FILES['proofImage']) && $_FILES['proofImage']['error'] === UPLOAD_ERR_OK) {
+    $proof_file = $_FILES['proofImage'];
 }
+$upload_error = $_FILES['proof']['error'] ?? $_FILES['proofImage']['error'] ?? UPLOAD_ERR_NO_FILE;
+
+// Every field is checked before anything is saved, and all problems are
+// reported together (field names as the PayBills / PaymentUpload forms use).
+$is_bank = preg_match('/bank|bdo|bpi|metrobank|landbank|rcbc|unionbank|security|maya bank/i', (string)$payment_method);
+$errors = array_filter([
+    'invoice_id' => v_str($invoice_id, 'Invoice', 1, 50),
+    'payment_method' => v_str($payment_method, 'Payment method', 1, 50),
+    // The column holds 100 characters; longer would fail the write after the
+    // proof file is saved.
+    'payment_reference' => v_str($payment_reference, 'Reference number', 1, 100, false),
+    'sender_name' => v_str($sender_name, 'Sender name', 1, 150, false),
+    'bank_name' => $is_bank ? v_enum($bank_name, 'Originating bank', PHILIPPINE_BANKS) : '',
+    // A proof without a file would leave the bill "under verification" with
+    // nothing for the admin to check.
+    'proof' => $proof_file ? ($proof_file['size'] > 10 * 1024 * 1024 ? 'Payment proof exceeds the 10MB size limit.' : '')
+        : (in_array($upload_error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? 'Payment proof exceeds the 10MB size limit.' : 'Attach your proof of payment.'),
+]);
+$amount_raw = $_POST['amount'] ?? '';
+if ($amount_raw !== '' && $amount_raw !== null && (!is_numeric($amount_raw) || !is_finite((float)$amount_raw) || (float)$amount_raw <= 0)) {
+    $errors['amount'] = 'Enter the amount you paid (more than ₱0).';
+}
+if ($errors) validation_fail($errors);
+if (!$is_bank) $bank_name = '';
 
 if (!$is_admin) {
     if (get_setting($conn, 'service_pay_bills_active', 'true') === 'false') {
@@ -71,24 +92,10 @@ if (!$is_admin) {
     }
 }
 
-if (empty($invoice_id)) {
-    echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
-    exit;
-}
-
-// The column holds 100 characters; longer would fail the write after the
-// proof file is saved.
-if (mb_strlen((string)$payment_reference, 'UTF-8') > 100) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "The reference number is too long (100 characters at most)."]);
-    exit;
-}
-
 // Optional `amount`: the part of the bill this proof pays (installments).
 // Absent or empty = the whole remaining balance, as before. Checked against the
 // caller's own open invoice before any file is saved.
 $proof_amount = null;
-$amount_raw = $_POST['amount'] ?? '';
 if ($amount_raw !== '' && $amount_raw !== null) {
     $owned = payment_key_invoices($conn, $invoice_id, $is_admin ? null : $user_id, BILLING_OPEN_STATUSES);
     if (!$owned) {
@@ -98,51 +105,25 @@ if ($amount_raw !== '' && $amount_raw !== null) {
     }
     $balance_cents = 0;
     foreach ($owned as $row) $balance_cents += invoice_balance_cents($row);
-    if (!is_numeric($amount_raw) || !is_finite((float)$amount_raw) || (float)$amount_raw <= 0) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Enter the amount you paid (more than ₱0)."]);
-        exit;
-    }
     $amount_cents = (int)round((float)$amount_raw * 100);
     if ($amount_cents > $balance_cents) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "The amount is more than the balance (₱" . number_format($balance_cents / 100, 2) . ")."]);
-        exit;
+        validation_fail(['amount' => "The amount is more than the balance (₱" . number_format($balance_cents / 100, 2) . ")."]);
     }
     if ($amount_cents < $balance_cents) {
         if (is_payment_group_key($invoice_id) || count($owned) !== 1 || (int)($owned[0]['advance_months'] ?? 0) > 0) {
-            http_response_code(422);
-            echo json_encode(["success" => false, "message" => "A grouped or advance payment is paid in full. Pay the whole amount, or pay a single bill in parts."]);
-            exit;
+            validation_fail(['amount' => "A grouped or advance payment is paid in full. Pay the whole amount, or pay a single bill in parts."]);
         }
         $proof_amount = $amount_cents / 100;
     }
 }
 
-$proof_file = null;
-if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
-    $proof_file = $_FILES['proof'];
-} else if (isset($_FILES['proofImage']) && $_FILES['proofImage']['error'] === UPLOAD_ERR_OK) {
-    $proof_file = $_FILES['proofImage'];
-}
-
 $proof_path = null;
 if ($proof_file) {
-    // Match the 10MB ceiling the other upload endpoints enforce; this one
-    // previously accepted a file of any size.
-    if ($proof_file['size'] > 10 * 1024 * 1024) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Payment proof exceeds the 10MB size limit."]);
-        exit;
-    }
-
     $file_extension = strtolower(pathinfo($proof_file['name'], PATHINFO_EXTENSION));
     $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
 
     if (!in_array($file_extension, $allowed_extensions)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Invalid payment proof file format. Allowed: JPG, PNG, WEBP, PDF."]);
-        exit;
+        validation_fail(['proof' => "Invalid payment proof file format. Allowed: JPG, PNG, WEBP, PDF."]);
     }
 
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -151,9 +132,7 @@ if ($proof_file) {
 
     $allowed_mimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (!in_array($mime, $allowed_mimes)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "File content does not match allowed formats."]);
-        exit;
+        validation_fail(['proof' => "File content does not match allowed formats."]);
     }
 
     $upload_dir = '../uploads/payment_proofs/';

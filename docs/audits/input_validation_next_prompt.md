@@ -4,7 +4,7 @@ Paste everything below the line into a new Claude Code session. Item 6 of the de
 
 ---
 
-Add per-field server validation errors to the AMS endpoints that still lack them. Follow CLAUDE.md. Start from TASK.md, `git status` and `git log --oneline -5`, then grep before reading files. Do not commit; leave changes uncommitted and draft Backend / Frontend / Docs commit messages at the end. Open your plan with a short TL;DR.
+Add per-field server validation errors to the AMS endpoints that still lack them. Follow CLAUDE.md. Start from TASK.md, `git status` and `git log --oneline -5`, then grep before reading files. Do not commit; leave changes uncommitted and draft one commit message per feature or task at the end (Backend / Frontend / Docs sections inside the body, per CLAUDE.md). Open your plan with a short TL;DR.
 
 ## Goal
 Every write endpoint in scope returns **all** invalid fields at once, so the form can mark each field. Today only `record_payment_admin.php` (L35, L127), `create_announcement.php` and, from the defense-gaps pass, `update_system_settings.php` (`payment_window_days`), `update_tenant_status.php` (rejection reason) and `update_service_status.php` (reason) return `errors{}`.
