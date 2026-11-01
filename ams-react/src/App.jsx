@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useEffect, useReducer, useCallback, useMemo, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
@@ -9,7 +9,7 @@ import TopBar from './Components/TopBar';
 import ServiceRouteGuard from './Components/ServiceRouteGuard';
 import { UserThemeScope, ThemePicker, FloatingLangSwitch } from './Components/UserTheme';
 import { useTheme } from './config/theme';
-import { isTenantStatus, readRoomCache, writeRoomCache } from './config/tenantHome';
+import { readRoomCache, writeRoomCache, roomKindFor, ROOM_RECHECK_MS, RoomStatusContext } from './config/tenantHome';
 
 // User Pages
 import Home from './UserPages/Home';
@@ -204,41 +204,54 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // The signed-in user's last room check: { userId, has }. Seeded from this
-  // tab's cache so the TopBar and the Home redirect are right on first paint;
-  // rechecked on every page change.
+  // The signed-in user's room check lives in this tab's cache (tenantHome.js),
+  // read on every render so the TopBar and the Home redirect are right on first
+  // paint; a server answer bumps roomVersion to re-render.
   const user = currentUser();
-  const [roomCheck, setRoomCheck] = useState(() => {
-    const has = readRoomCache(user?.id);
-    return has === null ? null : { userId: user.id, has };
-  });
   const isAdmin = user?.role === 'admin';
-  const checkedThisUser = !!user && roomCheck?.userId === user.id;
-  const hasRentedRoom = isAdmin || (checkedThisUser && roomCheck.has);
+  const userId = user?.id;
+  const [roomVersion, bumpRoomVersion] = useReducer((n) => n + 1, 0);
+  const roomKind = user && !isAdmin ? readRoomCache(userId)?.kind ?? null : null;
+  const hasRentedRoom = isAdmin || roomKind === 'tenant';
+  const hasApplication = roomKind === 'tenant' || roomKind === 'applicant';
   // Guards wait only until this user has been checked once, not on every
   // recheck (that used to swap each page for "Loading session..." on navigation).
-  const isCheckingRoom = !!user && !isAdmin && !checkedThisUser;
+  const isCheckingRoom = !!user && !isAdmin && roomKind === null;
 
-  const userId = user?.id;
-  const userEmail = user?.email_address || '';
+  // Asked again on a page change only once the last answer is ROOM_RECHECK_MS
+  // old, through my_room.php's one-query summary. It used to fetch the whole
+  // room (contract sweep included) on every page change.
   useEffect(() => {
-    if (userId == null || isAdmin) return undefined;
-    let alive = true;
-    api.get(`/my_room.php?email=${encodeURIComponent(userEmail)}`)
+    if (userId == null || isAdmin) return;
+    const cached = readRoomCache(userId);
+    if (cached && Date.now() - cached.at < ROOM_RECHECK_MS) return;
+    api.get('/my_room.php', { params: { summary: 1 } })
       .then((res) => {
         // Only a confirmed move-in makes the user a tenant. An Approved applicant —
         // even one whose first payment is confirmed — stays on Track Application
         // until the admin confirms occupancy (status 'active').
-        const has = !!(res.data.success && res.data.data && isTenantStatus(res.data.data.status));
-        writeRoomCache(userId, has);
-        if (alive) setRoomCheck({ userId, has });
+        writeRoomCache(userId, roomKindFor(res.data.success ? res.data.status : null));
+        bumpRoomVersion();
       })
       .catch((err) => {
         console.error("Error checking room status:", err);
-        if (alive) setRoomCheck((prev) => (prev?.userId === userId ? prev : { userId, has: false }));
+        // Never checked: release the guards (as no room); otherwise keep the last answer.
+        if (!readRoomCache(userId)) {
+          writeRoomCache(userId, 'none');
+          bumpRoomVersion();
+        }
       });
-    return () => { alive = false; };
-  }, [location.pathname, userId, userEmail, isAdmin]);
+  }, [location.pathname, userId, isAdmin, roomVersion]);
+
+  // A new application, or a new notice (it may be a move-in confirmation),
+  // asks again now instead of waiting out the recheck time.
+  const refreshRoomStatus = useCallback(() => {
+    const cached = readRoomCache(userId);
+    if (!cached) return;
+    writeRoomCache(userId, cached.kind, 0);
+    bumpRoomVersion();
+  }, [userId, bumpRoomVersion]);
+  const roomStatus = useMemo(() => ({ hasApplication, refreshRoomStatus }), [hasApplication, refreshRoomStatus]);
 
   // Inquiries are open to guests, so this needs no login gate — unlike renting.
   const handleInquireTrigger = (roomId) => {
@@ -256,6 +269,7 @@ function AppContent() {
   };
 
   return (
+    <RoomStatusContext.Provider value={roomStatus}>
     <ChatProvider>
       <>
       <Suspense fallback={null}>
@@ -335,6 +349,7 @@ function AppContent() {
             : <UserThemeScope force={location.pathname === '/home' ? 'glass' : undefined} backdrop={false} className="contents"><ChatWidget /></UserThemeScope>)}
       </>
     </ChatProvider>
+    </RoomStatusContext.Provider>
   );
 }
 

@@ -342,13 +342,9 @@ Two consequences that will otherwise waste your time:
 
 ### 3.4 The tenant room gate (precondition for most tenant tests)
 
-`AppContent` re-fetches `my_room.php` **on every route change** and admits a tenant only when **all** of these hold:
+`AppContent` asks `my_room.php?summary=1` (one query: `{ success, status }`, `status` null when the user never applied) and admits a tenant only when the latest application's `status` ∈ `('active', 'pending-move-out')` (case-insensitive). An `Approved` applicant, even with the first payment confirmed, stays on Track Application until the admin confirms move-in. The answer is cached per user and tab (`sessionStorage` `ams_has_room` = `<userId>:<tenant|applicant|none>:<ms>`) and asked again on a page change only once it is 60 s old, after a new application, or when a new notice arrives. Sign-in fills it from the full `my_room.php`. `none` also hides Track Application from the TopBar.
 
-- `success === true` and `data` is present
-- `data.status` ∈ `('Approved', 'active', 'pending-move-out')` (case-insensitive)
-- `data.has_pending_first_payment === false`
-
-`my_room.php` returns only the **most recent** application (`ORDER BY created_at DESC LIMIT 1`), and sets `has_pending_first_payment = true` when an invoice exists for that application with `security_deposit > 0` and status in `('pending','pending-verification')`.
+`my_room.php` returns only the **most recent** application (`ORDER BY created_at DESC LIMIT 1`), and sets `has_pending_first_payment = true` when an invoice exists for that application with `security_deposit > 0` and status in `('pending','pending-verification')`. The contract-expiry sweep runs on the full read only, not on `?summary=1`.
 
 A logged-in tenant is therefore **locked out** of `/my-room`, `/pay-bills`, `/services` etc. when:
 

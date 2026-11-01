@@ -15,6 +15,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import InlineAlert from '../Components/InlineAlert';
 import useDialog from '../hooks/useDialog';
+import { useRoomStatus } from '../config/tenantHome';
 import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
 
@@ -134,6 +135,7 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
 
 export default function RentApplication() {
     const navigate = useNavigate();
+    const { refreshRoomStatus } = useRoomStatus();
     const location = useLocation();
     const { t, lang } = useLang();
 
@@ -526,6 +528,7 @@ export default function RentApplication() {
                     };
                     sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
                 } catch { /* ignore */ }
+                refreshRoomStatus(); // the TopBar now offers Track Application
                 setShowSuccessModal(true);
             } else if (!form.applyServerErrors(res)) {
                 setNotice(res.data.message || t('rent.submitFailed'));

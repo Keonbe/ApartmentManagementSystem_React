@@ -11,8 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-expire_lapsed_contracts($conn);
-
 // A non-admin caller may only ever read their own room — ?userId=/?email=
 // are honoured only for a genuinely authenticated admin (e.g. the contract
 // preview in ViewContract.jsx, opened from AdminContracts.jsx). Anyone else
@@ -36,6 +34,21 @@ if ($is_admin) {
         $u_stmt->close();
     }
 }
+
+// ?summary=1: only the latest application's status (null = never applied).
+// App.jsx asks this to pick the TopBar links and start page; one indexed read
+// instead of the contract sweep and the extension and deposit work below.
+if (!empty($_GET['summary'])) {
+    $s_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
+    $s_stmt->bind_param("i", $user_id);
+    $s_stmt->execute();
+    $s_row = $s_stmt->get_result()->fetch_assoc();
+    $s_stmt->close();
+    echo json_encode(["success" => true, "status" => $s_row['status'] ?? null]);
+    exit();
+}
+
+expire_lapsed_contracts($conn);
 
 $stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.previous_address, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path, rm.type AS room_type, rm.floor AS room_floor FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id LEFT JOIN rooms rm ON rm.id = ra.room_name WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);

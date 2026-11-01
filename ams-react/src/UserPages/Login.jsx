@@ -7,7 +7,7 @@ import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/login.responsive.css';
 import { LIMITS, checkEmail, normalizeEmail } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
-import { isTenantStatus, landingPathFor, writeRoomCache } from '../config/tenantHome';
+import { roomKindFor, landingPathFor, writeRoomCache } from '../config/tenantHome';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { invalidCls } from '../Components/form/formHelpers';
@@ -82,7 +82,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     try {
                         const roomRes = await api.get(`/my_room.php?email=${encodeURIComponent(res.data.user.email_address || '')}`);
                         const room = roomRes.data.success ? roomRes.data.data : null;
-                        writeRoomCache(res.data.user.id, isTenantStatus(room?.status));
+                        writeRoomCache(res.data.user.id, roomKindFor(room?.status));
                         const target = landingPathFor(room);
                         if (target !== '/home') {
                             navigate(target, { replace: true });

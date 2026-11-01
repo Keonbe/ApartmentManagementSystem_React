@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~90 s, 495 tests (30 files)
+npm test           # ~70 s, 500 tests (31 files)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -101,6 +101,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `house_rules.test.js` | 4 | `scope=all` returns every scope in order (house, children and pets, parking) without inactive rules; a single scope still returns only that scope; an unknown scope is refused |
 | `move_in_date.test.js` | 17 | Preferred move-in date (`move_in_date_error()`, window from `move_in_min_days` / `move_in_max_days`, shipped 0 / 365): with the earliest at 3 and the latest at 30 days, today and +31 are refused (messages name the first / last day) and +3 / +30 accepted; garbled stored values fall back to 0 / 365. At the defaults, `resubmit_date.php` refuses 2023-02-01, yesterday, malformed dates (2026-02-31, `01/02/2027`, text) and +366 days (message names the last allowed day) with the application unchanged, accepts +364, +365 and today (back to Pending Review), a stale second submit → 400; `rent_application.php` refuses a past date with `field: preferredMoveInDate` and saves nothing, ASAP sends no date |
 | `release_checkout.test.js` | 5 | `release_checkout_session.php` (what a typed `?status=cancelled` URL calls): another tenant's checkout, a bill not in `processing` and an unknown id are no-ops (`released: false`); the owner's release puts a past-due bill back to `overdue`; a second cancel releases nothing |
+| `room_summary.test.js` | 5 | `my_room.php?summary=1`: a tenant gets `{ success, status: "active" }` only; a user who never applied gets `status: null`; another user's `userId` / `email` ignored; no session → 401; the newest application counts, even a rejected one |
 | `room_gallery.test.js` | 6 | A legacy string gallery reads as items with defaults; the admin saves a description and display option that guests then see; a tenant or no session is refused; bad display option, too-long description or unknown photo rejected; an empty description clears it; delete on a mixed legacy/new gallery keeps the other photo's details |
 
 ### Not covered

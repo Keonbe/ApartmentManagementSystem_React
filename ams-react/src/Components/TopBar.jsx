@@ -18,7 +18,7 @@ import { ThemePicker, LangSwitch } from './UserTheme';
 import useDialog from '../hooks/useDialog';
 import usePresence from '../hooks/usePresence';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
-import { clearRoomCache } from '../config/tenantHome';
+import { clearRoomCache, useRoomStatus } from '../config/tenantHome';
 import '../assets/styles/responsive/components/navbar.responsive.css';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
@@ -36,6 +36,15 @@ const SERVICE_PATHS = [
 // Where the desktop link pill last sat. TopBar remounts when the route's
 // guard changes (Home → My Room), so the pill starts from here and slides.
 let lastPill = null;
+
+// What the bar fetched, kept across those remounts too: the profile is read
+// once per user per page load, and the bell's list is reused instead of
+// refetched while it is under NOTIF_REUSE_MS old (the 60 s poll and the
+// notification events keep it current). Each remount used to fetch both.
+const NOTIF_REUSE_MS = 15000;
+let profileSyncedFor = null;
+let notifCache = null; // { userId, at, raw, list, unread }
+const cachedNotifs = (userId) => (notifCache && notifCache.userId === userId ? notifCache : null);
 
 // Desktop links. A white pill slides under the current page's link; it is
 // measured because the links differ in width and change with the language.
@@ -126,6 +135,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const showThemePicker = location.pathname !== '/home';
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { hasApplication, refreshRoomStatus } = useRoomStatus();
 
     const handleLogout = () => {
         api.post('/logout.php').catch(() => {}); // invalidate the server-side session; fire-and-forget
@@ -138,6 +148,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
         }
         clearRoomCache();
+        profileSyncedFor = null;
+        notifCache = null;
         window.dispatchEvent(new Event('auth-changed'));
         navigate('/login');
     };
@@ -179,11 +191,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         return () => window.removeEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
     }, []);
     const displayName = (isLoggedIn && nameOverride) || username;
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const lastUnread = useRef(null);
+    const [notifications, setNotifications] = useState(() => cachedNotifs(loggedInUser.id)?.list ?? []);
+    const [unreadCount, setUnreadCount] = useState(() => cachedNotifs(loggedInUser.id)?.unread ?? 0);
+    const lastUnread = useRef(cachedNotifs(loggedInUser.id)?.unread ?? null);
     const [bellRing, setBellRing] = useState(0); // bumped to replay the bell's ring
-    const [rawNotifications, setRawNotifications] = useState([]);
+    const [rawNotifications, setRawNotifications] = useState(() => cachedNotifs(loggedInUser.id)?.raw ?? []);
     const [highlightIds, setHighlightIds] = useState(NO_HIGHLIGHT); // new payment notices, shown in the open dropdown
 
     const [appStatusModal, setAppStatusModal] = useState(null);
@@ -224,10 +236,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     // 1. Fetch live profile records to ensure avatar path accuracy across tabs
     useEffect(() => {
         const fetchLiveProfile = async () => {
-            if (!loggedInUser.email_address) return;
+            if (!loggedInUser.email_address || profileSyncedFor === loggedInUser.id) return;
             try {
                 const res = await api.get(`/profile.php?email=${encodeURIComponent(loggedInUser.email_address)}`);
                 if (res.data.success && res.data.data) {
+                    profileSyncedFor = loggedInUser.id;
                     const latestAvatar = res.data.data.avatar_url || '';
                     setDbAvatarUrl(latestAvatar);
                     
@@ -278,10 +291,15 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                 setNotifications(list);
                 showAppStatusOnce(list);
                 const unread = response.data.unread_count ?? response.data.notifications.filter(n => !Number(n.is_read)).length;
-                // A new notice since the last check rings the bell (not on the first load).
-                if (lastUnread.current !== null && unread > lastUnread.current) setBellRing(r => r + 1);
+                // A new notice since the last check rings the bell (not on the first
+                // load) and rechecks the room: it may be a move-in confirmation.
+                if (lastUnread.current !== null && unread > lastUnread.current) {
+                    setBellRing(r => r + 1);
+                    refreshRoomStatus();
+                }
                 lastUnread.current = unread;
                 setUnreadCount(unread);
+                notifCache = { userId: loggedInUser.id, at: Date.now(), raw: response.data.notifications, list, unread };
             }
         } catch (e) {
             console.error('Failed to load notifications:', e);
@@ -299,7 +317,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     useEffect(() => {
         if (!isLoggedIn) return;
         const load = async () => { await fetchNotifications(); };
-        load();
+        const cached = cachedNotifs(loggedInUser.id);
+        if (!cached || Date.now() - cached.at >= NOTIF_REUSE_MS) load();
         window.addEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
         return () => window.removeEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
     }, [isLoggedIn, loggedInUser.id]);
@@ -415,7 +434,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const navLinks = [
         !isTenant && link('/home', t('nav.home'), faHome),
         !hasRentedRoom && previewLink,
-        isLoggedIn && !hasRentedRoom && link('/track-application', t('nav.trackApp'), faFileContract),
+        // Only for someone who has applied (any application, even a closed one).
+        isLoggedIn && !hasRentedRoom && hasApplication && link('/track-application', t('nav.trackApp'), faFileContract),
         isLoggedIn && hasRentedRoom && link('/my-room', t('nav.myRoom'), faBed),
         isLoggedIn && hasRentedRoom && link('/services', t('nav.services'), faConciergeBell, SERVICE_PATHS),
         isTenant && link('/my-refunds', t('topbar.myRefunds'), faMoneyBillTransfer),

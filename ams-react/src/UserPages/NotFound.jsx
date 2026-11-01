@@ -7,7 +7,7 @@ export default function NotFound() {
   const { t } = useLang();
   const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || 'null');
   // A tenant's home is My Room (App.jsx keeps tenants off Home).
-  const home = user?.role === 'admin' ? '/admin-dashboard' : readRoomCache(user?.id) ? '/my-room' : '/home';
+  const home = user?.role === 'admin' ? '/admin-dashboard' : readRoomCache(user?.id)?.kind === 'tenant' ? '/my-room' : '/home';
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-24 text-center">
