@@ -1,5 +1,6 @@
-// Tenant Glass theme backdrop: the glass_* settings (update/get_system_settings.php)
-// and upload_glass_background.php.
+// Tenant Glass theme backdrop: the glass_* settings (update/get_system_settings.php),
+// upload_glass_background.php and the recent-photos list (get_glass_backgrounds.php,
+// delete_glass_background.php); and the Home page text (home_content).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -44,6 +45,8 @@ const uploadOk = async () => {
   uploaded.push(res.body.image_path);
   return res.body.image_path;
 };
+const recent = (token = admin) => api('get_glass_backgrounds.php', { token });
+const remove = (p, token = admin) => api('delete_glass_background.php', { token, json: { path: p } });
 
 beforeAll(async () => {
   admin = await loginAs('admin');
@@ -141,18 +144,137 @@ describe('upload_glass_background.php', () => {
     expect(await setting('glass_bg_image')).toBe('');
   });
 
-  it('saving a new image deletes the one it replaced; resetting deletes the last', async () => {
+  it('saving another photo keeps the previous one in the recent list, newest first', async () => {
     const first = await uploadOk();
     expect((await save({ glass_bg_image: first })).status).toBe(200);
     expect((await api('get_system_settings.php')).body.settings.glass_bg_image).toBe(first);
 
     const second = await uploadOk();
     expect((await save({ glass_bg_image: second })).status).toBe(200);
-    expect(fs.existsSync(assetPath(first))).toBe(false);
-    expect(fs.existsSync(assetPath(second))).toBe(true);
+    expect(fs.existsSync(assetPath(first))).toBe(true);
 
+    const list = await recent();
+    expect(list.status).toBe(200);
+    expect(list.body.limit).toBe(6);
+    const paths = list.body.backgrounds.map((b) => b.path);
+    expect(paths.indexOf(second)).toBeLessThan(paths.indexOf(first));
+    expect(list.body.backgrounds.find((b) => b.path === second).live).toBe(true);
+    expect(list.body.backgrounds.find((b) => b.path === first).live).toBe(false);
+
+    // Back to the built-in photo: the uploads stay to switch back to.
     expect((await save({ glass_bg_image: '' })).status).toBe(200);
-    expect(await setting('glass_bg_image')).toBe('');
-    expect(fs.existsSync(assetPath(second))).toBe(false);
+    expect(fs.existsSync(assetPath(second))).toBe(true);
+  });
+
+  it('keeps only the last 6 photos, and never prunes the live one', async () => {
+    const live = await uploadOk();
+    expect((await save({ glass_bg_image: live })).status).toBe(200);
+    const later = [];
+    for (let i = 0; i < 7; i++) later.push(await uploadOk());
+
+    const paths = (await recent()).body.backgrounds.map((b) => b.path);
+    expect(paths).toEqual([...later.slice(-5).reverse(), live]);
+    expect(fs.existsSync(assetPath(later[0]))).toBe(false);
+    expect(fs.existsSync(assetPath(live))).toBe(true);
+  });
+
+  it('the list and removal need an admin', async () => {
+    expect((await recent(tenant)).status).toBe(403);
+    expect((await recent(null)).status).toBe(401);
+    const live = await setting('glass_bg_image');
+    expect((await remove(live, tenant)).status).toBe(403);
+    expect((await remove(live, null)).status).toBe(401);
+  });
+
+  it('removal refuses the live photo and anything that is not an upload', async () => {
+    const live = await setting('glass_bg_image');
+    const res = await remove(live);
+    expect(res.status).toBe(409);
+    expect(fs.existsSync(assetPath(live))).toBe(true);
+
+    for (const bad of ['../config.php', 'site_assets/.htaccess', 'site_assets/glass_bg_1_deadbeef.php', '', null]) {
+      expect((await remove(bad)).status).toBe(422);
+    }
+    expect((await remove('site_assets/glass_bg_1_deadbeef.png')).status).toBe(404);
+    expect(fs.existsSync(path.join(ROOT, 'backend', 'site_assets', '.htaccess'))).toBe(true);
+  });
+
+  it('removes another photo and returns the updated list', async () => {
+    const extra = await uploadOk();
+    const res = await remove(extra);
+    expect(res.status).toBe(200);
+    expect(fs.existsSync(assetPath(extra))).toBe(false);
+    expect(res.body.backgrounds.map((b) => b.path)).not.toContain(extra);
+  });
+});
+
+const EMPTY = { show: true, en: '', fil: '' };
+const HOME_DEFAULT = { badge: EMPTY, heading: EMPTY, location: EMPTY, description: EMPTY };
+
+describe('home_content', () => {
+  it('ships with every line shown and no custom text, readable by anyone', async () => {
+    const res = await api('get_system_settings.php');
+    expect(res.body.settings.home_content).toEqual(HOME_DEFAULT);
+  });
+
+  it('saves show switches and text, tidied to one line; unknown items are dropped', async () => {
+    const res = await save({
+      home_content: {
+        badge: { show: false, en: '  Pet\nfriendly\t ', fil: '' },
+        location: { show: true, en: 'Brgy. Biga, Silang', fil: '<b>Biga</b>' },
+        evil: { show: true, en: 'x', fil: 'y' },
+      },
+    });
+    expect(res.status).toBe(200);
+    const stored = JSON.parse(await setting('home_content'));
+    expect(Object.keys(stored)).toEqual(['badge', 'heading', 'location', 'description']);
+    expect(stored.badge).toEqual({ show: false, en: 'Pet friendly', fil: '' });
+    // Kept as plain text: the page prints it as text, never as markup.
+    expect(stored.location).toEqual({ show: true, en: 'Brgy. Biga, Silang', fil: '<b>Biga</b>' });
+    expect(stored.heading).toEqual(EMPTY);
+
+    const read = (await api('get_system_settings.php')).body.settings.home_content;
+    expect(read.badge.show).toBe(false);
+  });
+
+  it('an unchanged form counts as no change', async () => {
+    const current = (await api('get_system_settings.php')).body.settings.home_content;
+    const res = await save({ home_content: current });
+    expect(res.status).toBe(200);
+    expect(res.body.changed).toBe(0);
+  });
+
+  it.each([
+    ['text over the limit', { badge: { show: true, en: 'x'.repeat(61), fil: '' } }],
+    ['a description over 400', { description: { show: true, en: '', fil: 'y'.repeat(401) } }],
+    ['a show that is not true/false', { heading: { show: 'yes', en: '', fil: '' } }],
+    ['a missing show', { heading: { en: 'Hi', fil: '' } }],
+    ['text that is not a string', { location: { show: true, en: 123, fil: '' } }],
+    ['an item that is not an object', { badge: 'hidden' }],
+    ['not an object at all', 'hello'],
+  ])('%s → 422, nothing saved', async (_, value) => {
+    const before = await setting('home_content');
+    const res = await save({ home_content: value });
+    expect(res.status).toBe(422);
+    expect(res.body.errors).toHaveProperty('homeContent');
+    expect(await setting('home_content')).toBe(before);
+  });
+
+  it('accepts text exactly at the limit, in any script', async () => {
+    const res = await save({ home_content: { badge: { show: true, en: 'x'.repeat(60), fil: 'ñ'.repeat(60) } } });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(await setting('home_content')).badge.fil).toBe('ñ'.repeat(60));
+  });
+
+  it('a garbled stored value reads as the defaults', async () => {
+    await setSetting('home_content', '{not json');
+    expect((await api('get_system_settings.php')).body.settings.home_content).toEqual(HOME_DEFAULT);
+  });
+
+  it('a tenant cannot change it', async () => {
+    const before = await setting('home_content');
+    const res = await save({ home_content: { badge: { show: false, en: '', fil: '' } } }, tenant);
+    expect(res.status).toBe(403);
+    expect(await setting('home_content')).toBe(before);
   });
 });

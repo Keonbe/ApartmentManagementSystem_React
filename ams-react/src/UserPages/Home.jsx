@@ -1,15 +1,21 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Mail, MapPin, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Mail, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import { usePublicSettings } from '../config/publicSettings';
+import { homeText } from '../config/homeContent';
+import HomeIntro from '../Components/HomeIntro';
 import '../assets/styles/responsive/user/home.responsive.css';
 
 export default function Home({ onCardClick, username }) {
     // null until the real counts arrive; they stay hidden if the request fails
     // (made-up 14 / 4 used to show instead).
     const [counts, setCounts] = useState(null);
-    const { t } = useLang();
+    const { t, lang } = useLang();
+    // The admin's Home text (Other Settings → Home Page). The panel waits for
+    // it, so the built-in wording never flashes before the custom one.
+    const content = usePublicSettings()?.homeContent;
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -39,29 +45,15 @@ export default function Home({ onCardClick, username }) {
 
             {/*Clean Floating Content Panel Layout*/}
             <div className="home-content-container w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">
-                <div className="home-content-panel max-w-2xl space-y-6 bg-slate-950/70 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl shadow-black/50 animate-slide-up">
+                {content && <div className="home-content-panel max-w-2xl space-y-6 bg-slate-950/70 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl shadow-black/50 animate-slide-up">
 
-                    <span className="text-xs font-bold px-3.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 inline-flex items-center space-x-2 shadow-sm">
-                        <span className="relative flex h-2 w-2">
-                            
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400"></span>
-                        </span>
-                        <span>{t('home.badge')}</span>
-                    </span>
-
-                    <div className="space-y-2">
-                        <h1 className="home-heading text-4xl sm:text-5xl md:text-6xl font-sans font-black m-0 text-white tracking-tight leading-tight drop-shadow-md">
-                            {username ? `${t('home.welcomeBack')} ${username}` : t('home.heading')}
-                        </h1>
-                        <p className="text-indigo-300 font-semibold text-lg flex items-center space-x-2 m-0">
-                            <MapPin className="w-5 h-5" />
-                            <span>{t('home.location')}</span>
-                        </p>
-                    </div>
-
-                    <p className="text-slate-300 text-sm md:text-base m-0 leading-relaxed font-medium">
-                        {t('home.description')}
-                    </p>
+                    <HomeIntro
+                        badge={homeText(content, 'badge', lang)}
+                        // Signed in: the greeting always shows; the heading switch is for visitors.
+                        heading={username ? `${t('home.welcomeBack')} ${username}` : homeText(content, 'heading', lang)}
+                        location={homeText(content, 'location', lang)}
+                        description={homeText(content, 'description', lang)}
+                    />
 
                     <div className="home-cta-row pt-5 flex flex-wrap gap-5 items-center justify-between border-t border-white/10 mt-2">
                         {counts && <div className="flex space-x-5 text-sm font-semibold text-slate-300">
@@ -94,7 +86,7 @@ export default function Home({ onCardClick, username }) {
                         </div>
                     </div>
 
-                </div>
+                </div>}
             </div>
 
             <style>

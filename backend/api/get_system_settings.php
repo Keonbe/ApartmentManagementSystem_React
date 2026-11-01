@@ -74,6 +74,10 @@ if (isset($settings['floor_rates'])) {
 }
 if (isset($settings['glass_overlay_opacity'])) $settings['glass_overlay_opacity'] = (int)$settings['glass_overlay_opacity'];
 if (isset($settings['glass_blur'])) $settings['glass_blur'] = (int)$settings['glass_blur'];
+// Always an object of the four items; a missing or garbled row reads as the
+// app's own wording, all shown.
+[$home_content] = normalize_home_content($settings['home_content'] ?? '');
+$settings['home_content'] = $home_content ?? home_content_defaults();
 if (isset($settings['qrph_active_slot'])) {
     $settings['qrph_active_slot'] = (int)$settings['qrph_active_slot'];
 }

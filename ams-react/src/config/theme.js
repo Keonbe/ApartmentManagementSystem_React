@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import DEFAULTS, { getSystemSettings } from './systemSettings';
+import { useState, useEffect, useMemo } from 'react';
+import DEFAULTS from './systemSettings';
+import { usePublicSettings } from './publicSettings';
 
 // ==========================================
 // User-side colour theme: Light, Dark or Glass
@@ -59,7 +60,7 @@ export function useTheme() {
 // Glass backdrop: photo, tint, overlay, blur
 // ------------------------------------------
 // Set by the admin (Other Settings → Glass Mode). Loaded once per page load
-// and shared; the defaults show until then, or if the request fails.
+// (publicSettings.js); the defaults show until then, or if the request fails.
 
 export const GLASS_DEFAULTS = {
   glassBgImage: DEFAULTS.glassBgImage,
@@ -67,9 +68,6 @@ export const GLASS_DEFAULTS = {
   glassBlur: DEFAULTS.glassBlur,
   glassTint: DEFAULTS.glassTint,
 };
-
-let glassCache = null;
-let glassRequest = null;
 
 const pickGlass = (s) => ({
   glassBgImage: s.glassBgImage,
@@ -79,18 +77,8 @@ const pickGlass = (s) => ({
 });
 
 export function useGlassAppearance(enabled = true) {
-  const [appearance, setAppearance] = useState(glassCache || GLASS_DEFAULTS);
-
-  useEffect(() => {
-    if (!enabled || glassCache) return undefined;
-    let alive = true;
-    // getSystemSettings never rejects: it falls back to the defaults.
-    glassRequest ||= getSystemSettings().then((s) => (glassCache = pickGlass(s)));
-    glassRequest.then((a) => alive && setAppearance(a));
-    return () => { alive = false; };
-  }, [enabled]);
-
-  return appearance;
+  const settings = usePublicSettings(enabled);
+  return useMemo(() => (settings ? pickGlass(settings) : GLASS_DEFAULTS), [settings]);
 }
 
 // "#0f172a" + 72 → the tint as rgba() at that opacity, nudged lighter at the

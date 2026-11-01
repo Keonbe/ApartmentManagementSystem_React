@@ -260,7 +260,6 @@ foreach ($input as $key => $value) {
         if ($value !== '' && !is_valid_glass_bg_path($value)) {
             $refuse("Upload the background image again, or reset to the default photo.", ["glassBgImage" => "This image was not found."]);
         }
-        $replaced_glass_bg = $existing[$key] ?? '';
     }
     if ($key === 'glass_overlay_opacity' && (!ctype_digit($value) || (int)$value > 95)) {
         $refuse("The Glass overlay must be a whole number from 0 to 95 percent.", ["glassOverlayOpacity" => "Enter 0 to 95."]);
@@ -275,6 +274,14 @@ foreach ($input as $key => $value) {
         $value = strtolower($value);
     }
 
+    // Home page text (Other Settings -> Home Page): four known items, each with
+    // a show switch and plain English / Filipino text; stored canonical.
+    if ($key === 'home_content') {
+        [$clean, $problem] = normalize_home_content($input[$key]);
+        if ($clean === null) $refuse($problem, ["homeContent" => $problem]);
+        $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
+    }
+
     if (array_key_exists($key, $existing) && $existing[$key] === $value) continue;
 
     $stmt->bind_param("sss", $key, $value, $value);
@@ -284,10 +291,11 @@ foreach ($input as $key => $value) {
 $stmt->close();
 $conn->commit();
 
-// The backdrop it replaced is unused now. Removed only after the commit, so a
-// refused save never leaves the setting pointing at a deleted file.
-if (!empty($replaced_glass_bg) && in_array('glass_bg_image', $changed, true)) {
-    delete_glass_bg_file($replaced_glass_bg);
+// The photo it replaced stays in the recent list; switching can push an old
+// one past the last GLASS_BG_KEEP. Pruned only after the commit, so a refused
+// save never leaves the setting pointing at a deleted file.
+if (in_array('glass_bg_image', $changed, true)) {
+    prune_glass_bg_files(current_glass_bg($conn));
 }
 
 // The audit entry names what actually changed; it used to say "Updated multiple configuration keys" every time.

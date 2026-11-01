@@ -1444,6 +1444,8 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('glass_overlay_opacity', '78'),
 ('glass_blur', '0'),
 ('glass_tint', '#0f172a'),
+-- Home page text (Other Settings -> Home Page): '' text = the app's own wording.
+('home_content', '{"badge":{"show":true,"en":"","fil":""},"heading":{"show":true,"en":"","fil":""},"location":{"show":true,"en":"","fil":""},"description":{"show":true,"en":"","fil":""}}'),
 ('late_fee_enabled', 'false'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),

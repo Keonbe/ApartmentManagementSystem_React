@@ -2,7 +2,8 @@
 // Uploads a photo for the tenant side's Glass theme backdrop (Other Settings →
 // Glass Mode). It only stores the file and returns its path: the photo goes
 // live when the admin saves settings with that path in glass_bg_image
-// (update_system_settings.php checks the path again).
+// (update_system_settings.php checks the path again). The last GLASS_BG_KEEP
+// uploads stay available to switch back to (get_glass_backgrounds.php).
 header('Content-Type: application/json');
 require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
@@ -78,27 +79,22 @@ if (!is_file($htaccess)) {
     file_put_contents($htaccess, "Options -Indexes\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|php7|phps|phar|pht|cgi|pl|py|sh|svg|html?)$\">\n    Require all denied\n</FilesMatch>\n");
 }
 
-// Uploads that were never saved into settings (the admin discarded them) are
-// cleared once they are a day old. The live backdrop is never touched.
-$current = '';
-$res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'glass_bg_image'");
-if ($res && ($row = $res->fetch_assoc())) $current = (string)$row['setting_value'];
-foreach (glob($dir . 'glass_bg_*') ?: [] as $old) {
-    $relative = GLASS_BG_DIR . '/' . basename($old);
-    if ($relative !== $current && filemtime($old) < time() - 86400) delete_glass_bg_file($relative);
-}
-
-$name = 'glass_bg_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $extensions[$mime];
+// Milliseconds, so uploads made within the same second still sort in order.
+$name = 'glass_bg_' . (int)floor(microtime(true) * 1000) . '_' . bin2hex(random_bytes(4)) . '.' . $extensions[$mime];
 if (!move_uploaded_file($file['tmp_name'], $dir . $name)) {
     $fail(500, "The image could not be saved.");
 }
 
 $relative = GLASS_BG_DIR . '/' . $name;
+// Only the last GLASS_BG_KEEP photos are kept (the live one always is).
+$live = current_glass_bg($conn);
+prune_glass_bg_files($live);
 log_activity($conn, $admin_id, 'system', 'Uploaded Glass Background', "Uploaded a Glass theme background ($width x $height, " . round($file['size'] / 1024) . " KB). It applies once the settings are saved.");
 
 echo json_encode([
     "success" => true,
     "message" => "Image uploaded. Save the settings to use it.",
     "image_path" => $relative,
+    "backgrounds" => glass_bg_history($live),
 ]);
 $conn->close();

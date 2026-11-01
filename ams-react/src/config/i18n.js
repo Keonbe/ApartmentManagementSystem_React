@@ -2270,10 +2270,15 @@ export function setLang(lang) {
   window.dispatchEvent(new CustomEvent('ams_lang_changed', { detail: lang }));
 }
 
+// The text for a key in a given language, whatever the page's language is
+// (the admin's Home Page tab shows both).
+export function textIn(lang, key) {
+  return translations[lang]?.[key] ?? translations.en[key] ?? key;
+}
+
 // t(key, { n: 3 }) fills {n} in the text; a name not in vars stays as written.
 export function t(key, vars) {
-  const lang = getLang();
-  const text = translations[lang]?.[key] ?? translations.en[key] ?? key;
+  const text = textIn(getLang(), key);
   if (!vars) return text;
   return text.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match));
 }

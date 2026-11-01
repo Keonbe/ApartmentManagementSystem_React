@@ -3580,6 +3580,92 @@ function delete_glass_bg_file($relative) {
     }
 }
 
+// The Glass Mode tab offers the last GLASS_BG_KEEP photos to switch back to.
+// The live one always stays and counts toward them; older ones are deleted.
+const GLASS_BG_KEEP = 6;
+
+// When an upload was made, from the number in its generated name: milliseconds,
+// or seconds for uploads made before the history existed.
+function glass_bg_stamp_ms($relative) {
+    if (!preg_match('/glass_bg_([0-9]+)_/', (string)$relative, $m)) return 0;
+    $n = (int)$m[1];
+    return $n < 100000000000 ? $n * 1000 : $n;
+}
+
+// Every stored upload, newest first.
+function glass_bg_files() {
+    $files = [];
+    foreach (glob(glass_bg_absolute_path(GLASS_BG_DIR) . '/glass_bg_*') ?: [] as $abs) {
+        $relative = GLASS_BG_DIR . '/' . basename($abs);
+        if (preg_match(GLASS_BG_PATH_PATTERN, $relative) === 1 && is_file($abs)) $files[] = $relative;
+    }
+    usort($files, fn($a, $b) => [glass_bg_stamp_ms($b), $b] <=> [glass_bg_stamp_ms($a), $a]);
+    return $files;
+}
+
+// The stored uploads for the Glass Mode tab, newest first.
+function glass_bg_history($live) {
+    return array_map(fn($relative) => [
+        'path' => $relative,
+        'uploaded_at' => gmdate('c', intdiv(glass_bg_stamp_ms($relative), 1000)),
+        'live' => $relative === $live,
+    ], glass_bg_files());
+}
+
+// Keeps the live photo and the newest others, GLASS_BG_KEEP in all.
+function prune_glass_bg_files($live) {
+    $kept = is_valid_glass_bg_path($live) ? 1 : 0;
+    foreach (glass_bg_files() as $relative) {
+        if ($relative === $live) continue;
+        if ($kept < GLASS_BG_KEEP) { $kept++; continue; }
+        delete_glass_bg_file($relative);
+    }
+}
+
+function current_glass_bg($conn) {
+    $res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'glass_bg_image'");
+    return ($res && ($row = $res->fetch_assoc())) ? (string)$row['setting_value'] : '';
+}
+
+// ── Home page text (Other Settings → Home Page) ──
+// setting home_content: {"badge": {"show": true, "en": "", "fil": ""}, ...}.
+// Empty text means the app's own wording for that language (i18n.js), so an
+// untouched page reads as before in English and Filipino. Value = max length.
+const HOME_CONTENT_FIELDS = ['badge' => 60, 'heading' => 80, 'location' => 80, 'description' => 400];
+
+function home_content_defaults() {
+    $out = [];
+    foreach (HOME_CONTENT_FIELDS as $field => $_) $out[$field] = ['show' => true, 'en' => '', 'fil' => ''];
+    return $out;
+}
+
+// Posted or stored home_content → [canonical array, null] or [null, problem].
+// Each text is one line of plain text (the page prints it as text, never HTML).
+function normalize_home_content($raw) {
+    $decoded = is_array($raw) ? $raw : json_decode((string)$raw, true);
+    if (!is_array($decoded)) return [null, 'The Home page text could not be read.'];
+    $out = home_content_defaults();
+    foreach (HOME_CONTENT_FIELDS as $field => $max) {
+        if (!array_key_exists($field, $decoded)) continue;
+        $item = $decoded[$field];
+        if (!is_array($item) || !is_bool($item['show'] ?? null)) {
+            return [null, "Choose whether the $field is shown."];
+        }
+        $out[$field]['show'] = $item['show'];
+        foreach (['en' => 'English', 'fil' => 'Filipino'] as $lang => $language) {
+            $text = $item[$lang] ?? '';
+            if (!is_string($text)) return [null, "The $language $field must be text."];
+            // Line breaks, tabs and other control characters become one space.
+            $text = preg_replace('/[\p{Cc}\s]+/u', ' ', $text);
+            if ($text === null) return [null, "The $language $field has characters that cannot be saved."];
+            $text = trim($text);
+            if (mb_strlen($text) > $max) return [null, "The $language $field can be at most $max characters."];
+            $out[$field][$lang] = $text;
+        }
+    }
+    return [$out, null];
+}
+
 // ── External channels: SMS & email (checklist 6.6 / 6.7) ──
 // These helpers are the shared rules every sender must obey. The services that
 // actually talk to a provider are built on top of them; nothing here sends.

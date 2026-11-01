@@ -6,6 +6,7 @@
 // Values are retrieved from the backend API.
 
 import api from '../api/axiosConfig';
+import { HOME_CONTENT_DEFAULTS, parseHomeContent } from './homeContent';
 
 const DEFAULTS = {
   minLeaseDuration: 3,             // months
@@ -58,6 +59,9 @@ const DEFAULTS = {
   glassOverlayOpacity: 78,                   // tint over the photo, 0-95 %
   glassBlur: 0,                              // photo blur, 0-20 px
   glassTint: '#0f172a',                      // tint colour, #rrggbb
+
+  // Home page text (Other Settings → Home Page); see config/homeContent.js.
+  homeContent: HOME_CONTENT_DEFAULTS,
 
   // Notification channels. Both switches ship off: email needs SMTP credentials
   // and SMS costs money and needs a carrier-registered sender ID. The 'log'
@@ -175,6 +179,7 @@ export const getSystemSettings = async ({ strict = false } = {}) => {
         // ?? not ||: 0 means no surcharge.
         occupantSurchargePerPerson: Number(dbSettings.occupant_surcharge_per_person ?? DEFAULTS.occupantSurchargePerPerson) || 0,
         ...parseGlassAppearance(dbSettings),
+        homeContent: parseHomeContent(dbSettings.home_content),
 
         // Notification channels. Credential fields arrive masked (••••1234) for
         // an admin and absent for anyone else; posting a mask back is treated
@@ -247,6 +252,7 @@ export const saveSystemSettings = async (settings) => {
       glass_overlay_opacity: String(settings.glassOverlayOpacity ?? DEFAULTS.glassOverlayOpacity),
       glass_blur: String(settings.glassBlur ?? DEFAULTS.glassBlur),
       glass_tint: settings.glassTint || DEFAULTS.glassTint,
+      home_content: parseHomeContent(settings.homeContent),
 
       // Notification channels. Credentials go back exactly as loaded: if the
       // admin did not edit a field it still holds the ••••1234 mask, which
