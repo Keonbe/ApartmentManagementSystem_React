@@ -45,9 +45,7 @@
     ],
     "deny": [
       "Read(/deploy/env/*.env)",
-      "Read(/ams-react/.env.selfhosted)",
-      "Read(/*.sql)",
-      "Read(/backend/api/migrations/seeds/seed_prod_demo*.sql)"
+      "Read(/ams-react/.env.selfhosted)"
     ]
   },
   "hooks": {
