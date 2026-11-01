@@ -2006,7 +2006,7 @@ const handleMarkAsPaid = async () => {
       )}
 
       {flash && (
-        <div role="status" className="fixed bottom-6 right-6 z-50 max-w-sm flex items-start gap-3 rounded-card bg-emerald-600 text-white px-4 py-3 shadow-dialog text-body font-semibold">
+        <div role="status" className="fixed top-24 right-6 z-50 max-w-sm flex items-start gap-3 rounded-card bg-emerald-600 text-white px-4 py-3 shadow-dialog text-body font-semibold">
           <FontAwesomeIcon icon={faCheckCircle} className="mt-0.5" />
           <span>{flash}</span>
         </div>

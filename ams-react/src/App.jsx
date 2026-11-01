@@ -9,6 +9,7 @@ import TopBar from './Components/TopBar';
 import ServiceRouteGuard from './Components/ServiceRouteGuard';
 import { UserThemeScope, ThemePicker, FloatingLangSwitch } from './Components/UserTheme';
 import { useTheme } from './config/theme';
+import { isTenantStatus, readRoomCache, writeRoomCache } from './config/tenantHome';
 
 // User Pages
 import Home from './UserPages/Home';
@@ -105,13 +106,7 @@ function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
   }
 
   // Hold off on redirecting until the backend room check completes!
-  if (isCheckingRoom) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center bg-slate-900 text-white font-bold">
-        Loading session...
-      </div>
-    );
-  }
+  if (isCheckingRoom) return <SessionLoading />;
   
   if (!hasRentedRoom) {
     return <Navigate to="/home" replace />;
@@ -187,51 +182,63 @@ function AuthThemeLayout({ children }) {
   );
 }
 
+// Home is for guests and applicants. A tenant's home is My Room, so a tenant
+// who opens Home (a link, the address bar, "/") is sent there instead.
+function HomeRoute({ hasRentedRoom, isCheckingRoom, children }) {
+  const user = currentUser();
+  if (!user || user.role === 'admin') return children;
+  if (isCheckingRoom) return <SessionLoading />;
+  if (hasRentedRoom) return <Navigate to="/my-room" replace />;
+  return children;
+}
+
+const currentUser = () => JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "null");
+
+const SessionLoading = () => (
+  <div className="w-full h-screen flex items-center justify-center bg-slate-900 text-white font-bold">
+    Loading session...
+  </div>
+);
+
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const [hasRentedRoom, setHasRentedRoom] = useState(false);
-  // NEW: Track status loading to hold route evaluation
-  const [isCheckingRoom, setIsCheckingRoom] = useState(true);
 
+  // The signed-in user's last room check: { userId, has }. Seeded from this
+  // tab's cache so the TopBar and the Home redirect are right on first paint;
+  // rechecked on every page change.
+  const user = currentUser();
+  const [roomCheck, setRoomCheck] = useState(() => {
+    const has = readRoomCache(user?.id);
+    return has === null ? null : { userId: user.id, has };
+  });
+  const isAdmin = user?.role === 'admin';
+  const checkedThisUser = !!user && roomCheck?.userId === user.id;
+  const hasRentedRoom = isAdmin || (checkedThisUser && roomCheck.has);
+  // Guards wait only until this user has been checked once, not on every
+  // recheck (that used to swap each page for "Loading session..." on navigation).
+  const isCheckingRoom = !!user && !isAdmin && !checkedThisUser;
+
+  const userId = user?.id;
+  const userEmail = user?.email_address || '';
   useEffect(() => {
-    const checkRoomStatus = async () => {
-      setIsCheckingRoom(true); // Begin check
-      const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
-      
-      if (!loggedInUserStr) {
-        setHasRentedRoom(false);
-        setIsCheckingRoom(false);
-        return;
-      }
-      
-      const loggedInUser = JSON.parse(loggedInUserStr);
-      if (loggedInUser.role === 'admin') {
-        setHasRentedRoom(true);
-        setIsCheckingRoom(false);
-        return;
-      }
-      
-      try {
-        const res = await api.get(`/my_room.php?email=${encodeURIComponent(loggedInUser.email_address || '')}`);
+    if (userId == null || isAdmin) return undefined;
+    let alive = true;
+    api.get(`/my_room.php?email=${encodeURIComponent(userEmail)}`)
+      .then((res) => {
         // Only a confirmed move-in makes the user a tenant. An Approved applicant —
         // even one whose first payment is confirmed — stays on Track Application
         // until the admin confirms occupancy (status 'active').
-        if (res.data.success && res.data.data && ['active', 'pending-move-out'].includes(res.data.data.status?.toLowerCase())) {
-          setHasRentedRoom(true);
-        } else {
-          setHasRentedRoom(false);
-        }
-      } catch (err) {
+        const has = !!(res.data.success && res.data.data && isTenantStatus(res.data.data.status));
+        writeRoomCache(userId, has);
+        if (alive) setRoomCheck({ userId, has });
+      })
+      .catch((err) => {
         console.error("Error checking room status:", err);
-        setHasRentedRoom(false);
-      } finally {
-        setIsCheckingRoom(false); // Complete check
-      }
-    };
-    checkRoomStatus();
-  }, [location.pathname]);
+        if (alive) setRoomCheck((prev) => (prev?.userId === userId ? prev : { userId, has: false }));
+      });
+    return () => { alive = false; };
+  }, [location.pathname, userId, userEmail, isAdmin]);
 
   // Inquiries are open to guests, so this needs no login gate — unlike renting.
   const handleInquireTrigger = (roomId) => {
@@ -255,7 +262,7 @@ function AppContent() {
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
+        <Route path="/home" element={<HomeRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={user?.first_name} /></BaseAppLayout></HomeRoute>} />
         <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} onInquireClick={handleInquireTrigger} /></BaseAppLayout>} />
         <Route path="/inquire" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout>} />
         

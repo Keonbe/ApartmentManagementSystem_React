@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import api from '../api/axiosConfig';
@@ -14,17 +14,113 @@ import {
     TENANT_PAYMENT_ALERT_TITLES, TENANT_PAYMENT_AWAITING_TITLES, formatRelativeTime,
 } from '../config/notificationLinks';
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
-import { ThemePicker } from './UserTheme';
+import { ThemePicker, LangSwitch } from './UserTheme';
 import useDialog from '../hooks/useDialog';
+import usePresence from '../hooks/usePresence';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
+import { clearRoomCache } from '../config/tenantHome';
 import '../assets/styles/responsive/components/navbar.responsive.css';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
 const NO_HIGHLIGHT = new Set();
 
+// How long the menus take to animate closed (navbar.responsive.css topbarPopOut).
+const MENU_EXIT_MS = 160;
+
+// Pages reached from the Services page: the Services link stays marked on them.
+const SERVICE_PATHS = [
+    '/services', '/pay-bills', '/parking-reservation', '/cctv-request', '/service-catalog', '/service-booking',
+    '/maintenance-request', '/visitor-management', '/user-utilities', '/my-requests', '/announcements', '/payment-history',
+];
+
+// Where the desktop link pill last sat. TopBar remounts when the route's
+// guard changes (Home → My Room), so the pill starts from here and slides.
+let lastPill = null;
+
+// Desktop links. A white pill slides under the current page's link; it is
+// measured because the links differ in width and change with the language.
+function NavPills({ links, activePath, onGo }) {
+    const wrapRef = useRef(null);
+    const pillRef = useRef(null);
+    const placed = useRef(false);
+    const activeKey = links.find((l) => l.match.includes(activePath))?.path || '';
+    const linksKey = links.map((l) => l.path).join('|');
+
+    useLayoutEffect(() => {
+        const wrap = wrapRef.current;
+        const pill = pillRef.current;
+        if (!wrap || !pill) return undefined;
+        const jump = (box) => {
+            pill.style.transition = 'none';
+            pill.style.width = `${box.width}px`;
+            pill.style.transform = `translateX(${box.left}px)`;
+            void pill.offsetWidth; // apply before the transition comes back
+            pill.style.transition = '';
+        };
+        const place = () => {
+            const el = wrap.querySelector('[aria-current="page"]');
+            if (!el) {
+                pill.style.opacity = '0';
+                return;
+            }
+            const box = { left: el.offsetLeft, width: el.offsetWidth };
+            if (!placed.current) {
+                placed.current = true;
+                jump(lastPill || box);
+            }
+            pill.style.opacity = '1';
+            pill.style.width = `${box.width}px`;
+            pill.style.transform = `translateX(${box.left}px)`;
+            lastPill = box;
+        };
+        place();
+        // The labels change width with the language.
+        const ro = new ResizeObserver(place);
+        wrap.querySelectorAll('button').forEach((b) => ro.observe(b));
+        return () => ro.disconnect();
+    }, [activeKey, linksKey]);
+
+    return (
+        <div ref={wrapRef} className="relative hidden md:flex items-center gap-1 rounded-xl bg-white/[0.07] p-1">
+            <span ref={pillRef} aria-hidden="true" className="topbar-nav-pill pointer-events-none absolute left-0 top-1 bottom-1 rounded-lg bg-white shadow-md" style={{ opacity: 0 }} />
+            {links.map((l) => {
+                const active = l.path === activeKey;
+                return (
+                    <button
+                        key={l.path}
+                        type="button"
+                        onClick={() => onGo(l.path)}
+                        aria-current={active ? 'page' : undefined}
+                        title={l.label}
+                        className={`relative z-[1] inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border-0 bg-transparent px-3 lg:px-3.5 text-sm font-semibold cursor-pointer transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${active ? 'text-brand' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                    >
+                        <FontAwesomeIcon icon={l.icon} className="text-xs" aria-hidden="true" />
+                        {/* Icon only below lg: the labels and the account name don't fit beside each other there. */}
+                        <span className="sr-only lg:not-sr-only lg:whitespace-nowrap">{l.label}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// The red count on the bell. Keyed by the count, so it pops (and its halo
+// pulses a few times) whenever the number changes.
+function UnreadBadge({ count }) {
+    if (count <= 0) return null;
+    return (
+        <span key={count} aria-hidden="true" className="topbar-badge pointer-events-none absolute -top-1 -right-1 flex">
+            <span className="topbar-badge-halo absolute inset-0 rounded-full bg-rose-500" />
+            <span className="relative inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-b from-rose-500 to-red-600 px-1 text-[10px] font-extrabold leading-none tabular-nums text-white shadow-md shadow-rose-950/40 ring-2 ring-brand">
+                {count > 9 ? '9+' : count}
+            </span>
+        </span>
+    );
+}
+
 export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginClick }) {
     const navigate = useNavigate();
-    const { lang, setLang, t } = useLang();
+    const { t } = useLang();
     const location = useLocation();
     // Home is always Glass (App.jsx), so the theme switch would do nothing there.
     const showThemePicker = location.pathname !== '/home';
@@ -41,10 +137,23 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         for (const key of Object.keys(localStorage)) {
             if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
         }
+        clearRoomCache();
         window.dispatchEvent(new Event('auth-changed'));
         navigate('/login');
     };
+    // The menu animates closed first, then the user is signed out.
+    const logoutTimer = useRef(null);
+    useEffect(() => () => clearTimeout(logoutTimer.current), []);
+    const closeMenusThenLogout = () => {
+        setIsDropdownOpen(false);
+        setIsMobileMenuOpen(false);
+        clearTimeout(logoutTimer.current);
+        logoutTimer.current = setTimeout(handleLogout, MENU_EXIT_MS);
+    };
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    const profileMenu = usePresence(isDropdownOpen, MENU_EXIT_MS);
+    const notifMenu = usePresence(isNotificationOpen, MENU_EXIT_MS);
+    const drawer = usePresence(isMobileMenuOpen, MENU_EXIT_MS);
     const [selectedNotification, setSelectedNotification] = useState(null);
     
     const dropdownRef = useRef(null);
@@ -72,6 +181,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const displayName = (isLoggedIn && nameOverride) || username;
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const lastUnread = useRef(null);
+    const [bellRing, setBellRing] = useState(0); // bumped to replay the bell's ring
     const [rawNotifications, setRawNotifications] = useState([]);
     const [highlightIds, setHighlightIds] = useState(NO_HIGHLIGHT); // new payment notices, shown in the open dropdown
 
@@ -166,7 +277,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                 }));
                 setNotifications(list);
                 showAppStatusOnce(list);
-                setUnreadCount(response.data.unread_count ?? response.data.notifications.filter(n => !Number(n.is_read)).length);
+                const unread = response.data.unread_count ?? response.data.notifications.filter(n => !Number(n.is_read)).length;
+                // A new notice since the last check rings the bell (not on the first load).
+                if (lastUnread.current !== null && unread > lastUnread.current) setBellRing(r => r + 1);
+                lastUnread.current = unread;
+                setUnreadCount(unread);
             }
         } catch (e) {
             console.error('Failed to load notifications:', e);
@@ -290,55 +405,49 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         return `${firstInitial}${lastInitial}`.toUpperCase();
     };
 
-    const isActive = (path) => location.pathname === path;
-    const navItemClass = (path) => `text-sm font-medium transition-all duration-200 border-0 bg-transparent cursor-pointer hover:-translate-y-0.5 relative after:absolute after:bottom-0 after:left-0 after:h-0.5 after:bg-white after:transition-all hover:after:w-full ${isActive(path) ? 'text-white font-extrabold after:w-full' : 'text-white/90 hover:text-white after:w-0'}`;
+    // A tenant's home is My Room: Home is not offered (App.jsx sends them on).
+    // Applicants and guests keep Home. Admins browsing tenant pages keep it too.
+    const isTenant = isLoggedIn && hasRentedRoom && loggedInUser.role !== 'admin';
+    const homePath = isTenant ? '/my-room' : '/home';
+    const link = (path, label, icon, match = [path]) => ({ path, label, icon, match });
+    // Guests and applicants also get the rooms page (and the inquiry form behind it).
+    const previewLink = link('/preview', t('preview.availableRooms'), faCompass, ['/preview', '/inquire', '/rent-application']);
+    const navLinks = [
+        !isTenant && link('/home', t('nav.home'), faHome),
+        !hasRentedRoom && previewLink,
+        isLoggedIn && !hasRentedRoom && link('/track-application', t('nav.trackApp'), faFileContract),
+        isLoggedIn && hasRentedRoom && link('/my-room', t('nav.myRoom'), faBed),
+        isLoggedIn && hasRentedRoom && link('/services', t('nav.services'), faConciergeBell, SERVICE_PATHS),
+        isTenant && link('/my-refunds', t('topbar.myRefunds'), faMoneyBillTransfer),
+    ].filter(Boolean);
+    // Phones list the rooms page for tenants too, last.
+    const mobileLinks = hasRentedRoom ? [...navLinks, previewLink] : navLinks;
+    const isLinkActive = (l) => l.match.includes(location.pathname);
+    const goTo = (path) => navigate(path);
+
+    const menuItemClass = 'topbar-menu-item w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold';
 
     return (
         <nav className="topbar-nav ut-native w-full bg-brand px-6 md:px-12 py-3.5 shadow-md sticky top-0 z-50 select-none box-border">
-            <div className="w-full flex justify-between items-center h-[44px]">
-                
+            <div className="w-full flex justify-between items-center gap-4 h-[44px]">
+
                 {/* Brand Logo & Desktop Links */}
-                <div className="flex items-center space-x-8">
+                <div className="flex min-w-0 items-center gap-6 lg:gap-8">
                     <button
                         type="button"
-                        onClick={() => navigate('/home')}
+                        onClick={() => navigate(homePath)}
                         aria-label={t('topbar.logoLabel')}
                         className="topbar-logo text-white text-3xl italic font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 transition-transform duration-200 hover:scale-105 font-serif focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                     >
                         AMS
                     </button>
 
-                    <div className="hidden md:flex items-center space-x-6">
-                        <button onClick={() => navigate('/home')} className={navItemClass('/home')}>{t('nav.home')}</button>
-                        {isLoggedIn && !hasRentedRoom && (
-                            <button onClick={() => navigate('/track-application')} className={navItemClass('/track-application')}>{t('nav.trackApp')}</button>
-                        )}
-                        {isLoggedIn && hasRentedRoom && (
-                            <button onClick={() => navigate('/services')} className={navItemClass('/services')}>{t('nav.services')}</button>
-                        )}
-                        {isLoggedIn && hasRentedRoom && (
-                            <button onClick={() => navigate('/my-room')} className={navItemClass('/my-room')}>{t('nav.myRoom')}</button>
-                        )}
-                    </div>
+                    <NavPills links={navLinks} activePath={location.pathname} onGo={goTo} />
                 </div>
 
                 {/* Desktop Action Controls */}
-                <div className="hidden md:flex items-center space-x-4">
-                    {/* Language Toggle Pill */}
-                    <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-xs font-bold select-none">
-                        <button
-                            type="button"
-                            aria-pressed={lang === 'en'}
-                            onClick={() => setLang('en')}
-                            className={`px-2.5 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-brand' : 'bg-transparent text-white/70 hover:text-white'}`}
-                        >EN</button>
-                        <button
-                            type="button"
-                            aria-pressed={lang === 'fil'}
-                            onClick={() => setLang('fil')}
-                            className={`px-2.5 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-brand' : 'bg-transparent text-white/70 hover:text-white'}`}
-                        >FIL</button>
-                    </div>
+                <div className="hidden md:flex shrink-0 items-center space-x-4">
+                    <LangSwitch />
 
                     {isLoggedIn && (
                         <div className="relative" ref={notificationRef}>
@@ -349,18 +458,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 aria-label={unreadCount > 0 ? t('topbar.notifUnread', { n: unreadCount }) : t('nav.notifications')}
                                 aria-haspopup="true"
                                 aria-expanded={isNotificationOpen}
-                                className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all duration-200 border-0 cursor-pointer relative"
+                                className={`topbar-bell w-11 h-11 rounded-full text-white flex items-center justify-center transition-colors duration-200 border-0 cursor-pointer relative focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${isNotificationOpen ? 'bg-white/25' : 'bg-white/10 hover:bg-white/20'}`}
                             >
-                                <FontAwesomeIcon icon={faBell} className="text-sm" aria-hidden="true" />
-                                {unreadCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-brand">
-                                        {unreadCount > 9 ? '9+' : unreadCount}
-                                    </span>
-                                )}
+                                <FontAwesomeIcon key={bellRing} icon={faBell} className={`text-base ${bellRing ? 'topbar-bell-ring' : ''}`} aria-hidden="true" />
+                                <UnreadBadge count={unreadCount} />
                             </button>
 
-                            {isNotificationOpen && (
-                                <div className="ut-themed absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 overflow-hidden text-left">
+                            {notifMenu.mounted && (
+                                <div data-closing={notifMenu.closing || undefined} className="topbar-pop ut-themed absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 overflow-hidden text-left">
                                     <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center">
                                         <span className="font-bold text-xs text-slate-500">Notifications ({unreadCount})</span>
                                         <button onClick={() => { setIsNotificationOpen(false); navigate('/notifications'); }} className="min-h-[44px] px-2 -mr-2 text-sm text-indigo-600 hover:underline font-bold bg-transparent border-0 cursor-pointer">{t('nav.viewAll')}</button>
@@ -422,7 +527,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 aria-expanded={isDropdownOpen}
                                 className="flex items-center space-x-3 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 min-h-[44px] rounded-xl border-0 bg-transparent cursor-pointer transition-all duration-200 select-none focus-visible:outline-2 focus-visible:outline-white"
                             >
-                                <span className="font-bold text-sm tracking-wide">{displayName}</span>
+                                {/* The name shows from xl; below that the links need the room (the avatar stays). */}
+                                <span className="hidden xl:inline font-bold text-sm tracking-wide">{displayName}</span>
                                 
                                 {dbAvatarUrl ? (
                                     <img 
@@ -439,28 +545,25 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 <FontAwesomeIcon icon={faChevronDown} className={`text-xs opacity-70 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
 
-                            {isDropdownOpen && (
-                                <div className="ut-themed absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 z-50 overflow-hidden animate-fade-in text-left">
-                                    <button onClick={() => { setIsDropdownOpen(false); navigate('/profile-settings'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
+                            {profileMenu.mounted && (
+                                <div data-closing={profileMenu.closing || undefined} className="topbar-pop topbar-menu-stagger ut-themed absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 z-50 overflow-hidden text-left">
+                                    <button onClick={() => { setIsDropdownOpen(false); navigate('/profile-settings'); }} className={menuItemClass}>
                                         <FontAwesomeIcon icon={faCog} className="text-slate-500 text-xs" />
                                         <span>{t('topbar.profileSettings')}</span>
                                     </button>
-                                    {!hasRentedRoom && (
-                                        <button onClick={() => { setIsDropdownOpen(false); navigate('/track-application'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
-                                            <FontAwesomeIcon icon={faFileContract} className="text-slate-500 text-xs" />
-                                            <span>{t('nav.trackApp')}</span>
-                                        </button>
-                                    )}
                                     {hasRentedRoom && (
-                                        <button onClick={() => { setIsDropdownOpen(false); navigate('/payment-history'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
+                                        <button onClick={() => { setIsDropdownOpen(false); navigate('/payment-history'); }} className={menuItemClass}>
                                             <FontAwesomeIcon icon={faHistory} className="text-slate-500 text-xs" />
                                             <span>{t('topbar.paymentHistory')}</span>
                                         </button>
                                     )}
-                                    <button onClick={() => { setIsDropdownOpen(false); navigate('/my-refunds'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
-                                        <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-slate-500 text-xs" />
-                                        <span>{t('topbar.myRefunds')}</span>
-                                    </button>
+                                    {/* Tenants have My Refunds on the bar. */}
+                                    {!isTenant && (
+                                        <button onClick={() => { setIsDropdownOpen(false); navigate('/my-refunds'); }} className={menuItemClass}>
+                                            <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-slate-500 text-xs" />
+                                            <span>{t('topbar.myRefunds')}</span>
+                                        </button>
+                                    )}
                                     <div className="border-t border-slate-100 my-1"></div>
                                     {showThemePicker && (
                                         <>
@@ -468,7 +571,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                             <div className="border-t border-slate-100 my-1"></div>
                                         </>
                                     )}
-                                    <button onClick={() => { setIsDropdownOpen(false); handleLogout(); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
+                                    <button onClick={closeMenusThenLogout} className="topbar-menu-item w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
                                         <FontAwesomeIcon icon={faSignOutAlt} className="text-xs" />
                                         <span>{t('nav.logout')}</span>
                                     </button>
@@ -507,12 +610,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center border-0 cursor-pointer relative"
                             aria-label={t('nav.notifications')}
                         >
-                            <FontAwesomeIcon icon={faBell} className="text-sm" />
-                            {unreadCount > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-black w-4 h-4 rounded-full flex items-center justify-center border border-brand">
-                                    {unreadCount > 9 ? '9+' : unreadCount}
-                                </span>
-                            )}
+                            <FontAwesomeIcon key={bellRing} icon={faBell} className={`text-base ${bellRing ? 'topbar-bell-ring' : ''}`} aria-hidden="true" />
+                            <UnreadBadge count={unreadCount} />
                         </button>
                     )}
 
@@ -556,79 +655,38 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             )}
 
             {/* Mobile Dropdown Drawer */}
-            {isMobileMenuOpen && (
-                <div 
+            {drawer.mounted && (
+                <div
                     ref={mobileMenuRef}
                     id="mobile-nav-drawer"
+                    data-closing={drawer.closing || undefined}
                     className="topbar-mobile-drawer md:hidden absolute left-0 right-0 top-[100%] bg-[#2e3460] shadow-2xl border-b border-white/10 px-5 py-5 z-50 flex flex-col space-y-4 text-left backdrop-blur-md"
                 >
-                    {/* Navigation Items */}
                     {/* Mobile Language Toggle */}
                     <div className="flex items-center justify-between px-2 pb-2">
                         <span className="text-white/70 text-xs font-bold">{t('topbar.language')}</span>
-                        <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-xs font-bold select-none">
-                            <button
-                                type="button"
-                                aria-pressed={lang === 'en'}
-                                onClick={() => setLang('en')}
-                                className={`min-h-[44px] min-w-[52px] px-3 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-brand' : 'bg-transparent text-white/70 hover:text-white'}`}
-                            >EN</button>
-                            <button
-                                type="button"
-                                aria-pressed={lang === 'fil'}
-                                onClick={() => setLang('fil')}
-                                className={`min-h-[44px] min-w-[52px] px-3 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-brand' : 'bg-transparent text-white/70 hover:text-white'}`}
-                            >FIL</button>
-                        </div>
+                        <LangSwitch size="lg" />
                     </div>
 
                     {showThemePicker && <ThemePicker variant="drawer" />}
 
-                    <div className="flex flex-col space-y-1">
-                        <button
-                            onClick={() => { setIsMobileMenuOpen(false); navigate('/home'); }}
-                            className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/home') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
-                        >
-                            <FontAwesomeIcon icon={faHome} className="text-xs w-4" />
-                            <span>{t('nav.home')}</span>
-                        </button>
-
-                        <button
-                            onClick={() => { setIsMobileMenuOpen(false); navigate('/preview'); }}
-                            className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/preview') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
-                        >
-                            <FontAwesomeIcon icon={faCompass} className="text-xs w-4" />
-                            <span>{t('preview.availableRooms')}</span>
-                        </button>
-
-                        {isLoggedIn && !hasRentedRoom && (
-                            <button
-                                onClick={() => { setIsMobileMenuOpen(false); navigate('/track-application'); }}
-                                className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/track-application') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
-                            >
-                                <FontAwesomeIcon icon={faFileContract} className="text-xs w-4" />
-                                <span>{t('nav.trackApp')}</span>
-                            </button>
-                        )}
-
-                        {isLoggedIn && hasRentedRoom && (
-                            <>
+                    {/* Navigation Items: the current page gets a white bar on its left. */}
+                    <div className="topbar-menu-stagger flex flex-col space-y-1">
+                        {mobileLinks.map((l) => {
+                            const active = isLinkActive(l);
+                            return (
                                 <button
-                                    onClick={() => { setIsMobileMenuOpen(false); navigate('/services'); }}
-                                    className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/services') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
+                                    key={l.path}
+                                    type="button"
+                                    onClick={() => { setIsMobileMenuOpen(false); navigate(l.path); }}
+                                    aria-current={active ? 'page' : undefined}
+                                    className={`relative flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 text-left cursor-pointer transition-colors before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-full before:bg-white before:transition-transform before:duration-300 ${active ? 'bg-white/15 text-white before:scale-y-100' : 'bg-transparent text-white/80 hover:bg-white/5 hover:text-white before:scale-y-0'}`}
                                 >
-                                    <FontAwesomeIcon icon={faConciergeBell} className="text-xs w-4" />
-                                    <span>{t('nav.services')}</span>
+                                    <FontAwesomeIcon icon={l.icon} className="text-xs w-4" />
+                                    <span>{l.label}</span>
                                 </button>
-                                <button
-                                    onClick={() => { setIsMobileMenuOpen(false); navigate('/my-room'); }}
-                                    className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/my-room') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
-                                >
-                                    <FontAwesomeIcon icon={faBed} className="text-xs w-4" />
-                                    <span>{t('nav.myRoom')}</span>
-                                </button>
-                            </>
-                        )}
+                            );
+                        })}
                     </div>
 
                     {/* Account Controls */}
@@ -653,7 +711,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                {/* An odd one out at the end spans the row. */}
+                                <div className="grid grid-cols-2 gap-2 pt-1 [&>*:last-child:nth-child(odd)]:col-span-2">
                                     <button
                                         onClick={() => { setIsMobileMenuOpen(false); navigate('/profile-settings'); }}
                                         className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
@@ -668,14 +727,17 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         <FontAwesomeIcon icon={faBell} className="text-xs" />
                                         <span>Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
                                     </button>
-                                    <button
-                                        onClick={() => { setIsMobileMenuOpen(false); navigate('/my-refunds'); }}
-                                        className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
-                                    >
-                                        <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-xs" />
-                                        <span>{t('topbar.myRefunds')}</span>
-                                    </button>
-                                    {hasRentedRoom ? (
+                                    {/* Tenants have My Refunds in the links above. */}
+                                    {!isTenant && (
+                                        <button
+                                            onClick={() => { setIsMobileMenuOpen(false); navigate('/my-refunds'); }}
+                                            className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
+                                        >
+                                            <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-xs" />
+                                            <span>{t('topbar.myRefunds')}</span>
+                                        </button>
+                                    )}
+                                    {hasRentedRoom && (
                                         <button
                                             onClick={() => { setIsMobileMenuOpen(false); navigate('/payment-history'); }}
                                             className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
@@ -683,22 +745,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                             <FontAwesomeIcon icon={faHistory} className="text-xs" />
                                             <span>{t('topbar.paymentHistory')}</span>
                                         </button>
-                                    ) : (
-                                        <button
-                                            onClick={() => { setIsMobileMenuOpen(false); navigate('/track-application'); }}
-                                            className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
-                                        >
-                                            <FontAwesomeIcon icon={faFileContract} className="text-xs" />
-                                            <span>{t('nav.trackApp')}</span>
-                                        </button>
                                     )}
                                 </div>
 
                                 <button
-                                    onClick={() => {
-                                        setIsMobileMenuOpen(false);
-                                        handleLogout();
-                                    }}
+                                    onClick={closeMenusThenLogout}
                                     className="w-full bg-rose-600 hover:bg-rose-700 active:scale-98 text-white py-3 rounded-xl font-bold text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-sm transition-all mt-1"
                                 >
                                     <FontAwesomeIcon icon={faSignOutAlt} />

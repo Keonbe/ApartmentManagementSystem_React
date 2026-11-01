@@ -7,6 +7,7 @@ import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/login.responsive.css';
 import { LIMITS, checkEmail, normalizeEmail } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import { isTenantStatus, landingPathFor, writeRoomCache } from '../config/tenantHome';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { invalidCls } from '../Components/form/formHelpers';
@@ -76,14 +77,16 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 if (res.data.role === 'admin') {
                     onAdminRedirect();
                 } else {
+                    // Tenants start on My Room, applicants with an application in
+                    // progress on Track Application, everyone else on Home.
                     try {
                         const roomRes = await api.get(`/my_room.php?email=${encodeURIComponent(res.data.user.email_address || '')}`);
-                        if (roomRes.data.success && roomRes.data.data) {
-                            const status = roomRes.data.data.status?.toLowerCase();
-                            if (['pending', 'pending review', 'approved', 'action required', 'pending deposit'].includes(status) || roomRes.data.data.has_pending_first_payment) {
-                                navigate('/track-application', { replace: true });
-                                return;
-                            }
+                        const room = roomRes.data.success ? roomRes.data.data : null;
+                        writeRoomCache(res.data.user.id, isTenantStatus(room?.status));
+                        const target = landingPathFor(room);
+                        if (target !== '/home') {
+                            navigate(target, { replace: true });
+                            return;
                         }
                     } catch (err) {
                         console.error("Failed to check pending status", err);

@@ -157,7 +157,7 @@ SELECT lease_start, lease_end, tenant_name, status FROM rooms WHERE id = '<room_
 ```
 
 **Step 3 — Tenant can now access tenant portal**
-- TopBar: Services, My Room links appear.
+- TopBar: My Room, Services, My Refunds links appear; Home is gone (`/home` now redirects to `/my-room`, and sign-in lands there).
 - URL `/my-room` shows room details, lease dates, and current month's bill.
 
 ---

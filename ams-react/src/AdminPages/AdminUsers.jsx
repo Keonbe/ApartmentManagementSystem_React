@@ -405,7 +405,7 @@ const AdminUsers = () => {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-card shadow-raised text-body font-semibold transition-all ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
+        <div className={`fixed top-24 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-card shadow-raised text-body font-semibold transition-all ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
           <FontAwesomeIcon icon={toast.type === 'error' ? faExclamationTriangle : faCheck} />
           {toast.msg}
         </div>

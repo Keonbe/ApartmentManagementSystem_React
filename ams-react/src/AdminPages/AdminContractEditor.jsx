@@ -1197,7 +1197,7 @@ const AdminContractEditor = ({ embedded = false }) => {
 
       {/* Floating Toast Notification */}
       {toast && (
-        <div className="print:hidden fixed bottom-6 right-6 z-50 max-w-sm w-full bg-white rounded-card shadow-dialog border border-slate-200 p-4 flex items-start gap-3 animate-fadeIn" role="status">
+        <div className="print:hidden fixed top-24 right-6 z-50 max-w-sm w-full bg-white rounded-card shadow-dialog border border-slate-200 p-4 flex items-start gap-3 animate-fadeIn" role="status">
           <div className={`w-8 h-8 rounded-card flex items-center justify-center shrink-0 text-white ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
             <FontAwesomeIcon icon={faCheckCircle} className="text-sm" />
           </div>

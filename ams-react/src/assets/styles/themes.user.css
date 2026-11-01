@@ -69,6 +69,13 @@
   --background-color-white: var(--ut-raised);
 }
 
+/* ...except the white highlights on the TopBar's brand bar (the current-page
+   pill, the EN/FIL and theme switches), which are absolute too. */
+.ut-root .ut-native .topbar-nav-pill.bg-white,
+.ut-root .ut-native .ut-segment-thumb.bg-white {
+  --background-color-white: var(--color-white);
+}
+
 /* ---------- Footer ---------- */
 /* The TopBar (and its mobile drawer) keeps the brand indigo in every theme;
    only its dropdowns and dialogs follow the theme (.ut-themed in TopBar.jsx). */
@@ -133,6 +140,53 @@
     color 0.35s ease,
     fill 0.35s ease,
     box-shadow 0.35s ease !important;
+}
+
+/* Theme and language switches (UserTheme.jsx): the highlight slides to the
+   picked option with a little overshoot, and the picked icon pops. */
+.ut-segment-thumb {
+  transition: transform 0.38s cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+.ut-pick-pop {
+  animation: utPickPop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes utPickPop {
+  0% { transform: scale(0.6) rotate(-25deg); }
+  100% { transform: none; }
+}
+
+/* Whole-page changes run in a View Transition (utils/viewTransition.js sets
+   html[data-vt]). Theme: the new look spreads in a circle from the switch.
+   Language: the text cross-fades with a slight blur. */
+html[data-vt='theme']::view-transition-old(root) {
+  animation: none;
+}
+
+html[data-vt='theme']::view-transition-new(root) {
+  animation: utThemeReveal 0.6s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@keyframes utThemeReveal {
+  from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 0)); }
+  to { clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 0)); }
+}
+
+html[data-vt='lang']::view-transition-old(root) {
+  animation: utLangOut 0.18s ease-in both;
+}
+
+html[data-vt='lang']::view-transition-new(root) {
+  animation: utLangIn 0.34s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
+}
+
+@keyframes utLangOut {
+  to { opacity: 0; filter: blur(3px); }
+}
+
+@keyframes utLangIn {
+  from { opacity: 0; filter: blur(3px); transform: translate3d(0, 4px, 0); }
 }
 
 @media print {
