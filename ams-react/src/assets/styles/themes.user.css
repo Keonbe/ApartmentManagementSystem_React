@@ -144,3 +144,16 @@
     background: #ffffff !important;
   }
 }
+
+/* ---------- Login / Register / Reset split layout ---------- */
+/* In Glass the form half is clear, so the page backdrop already shows behind it.
+   The splash half draws its own copy of the photo, which would sit beside it as
+   a second, misaligned building. Drop that copy and keep a light tint so the one
+   backdrop runs across both halves. */
+.ut-glass .auth-splash-photo {
+  display: none;
+}
+
+.ut-glass .auth-splash-tint {
+  background-color: rgb(30 41 82 / 0.35);
+}

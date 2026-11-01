@@ -148,13 +148,13 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
             </style>
 
             {/*LeftSplashPanelWithImageBackground*/}
-            <div className="ut-native hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
+            <div className="auth-splash ut-native hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
                 <img 
                     src={ApartmentPic} 
                     alt="" 
-                    className="absolute inset-0 w-full h-full object-cover object-center z-0"
+                    className="auth-splash-photo absolute inset-0 w-full h-full object-cover object-center z-0"
                 />
-                <div className="absolute inset-0 bg-brand/90 z-10"></div>
+                <div className="auth-splash-tint absolute inset-0 bg-brand/90 z-10"></div>
                 
                 <div className="relative z-20 flex flex-col items-center justify-center">
                     <h1 className="custom-ams-logo text-8xl italic font-bold tracking-wider mb-2 text-white border-0 bg-transparent uppercase m-0">
