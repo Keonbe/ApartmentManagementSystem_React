@@ -1257,6 +1257,20 @@ function billing_open_status_sql() {
     return "('" . implode("','", BILLING_OPEN_STATUSES) . "')";
 }
 
+// What is still owed on an invoice row, as a SQL expression: the balance, not
+// the total. PHP side of the same rule: invoice_balance_cents().
+function invoice_balance_sql($alias = 'i') {
+    return "($alias.total_amount - $alias.amount_paid)";
+}
+
+// The invoices a tenant still owes: open statuses only, and never an unpaid
+// advance-rent invoice (an optional prepayment, not a debt). $past_due keeps
+// only those whose due date has passed. Sum invoice_balance_sql() over these.
+function invoice_owed_where_sql($alias = 'i', $past_due = false) {
+    $sql = "$alias.status IN " . billing_open_status_sql() . " AND $alias.advance_months IS NULL";
+    return $past_due ? "$sql AND $alias.due_date < CURDATE()" : $sql;
+}
+
 // Settles an invoice in full, whichever channel the money actually arrived
 // through — the front desk (record_payment_admin.php) or a verified PayMongo
 // webhook event (paymongo_webhook.php). Before this existed each path ran its
