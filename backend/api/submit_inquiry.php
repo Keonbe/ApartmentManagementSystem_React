@@ -91,57 +91,45 @@ if (!$is_admin) {
     }
 }
 
-// Guest inquiries get a separate random bearer token; registered inquiries
-// retain the existing account-linked behavior and don't receive guest tokens.
-$guest_token = $user_id === null && !$is_admin ? bin2hex(random_bytes(32)) : null;
-$guest_thread_id = null;
+// A signed-out inquirer gets a guest chat thread with its own random bearer
+// token; registered inquiries keep the account-linked behaviour.
+//
+// The email and phone typed here are unverified. When they match an existing
+// guest thread, the sender may not be its owner, so this inquiry does NOT get
+// that thread's token and is not added to its conversation (that used to hand
+// anyone the conversation of whoever's email or phone they typed). It is kept
+// as a separate inquiry pointing at the thread (matched_thread_id), and a
+// one-time link is emailed to the address stored on the thread.
+$is_guest = $user_id === null && !$is_admin;
+$guest_token = null;
+$matched_thread_id = null;
 $conn->begin_transaction();
 try {
-    if ($guest_token !== null) {
-        $findGuest = $conn->prepare("SELECT id, guest_token FROM inquiries WHERE thread_type = 'guest' AND ((guest_email = ? AND guest_email <> '') OR (guest_phone = ? AND guest_phone <> '')) ORDER BY id ASC LIMIT 1 FOR UPDATE");
-        if (!$findGuest) throw new Exception('Unable to prepare guest thread lookup: ' . $conn->error);
+    if ($is_guest) {
+        $findGuest = $conn->prepare("SELECT id FROM inquiries WHERE thread_type = 'guest' AND ((guest_email = ? AND guest_email <> '') OR (guest_phone = ? AND guest_phone <> '')) ORDER BY id ASC LIMIT 1");
         $findGuest->bind_param('ss', $email, $contact_no);
         $findGuest->execute();
         $existingGuest = $findGuest->get_result()->fetch_assoc();
         $findGuest->close();
-        if ($existingGuest) {
-            $guest_thread_id = (int)$existingGuest['id'];
-            $guest_token = $existingGuest['guest_token'];
-        }
+        if ($existingGuest) $matched_thread_id = (int)$existingGuest['id'];
+        else $guest_token = bin2hex(random_bytes(32));
     }
-    $inquiry_guest_token = $guest_thread_id ? null : $guest_token;
-    $stmt = $conn->prepare("INSERT INTO inquiries (user_id, full_name, email, contact_no, room_name, occupants, preferred_move_in, message, source, ip_address, status, thread_type, guest_token, guest_name, guest_email, guest_phone, unit_of_interest) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO inquiries (user_id, full_name, email, contact_no, room_name, occupants, preferred_move_in, message, source, ip_address, status, thread_type, guest_token, guest_name, guest_email, guest_phone, unit_of_interest, matched_thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?, ?, ?)");
     $thread_type = $guest_token !== null ? 'guest' : 'registered';
     $guest_name = $guest_token !== null ? $full_name : null;
     $guest_email = $guest_token !== null ? $email : null;
     $guest_phone = $guest_token !== null ? $contact_no : null;
     $unit_of_interest = $guest_token !== null ? $room_name : null;
-    $stmt->bind_param("issssissssssssss", $user_id, $full_name, $email, $contact_no, $room_name, $occupants, $move_in, $message, $source, $ip, $thread_type, $inquiry_guest_token, $guest_name, $guest_email, $guest_phone, $unit_of_interest);
+    $stmt->bind_param("issssissssssssssi", $user_id, $full_name, $email, $contact_no, $room_name, $occupants, $move_in, $message, $source, $ip, $thread_type, $guest_token, $guest_name, $guest_email, $guest_phone, $unit_of_interest, $matched_thread_id);
     $stmt->execute();
     $inquiry_id = $stmt->insert_id;
     $stmt->close();
 
-    if ($guest_token !== null && $message !== '') {
-        $messageThreadId = $guest_thread_id ?: $inquiry_id;
-        if ($guest_thread_id) {
-            $mergeMessages = $conn->prepare('UPDATE guest_messages SET inquiry_id = ? WHERE inquiry_id = ?');
-            if (!$mergeMessages) throw new Exception('Unable to prepare guest message merge: ' . $conn->error);
-            $mergeMessages->bind_param('ii', $messageThreadId, $inquiry_id);
-            $mergeMessages->execute();
-            $mergeMessages->close();
-        }
+    if ($guest_token !== null) {
         $initial = $conn->prepare("INSERT INTO guest_messages (inquiry_id, sender_role, message) VALUES (?, 'guest', ?)");
-        if (!$initial) throw new Exception('Unable to prepare initial guest message: ' . $conn->error);
-        $initial->bind_param('is', $messageThreadId, $message);
+        $initial->bind_param('is', $inquiry_id, $message);
         $initial->execute();
         $initial->close();
-    }
-    if ($guest_thread_id) {
-        $updateGuest = $conn->prepare('UPDATE inquiries SET message = ?, guest_name = ?, guest_email = ?, guest_phone = ?, unit_of_interest = ? WHERE id = ?');
-        if (!$updateGuest) throw new Exception('Unable to prepare canonical guest update: ' . $conn->error);
-        $updateGuest->bind_param('sssssi', $message, $full_name, $email, $contact_no, $room_name, $guest_thread_id);
-        $updateGuest->execute();
-        $updateGuest->close();
     }
     $conn->commit();
 } catch (Throwable $e) {
@@ -156,17 +144,27 @@ try {
 // no id of its own to attach. The queue row is addressed to the admin account;
 // update_inquiry_status.php clears it once the inquiry is handled.
 notify_admins_queue($conn, 'inquiry', $inquiry_id, "New Unit Inquiry",
-    $full_name . " sent an inquiry" . ($room_name ? " about Unit $room_name" : "") . " (" . $contact_no . " / " . $email . ").");
+    $full_name . " sent an inquiry" . ($room_name ? " about Unit $room_name" : "") . " (" . $contact_no . " / " . $email . ")."
+    . ($matched_thread_id ? " Same email or phone as conversation #$matched_thread_id; sender not verified." : ""));
+
+// The owner of the matched conversation gets a link to it (at the address
+// stored on the thread). Sent after the commit; a mail problem is only logged.
+if ($matched_thread_id) {
+    guest_chat_email_link($conn, $matched_thread_id, 'resume');
+}
 
 log_activity($conn, $user_id, 'inquiry', $is_admin ? "Logged Inquiry" : "Submitted Inquiry",
     "Inquiry ID: $inquiry_id" . ($room_name ? ", Unit: $room_name" : "") . ", Source: $source", $is_admin ? null : ($user_id ?? 0));
 
 echo json_encode([
     "success" => true,
-    "message" => "Inquiry submitted successfully. Our admin will contact you shortly.",
+    "message" => $matched_thread_id
+        ? "You already have a conversation with us. We emailed a link to continue it to the address you used before."
+        : "Inquiry submitted successfully. Our admin will contact you shortly.",
     "inquiry_id" => $inquiry_id,
-    "thread_id" => $guest_thread_id ?: $inquiry_id,
-    "guest_token" => $guest_token
+    "thread_id" => $guest_token !== null ? $inquiry_id : null,
+    "guest_token" => $guest_token,
+    "existing_thread" => $matched_thread_id !== null,
 ]);
 
 $conn->close();

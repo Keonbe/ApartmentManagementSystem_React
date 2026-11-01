@@ -24,6 +24,7 @@ import ChatAttachmentPreview from './form/ChatAttachmentPreview';
 import useFilePreview from '../hooks/useFilePreview';
 import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
 import { useLang, dateLocale } from '../config/i18n';
+import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
@@ -62,15 +63,30 @@ const ChatWidget = () => {
             setGuestToken(localStorage.getItem('ams_guest_token'));
             setHasRegisteredUser(Boolean(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')));
         };
+        // An emailed link was redeemed: pick up the key and open the conversation.
+        const openGuestChat = () => { syncStorage(); setIsChatOpen(true); };
         window.addEventListener('storage', syncStorage);
         window.addEventListener('auth-changed', syncStorage);
         window.addEventListener('guest-chat-invalidated', syncStorage);
+        window.addEventListener(GUEST_CHAT_OPENED_EVENT, openGuestChat);
         return () => {
             window.removeEventListener('storage', syncStorage);
             window.removeEventListener('auth-changed', syncStorage);
             window.removeEventListener('guest-chat-invalidated', syncStorage);
+            window.removeEventListener(GUEST_CHAT_OPENED_EVENT, openGuestChat);
         };
-    }, []);
+    }, [setIsChatOpen]);
+
+    // Shared or public computer: the guest removes the key from this browser.
+    // The conversation stays on the server; an emailed link opens it again.
+    const endGuestChat = () => {
+        if (!window.confirm(t('chat.endGuestConfirm'))) return;
+        for (const key of Object.keys(localStorage)) if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
+        setGuestToken(null);
+        setGuestMessages([]);
+        setIsChatOpen(false);
+        window.dispatchEvent(new Event('guest-chat-invalidated'));
+    };
 
     // All three pickers (file, camera, video) go through the same check as send_message.php.
     const pickAttachment = (event) => {
@@ -421,6 +437,15 @@ const ChatWidget = () => {
                         </div>
                         
                         <div className="flex items-center gap-3 shrink-0">
+                            {guestToken && !userId && (
+                                <button
+                                    type="button"
+                                    onClick={endGuestChat}
+                                    className="text-xs font-semibold text-indigo-100 hover:text-white bg-transparent border-0 cursor-pointer whitespace-nowrap"
+                                >
+                                    {t('chat.endGuest')}
+                                </button>
+                            )}
                             {userRole === 'admin' && !activeChat && (
                                 <button
                                     type="button"

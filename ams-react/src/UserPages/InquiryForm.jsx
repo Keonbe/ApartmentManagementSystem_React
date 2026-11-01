@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEnvelopeOpenText, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -15,6 +15,8 @@ import InlineAlert from '../Components/InlineAlert';
 import CharCount from '../Components/form/CharCount';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
 import { useLang } from '../config/i18n';
+import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
+import { useChat } from '../context/ChatContext';
 
 const MAX_OCCUPANTS = 20;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
@@ -61,6 +63,58 @@ export default function InquiryForm() {
     const [rulesError, setRulesError] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    // A repeat inquiry from an email/phone that already has a conversation:
+    // no chat opens here; the owner gets a link by email (submit_inquiry.php).
+    const [existingThread, setExistingThread] = useState(false);
+
+    // "Continue your conversation": a one-time code from an emailed link
+    // (?resume=) is exchanged for the chat key (guest_chat_resume.php), or the
+    // guest asks for a new link by email.
+    const [resumeCode] = useState(() => new URLSearchParams(location.search).get('resume'));
+    const [resumeOpen, setResumeOpen] = useState(false);
+    const [resumeEmail, setResumeEmail] = useState('');
+    const [resumeBusy, setResumeBusy] = useState(false);
+    const [resumeMsg, setResumeMsg] = useState(null); // { ok, text }
+    const redeemed = useRef(false);
+    const { setIsChatOpen } = useChat();
+
+    useEffect(() => {
+        if (!resumeCode || redeemed.current) return;
+        redeemed.current = true; // a code works once; StrictMode must not send it twice
+        navigate(location.pathname, { replace: true }); // the code leaves the address bar
+        setResumeMsg({ ok: true, text: t('inquiry.resumeOpening') });
+        api.post('guest_chat_resume.php', { action: 'redeem', code: resumeCode })
+            .then((res) => {
+                if (!res.data?.success || !res.data.guest_token) throw new Error('redeem failed');
+                localStorage.setItem('ams_guest_token', res.data.guest_token);
+                localStorage.setItem('ams_guest_info', JSON.stringify({ thread_id: res.data.thread_id }));
+                // Mounts the widget (App) and opens it (shared chat state).
+                window.dispatchEvent(new Event(GUEST_CHAT_OPENED_EVENT));
+                setIsChatOpen(true);
+                setResumeMsg({ ok: true, text: t('inquiry.resumeOpened') });
+            })
+            .catch(() => {
+                setResumeMsg({ ok: false, text: t('inquiry.resumeFailed') });
+                setResumeOpen(true);
+            });
+    }, [resumeCode, navigate, location.pathname, t, setIsChatOpen]);
+
+    const requestResumeLink = async (e) => {
+        e.preventDefault();
+        if (resumeBusy) return;
+        const clean = normalizeEmail(resumeEmail);
+        const emailError = checkEmail(clean, { max: LIMITS.email });
+        if (emailError) { setResumeMsg({ ok: false, text: emailError }); return; }
+        setResumeBusy(true);
+        try {
+            const res = await api.post('guest_chat_resume.php', { action: 'request', email: clean });
+            setResumeMsg({ ok: !!res.data?.success, text: res.data?.message || '' });
+        } catch (err) {
+            setResumeMsg({ ok: false, text: apiErrorMessage(err, t('inquiry.errorNetwork')) });
+        } finally {
+            setResumeBusy(false);
+        }
+    };
 
     useEffect(() => {
         const fetchRooms = async () => {
@@ -129,6 +183,7 @@ export default function InquiryForm() {
                     localStorage.setItem('ams_guest_token', res.data.guest_token);
                     localStorage.setItem('ams_guest_info', JSON.stringify({ name: clean.full_name, email: clean.email, phone: toPhE164(contactNo), thread_id: res.data.thread_id }));
                 }
+                setExistingThread(!!res.data.existing_thread);
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
                 setErrorMsg(res.data.message || t('inquiry.errorNetwork'));
@@ -173,6 +228,47 @@ export default function InquiryForm() {
                     </h1>
                     <p className="text-sm text-slate-500 mt-1 mb-0">{t('inquiry.subtitle')}</p>
                 </div>
+
+                {/* Continue an earlier guest conversation (emailed one-time link). */}
+                {!sessionPrefill().email && (
+                    <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 text-sm">
+                        <button
+                            type="button"
+                            onClick={() => setResumeOpen((v) => !v)}
+                            aria-expanded={resumeOpen}
+                            className="bg-transparent border-0 p-0 cursor-pointer font-semibold text-indigo-700 hover:text-indigo-900"
+                        >
+                            {t('inquiry.resumeAsk')}
+                        </button>
+                        {resumeMsg && (
+                            <p role="status" className={`m-0 mt-2 text-sm ${resumeMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{resumeMsg.text}</p>
+                        )}
+                        {resumeOpen && (
+                            <form onSubmit={requestResumeLink} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end" noValidate>
+                                <div className="flex-1">
+                                    <p className="m-0 mb-2 text-xs text-slate-500">{t('inquiry.resumeHint')}</p>
+                                    <label htmlFor="inquiry-resume-email" className={labelClass}>{t('inquiry.resumeEmail')}</label>
+                                    <input
+                                        id="inquiry-resume-email"
+                                        type="email"
+                                        autoComplete="email"
+                                        maxLength={LIMITS.email}
+                                        value={resumeEmail}
+                                        onChange={(e) => setResumeEmail(e.target.value)}
+                                        className={`${inputClass} mt-1`}
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={resumeBusy}
+                                    className="min-h-[48px] rounded-xl border-0 bg-indigo-600 px-5 font-bold text-white hover:bg-indigo-700 cursor-pointer disabled:opacity-60"
+                                >
+                                    {resumeBusy ? t('inquiry.resumeSending') : t('inquiry.resumeSend')}
+                                </button>
+                            </form>
+                        )}
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     <div className="min-w-0 lg:col-span-7">
@@ -373,7 +469,7 @@ export default function InquiryForm() {
             <SuccessModal
                 isOpen={isModalOpen}
                 onClose={() => { setIsModalOpen(false); navigate('/preview'); }}
-                message={t('inquiry.success')}
+                message={existingThread ? t('inquiry.existingThread') : t('inquiry.success')}
             />
         </div>
     );

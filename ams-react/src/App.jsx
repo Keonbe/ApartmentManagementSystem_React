@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
+import { GUEST_CHAT_OPENED_EVENT } from './config/appEvents';
 import ChatWidget from './Components/ChatWidget';
 
 // Components
@@ -224,6 +225,20 @@ function AppContent() {
     };
     checkRoomStatus();
   }, [location.pathname]);
+
+  // Whether the chat widget is mounted is read from storage at render time. A
+  // guest chat key stored or removed without a route change (emailed link
+  // redeemed on /inquire, "End chat on this device") re-renders so it follows.
+  const [, setGuestChatVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setGuestChatVersion((v) => v + 1);
+    window.addEventListener(GUEST_CHAT_OPENED_EVENT, bump);
+    window.addEventListener('guest-chat-invalidated', bump);
+    return () => {
+      window.removeEventListener(GUEST_CHAT_OPENED_EVENT, bump);
+      window.removeEventListener('guest-chat-invalidated', bump);
+    };
+  }, []);
 
   // Inquiries are open to guests, so this needs no login gate — unlike renting.
   const handleInquireTrigger = (roomId) => {

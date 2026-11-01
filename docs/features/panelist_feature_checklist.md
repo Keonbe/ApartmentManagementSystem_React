@@ -490,7 +490,7 @@ flowchart TD
 - [x] **7.5 Admin Inbox** ✅ — `AdminMessages.jsx`: threads sorted by most recent, searchable, unread badges
 - [ ] **7.6 New Message Notification** 🔧 — Real-time push to an open widget/inbox only; no `notifications` row is written on send
 - [ ] **7.7 Complaints Management** 📋 — Design complete: conversation flagged `is_complaint` + `complaint_status` tracking, additive to §1–§11 — must be rebased onto the built `messages` table, since `conversations` does not exist (see [chat_design.md §12](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md))
-- [ ] **7.8 Inquiry Conversation** ❌ — Not started: turning an inquiry into a prospect ↔ admin conversation (needs a token-keyed thread for guests who have no account; the existing chat requires a `users` row). Open decision, see TASK.md.
+- [x] **7.8 Inquiry Conversation** ✅ — A signed-out inquiry opens a guest chat thread (`inquiries.thread_type='guest'`, `guest_messages`, `guest_chat.php`; key kept in the browser, sent only in a header) that the admin answers from Messages; it moves into the normal chat when the guest signs in. **2026-10-31:** one-time "continue your conversation" links by email (`guest_chat_resume.php`, `guest_chat_links`, 7 days, single use) from the inquiry page or a reply email; the guest is emailed once per batch of admin replies they have not seen (`guest_reply_emailed_at`). A repeat inquiry with an email or phone that already has a conversation no longer receives that conversation's key (it used to): it is kept as a separate inquiry marked *Sender not verified* and the link goes to the address stored on the conversation. Messages shows *Email not verified* until the guest has opened the chat from an emailed link (`guest_verified_at`); the widget has *End chat on this device*. Emails need the building email switch and SMTP (6.6).
 
 ---
 
@@ -589,13 +589,13 @@ flowchart TD
 | 4. Maintenance Request | 10 | 10 | 0 | 0 | 0 |
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
 | 6. Notification | 8 | 6 | 2 | 0 | 0 |
-| 7. Communication | 8 | 4 | 2 | 1 | 1 |
+| 7. Communication | 8 | 5 | 2 | 1 | 0 |
 | 8. Dashboard & Reports | 10 | 10 | 0 | 0 | 0 |
 | 9. Contracts | 8 | 8 | 0 | 0 | 0 |
 | 10. Parking | 5 | 5 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 4 | 4 | 0 | 0 | 0 |
-| **TOTAL** | **100** | **94** | **4** | **1** | **1** |
+| **TOTAL** | **100** | **95** | **4** | **1** | **0** |
 
 > Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data), then again after closing 3.10 (Extended Rent Terms) on 2026-09-20, and again on 2026-09-23 when the SMS/email pipeline was wired into the admin endpoints — 4.10 closed, and 6.6 / 6.7 moved from 📋 to 🔧 (built and wired, still on the dry-run drivers), and on 2026-09-24 when Module 7 was re-marked after the chat merge (PR #8): 7.2–7.5 ✅, 7.1 and 7.6 🔧, 7.7 still 📋. Recounted again on 2026-10-26: Module 3 had grown to 3.1–3.20 (3.14 onward added in October 2026) while the table still said 13, so Module 3 and the totals moved from 13 / 93 features to 20 / 100.
 

@@ -256,6 +256,11 @@ All upload handlers now use `finfo_file()` for server-side MIME detection instea
 
 `backend/config.php` loads DB credentials from `backend/config.env.php`, which is gitignored and not tracked (`git ls-files` confirms it). A checked-in `config.env.example.php` documents the required constants.
 
+### R-6. Guest Chat Key Handed Out for a Typed Email or Phone (fixed 2026-10-31)
+
+**Was (High, since `28e2401`, 2026-10-18):** a signed-out `submit_inquiry.php` whose email or phone matched an existing guest chat returned that chat's `guest_token`. Anyone who knew someone's email or phone could read their conversation with the admin, post as them, and move it into their own account at sign-in (`adopt_guest_chat()` matches by token).
+**Now:** a matching inquiry gets no token and is not added to the conversation. It is saved separately (`matched_thread_id`, shown as *Sender not verified*), and a one-time link is emailed to the address stored on the conversation (`guest_chat_resume.php`: sha256-hashed codes, 7 days, single use under a row lock; requests rate-limited per email and IP with a response that does not reveal whether the email exists). Tests: `tests/api/guest_chat_links.test.js`. Still open: tokens are stored in plain text in `inquiries.guest_token`.
+
 ---
 
 ## 6b. Billing & Payments Hardening (2026-09)

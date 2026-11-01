@@ -14,7 +14,7 @@ $isAdmin = $auth && $auth['role'] === 'admin';
 try {
     if ($isAdmin) {
         if (!$threadId) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Missing thread_id']); exit; }
-        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest FROM inquiries WHERE id = ? AND thread_type = 'guest'");
+        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_verified_at FROM inquiries WHERE id = ? AND thread_type = 'guest'");
         $find->bind_param('i', $threadId);
     } else {
         if (strlen($token) !== 64 || !ctype_xdigit($token)) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'Invalid guest token']); exit; }
@@ -86,6 +86,14 @@ try {
             $updateInquiry->execute();
             $updateInquiry->close();
         }
+        if ($isAdmin) {
+            // The guest is usually not on the site: email them a link, once per
+            // batch of replies they have not seen (reset when they open the chat).
+            $claim = $conn->prepare('UPDATE inquiries SET guest_reply_emailed_at = NOW() WHERE id = ? AND guest_reply_emailed_at IS NULL');
+            $claim->bind_param('i', $thread['id']); $claim->execute();
+            $claimed = $claim->affected_rows > 0; $claim->close();
+            if ($claimed) guest_chat_email_link($conn, (int)$thread['id'], 'reply');
+        }
         echo json_encode(['success'=>true,'message'=>['id'=>$newMessageId,'inquiry_id'=>(int)$thread['id'],'sender_role'=>$role,'sender_id'=>$senderId,'message'=>$message,'attachment_path'=>$attachmentPath,'reply_to_id'=>$replyToId,'created_at'=>date('Y-m-d H:i:s'),'is_read'=>0]]); exit;
     }
 
@@ -99,6 +107,11 @@ try {
     $markRead->execute();
     $markRead->close();
     if ($isAdmin) resolve_admin_queue($conn, 'inquiry', 'chat-' . $thread['id']);
+    else {
+        // The guest has seen the replies: the next admin reply emails them again.
+        $seen = $conn->prepare('UPDATE inquiries SET guest_reply_emailed_at = NULL WHERE id = ?');
+        $seen->bind_param('i', $thread['id']); $seen->execute(); $seen->close();
+    }
 
     $q = $conn->prepare("SELECT m.id, m.inquiry_id, m.sender_role, m.sender_id, m.message, m.attachment_path, m.attachment_path AS file_path, m.attachment_path AS attachment_url, m.attachment_path AS media_url, m.created_at, m.is_read, m.reply_to_id, r.message AS reply_message, r.attachment_path AS reply_attachment_path, r.attachment_path AS reply_file_path, r.attachment_path AS reply_attachment_url, r.sender_id AS reply_sender_id, r.sender_role AS reply_sender_role, r.sender_id AS reply_sender_name FROM guest_messages m LEFT JOIN guest_messages r ON r.id = m.reply_to_id AND r.inquiry_id = m.inquiry_id WHERE m.inquiry_id = ? ORDER BY m.id ASC");
     if (!$q) throw new Exception('Unable to prepare guest history query: ' . $conn->error);

@@ -83,6 +83,8 @@
 19. [Appendix — Recipes & Reference](#19-appendix--recipes--reference)
 20. [Panelist Gap Features (2026-10-11)](#20-panelist-gap-features-2026-10-11)
    - 20.1 Refund Approval · 20.2 Per-Floor Rent · 20.3 Utility Bill and Proof · 20.4 Other Utility Types · 20.5 Parking Rules · 20.6 Children, Minors and Pets
+21. [Defense Gaps (2026-10-13)](#21-defense-gaps-2026-10-13)
+22. [Guest Inquiry Chat Links (2026-10-31)](#22-guest-inquiry-chat-links-2026-10-31)
 
 ---
 
@@ -3209,6 +3211,24 @@ Seed: `seeds/seed_defense_scenarios.sql` (checklist in `docs/date_dependent_test
 | **M21-30** | UI | Admin Contracts, Contract Editor, Notifications tag, Track Application | No user-facing "Lease"; contract title "APARTMENT RENT AGREEMENT" |
 | **M21-31** | UI | /preview, inquiry form, application, contract | Minors rules ("No babies or small children on the 3rd floor", "Minors and older children", "No pets allowed") on each; Filipino text in Filipino mode |
 | **M21-32** | UI | Pay two bills together (combined payment), open the combined receipt | Payment rows of every bill listed, not only the first |
+
+---
+
+## 22. Guest Inquiry Chat Links (2026-10-31)
+
+Checklist 7.8. Migration: `2026_10_guest_chat_links.sql`. Automated: `tests/api/guest_chat_links.test.js`. Emails need Settings → Notifications email on; with the `log` driver they land in `backend/logs/notification_outbox/` (the link is in the HTML).
+
+| ID | Type | Step | Expected |
+|---|---|---|---|
+| **M22-01** | Happy | Signed out, send an inquiry from `/inquire` | `guest_token` returned and stored; the chat widget opens the new thread |
+| **M22-02** | Sec | Send another inquiry with the same email (or same phone, other email) | `guest_token: null`, `existing_thread: true`; the old thread gets no message; new row has `matched_thread_id`; link emailed to the thread's stored address; Inquiries row shows *Sender not verified* |
+| **M22-03** | Happy | Admin replies twice before the guest opens the chat | One "You have a reply" email; `guest_reply_emailed_at` set |
+| **M22-04** | Happy | Guest opens the chat, admin replies again | `guest_reply_emailed_at` cleared on open; one new email |
+| **M22-05** | Happy | Clear the browser, "Continue your conversation", enter the email, open the emailed link | Chat opens with full history; `?resume=` removed from the URL; `guest_verified_at` set (no *Email not verified* badge in Messages) |
+| **M22-06** | Negative | Open the same link again; or an expired one | 410 "expired or was already used" with the request form |
+| **M22-07** | Sec | Request a link for an unknown email | Same response as a known email; no link row |
+| **M22-08** | Sec | Fourth request for one email within an hour | 429 |
+| **M22-09** | Happy | Widget → *End chat on this device* | Key removed, widget gone; conversation still on the server |
 
 ---
 

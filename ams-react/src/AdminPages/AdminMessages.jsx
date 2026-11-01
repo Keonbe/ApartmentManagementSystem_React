@@ -402,6 +402,11 @@ const AdminMessages = () => {
                           <span className="flex min-w-0 items-center overflow-hidden font-semibold text-body text-slate-900">
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
+                            {isGuestConversation(conversation) && !conversation.guest_verified_at && (
+                              <span className="ml-1.5 shrink-0 text-amber-700 font-semibold text-xs" title="The guest has not yet opened this chat from a link sent to their email, so the email is not proven to be theirs.">
+                                Email not verified
+                              </span>
+                            )}
                           </span>
                           <span className="text-caption text-slate-500 shrink-0">{formatTime(conversation.last_message_time)}</span>
                         </div>

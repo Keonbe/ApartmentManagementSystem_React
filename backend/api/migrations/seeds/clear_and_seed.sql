@@ -37,6 +37,8 @@ TRUNCATE TABLE `system_settings`;
 TRUNCATE TABLE `users`;
 TRUNCATE TABLE `visitor_logs`;
 TRUNCATE TABLE `inquiries`;
+TRUNCATE TABLE `guest_messages`;
+TRUNCATE TABLE `guest_chat_links`;
 TRUNCATE TABLE `unit_reservations`;
 TRUNCATE TABLE `household_members`;
 TRUNCATE TABLE `expenses`;

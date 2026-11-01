@@ -551,6 +551,9 @@ CREATE TABLE IF NOT EXISTS `inquiries` (
   `guest_email` varchar(150) DEFAULT NULL,
   `guest_phone` varchar(30) DEFAULT NULL,
   `unit_of_interest` varchar(50) DEFAULT NULL,
+  `guest_reply_emailed_at` datetime DEFAULT NULL,
+  `guest_verified_at` datetime DEFAULT NULL,
+  `matched_thread_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_inquiries_guest_token` (`guest_token`),
   KEY `idx_inquiry_status` (`status`),
@@ -1131,6 +1134,21 @@ CREATE TABLE IF NOT EXISTS `guest_messages` (
   KEY `idx_guest_messages_thread` (`inquiry_id`,`id`),
   CONSTRAINT `fk_guest_messages_inquiry` FOREIGN KEY (`inquiry_id`) REFERENCES `inquiries` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_guest_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- One-time "continue your conversation" links for guest chats, emailed to the
+-- thread's address; only the sha256 of the code is stored (2026_10_guest_chat_links.sql).
+CREATE TABLE IF NOT EXISTS `guest_chat_links` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `inquiry_id` int(11) NOT NULL,
+  `token_hash` char(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_guest_chat_links_hash` (`token_hash`),
+  KEY `idx_guest_chat_links_thread` (`inquiry_id`, `used_at`),
+  CONSTRAINT `fk_guest_chat_links_inquiry` FOREIGN KEY (`inquiry_id`) REFERENCES `inquiries` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Chat messages between a tenant and an admin (send_message.php,

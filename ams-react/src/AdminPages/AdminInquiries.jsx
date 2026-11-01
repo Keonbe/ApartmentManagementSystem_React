@@ -525,6 +525,11 @@ export default function AdminInquiries() {
                             <td className="px-4 py-4 text-label text-slate-600">{fmtDate(inq.preferredMoveIn)}</td>
                             <td className="px-4 py-4">
                               <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-slate-100 text-slate-600 capitalize">{inq.source}</span>
+                              {inq.matchedThreadId && (
+                                <span className="mt-1 block rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200 w-fit" title={`Same email or phone as conversation #${inq.matchedThreadId}. The sender's identity is not verified.`}>
+                                  Sender not verified
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-4 text-label text-slate-500">{fmtDate(inq.createdAt)}</td>
                             <td className="px-4 py-4 text-center">
@@ -735,11 +740,18 @@ export default function AdminInquiries() {
                 <FieldError id="inquiry-detail-viewing_date" error={detailErrors.errors.viewing_date} />
               </div>
 
+              {selected.matchedThreadId && (
+                <p role="note" className="m-0 rounded-card border border-amber-200 bg-amber-50 p-3 text-label text-amber-900">
+                  Same email or phone as conversation #{selected.matchedThreadId}, but the sender is not verified: anyone can type an email or phone number.
+                  It was not added to that conversation. The owner of that conversation was emailed a link to it; do not share their details here.
+                </p>
+              )}
+
               {/* Pipeline actions */}
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
-                  onClick={() => navigate(`/admin-messages?guest_thread_id=${encodeURIComponent(selected.rawId || selected.id)}`)}
+                  onClick={() => navigate(`/admin-messages?guest_thread_id=${encodeURIComponent(selected.matchedThreadId || selected.rawId || selected.id)}`)}
                   className="col-span-2 flex items-center justify-center gap-2 rounded-card bg-indigo-50 border border-indigo-200 px-4 py-3 text-label font-bold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
                 >
                   <FontAwesomeIcon icon={faComment} /> Chat / Message

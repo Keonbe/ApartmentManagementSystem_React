@@ -3244,6 +3244,69 @@ function rate_limit_record($conn, $action, $key) {
     }
 }
 
+// ---- Guest chat links ----------------------------------------------------
+// A guest inquiry chat is opened with inquiries.guest_token, kept in the
+// guest's browser and only ever sent in a header. To reopen it on another
+// device the guest gets a one-time code by email (guest_chat_resume.php); only
+// its sha256 is stored, it expires after GUEST_CHAT_LINK_DAYS and works once.
+const GUEST_CHAT_LINK_DAYS = 7;
+
+// Issues a code for the thread and returns it. Unused older codes for the
+// thread stop working, so at most one link is live at a time.
+function guest_chat_issue_link($conn, $inquiry_id) {
+    $code = bin2hex(random_bytes(32));
+    $hash = hash('sha256', $code);
+    $old = $conn->prepare("UPDATE guest_chat_links SET used_at = NOW() WHERE inquiry_id = ? AND used_at IS NULL");
+    $old->bind_param("i", $inquiry_id);
+    $old->execute();
+    $old->close();
+    $days = GUEST_CHAT_LINK_DAYS;
+    $ins = $conn->prepare("INSERT INTO guest_chat_links (inquiry_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? DAY))");
+    $ins->bind_param("isi", $inquiry_id, $hash, $days);
+    $ins->execute();
+    $ins->close();
+    return $code;
+}
+
+// Emails a link to the address stored on the guest thread (never one taken
+// from the request). $kind: 'resume' (asked for a link, or a repeat inquiry)
+// or 'reply' (the admin answered). Never throws: a mail problem is logged and
+// must not undo a saved message or inquiry. Returns true when sent.
+function guest_chat_email_link($conn, $inquiry_id, $kind = 'resume') {
+    try {
+        $q = $conn->prepare("SELECT guest_name, guest_email FROM inquiries WHERE id = ? AND thread_type = 'guest'");
+        $q->bind_param("i", $inquiry_id);
+        $q->execute();
+        $thread = $q->get_result()->fetch_assoc();
+        $q->close();
+        if (!$thread || !filter_var($thread['guest_email'] ?? '', FILTER_VALIDATE_EMAIL)) return false;
+
+        require_once __DIR__ . '/api/services/send_email.php';
+        require_once __DIR__ . '/api/services/frontend_origin.php';
+        $code = guest_chat_issue_link($conn, (int)$inquiry_id);
+        $link = rtrim(password_reset_frontend_origin(null, $_SERVER), '/') . '/inquire?resume=' . rawurlencode($code);
+
+        $name = trim((string)$thread['guest_name']) ?: 'there';
+        if ($kind === 'reply') {
+            $subject = 'You have a reply about your inquiry';
+            $intro = 'The apartment management replied to your inquiry. Open the conversation to read it and answer.';
+        } else {
+            $subject = 'Continue your conversation with the apartment management';
+            $intro = 'Use the button below to open your inquiry conversation on this device.';
+        }
+        $e = fn($s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $html = '<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b"><div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden"><div style="background:#3b4276;padding:26px;text-align:center;color:white;font-size:24px;font-weight:bold">AMS</div><div style="padding:32px">'
+            . '<p>Hi ' . $e($name) . ',</p><p>' . $e($intro) . '</p>'
+            . '<p style="text-align:center;margin:28px"><a href="' . $e($link) . '" style="background:#6366f1;color:white;text-decoration:none;padding:14px 22px;border-radius:10px;font-weight:bold">Continue the conversation</a></p>'
+            . '<p style="font-size:13px;color:#64748b">This link works once and expires in ' . GUEST_CHAT_LINK_DAYS . ' days. If you did not send an inquiry, you can ignore this email.</p>'
+            . '</div></div></body></html>';
+        return (bool)send_email($conn, $thread['guest_email'], $subject, $html, 'guest_chat', null);
+    } catch (Throwable $e) {
+        error_log('guest_chat_email_link: ' . $e->getMessage());
+        return false;
+    }
+}
+
 function clear_login_failures($conn, $email) {
     $email = strtolower(trim((string)$email));
     $stmt = $conn->prepare("DELETE FROM login_attempts WHERE email = ?");
