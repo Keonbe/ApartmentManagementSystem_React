@@ -34,7 +34,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, Router 7) → plain PHP 8.0 end
 
 ## Workflow rules
 - Git: everything goes straight to `main`, no feature branches or required PRs.
-- **Never commit on your own**, even if a plan lists per-phase commits: the user tests first. Leave changes uncommitted and draft the message(s), Backend / Frontend / Docs, one per area or phase. Commit only when told; never push unless told.
+- **Never commit on your own**, even if a plan lists per-phase commits: the user tests first. Leave changes uncommitted and draft the message(s). **One commit per feature or task** (a feature, a fix, a refactor...), never one per area: the code, tests and docs of that feature go in the same commit. Title is `type(scope): what it does` (`feat`, `fix`, `refactor`, `style`, `docs`, `chore`); the body lists the work under **Backend / Frontend / Docs** headings (omit an empty one). A file shared by several features (`config.php`, `i18n.js`) is split with `git add -p`; list the files per commit and flag unrelated changes to leave out. Commit only when told; never push unless told.
 - **Run the CI checks before drafting a commit message** (`.github/workflows/ci.yml` runs on push to main). Fix failures, say which you could not run:
   - Frontend: `cd ams-react && npm run lint && npm run build` (CI uses `build`; build does not cover lint).
   - PHP: `php -l` on **every** `backend/**/*.php`; `phpstan analyse --configuration=phpstan.neon --no-progress` if installed (CI PHP 8.2, local 8.0).

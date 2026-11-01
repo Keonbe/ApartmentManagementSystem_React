@@ -1,16 +1,19 @@
--- Add reference_norm generated columns and create rent_advance_credits if missing
+-- Add reference_norm generated columns and create rent_advance_credits if missing.
+-- Each ALTER checks information_schema first (pattern of 2026_10_prod_schema_repair.sql),
+-- so the file also runs on a database that already has the columns (SetupDB.sql, or a
+-- server this ran on before) and can be re-run.
 
-ALTER TABLE `invoices`
-ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`payment_reference`, ' ', ''), '-', ''), '\t', ''), '\r', ''), '\n', '')), '')) STORED AFTER `payment_reference`,
-ADD KEY `idx_invoices_reference_norm` (`reference_norm`);
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'reference_norm') = 0,
+  'ALTER TABLE `invoices` ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`payment_reference`, '' '', ''''), ''-'', ''''), ''\t'', ''''), ''\r'', ''''), ''\n'', '''')), '''')) STORED AFTER `payment_reference`, ADD KEY `idx_invoices_reference_norm` (`reference_norm`)', 'DO 0');
+PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-ALTER TABLE `payment_transactions`
-ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, ' ', ''), '-', ''), '\t', ''), '\r', ''), '\n', '')), '')) STORED AFTER `reference_number`,
-ADD KEY `idx_payment_transactions_reference_norm` (`reference_norm`);
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'payment_transactions' AND column_name = 'reference_norm') = 0,
+  'ALTER TABLE `payment_transactions` ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, '' '', ''''), ''-'', ''''), ''\t'', ''''), ''\r'', ''''), ''\n'', '''')), '''')) STORED AFTER `reference_number`, ADD KEY `idx_payment_transactions_reference_norm` (`reference_norm`)', 'DO 0');
+PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-ALTER TABLE `payment_proof_parts`
-ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, ' ', ''), '-', ''), '\t', ''), '\r', ''), '\n', '')), '')) STORED AFTER `reference_number`,
-ADD KEY `idx_payment_proof_parts_reference_norm` (`reference_norm`);
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'payment_proof_parts' AND column_name = 'reference_norm') = 0,
+  'ALTER TABLE `payment_proof_parts` ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, '' '', ''''), ''-'', ''''), ''\t'', ''''), ''\r'', ''''), ''\n'', '''')), '''')) STORED AFTER `reference_number`, ADD KEY `idx_payment_proof_parts_reference_norm` (`reference_norm`)', 'DO 0');
+PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS `rent_advance_credits` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

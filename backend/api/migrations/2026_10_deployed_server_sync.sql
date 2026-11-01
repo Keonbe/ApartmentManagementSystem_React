@@ -118,15 +118,11 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('service_pay_bills_active', 'true')
 ON DUPLICATE KEY UPDATE `setting_key` = `setting_key`;
 
--- 7. Record applied migrations
-INSERT IGNORE INTO `schema_migrations` (`migration_name`) VALUES
-('2026_10_qrph_payment_settings.sql'),
-('2026_10_parking_slot_guards_orphan_cleanup.sql'),
-('2026_10_drop_legacy_document_columns.sql'),
-('2026_10_fix_notification_encoding.sql'),
-('2026_10_missing_columns_sync.sql'),
-('2026_10_restore_application_requirements.sql'),
-('2026_10_add_reference_norm_and_tables.sql');
+-- 7. Record applied migrations. schema_migrations is created by cron/migrate.php; a
+-- database built straight from SetupDB.sql does not have it, so skip the insert then.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'schema_migrations') = 1,
+  'INSERT IGNORE INTO `schema_migrations` (`migration_name`) VALUES (''2026_10_qrph_payment_settings.sql''), (''2026_10_parking_slot_guards_orphan_cleanup.sql''), (''2026_10_drop_legacy_document_columns.sql''), (''2026_10_fix_notification_encoding.sql''), (''2026_10_missing_columns_sync.sql''), (''2026_10_restore_application_requirements.sql''), (''2026_10_add_reference_norm_and_tables.sql'')', 'DO 0');
+PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET foreign_key_checks = 1;
 
