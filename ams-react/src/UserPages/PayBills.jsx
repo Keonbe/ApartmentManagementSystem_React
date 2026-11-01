@@ -21,6 +21,7 @@ import FileChip from '../Components/form/FileChip';
 import SplitPaymentForm from '../Components/SplitPaymentForm';
 import { checkSplit, emptyPortion } from '../utils/splitPayment';
 import { invalidCls } from '../Components/form/formHelpers';
+import { fetchContractTemplate, accountsForMethod } from '../Components/contract/contractTemplate';
 
 // schedule_payment.php accepts today up to 60 days ahead, morning/afternoon.
 const SCHEDULE_MAX_DAYS = 60;
@@ -355,6 +356,14 @@ export default function PayBills() {
         };
     })();
 
+    // The landlord's GCash and bank accounts (Settings → Site Maintenance).
+    const [paymentAccounts, setPaymentAccounts] = useState([]);
+    useEffect(() => {
+        fetchContractTemplate()
+            .then((res) => setPaymentAccounts(res?.template?.payment_accounts || []))
+            .catch((err) => console.error('Failed to load payment accounts:', err));
+    }, []);
+
     useEffect(() => {
         const fetchChannels = async () => {
             setChannelsLoading(true);
@@ -443,6 +452,7 @@ export default function PayBills() {
     const partError = partAmount === '' ? '' : checkAmount(partAmount, { label: 'Amount', min: 0.01, max: balanceDue, allowZero: false });
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
+    const methodAccounts = accountsForMethod(paymentAccounts, currentMethodObj.label);
 
     const handleMethodSelect = (methodId) => {
         setSelectedMethod(methodId);
@@ -1185,6 +1195,22 @@ export default function PayBills() {
                                                 <strong>No active QR Ph code uploaded.</strong> The landlord has not uploaded a QR code for this slot yet. Please choose another payment method or contact management.
                                             </div>
                                         )}
+                                    </div>
+                                )}
+                                {!(currentMethodObj.isQr || currentMethodObj.id === 'qrph_manual') && (
+                                    // Where to send the money: Settings → Site Maintenance.
+                                    <div className="bg-white rounded-xl p-4 border border-slate-200 text-sm space-y-3">
+                                        <p className="m-0 text-xs font-bold text-slate-700">Send your payment to</p>
+                                        {methodAccounts.length === 0 && (
+                                            <p className="m-0 text-xs text-slate-500">Account details are not set up yet. Please contact management before paying.</p>
+                                        )}
+                                        {methodAccounts.map((acct) => (
+                                            <div key={acct.id} className="flex flex-col gap-0.5 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-100">
+                                                {methodAccounts.length > 1 && <span className="text-xs font-bold text-slate-500">{acct.label}</span>}
+                                                {acct.account_name && <span className="text-xs text-slate-600">Account name: <strong>{acct.account_name}</strong></span>}
+                                                <span className="text-base font-black tracking-wider text-indigo-600">{acct.account_number}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                                 <div>

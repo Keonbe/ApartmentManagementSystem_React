@@ -72,11 +72,16 @@ const AdminReports = () => {
     }
   }
 
-  // Payment accounts printed on invoices come from Admin → Edit Contract.
+  // Payment accounts and the owner's address and phone printed on invoices come
+  // from Settings → Site Maintenance (the contract template's details).
   const [paymentAccounts, setPaymentAccounts] = useState([]);
+  const [siteDetails, setSiteDetails] = useState({});
   useEffect(() => {
     fetchContractTemplate()
-      .then((res) => setPaymentAccounts(res.template.payment_accounts || []))
+      .then((res) => {
+        setPaymentAccounts(res.template.payment_accounts || []);
+        setSiteDetails(res.template.details || {});
+      })
       .catch((err) => console.error('Failed to load payment accounts:', err));
   }, []);
 
@@ -2631,7 +2636,11 @@ const AdminReports = () => {
                           <p className="text-label text-slate-600 font-medium m-0">Property Rental & Financial Administration</p>
                         </div>
                       </div>
-                      <p className="text-label text-slate-600 mt-2 m-0">Unit 101 Management Office, Metro Manila • Tel: +63 912 345 6789</p>
+                      {(siteDetails.property_address || siteDetails.landlord_contact) && (
+                        <p className="text-label text-slate-600 mt-2 m-0">
+                          {[siteDetails.property_address, siteDetails.landlord_contact && `Tel: ${siteDetails.landlord_contact}`].filter(Boolean).join(' • ')}
+                        </p>
+                      )}
                     </div>
 
                     <div className="sm:text-right">

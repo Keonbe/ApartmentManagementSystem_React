@@ -136,11 +136,18 @@ export function unknownPlaceholders(template) {
 
 // Accounts relevant to a payment method name used by the payment pages
 // ('GCash', 'Bank Transfer', 'GCash (Manual)', ...).
+// A bank channel named after one bank ('BDO (Manual)') shows that bank's
+// accounts when there are any, else every bank account.
+const NAMED_BANKS = ['bdo', 'bpi', 'metrobank', 'landbank', 'rcbc', 'unionbank', 'security bank'];
 export function accountsForMethod(accounts, method) {
   const m = String(method || '').toLowerCase();
-  const type = m.includes('gcash') ? 'gcash' : m.includes('bank') ? 'bank' : m.includes('maya') ? 'ewallet' : null;
+  const bank = NAMED_BANKS.find((b) => m.includes(b));
+  const type = m.includes('gcash') ? 'gcash' : (m.includes('bank') || bank) ? 'bank' : m.includes('maya') ? 'ewallet' : null;
   if (!type) return [];
-  return (accounts || []).filter((a) => a.type === type && a.account_number);
+  const list = (accounts || []).filter((a) => a.type === type && a.account_number);
+  if (!bank) return list;
+  const named = list.filter((a) => String(a.label || '').toLowerCase().includes(bank));
+  return named.length ? named : list;
 }
 
 let idCounter = 0;

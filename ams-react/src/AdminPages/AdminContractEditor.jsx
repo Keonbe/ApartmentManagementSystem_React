@@ -202,7 +202,10 @@ function PlaceholderBar({ variables, onInsert }) {
   );
 }
 
-const AdminContractEditor = ({ embedded = false }) => {
+// siteOnly: Settings → Site Maintenance. Shows only the owner details and
+// payment accounts (the same template document, saved as a new version), so
+// phone, GCash and bank numbers can be kept current without the clause editor.
+const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
   const [tab, setTab] = useState('terms');
   const [meta, setMeta] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -317,7 +320,7 @@ const AdminContractEditor = ({ embedded = false }) => {
 
   useEffect(() => {
     fetchTemplate();
-    fetchTenants();
+    if (!siteOnly) fetchTenants();
   }, []);
 
   // Opening the Version History tab (re)loads the list. Called from the tab
@@ -410,7 +413,13 @@ const AdminContractEditor = ({ embedded = false }) => {
         }));
         setSavedJson(JSON.stringify(draft));
         setNote('');
-        setToast({ type: 'success', title: 'Saved successfully', message: `Contract Version ${res.version} is now in force.` });
+        setToast({
+          type: 'success',
+          title: 'Saved successfully',
+          message: siteOnly
+            ? 'Contracts, invoices and the payment page now show these details.'
+            : `Contract Version ${res.version} is now in force.`,
+        });
         setTimeout(() => setToast(null), 5000);
       }
     } catch (err) {
@@ -855,7 +864,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       </SettingsSection>
 
       {/* Custom Values */}
-      <SettingsSection
+      {!siteOnly && <SettingsSection
         icon={faCode} tone="blue" title="Custom Dynamic Values & Placeholders"
         description="Define custom {{variables}} for fees, occupancy limits, and notice terms that automatically populate across all clauses."
       >
@@ -894,7 +903,7 @@ const AdminContractEditor = ({ embedded = false }) => {
           onClick={() => update((d) => { d.variables.push({ key: `variable_${d.variables.length + 1}`, label: '', value: '' }); })}>
           <FontAwesomeIcon icon={faPlus} /> Add Custom Dynamic Value
         </button>
-      </SettingsSection>
+      </SettingsSection>}
     </div>
   );
 
@@ -1065,7 +1074,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       <div className="print:hidden editor-meta-header flex flex-wrap items-start justify-between gap-4 bg-white p-5 rounded-card border border-slate-200 shadow-card">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-section font-bold text-slate-900 m-0">Rent Contract Template</h2>
+            <h2 className="text-section font-bold text-slate-900 m-0">{siteOnly ? 'Contact & Payment Details' : 'Rent Contract Template'}</h2>
             {meta?.version && (
               <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-indigo-50 ring-indigo-200 text-indigo-700 ring-1 ring-inset">
                 Version {meta.version}
@@ -1077,8 +1086,14 @@ const AdminContractEditor = ({ embedded = false }) => {
               : meta.is_default ? 'Using built-in contract defaults.'
               : `Saved ${formatDateTime(meta.updated_at)}${meta.updated_by ? ` by ${meta.updated_by}` : ''}`}
           </p>
+          {siteOnly && (
+            <p className="text-label text-slate-500 m-0 mt-1">
+              The owner&apos;s phone number, addresses, GCash and bank accounts shown on rent contracts, invoices and the tenant payment page.
+              Each save is kept as a contract version (Contracts → Contract Template Editor → Version History); contracts already issued show the new values too.
+            </p>
+          )}
         </div>
-        {draft && (
+        {draft && !siteOnly && (
           <button type="button" onClick={handleResetDefault}
             className={btn('secondary', 'sm')}>
             <FontAwesomeIcon icon={faUndo} /> Reset Clauses to Default
@@ -1105,7 +1120,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       {draft && (
         <>
           {/* Main Tabs Navigation */}
-          <nav className="print:hidden editor-tabs-nav flex gap-1.5 overflow-x-auto bg-white border border-slate-200 rounded-card p-1.5 shadow-card" aria-label="Contract editor tabs">
+          {!siteOnly && <nav className="print:hidden editor-tabs-nav flex gap-1.5 overflow-x-auto bg-white border border-slate-200 rounded-card p-1.5 shadow-card" aria-label="Contract editor tabs">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -1127,10 +1142,10 @@ const AdminContractEditor = ({ embedded = false }) => {
                 )}
               </button>
             ))}
-          </nav>
+          </nav>}
 
           {/* Issue Warnings */}
-          {(errors.length > 0 || unknown.length > 0 || missingTranslations > 0) && tab !== 'history' && (
+          {(errors.length > 0 || (!siteOnly && (unknown.length > 0 || missingTranslations > 0))) && tab !== 'history' && (
             <div className="print:hidden space-y-3">
               {errors.length > 0 && (
                 <Callout tone="rose" icon={faExclamationTriangle} title={`${errors.length} issue${errors.length === 1 ? '' : 's'} to fix before saving`}>
@@ -1138,7 +1153,7 @@ const AdminContractEditor = ({ embedded = false }) => {
                   {errors.length > 6 && <p className="m-0 mt-1">…and {errors.length - 6} more.</p>}
                 </Callout>
               )}
-              {unknown.length > 0 && (
+              {!siteOnly && unknown.length > 0 && (
                 <Callout tone="amber" icon={faInfoCircle} title="Unknown placeholders found">
                   {unknown.map((k) => `{{${k}}}`).join(', ')} {unknown.length === 1 ? 'is' : 'are'} not recognized. Check spelling or add under Details & Payments → Custom Dynamic Values.
                 </Callout>
@@ -1146,10 +1161,14 @@ const AdminContractEditor = ({ embedded = false }) => {
             </div>
           )}
 
-          {tab === 'terms' && renderTerms()}
-          {tab === 'details' && renderDetails()}
-          {tab === 'preview' && renderPreview()}
-          {tab === 'history' && renderHistory()}
+          {siteOnly ? renderDetails() : (
+            <>
+              {tab === 'terms' && renderTerms()}
+              {tab === 'details' && renderDetails()}
+              {tab === 'preview' && renderPreview()}
+              {tab === 'history' && renderHistory()}
+            </>
+          )}
         </>
       )}
 
@@ -1159,7 +1178,7 @@ const AdminContractEditor = ({ embedded = false }) => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-              <span className="text-label font-bold text-slate-800">Unsaved template changes</span>
+              <span className="text-label font-bold text-slate-800">{siteOnly ? 'Unsaved changes' : 'Unsaved template changes'}</span>
             </div>
             <div className="flex-1 max-w-md min-w-[14rem]">
               <input

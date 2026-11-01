@@ -23,6 +23,7 @@ import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import MinorsPanel from './settings/MinorsPanel';
 import GlassModePanel from './settings/GlassModePanel';
 import HomePagePanel from './settings/HomePagePanel';
+import AdminContractEditor from './AdminContractEditor';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -175,7 +176,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure leasing policies, parking, notifications, maintenance, the Home page and Glass theme, floor rates, and building rules.
+                Configure rent policies, parking, contact and payment details, notifications, maintenance, the Home page and Glass theme, floor rates, and building rules.
               </p>
             </div>
 
@@ -249,6 +250,7 @@ const AdminOtherSettings = () => {
             </div>
 
             {/* Tab Content Panels */}
+            {activeTab === 'site' && <AdminContractEditor embedded siteOnly />}
             {activeTab === 'house-rules' && <HouseRulesPanel />}
             {activeTab === 'floor-rent' && <FloorRentPanel />}
             {activeTab === 'utility-types' && <UtilityTypesPanel />}
