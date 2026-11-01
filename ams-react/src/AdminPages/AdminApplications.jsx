@@ -1384,7 +1384,7 @@ const AdminApplications = () => {
                 </div>
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 bg-slate-50/50 hover:bg-indigo-50/20 cursor-pointer transition-colors group">
+              <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 bg-slate-50/50 hover:bg-indigo-50/20 cursor-pointer transition-colors group">
                 <input
                   type="file"
                   accept="image/jpeg,image/png,application/pdf"

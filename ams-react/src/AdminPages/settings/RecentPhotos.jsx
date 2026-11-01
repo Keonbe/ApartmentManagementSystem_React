@@ -137,7 +137,10 @@ export default function RecentPhotos({ kind, inputId, value, savedValue = '', on
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      {/* relative: the sr-only input is absolutely positioned, and without a
+          positioned parent it sat below the screen; opening the file dialog
+          scrolled the whole admin page up and left a blank strip at the bottom. */}
+      <div className="relative flex flex-wrap items-center gap-2">
         <input
           ref={fileRef}
           id={inputId}

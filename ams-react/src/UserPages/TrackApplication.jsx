@@ -555,7 +555,7 @@ export default function TrackApplication() {
                         <FontAwesomeIcon icon={faEye} aria-hidden="true" /> View
                     </button>
                     {/* The input stays focusable (sr-only, not hidden), so the label works from the keyboard. */}
-                    <label className={`${BTN_QUIET} focus-within:ring-2 focus-within:ring-indigo-500`}>
+                    <label className={`relative ${BTN_QUIET} focus-within:ring-2 focus-within:ring-indigo-500`}>
                         {t('trackApp.reupload')}
                         <input
                             key={contractInputKey}

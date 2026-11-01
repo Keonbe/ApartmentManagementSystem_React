@@ -508,7 +508,7 @@ export default function PaymentUpload() {
                                     </p>
                                 )}
                                 <div className="flex items-center gap-3 w-full pt-1">
-                                    <label className="flex-1 min-h-[44px] focus-within:ring-2 focus-within:ring-indigo-500 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
+                                    <label className="relative flex-1 min-h-[44px] focus-within:ring-2 focus-within:ring-indigo-500 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} />
                                         <span>{t('paymentUpload.changePhoto')}</span>
                                         <input

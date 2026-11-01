@@ -251,7 +251,7 @@ export default function ContractDocument({
     if (!allowUploadSignature || !onUploadSignature || !signatureParties.includes(docType)) return null;
     return (
       <div className="flex flex-wrap items-center gap-2 pt-1 font-sans print:hidden">
-        <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 focus-within:ring-2 focus-within:ring-indigo-400">
+        <label className="relative inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 focus-within:ring-2 focus-within:ring-indigo-400">
           {uploaded ? L.replaceSignature : L.uploadSignature}
           {/* sr-only, not hidden: a keyboard can still reach the file input. */}
           <input
