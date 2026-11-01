@@ -1,4 +1,4 @@
-import { API_BASE_URL, ASSET_BASE_URL } from './env';
+import { API_BASE_URL } from './env';
 
 // Uploaded documents (gov IDs and other application documents, payment proofs, leases,
 // avatars, attachments) are no longer served as static files — uploads/ is
@@ -15,14 +15,16 @@ export const fileUrl = (path) => {
     return `${API_BASE_URL}download_file.php?path=${encodeURIComponent(relative)}&token=${encodeURIComponent(token)}`;
 };
 
-// Unlike fileUrl(), for genuinely public assets (unit showcase photos) that
-// have no owner to authenticate against and must be visible to logged-out
-// guests — served directly from backend/room_images/, not through the
-// session-gated download_file.php.
+// Unlike fileUrl(), for genuinely public images (unit photos in room_images/,
+// payment QR codes in qr_codes/, Glass theme photos in site_assets/) that have
+// no owner to authenticate against and must be visible to logged-out guests.
+// Served by public_file.php, not as static files: a server that exposes only
+// the api/ folder (the deployed one) has no URL for the folders beside it.
 export const publicAssetUrl = (path) => {
     if (!path) return null;
     if (/^https?:\/\//i.test(path)) return path;
-    return `${ASSET_BASE_URL}${String(path).replace(/^(\.\.\/)+/, '')}`;
+    const relative = String(path).replace(/^(\.\.\/)+/, '');
+    return `${API_BASE_URL}public_file.php?path=${encodeURIComponent(relative)}`;
 };
 
 export default fileUrl;

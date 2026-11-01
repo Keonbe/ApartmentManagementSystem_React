@@ -117,7 +117,7 @@ export default function UserMyRequests() {
             <div className="w-full max-w-[1000px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
 
                 <div className="border-b border-slate-200 pb-4">
-                    <h1 className="my-requests-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
+                    <h1 className="my-requests-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
                         {t('myRequests.heading')}
                     </h1>
                     <p className="my-requests-subtext text-slate-500 text-sm mt-1 m-0">

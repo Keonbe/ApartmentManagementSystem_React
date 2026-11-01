@@ -137,8 +137,7 @@ export default function MaintenanceRequest() {
                 {/*Top Header Row*/}
                 <div className="border-b border-slate-200 pb-4">
                     <h1
-                        className="maintenance-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
-                        style={{ color: '#3b4276' }}
+                        className="maintenance-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
                     >
                         {t('maintenance.heading')}
                     </h1>
@@ -152,13 +151,12 @@ export default function MaintenanceRequest() {
 
                     {/*Issue Category Selector*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="maint-issueType" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.category')}</label>
+                        <label htmlFor="maint-issueType" className="text-sm font-bold text-brand">{t('maintenance.category')}</label>
                         <select
                             {...form.fieldA11y('issueType')}
                             value={issueType}
                             onChange={change('issueType')}
                             className={"maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.issueType)}
-                            style={{ color: '#1e293b' }}
                             required
                         >
                             <option value="" disabled hidden>{t('maintenance.selectCategory')}</option>
@@ -171,7 +169,7 @@ export default function MaintenanceRequest() {
 
                     {/*Preferred Date Field*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="maint-preferredDate" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefDate')}</label>
+                        <label htmlFor="maint-preferredDate" className="text-sm font-bold text-brand">{t('maintenance.prefDate')}</label>
                         <input
                             type="date"
                             {...form.fieldA11y('preferredDate')}
@@ -181,7 +179,6 @@ export default function MaintenanceRequest() {
                             onChange={change('preferredDate')}
                             onBlur={blur('preferredDate')}
                             className={"maintenance-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.preferredDate)}
-                            style={{ color: '#1e293b' }}
                             required
                         />
                         <FieldError id="maint-preferredDate" error={form.errors.preferredDate} className="m-0" />
@@ -189,13 +186,12 @@ export default function MaintenanceRequest() {
 
                     {/*Time Window Selector*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="maint-preferredTime" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefTime')}</label>
+                        <label htmlFor="maint-preferredTime" className="text-sm font-bold text-brand">{t('maintenance.prefTime')}</label>
                         <select
                             {...form.fieldA11y('preferredTime')}
                             value={preferredTime}
                             onChange={change('preferredTime')}
                             className={"maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.preferredTime)}
-                            style={{ color: '#1e293b' }}
                             required
                         >
                             <option value="" disabled hidden>{t('maintenance.selectTime')}</option>
@@ -207,7 +203,7 @@ export default function MaintenanceRequest() {
 
                     {/*Problem Description Area*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="maint-description" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.description')}</label>
+                        <label htmlFor="maint-description" className="text-sm font-bold text-brand">{t('maintenance.description')}</label>
                         <textarea
                             rows={4}
                             {...form.fieldA11y('description')}
@@ -217,7 +213,6 @@ export default function MaintenanceRequest() {
                             onChange={change('description')}
                             onBlur={blur('description')}
                             className={"maintenance-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none" + invalidCls(form.errors.description)}
-                            style={{ color: '#1e293b' }}
                             required
                         />
                         <FieldError id="maint-description" error={form.errors.description} className="m-0" />
@@ -226,7 +221,7 @@ export default function MaintenanceRequest() {
 
                     {/*File Upload Drag and Drop Area*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="maint-uploadedFile" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.attachments')}</label>
+                        <label htmlFor="maint-uploadedFile" className="text-sm font-bold text-brand">{t('maintenance.attachments')}</label>
                         <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}

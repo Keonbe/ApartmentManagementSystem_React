@@ -360,7 +360,8 @@ export default function ViewContract() {
                 )}
             </div>
 
-            <div ref={contractDocRef} className="w-full max-w-3xl print:w-full">
+            {/* ut-native: the contract stays a white sheet of paper in every theme. */}
+            <div ref={contractDocRef} className="ut-native w-full max-w-3xl print:w-full">
                 <ContractDocument
                     template={template}
                     lang={language}

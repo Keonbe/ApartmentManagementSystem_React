@@ -142,7 +142,7 @@ export default function InquiryForm() {
     };
 
     const inputClass = "inquiry-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]";
-    const labelClass = "text-sm font-bold text-slate-700";
+    const labelClass = "text-sm font-bold text-brand";
     const renderHouseRules = () => (
         <>
             {loadingHouseRules ? (
@@ -199,7 +199,7 @@ export default function InquiryForm() {
                     />
 
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="inquiry-full_name" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.fullName')}</label>
+                        <label htmlFor="inquiry-full_name" className={labelClass}>{t('inquiry.fullName')}</label>
                         <input
                             type="text"
                             {...form.fieldA11y('full_name')}
@@ -211,13 +211,12 @@ export default function InquiryForm() {
                             onBlur={blur('full_name')}
                             placeholder={t('inquiry.fullNamePlaceholder')}
                             className={inputClass + invalidCls(form.errors.full_name)}
-                            style={{ color: '#1e293b' }}
                         />
                         <FieldError id="inquiry-full_name" error={form.errors.full_name} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="inquiry-contact_no" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.contactNo')}</label>
+                        <label htmlFor="inquiry-contact_no" className={labelClass}>{t('inquiry.contactNo')}</label>
                         <PhoneInput
                             id="inquiry-contact_no"
                             name="contact_no"
@@ -232,7 +231,7 @@ export default function InquiryForm() {
                     </div>
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="inquiry-email" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.email')}</label>
+                        <label htmlFor="inquiry-email" className={labelClass}>{t('inquiry.email')}</label>
                         <input
                             type="email"
                             {...form.fieldA11y('email')}
@@ -245,19 +244,17 @@ export default function InquiryForm() {
                             onBlur={blur('email')}
                             placeholder={t('inquiry.emailPlaceholder')}
                             className={inputClass + invalidCls(form.errors.email)}
-                            style={{ color: '#1e293b' }}
                         />
                         <FieldError id="inquiry-email" error={form.errors.email} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="inquiry-room_name" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.unit')}</label>
+                        <label htmlFor="inquiry-room_name" className={labelClass}>{t('inquiry.unit')}</label>
                         <select
                             {...form.fieldA11y('room_name')}
                             value={roomName}
                             onChange={change('room_name')}
                             className={inputClass + invalidCls(form.errors.room_name)}
-                            style={{ color: '#1e293b' }}
                             disabled={loadingRooms}
                         >
                             <option value="">{loadingRooms ? t('inquiry.loadingRooms') : t('inquiry.unitAny')}</option>
@@ -271,7 +268,7 @@ export default function InquiryForm() {
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="inquiry-occupants" className={labelClass} style={{ color: '#3b4276' }}>
+                        <label htmlFor="inquiry-occupants" className={labelClass}>
                             {t('inquiry.occupants')} <span className="text-slate-500 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <input
@@ -287,13 +284,12 @@ export default function InquiryForm() {
                             onBlur={blur('occupants')}
                             placeholder={t('inquiry.occupantsPlaceholder')}
                             className={inputClass + invalidCls(form.errors.occupants)}
-                            style={{ color: '#1e293b' }}
                         />
                         <FieldError id="inquiry-occupants" error={form.errors.occupants} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="inquiry-preferred_move_in" className={labelClass} style={{ color: '#3b4276' }}>
+                        <label htmlFor="inquiry-preferred_move_in" className={labelClass}>
                             {t('inquiry.moveIn')} <span className="text-slate-500 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <input
@@ -305,13 +301,12 @@ export default function InquiryForm() {
                             onChange={change('preferred_move_in')}
                             onBlur={blur('preferred_move_in')}
                             className={inputClass + invalidCls(form.errors.preferred_move_in)}
-                            style={{ color: '#1e293b' }}
                         />
                         <FieldError id="inquiry-preferred_move_in" error={form.errors.preferred_move_in} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="inquiry-message" className={labelClass} style={{ color: '#3b4276' }}>
+                        <label htmlFor="inquiry-message" className={labelClass}>
                             {t('inquiry.message')} <span className="text-slate-500 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <textarea
@@ -323,7 +318,6 @@ export default function InquiryForm() {
                             onBlur={blur('message')}
                             placeholder={t('inquiry.messagePlaceholder')}
                             className={`${inputClass} resize-y${invalidCls(form.errors.message)}`}
-                            style={{ color: '#1e293b' }}
                         />
                         <FieldError id="inquiry-message" error={form.errors.message} className="m-0" />
                         <CharCount value={message} max={LIMITS.message} className="m-0" />
@@ -360,7 +354,7 @@ export default function InquiryForm() {
                         <button
                             type="submit"
                             disabled={submitting}
-                            className={`inquiry-submit-btn btn-interactive font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 min-h-[48px] ${submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-[#3b4276] hover:bg-[#2f3560] text-white cursor-pointer'}`}
+                            className={`inquiry-submit-btn btn-interactive font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 min-h-[48px] ${submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-brand hover:bg-[#2f3560] text-white cursor-pointer'}`}
                         >
                             {submitting ? t('inquiry.submitting') : t('inquiry.submit')}
                         </button>

@@ -4,7 +4,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye, faExpand, faDownload } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { publicAssetUrl } from '../api/fileUrl';
-import ApartmentPic from '../assets/Apartment_Pic.webp';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';
@@ -19,7 +18,7 @@ import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
 import { fetchContractTemplate, accountsForMethod } from '../Components/contract/contractTemplate';
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
 
-const INPUT_CLS = "focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-base sm:text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm";
+const INPUT_CLS = "focus-glow w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base sm:text-sm outline-none text-slate-800 focus:border-indigo-500 transition-colors box-border shadow-sm";
 const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
 
 // The bill being paid arrives as navigation state, which a refresh loses: it is
@@ -274,46 +273,41 @@ export default function PaymentUpload() {
 
     return (
         <div className="payment-upload-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start py-10 px-4 md:px-12 box-border text-left">
-            <div className="absolute inset-0 z-0 hidden md:block">
-                <img src={ApartmentPic} alt="" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-900/90 to-slate-950/95"></div>
-            </div>
-
-            <div className="payment-upload-card w-full max-w-2xl z-10 space-y-8 relative bg-white md:bg-slate-900/60 md:backdrop-blur-md rounded-3xl md:border md:border-white/10 md:shadow-2xl p-6 md:p-10 text-slate-800 md:text-white">
-                <button onClick={() => navigate(returnUrl || '/home')} className="flex items-center space-x-2 text-indigo-600 md:text-indigo-400 hover:underline bg-transparent border-0 p-0 font-semibold cursor-pointer">
+            <div className="payment-upload-card w-full max-w-2xl z-10 space-y-8 relative bg-white rounded-3xl md:border md:border-slate-200 md:shadow-2xl p-6 md:p-10 text-slate-800">
+                <button onClick={() => navigate(returnUrl || '/home')} className="flex items-center space-x-2 text-indigo-600 hover:underline bg-transparent border-0 p-0 font-semibold cursor-pointer">
                     <FontAwesomeIcon icon={faArrowLeft} /> <span>{t('paymentUpload.back')}</span>
                 </button>
 
                 <div>
                     <h1 className="text-3xl font-extrabold m-0">{t('paymentUpload.heading')}</h1>
-                    <p className="text-sm text-slate-500 md:text-slate-300 mt-2 m-0 leading-relaxed">
+                    <p className="text-sm text-slate-500 mt-2 m-0 leading-relaxed">
                         {t('paymentUpload.subtext')}
                     </p>
                 </div>
 
                 {error && (
-                    <div role="alert" className="bg-rose-50 border border-rose-200 text-rose-600 md:bg-rose-500/10 md:border-rose-500/20 md:text-rose-400 p-4 rounded-xl flex items-center gap-3 text-sm font-semibold">
+                    <div role="alert" className="bg-rose-50 border border-rose-200 text-rose-600 p-4 rounded-xl flex items-center gap-3 text-sm font-semibold">
                         <FontAwesomeIcon icon={faTimesCircle} /> {error}
                     </div>
                 )}
 
-                <div className="payment-info-box bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-2xl p-6 space-y-4 shadow-inner">
+                <div className="payment-info-box bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 shadow-inner">
                     <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-500 md:text-slate-300">{t('paymentUpload.totalDue')}</span>
-                        <span className="text-2xl font-black text-indigo-600 md:text-indigo-400">₱{(Number(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        <span className="text-xs font-bold text-slate-500 ">{t('paymentUpload.totalDue')}</span>
+                        <span className="text-2xl font-black text-indigo-600 ">₱{(Number(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
-                    <div className="border-t border-slate-200 md:border-white/10 pt-4 mt-4">
-                        <span className="text-xs font-bold text-slate-500 md:text-slate-300 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
+                    <div className="border-t border-slate-200 pt-4 mt-4">
+                        <span className="text-xs font-bold text-slate-500 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
                         {isQrPh ? (
                             <div>
                                 {qrData?.image_path ? (
                                     <div className="flex flex-col items-center text-center py-2 space-y-4">
                                         {/* Title & subtitle (Never say 'QR Ph Slot 1') */}
                                         <div className="space-y-1">
-                                            <h3 className="m-0 text-base font-extrabold text-indigo-600 md:text-indigo-400">
+                                            <h3 className="m-0 text-base font-extrabold text-indigo-600 ">
                                                 {getQrTitle(qrData.label)}
                                             </h3>
-                                            <p className="m-0 text-xs text-slate-500 md:text-slate-400">
+                                            <p className="m-0 text-xs text-slate-500 ">
                                                 Interoperable across GCash, Maya, BDO, BPI, and all Philippine bank apps
                                             </p>
                                         </div>
@@ -321,7 +315,7 @@ export default function PaymentUpload() {
                                         {/* Larger, centered QR card with hover-to-enlarge */}
                                         <div
                                             onClick={() => setShowQrModal(true)}
-                                            className="group relative cursor-pointer inline-block rounded-2xl p-3 bg-white border-2 border-indigo-100 md:border-white/20 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all"
+                                            className="group relative cursor-pointer inline-block rounded-2xl p-3 bg-white border-2 border-indigo-100 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all"
                                             title="Click to enlarge QR Code"
                                             role="button"
                                             tabIndex={0}
@@ -332,7 +326,7 @@ export default function PaymentUpload() {
                                                 alt={getQrTitle(qrData.label)}
                                                 className="w-52 h-52 sm:w-60 sm:h-60 object-contain rounded-xl bg-white select-none block"
                                             />
-                                            <div className="absolute inset-0 rounded-2xl bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1.5 font-bold text-xs backdrop-blur-[2px]">
+                                            <div className="absolute inset-0 rounded-2xl bg-white/85 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-slate-900 gap-1.5 font-bold text-xs backdrop-blur-[2px]">
                                                 <FontAwesomeIcon icon={faExpand} className="text-xl" />
                                                 <span>Click to Enlarge</span>
                                             </div>
@@ -343,7 +337,7 @@ export default function PaymentUpload() {
                                             <button
                                                 type="button"
                                                 onClick={() => setShowQrModal(true)}
-                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 md:bg-indigo-500/20 text-indigo-700 md:text-indigo-300 hover:bg-indigo-100 text-xs font-bold border border-indigo-200 md:border-indigo-400/30 cursor-pointer transition-colors"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold border border-indigo-200 cursor-pointer transition-colors"
                                             >
                                                 <FontAwesomeIcon icon={faExpand} className="text-[11px]" />
                                                 <span>Enlarge QR</span>
@@ -351,7 +345,7 @@ export default function PaymentUpload() {
                                             <a
                                                 href={publicAssetUrl(qrData.image_path)}
                                                 download="qr_ph_payment.png"
-                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white md:bg-white/10 text-slate-700 md:text-slate-200 hover:bg-slate-100 text-xs font-semibold border border-slate-200 md:border-white/20 no-underline cursor-pointer transition-colors"
+                                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold border border-slate-200 no-underline cursor-pointer transition-colors"
                                             >
                                                 <FontAwesomeIcon icon={faDownload} className="text-[11px]" />
                                                 <span>Save Image</span>
@@ -360,40 +354,40 @@ export default function PaymentUpload() {
 
                                         {/* Account Details if provided */}
                                         {(qrData.account_name || qrData.account_number) && (
-                                            <div className="w-full max-w-sm p-3.5 rounded-xl bg-white md:bg-slate-900/60 border border-slate-200 md:border-white/10 text-xs space-y-1.5 shadow-xs text-left">
+                                            <div className="w-full max-w-sm p-3.5 rounded-xl bg-white border border-slate-200 text-xs space-y-1.5 shadow-xs text-left">
                                                 {qrData.account_name && (
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-slate-500 md:text-slate-400 font-medium">Account Name:</span>
-                                                        <span className="font-bold text-slate-800 md:text-slate-100 truncate max-w-[200px]">{qrData.account_name}</span>
+                                                        <span className="text-slate-500 font-medium">Account Name:</span>
+                                                        <span className="font-bold text-slate-800 truncate max-w-[200px]">{qrData.account_name}</span>
                                                     </div>
                                                 )}
                                                 {qrData.account_number && (
-                                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 md:border-white/10">
-                                                        <span className="text-slate-500 md:text-slate-400 font-medium">Account / Mobile No:</span>
-                                                        <span className="font-mono font-bold text-indigo-600 md:text-indigo-400">{qrData.account_number}</span>
+                                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 ">
+                                                        <span className="text-slate-500 font-medium">Account / Mobile No:</span>
+                                                        <span className="font-mono font-bold text-indigo-600 ">{qrData.account_number}</span>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
 
-                                        <p className="text-[11px] text-slate-500 md:text-slate-400 max-w-sm m-0 leading-relaxed">
+                                        <p className="text-[11px] text-slate-500 max-w-sm m-0 leading-relaxed">
                                             Scan using GCash, Maya, BDO, BPI, or any Philippine banking app, then enter the reference number and upload your receipt below.
                                         </p>
                                     </div>
                                 ) : (
-                                    <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-300 text-center py-4">No active QR code uploaded by management yet.</p>
+                                    <p className="text-sm font-medium m-0 text-slate-500 text-center py-4">No active QR code uploaded by management yet.</p>
                                 )}
                             </div>
                         ) : (
                             <>
                                 {accounts.length === 0 && (
-                                    <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-300">{t('paymentUpload.noAccount')}</p>
+                                    <p className="text-sm font-medium m-0 text-slate-500 ">{t('paymentUpload.noAccount')}</p>
                                 )}
                                 {accounts.map((acct) => (
-                                    <div key={acct.id} className="flex flex-col gap-1.5 text-sm font-medium [&+&]:mt-3 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-200 md:[&+&]:border-white/10">
-                                        {accounts.length > 1 && <span className="text-xs font-bold text-slate-500 md:text-slate-300">{acct.label}</span>}
-                                        {acct.account_name && <span><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountName')}:</strong> {acct.account_name}</span>}
-                                        <span className="flex items-center"><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{acct.account_number}</span></span>
+                                    <div key={acct.id} className="flex flex-col gap-1.5 text-sm font-medium [&+&]:mt-3 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-200 md:[&+&]:border-slate-200">
+                                        {accounts.length > 1 && <span className="text-xs font-bold text-slate-500 ">{acct.label}</span>}
+                                        {acct.account_name && <span><strong className="text-slate-500 mr-2">{t('paymentUpload.accountName')}:</strong> {acct.account_name}</span>}
+                                        <span className="flex items-center"><strong className="text-slate-500 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 ">{acct.account_number}</span></span>
                                     </div>
                                 ))}
                             </>
@@ -405,18 +399,17 @@ export default function PaymentUpload() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {isBankTransfer && (
                             <div className="space-y-2 md:col-span-2">
-                                <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.bankFrom')}</label>
+                                <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 block">{t('paymentUpload.bankFrom')}</label>
                                 <select 
                                     id="upload-bank-name" 
                                     value={bankName} 
                                     onChange={(e) => { setBankName(e.target.value); setError(''); }} 
                                     required 
-                                    className={`${INPUT_CLS} [&>option]:bg-slate-900 [&>option]:text-white cursor-pointer`}
-                                    style={{ colorScheme: 'dark' }}
+                                    className={`${INPUT_CLS} cursor-pointer`}
                                 >
-                                    <option value="" className="bg-slate-900 text-white">{t('paymentUpload.selectBank')}</option>
+                                    <option value="">{t('paymentUpload.selectBank')}</option>
                                     {BANKS.map((bank) => (
-                                        <option key={bank} value={bank} className="bg-slate-900 text-white">
+                                        <option key={bank} value={bank}>
                                             {bank}
                                         </option>
                                     ))}
@@ -424,7 +417,7 @@ export default function PaymentUpload() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <label htmlFor="upload-sender_name" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.senderName')}</label>
+                            <label htmlFor="upload-sender_name" className="text-xs font-bold text-slate-600 block">{t('paymentUpload.senderName')}</label>
                             <input
                                 type="text"
                                 {...form.fieldA11y('sender_name')}
@@ -444,7 +437,7 @@ export default function PaymentUpload() {
                             <FieldError id="upload-sender_name" error={form.errors.sender_name} />
                         </div>
                         <div className="space-y-2">
-                            <label htmlFor="upload-payment_reference" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.refNo')}</label>
+                            <label htmlFor="upload-payment_reference" className="text-xs font-bold text-slate-600 block">{t('paymentUpload.refNo')}</label>
                             <input
                                 type="text"
                                 {...form.fieldA11y('payment_reference')}
@@ -463,7 +456,7 @@ export default function PaymentUpload() {
                                 placeholder={isGcash ? t('paymentUpload.refGcashPlaceholder') : t('paymentUpload.refBankPlaceholder')}
                             />
                             <FieldError id="upload-payment_reference" error={form.errors.payment_reference} />
-                            <p className="text-xs text-slate-500 md:text-slate-300 m-0 leading-relaxed mt-1 font-medium">
+                            <p className="text-xs text-slate-500 m-0 leading-relaxed mt-1 font-medium">
                                 {isGcash 
                                     ? t('paymentUpload.refGcashHint') 
                                     : t('paymentUpload.refBankHint')}
@@ -473,10 +466,10 @@ export default function PaymentUpload() {
 
                     {/*AdjustedReceiptPreviewContainerArea*/}
                     <div className="space-y-2">
-                        <label htmlFor="upload-proof" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.uploadReceipt')}</label>
+                        <label htmlFor="upload-proof" className="text-xs font-bold text-slate-600 block">{t('paymentUpload.uploadReceipt')}</label>
 
                         {!previewUrl ? (
-                            <div className={`payment-dropzone card-interactive relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]${invalidCls(form.errors.proof)}`}>
+                            <div className={`payment-dropzone card-interactive relative border-2 border-dashed border-slate-300 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]${invalidCls(form.errors.proof)}`}>
                                 <input
                                     type="file"
                                     {...form.fieldA11y('proof')}
@@ -485,12 +478,12 @@ export default function PaymentUpload() {
                                     required
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                 />
-                                <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 md:text-indigo-400 mb-3 group-hover:scale-110 transition-transform" />
-                                <p className="text-sm font-semibold text-slate-600 md:text-slate-300 m-0">{t('paymentUpload.dropHere')}</p>
-                                <p className="text-xs text-slate-500 md:text-slate-300 mt-1 m-0 font-medium">{FILE_RULES.receiptImage.label} (Max {FILE_RULES.receiptImage.maxMB} MB)</p>
+                                <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 mb-3 group-hover:scale-110 transition-transform" />
+                                <p className="text-sm font-semibold text-slate-600 m-0">{t('paymentUpload.dropHere')}</p>
+                                <p className="text-xs text-slate-500 mt-1 m-0 font-medium">{FILE_RULES.receiptImage.label} (Max {FILE_RULES.receiptImage.maxMB} MB)</p>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center space-y-3 p-4 bg-slate-950/80 rounded-2xl border border-slate-200 md:border-white/10 shadow-inner">
+                            <div className="flex flex-col items-center space-y-3 p-4 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
                                 <button
  type="button"
  onClick={() => setShowPreviewModal(true)}
@@ -503,19 +496,19 @@ export default function PaymentUpload() {
                                         className="max-h-full max-w-full object-contain rounded group-hover:scale-[1.02] transition-transform"
                                     />
                                     <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                        <span className="bg-slate-900/90 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-white/20 shadow-lg flex items-center gap-2">
+                                        <span className="bg-white text-slate-900 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-300 shadow-lg flex items-center gap-2">
                                             <FontAwesomeIcon icon={faEye} />
                                             <span>{t('paymentUpload.viewLarger')}</span>
                                         </span>
                                     </span>
                                 </button>
                                 {proofImage && (
-                                    <p className="text-xs text-slate-300 m-0 truncate w-full text-center">
+                                    <p className="text-xs text-slate-600 m-0 truncate w-full text-center">
                                         {proofImage.name} ({formatFileSize(proofImage.size)})
                                     </p>
                                 )}
                                 <div className="flex items-center gap-3 w-full pt-1">
-                                    <label className="flex-1 min-h-[44px] focus-within:ring-2 focus-within:ring-white bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
+                                    <label className="flex-1 min-h-[44px] focus-within:ring-2 focus-within:ring-indigo-500 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} />
                                         <span>{t('paymentUpload.changePhoto')}</span>
                                         <input
@@ -528,7 +521,7 @@ export default function PaymentUpload() {
                                     <button
                                         type="button"
                                         onClick={removeImage}
-                                        className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold px-4 py-2.5 rounded-xl border border-rose-500/30 cursor-pointer transition-colors flex items-center gap-1.5"
+                                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-4 py-2.5 rounded-xl border border-rose-200 cursor-pointer transition-colors flex items-center gap-1.5"
                                     >
                                         <FontAwesomeIcon icon={faUndo} />
                                         <span>{t('paymentUpload.remove')}</span>

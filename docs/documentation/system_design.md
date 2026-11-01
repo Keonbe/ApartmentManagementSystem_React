@@ -23,7 +23,7 @@
 | Rooms & units | get_rooms, create_room, update_room, upload_room_images, update_room_image, delete_room_image |
 | Applications & tenancy | rent_application, get_applications, update_tenant_status, get_tenants, archive_tenant, restore_tenant, my_room, update_occupants, household_members, extend_lease, record_move_out, process_tenant_request |
 | Inquiries & holds | submit_inquiry, get_inquiries, update_inquiry_status, create_reservation, update_reservation_status, expire_reservations, manage_waitlist |
-| Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file |
+| Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file, public_file (public images: room photos, QR codes, Glass photos; no session) |
 | Billing & payments | get_invoices, create_invoice, adjust_invoice, advance_payment, pay_bill, record_payment_admin, upload_payment_proof, reject_payment_proof, schedule_payment, send_payment_reminder, check_due_date_reminders, get_payment_channels, create_checkout_session, release_checkout_session, paymongo_webhook, manage_expenses |
 | Utilities | get_utility_readings, save_utility_reading, delete_utility_reading, sync_utility_to_invoice, get_utilities_report_data |
 | Maintenance | maintenance_request, create_maintenance_request_admin, get_maintenance_requests, update_maintenance_status, sync_maintenance_to_invoice |
@@ -33,7 +33,7 @@
 | Requests (tenant) | get_my_requests, cancel_request |
 | Announcements & notifications | create_announcement, get_announcements, create_notification, get_notifications, mark_notification_read, delete_notification, get_notification_preferences, update_notification_preferences, send_test_notification, get_sms_balance |
 | Chat | get_chat_history, send_message, save_message (alias), get_conversations, get_admin_user |
-| Admin & reports | dashboard_stats, get_report_data, get_activity_logs, get_system_settings, update_system_settings |
+| Admin & reports | dashboard_stats, get_report_data, get_activity_logs, get_system_settings, update_system_settings, upload_glass_background, get_glass_backgrounds, delete_glass_background |
 
 Shared code: `backend/config.php` (auth, billing, tenancy, notification helpers), `backend/api/services/` (`send_notification.php`, `send_sms.php` — log / Semaphore, `send_email.php` — log / SMTP, `email_templates.php`).
 
@@ -327,6 +327,8 @@ flowchart LR
 | `/my-requests` | `UserMyRequests.jsx` | `get_my_requests.php`, `cancel_request.php` | `maintenance_requests`, `cctv_requests`, `parking_reservations` | ✅ |
 | `/announcements` | `UserAnnouncements.jsx` | `get_announcements.php` | `announcements` | ✅ |
 | `/payment-history` | `UserPaymentHistory.jsx` | `get_invoices.php` | `invoices` | ✅ |
+
+**Themes (2026-11).** Every user-side page (sign-in and registration too) renders in **Light**, **Dark** or **Glass**, picked in the account menu (guests: the switch on the TopBar) and kept per browser (`localStorage` `ams_user_theme`, `config/theme.js`). Home is always Glass. Pages are written once in the light palette; `UserThemeScope` (`Components/UserTheme.jsx`) puts `.ut-root .ut-<theme>` on the layout, and `assets/styles/themes.generated.css` (from `ams-react/scripts/gen-theme-css.mjs`) remaps Tailwind's per-property colour variables (`--background-color-white`, `--text-color-slate-800`, …) for Dark and Glass, so hover/opacity variants follow. `ut-native` keeps a piece drawn for a dark backdrop (TopBar bar, Home panel, the contract sheet) in its own colours, and the TopBar stays brand indigo in every theme; `ut-themed` re-applies the theme inside one. The Glass backdrop photo, tint, tint strength and blur are set in Admin → Other Settings → **Glass Mode** (`glass_*` settings, `upload_glass_background.php`); the last 6 uploads stay listed there to switch back to (`get_glass_backgrounds.php`, `delete_glass_background.php`; `prune_glass_bg_files()` deletes older ones, never the live one). The Home page text (badge, heading, location, description) is edited or hidden in Other Settings → **Home Page** (`home_content` setting, checked by `normalize_home_content()` in `config.php`; empty text = the built-in i18n wording, an empty Filipino box falls back to the English text). The admin side is not themed. Route changes fade in (`.ut-route`, honours reduced motion).
 
 ### 5.3 Route Protection Summary
 

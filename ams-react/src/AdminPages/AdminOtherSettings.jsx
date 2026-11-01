@@ -20,6 +20,8 @@ import HouseRulesPanel from './settings/HouseRulesPanel';
 import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import MinorsPanel from './settings/MinorsPanel';
+import GlassModePanel from './settings/GlassModePanel';
+import HomePagePanel from './settings/HomePagePanel';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -172,7 +174,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure leasing policies, parking, notifications, maintenance, floor rates, and building rules.
+                Configure leasing policies, parking, notifications, maintenance, the Home page and Glass theme, floor rates, and building rules.
               </p>
             </div>
 
@@ -192,7 +194,8 @@ const AdminOtherSettings = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5 lg:gap-6">
                 {OTHER_SETTINGS_GROUPS.map((group, idx) => {
-                  const colSpan = idx === 0 ? 'lg:col-span-5' : idx === 1 ? 'lg:col-span-3' : 'lg:col-span-4';
+                  // Leasing (4 tabs), Operations & Tenant Site (4), Rules (3): two buttons a row in the first two.
+                  const colSpan = ['lg:col-span-4', 'lg:col-span-5', 'lg:col-span-3'][idx] || 'lg:col-span-4';
                   const borderClass = idx > 0 ? 'lg:border-l lg:border-slate-100 lg:pl-6' : '';
 
                   return (
@@ -282,6 +285,12 @@ const AdminOtherSettings = () => {
                 </div>
                 <div data-tab="maintenance" hidden={activeTab !== 'maintenance'} className="space-y-6">
                   <MaintenancePanel {...panelProps} />
+                </div>
+                <div data-tab="glass-mode" hidden={activeTab !== 'glass-mode'} className="space-y-6">
+                  <GlassModePanel {...panelProps} savedBgImage={savedSettings?.glassBgImage ?? ''} />
+                </div>
+                <div data-tab="home-page" hidden={activeTab !== 'home-page'} className="space-y-6">
+                  <HomePagePanel {...panelProps} />
                 </div>
               </form>
             )}

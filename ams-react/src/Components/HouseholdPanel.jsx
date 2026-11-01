@@ -108,56 +108,56 @@ export default function HouseholdPanel() {
   const queued = data.members.filter((m) => m.status === 'Pending').length;
   const isSoloOccupant = data.members.length === 0;
   const full = named + queued >= data.maxOccupants;
-  const inputCls = 'w-full min-h-[44px] px-3 rounded-xl bg-slate-950/60 border border-white/15 text-white text-base focus:outline-none focus:ring-2 focus:ring-indigo-300 box-border';
+  const inputCls = 'w-full min-h-[44px] px-3 rounded-xl bg-white border border-slate-200 text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border';
 
   return (
-    <section aria-labelledby="household-heading" className="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/10 p-5 sm:p-6 text-left flex flex-col gap-5">
+    <section aria-labelledby="household-heading" className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 text-left flex flex-col gap-5">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <FontAwesomeIcon icon={faPeopleRoof} className="mt-1 text-lg text-indigo-300" aria-hidden="true" />
+          <FontAwesomeIcon icon={faPeopleRoof} className="mt-1 text-lg text-indigo-700" aria-hidden="true" />
           <div>
-            <h2 id="household-heading" className="m-0 text-xl font-bold text-white">Household</h2>
-            <p className="m-0 mt-1 text-sm text-slate-300">
+            <h2 id="household-heading" className="m-0 text-xl font-bold text-slate-900">Household</h2>
+            <p className="m-0 mt-1 text-sm text-slate-600">
               {isSoloOccupant
                 ? "You're the only registered occupant of this room. Add the people who live with you."
                 : 'You are the main tenant and the only account for this room. List everyone who lives with you.'}
             </p>
           </div>
         </div>
-        <p className="m-0 text-sm font-semibold text-slate-200 bg-white/5 border border-white/15 rounded-full px-3 py-1 self-start shrink-0">
+        <p className="m-0 text-sm font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-full px-3 py-1 self-start shrink-0">
           {data.occupants} registered, {named} named, at most {data.maxOccupants}
         </p>
       </div>
 
-      <ul className="list-none m-0 p-0 divide-y divide-white/10 border border-white/10 rounded-xl overflow-hidden">
-        <li className="flex items-center justify-between gap-3 px-4 py-3 bg-white/5">
-          <span className="text-sm font-bold text-white">{data.leaseHolder}</span>
-          <span className="text-sm font-semibold text-indigo-300">Main tenant</span>
+      <ul className="list-none m-0 p-0 divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
+        <li className="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50">
+          <span className="text-sm font-bold text-slate-900">{data.leaseHolder}</span>
+          <span className="text-sm font-semibold text-indigo-700">Main tenant</span>
         </li>
         {data.members.map((m) => (
           <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-100 m-0 truncate">{m.fullName}</p>
-              <p className="text-sm text-slate-300 m-0">
+              <p className="text-sm font-semibold text-slate-800 m-0 truncate">{m.fullName}</p>
+              <p className="text-sm text-slate-600 m-0">
                 {m.relationship}{m.age !== null && m.age !== undefined ? `, age ${m.age}` : ''}{m.ageCategory ? ` (${(data.ageCategories || []).find((c) => c.key === m.ageCategory)?.label || m.ageCategory})` : ''}{m.contactNo ? `, ${m.contactNo}` : ''}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               {(m.status === 'Pending' || m.removalRequested) && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-200 bg-amber-400/10 border border-amber-400/30 rounded-full px-2.5 py-1">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
                   <FontAwesomeIcon icon={faClock} aria-hidden="true" />
                   {m.status === 'Pending' ? 'Awaiting approval' : 'Removal requested'}
                 </span>
               )}
               {!m.removalRequested && (confirmRemove === m.id ? (
                 <span role="group" aria-label={`Confirm for ${m.fullName}`} className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-slate-200">{m.status === 'Pending' ? 'Withdraw this request?' : 'Ask management to remove them?'}</span>
+                  <span className="text-sm text-slate-700">{m.status === 'Pending' ? 'Withdraw this request?' : 'Ask management to remove them?'}</span>
                   <button type="button" disabled={busy} onClick={() => requestRemove(m)}
                     className="min-h-[44px] px-3 rounded-lg bg-rose-700 hover:bg-rose-800 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50">
                     {m.status === 'Pending' ? 'Withdraw' : 'Yes, remove'}
                   </button>
                   <button type="button" onClick={() => setConfirmRemove(null)}
-                    className="min-h-[44px] px-3 rounded-lg bg-transparent border border-white/20 text-slate-200 text-sm font-semibold cursor-pointer hover:bg-white/10">
+                    className="min-h-[44px] px-3 rounded-lg bg-transparent border border-slate-300 text-slate-700 text-sm font-semibold cursor-pointer hover:bg-slate-100">
                     Keep
                   </button>
                 </span>
@@ -166,7 +166,7 @@ export default function HouseholdPanel() {
                   type="button"
                   disabled={busy}
                   onClick={() => setConfirmRemove(m.id)}
-                  className="inline-flex items-center gap-1.5 min-h-[44px] px-3 text-sm font-bold text-rose-300 hover:text-rose-200 bg-transparent border border-rose-400/30 rounded-lg cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-3 text-sm font-bold text-rose-700 hover:text-rose-800 bg-transparent border border-rose-200 rounded-lg cursor-pointer disabled:opacity-50"
                 >
                   <FontAwesomeIcon icon={faUserMinus} aria-hidden="true" />
                   {m.status === 'Pending' ? 'Withdraw' : 'Remove'}
@@ -178,20 +178,20 @@ export default function HouseholdPanel() {
       </ul>
 
       {data.occupants > named && (
-        <p className="text-sm text-slate-300 m-0">
+        <p className="text-sm text-slate-600 m-0">
           Your room is registered for {data.occupants} occupants, but only {named} are named. Adding the others below doesn't change your rent.
         </p>
       )}
 
       <form onSubmit={submitAdd} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start m-0" noValidate>
-        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300 sm:col-span-2">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-600 sm:col-span-2">
           Full name
           <input {...fields.fieldA11y('fullName')} autoComplete="off" required maxLength={LIMITS.fullName} value={form.fullName}
             onChange={(e) => change('fullName', e.target.value)} onBlur={() => form.fullName && blur('fullName')}
             className={inputCls + invalidCls(fields.errors.fullName)} disabled={full} />
           <FieldError id="household-fullName" error={fields.errors.fullName} className="m-0 normal-case tracking-normal font-normal" />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
           Relationship
           <select {...fields.fieldA11y('relationship')} required value={form.relationship} onChange={(e) => change('relationship', e.target.value)}
             className={inputCls + invalidCls(fields.errors.relationship)} disabled={full}>
@@ -200,18 +200,18 @@ export default function HouseholdPanel() {
           </select>
           <FieldError id="household-relationship" error={fields.errors.relationship} className="m-0 normal-case tracking-normal font-normal" />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
           {form.relationship === 'Child' ? 'Age (required)' : 'Age (optional)'}
           {/* Text, not type="number": that accepted e, -, . and 1e3. Digits only, at most 3. */}
           <input {...fields.fieldA11y('age')} type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} autoComplete="off" value={form.age}
             onChange={(e) => change('age', e.target.value.replace(/\D/g, '').slice(0, 3))} onBlur={() => blur('age')}
             placeholder="0–120" className={inputCls + invalidCls(fields.errors.age)} disabled={full} />
           {form.age !== '' && categoryFor(Number(form.age)) && (
-            <span className="normal-case tracking-normal font-normal text-indigo-300">{categoryFor(Number(form.age)).label}: {categoryFor(Number(form.age)).rule}</span>
+            <span className="normal-case tracking-normal font-normal text-indigo-700">{categoryFor(Number(form.age)).label}: {categoryFor(Number(form.age)).rule}</span>
           )}
           <FieldError id="household-age" error={fields.errors.age} className="m-0 normal-case tracking-normal font-normal" />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
           Mobile (optional)
           <PhoneInput
             id="household-contactNo"
@@ -221,12 +221,12 @@ export default function HouseholdPanel() {
             onBlur={() => blur('contactNo')}
             error={fields.errors.contactNo}
             disabled={full}
-            prefixClassName="flex items-center gap-1 px-2.5 rounded-l-xl bg-slate-800 border border-white/15 border-r-0 text-slate-200 text-sm font-bold select-none pointer-events-none normal-case tracking-normal"
-            inputClassName={`w-full min-h-[44px] px-3 rounded-r-xl bg-slate-950/60 border border-white/15 text-white text-base focus:outline-none focus:ring-2 focus:ring-indigo-300 box-border normal-case tracking-normal font-normal disabled:opacity-60${invalidCls(fields.errors.contactNo)}`}
+            prefixClassName="flex items-center gap-1 px-2.5 rounded-l-xl bg-slate-100 border border-slate-200 border-r-0 text-slate-700 text-sm font-bold select-none pointer-events-none normal-case tracking-normal"
+            inputClassName={`w-full min-h-[44px] px-3 rounded-r-xl bg-white border border-slate-200 text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border normal-case tracking-normal font-normal disabled:opacity-60${invalidCls(fields.errors.contactNo)}`}
           />
         </label>
         <div className="sm:col-span-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-sm text-slate-300 m-0">
+          <p className="text-sm text-slate-600 m-0">
             {data.minAge ? `Children under ${data.minAge} are not allowed. ` : ''}
             {data.childFloorRule ? `Children under ${data.childFloorRule.belowAge} cannot live on the ${data.childFloorRule.floorLabel} (stairs). ` : ''}
             Pets are not allowed. {full
@@ -245,7 +245,7 @@ export default function HouseholdPanel() {
       </form>
 
       {notice && (
-        <p role={notice.ok ? 'status' : 'alert'} className={`text-sm font-semibold m-0 ${notice.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{notice.text}</p>
+        <p role={notice.ok ? 'status' : 'alert'} className={`text-sm font-semibold m-0 ${notice.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{notice.text}</p>
       )}
     </section>
   );

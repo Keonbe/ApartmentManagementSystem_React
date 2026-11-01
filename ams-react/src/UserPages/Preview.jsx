@@ -73,10 +73,10 @@ export default function Preview({ onRentClick, onInquireClick }) {
                             <span className="flex-shrink-0 text-sm font-semibold text-slate-500 bg-slate-200/50 px-3 py-1 rounded-full">{t('preview.units').replace('{n}', rooms.length)}</span>
                         </div>
                         <p className="text-slate-600 text-sm sm:text-base m-0 font-medium flex items-center gap-1.5">
-                            <MapPin aria-hidden="true" className="w-4 h-4 flex-shrink-0 text-[#3b4276]" />
+                            <MapPin aria-hidden="true" className="w-4 h-4 flex-shrink-0 text-brand" />
                             <span>{t('preview.location')}</span>
                         </p>
-                        <ul className="m-0 p-0 list-none flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-[#3b4276]">
+                        <ul className="m-0 p-0 list-none flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-brand">
                             <li className="flex items-center gap-1.5"><CheckCircle2 aria-hidden="true" className="w-4 h-4" /><span>{t('preview.parking')}</span></li>
                             <li className="flex items-center gap-1.5"><CheckCircle2 aria-hidden="true" className="w-4 h-4" /><span>{t('preview.bathroom')}</span></li>
                         </ul>
@@ -138,7 +138,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                         </div>
                                         
                                         <div className="mb-5">
-                                            <p className="text-[#3b4276] font-black text-2xl m-0 tracking-tight">{room.price}</p>
+                                            <p className="text-brand font-black text-2xl m-0 tracking-tight">{room.price}</p>
                                         </div>
 
                                         {/*Below md, Rent Now drops to its own full-width row*/}
@@ -188,7 +188,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                         alt={t('preview.title')}
                         className="hidden sm:block self-start lg:shrink-0 w-full aspect-[3/2] object-cover object-center rounded-[2rem] shadow-xl"
                     />
-                    <div className="h-[260px] sm:h-auto sm:min-h-[200px] lg:flex-1 lg:min-h-[240px] bg-white rounded-[2rem] border-2 border-[#3b4276] shadow-xl overflow-hidden flex">
+                    <div className="h-[260px] sm:h-auto sm:min-h-[200px] lg:flex-1 lg:min-h-[240px] bg-white rounded-[2rem] border-2 border-brand shadow-xl overflow-hidden flex">
                         <iframe
                             src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
                             className="w-full h-full border-0 flex-grow min-h-0 grayscale-[20%] contrast-125 transition-all duration-700 hover:grayscale-0 hover:contrast-100 rounded-2xl"

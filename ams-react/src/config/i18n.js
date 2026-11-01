@@ -65,7 +65,7 @@ const translations = {
     'home.rentedDescription': 'You are already a tenant, so we made this dashboard focused on your room status, payments, announcements, and support requests.',
     'home.totalUnits': 'Total Units',
     'home.availableRooms': 'Available Rooms',
-    'home.cta': 'Explore Available Rooms →',
+    'home.cta': 'Explore Available Rooms',
     'home.goMyRoom': 'Go to My Room',
     'home.viewServices': 'View Services',
 
@@ -800,6 +800,10 @@ const translations = {
     'topbar.menu': 'Menu',
     'topbar.dismiss': 'Dismiss',
     'topbar.language': 'Language',
+    'theme.label': 'Appearance',
+    'theme.light': 'Light',
+    'theme.dark': 'Dark',
+    'theme.glass': 'Glass',
     'topbar.loggedIn': 'Signed in',
     'topbar.signInAccount': 'Sign In to Account',
     'topbar.attachment': 'Attachment',
@@ -1186,7 +1190,7 @@ const translations = {
     'home.rentedDescription': 'Isa ka nang tenant, kaya ang dashboard na ito ay nakatuon sa status ng iyong room, bayarin, announcements, at support requests.',
     'home.totalUnits': 'Kabuuang Yunit',
     'home.availableRooms': 'Mga Bakanteng Kwarto',
-    'home.cta': 'Tingnan ang mga Kwarto →',
+    'home.cta': 'Tingnan ang mga Kwarto',
     'home.goMyRoom': 'Pumunta sa My Room',
     'home.viewServices': 'Tingnan ang Services',
 
@@ -1921,6 +1925,10 @@ const translations = {
     'topbar.menu': 'Menu',
     'topbar.dismiss': 'Isara',
     'topbar.language': 'Wika',
+    'theme.label': 'Itsura',
+    'theme.light': 'Maliwanag',
+    'theme.dark': 'Madilim',
+    'theme.glass': 'Salamin',
     'topbar.loggedIn': 'Naka-sign in',
     'topbar.signInAccount': 'Mag-sign In sa Account',
     'topbar.attachment': 'Attachment',
@@ -2260,10 +2268,15 @@ export function setLang(lang) {
   window.dispatchEvent(new CustomEvent('ams_lang_changed', { detail: lang }));
 }
 
+// The text for a key in a given language, whatever the page's language is
+// (the admin's Home Page tab shows both).
+export function textIn(lang, key) {
+  return translations[lang]?.[key] ?? translations.en[key] ?? key;
+}
+
 // t(key, { n: 3 }) fills {n} in the text; a name not in vars stays as written.
 export function t(key, vars) {
-  const lang = getLang();
-  const text = translations[lang]?.[key] ?? translations.en[key] ?? key;
+  const text = textIn(getLang(), key);
   if (!vars) return text;
   return text.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match));
 }

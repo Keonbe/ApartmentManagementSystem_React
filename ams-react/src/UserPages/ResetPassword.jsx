@@ -84,13 +84,13 @@ export default function ResetPassword() {
             </style>
 
             {/*LeftSplashPanelWithImageBackground*/}
-            <div className="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
+            <div className="ut-native hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
                 <img 
                     src={ApartmentPic} 
                     alt="" 
                     className="absolute inset-0 w-full h-full object-cover object-center z-0"
                 />
-                <div className="absolute inset-0 bg-[#3b4276]/90 z-10"></div>
+                <div className="absolute inset-0 bg-brand/90 z-10"></div>
                 
                 <div className="relative z-20 flex flex-col items-center justify-center">
                     <h1 className="custom-ams-logo text-8xl italic font-bold tracking-wider mb-2 text-white border-0 bg-transparent uppercase m-0">
@@ -109,10 +109,10 @@ export default function ResetPassword() {
 
                     {/*MobileBrandingLogo*/}
                     <div className="login-mobile-logo md:hidden flex flex-col items-center mb-6 select-none">
-                        <h1 className="custom-ams-logo text-6xl italic font-bold tracking-wider border-0 bg-transparent uppercase m-0" style={{ color: '#3b4276' }}>
+                        <h1 className="custom-ams-logo text-6xl italic font-bold tracking-wider border-0 bg-transparent uppercase m-0 text-brand">
                             AMS
                         </h1>
-                        <div className="w-24 border-t my-1.5" style={{ borderColor: 'rgba(59, 66, 118, 0.2)' }}></div>
+                        <div className="w-24 border-t my-1.5 border-brand/20"></div>
                         <p className="text-xs font-medium m-0 text-center text-slate-500">
                             {t('login.tagline')}
                         </p>
@@ -120,7 +120,7 @@ export default function ResetPassword() {
 
                     <div className="w-full space-y-6">
                         <div className="text-center">
-                            <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
+                            <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0 text-brand">
                                 {t('reset.title')}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">
@@ -135,7 +135,7 @@ export default function ResetPassword() {
                                 </div>
                                 <button
                                     onClick={() => navigate('/login')}
-                                    className="btn-interactive w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors border-0 cursor-pointer shadow-lg mt-2 box-border"
+                                    className="btn-interactive w-full bg-brand text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors border-0 cursor-pointer shadow-lg mt-2 box-border"
                                 >
                                     {t('reset.proceedLogin')}
                                 </button>

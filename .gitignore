@@ -44,6 +44,9 @@ tests/api/node_modules/
 tests/api/.test-cache/
 /backend/room_images/1792160900_9159deee07f0_floor_plan.png
 
+# Glass theme backdrops uploaded by the admin (the folder's .htaccess is tracked)
+/backend/site_assets/glass_bg_*
+
 
 # Playwright MCP screenshots/snapshots
 .playwright-mcp/

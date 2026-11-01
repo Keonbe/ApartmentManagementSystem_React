@@ -7,6 +7,7 @@ import ChatWidget from './Components/ChatWidget';
 // Components
 import TopBar from './Components/TopBar';
 import ServiceRouteGuard from './Components/ServiceRouteGuard';
+import { UserThemeScope } from './Components/UserTheme';
 
 // User Pages
 import Home from './UserPages/Home';
@@ -133,31 +134,48 @@ function AdminSettingsRedirect() {
   return <Navigate to="/admin-account-settings" replace />;
 }
 
-function BaseAppLayout({ children, hasRentedRoom }) {
+// forceTheme pins a theme for one page (Home is always Glass); otherwise the
+// tenant's choice from the account menu applies.
+function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   const loggedInUser = JSON.parse(loggedInUserStr || "null");
   const isLoggedIn = loggedInUser !== null;
   const username = isLoggedIn ? `${loggedInUser.first_name || ""} ${loggedInUser.last_name || ""}`.trim() : null;
 
   return (
-    <div className="w-full min-h-screen bg-slate-50 flex flex-col text-slate-600 selection:bg-indigo-500 selection:text-white">
-      <TopBar 
-        hasRentedRoom={hasRentedRoom} 
-        isLoggedIn={isLoggedIn} 
-        username={username || "Guest"} 
-        onLoginClick={() => navigate('/login')} 
+    <UserThemeScope force={forceTheme} className="w-full min-h-screen bg-slate-50 flex flex-col text-slate-600 selection:bg-indigo-500 selection:text-white">
+      <TopBar
+        hasRentedRoom={hasRentedRoom}
+        isLoggedIn={isLoggedIn}
+        username={username || "Guest"}
+        onLoginClick={() => navigate('/login')}
       />
       {/* overflow-x-clip, not hidden: hidden makes <main> a scroll container and breaks position: sticky inside pages */}
       <main className="w-full flex-grow flex flex-col justify-start overflow-x-clip">
-        {children}
+        {/* Keyed by path so each page plays the entrance animation (ut-route in themes.user.css). */}
+        <div key={location.pathname} className="ut-route w-full flex-grow flex flex-col">
+          {children}
+        </div>
       </main>
-      <footer className="w-full bg-[#3b4276] px-4 py-5 text-center select-none shrink-0 border-t border-white/10">
+      <footer className="ut-footer w-full bg-brand px-4 py-5 text-center select-none shrink-0 border-t border-white/10">
+
         <p className="m-0 text-white/70 text-xs font-medium tracking-wider">
           &copy; 2026 Apartment Management System. All Rights Reserved.
         </p>
       </footer>
-    </div>
+    </UserThemeScope>
+  );
+}
+
+// Sign-in, registration and password reset have no TopBar, but follow the theme too.
+function AuthThemeLayout({ children }) {
+  const location = useLocation();
+  return (
+    <UserThemeScope className="w-full min-h-screen flex flex-col">
+      <div key={location.pathname} className="ut-route w-full flex-grow flex flex-col">{children}</div>
+    </UserThemeScope>
   );
 }
 
@@ -229,7 +247,7 @@ function AppContent() {
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
+        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
         <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} onInquireClick={handleInquireTrigger} /></BaseAppLayout>} />
         <Route path="/inquire" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout>} />
         
@@ -256,9 +274,9 @@ function AppContent() {
         <Route path="/user-utilities" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserUtilities /></BaseAppLayout></TenantProtectedRoute>} />
         
         {/* AUTH PATHS */}
-        <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
-        <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} onHomeRedirect={() => navigate('/home')} />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/login" element={<AuthThemeLayout><Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/></AuthThemeLayout>} />
+        <Route path="/register" element={<AuthThemeLayout><Registration onLoginRedirect={() => navigate('/login')} onHomeRedirect={() => navigate('/home')} /></AuthThemeLayout>} />
+        <Route path="/reset-password" element={<AuthThemeLayout><ResetPassword /></AuthThemeLayout>} />
 
         {/* ADMIN WORKSPACES */}
         <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
@@ -295,7 +313,11 @@ function AppContent() {
       </Suspense>
         {!['/login', '/register', '/admin-messages'].includes(location.pathname)
           && ((sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')) || localStorage.getItem('ams_guest_token'))
-          && <ChatWidget />}
+          && (location.pathname.startsWith('/admin')
+            ? <ChatWidget />
+            // On tenant pages the chat follows the tenant's theme; `contents`
+            // keeps the wrapper out of layout (the widget is position: fixed).
+            : <UserThemeScope force={location.pathname === '/home' ? 'glass' : undefined} backdrop={false} className="contents"><ChatWidget /></UserThemeScope>)}
       </>
     </ChatProvider>
   );

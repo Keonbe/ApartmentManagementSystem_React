@@ -58,7 +58,7 @@ export default function UserRefunds() {
     <div className="min-h-[calc(100vh-76px)] w-full bg-slate-50 px-4 py-6 sm:py-10 md:px-12 box-border flex flex-col items-center">
       <div className="w-full max-w-[1000px] space-y-6 text-left">
         <div className="border-b border-slate-200 pb-4">
-          <h1 className="m-0 flex items-center gap-3 text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: '#3b4276' }}>
+          <h1 className="m-0 flex items-center gap-3 text-3xl font-extrabold tracking-tight sm:text-4xl text-brand">
             <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-2xl text-indigo-500 sm:text-3xl" />
             {t('topbar.myRefunds')}
           </h1>

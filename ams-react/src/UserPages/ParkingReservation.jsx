@@ -298,8 +298,7 @@ export default function ParkingReservation() {
                 <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1
-                            className="parking-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
-                            style={{ color: '#3b4276' }}
+                            className="parking-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
                         >
                             {t('parking.heading')}
                         </h1>
@@ -347,7 +346,7 @@ export default function ParkingReservation() {
                             </div>
                             <div>
                                 <p className="text-xs font-bold text-slate-500 m-0">{t('parking.yourParking')}</p>
-                                <h2 className="text-2xl font-extrabold m-0" style={{ color: '#3b4276' }}>
+                                <h2 className="text-2xl font-extrabold m-0 text-brand">
                                     {myReservation.status === 'Assigned' ? t('parking.slotNo', { n: myReservation.slot_number }) : t('parking.awaitingReview')}
                                 </h2>
                             </div>
@@ -372,13 +371,12 @@ export default function ParkingReservation() {
 
                     {/*VehicleTypeSelectorRestrictedToMotorcycle*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-vehicleType" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleType')}</label>
+                        <label htmlFor="parking-vehicleType" className="text-sm font-bold text-brand">{t('parking.vehicleType')}</label>
                         <select
                             {...form.fieldA11y('vehicleType')}
                             value={vehicleType}
                             onChange={(e) => { setVehicleType(e.target.value); form.clearError('vehicleType'); }}
                             className={"parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.vehicleType)}
-                            style={{ color: '#1e293b' }}
                         >
                             {[
                                 { value: 'motorcycle', label: t('parking.motorcycle') },
@@ -401,7 +399,7 @@ export default function ParkingReservation() {
 
                     {/*VehicleModelInput*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-vehicleModel" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleModel')}</label>
+                        <label htmlFor="parking-vehicleModel" className="text-sm font-bold text-brand">{t('parking.vehicleModel')}</label>
                         <input
                             type="text"
                             {...form.fieldA11y('vehicleModel')}
@@ -413,14 +411,13 @@ export default function ParkingReservation() {
                             onChange={(e) => { setVehicleModel(e.target.value); form.clearError('vehicleModel'); }}
                             onBlur={() => { const v = vehicleModel.trim(); setVehicleModel(v); if (v) form.validateField('vehicleModel', { ...values, vehicleModel: v }); }}
                             className={"parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.vehicleModel)}
-                            style={{ color: '#1e293b' }}
                         />
                         <FieldError id="parking-vehicleModel" error={form.errors.vehicleModel} className="m-0" />
                     </div>
 
                     {/*PlateNumberInputFieldWithAlignedLabelAndHelperText*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-plateNumber" className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
+                        <label htmlFor="parking-plateNumber" className="text-sm font-bold block text-brand">
                             {t('parking.plateNo')}
                         </label>
                         <input
@@ -434,7 +431,6 @@ export default function ParkingReservation() {
                             onBlur={() => plateNumber && form.validateField('plateNumber', values)}
                             required
                             className={`parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px]${invalidCls(form.errors.plateNumber)}`}
-                            style={{ color: '#1e293b' }}
                         />
                         <span className="text-xs font-normal text-slate-500 leading-tight m-0">{getPlateHint()}</span>
                         <FieldError id="parking-plateNumber" error={form.errors.plateNumber} className="m-0" />
@@ -442,7 +438,7 @@ export default function ParkingReservation() {
 
                     {/*TransmissionTypeSelector*/}
                     <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-transmission" className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
+                        <label htmlFor="parking-transmission" className="text-sm font-bold block text-brand">
                             {t('parking.transmission')}
                         </label>
                         <select
@@ -450,7 +446,6 @@ export default function ParkingReservation() {
                             value={transmission}
                             onChange={(e) => { setTransmission(e.target.value); form.clearError('transmission'); }}
                             className={"parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.transmission)}
-                            style={{ color: '#1e293b' }}
                             required
                         >
                             <option value="" disabled hidden>{t('parking.selectTransmission')}</option>
@@ -462,7 +457,7 @@ export default function ParkingReservation() {
 
                     {/*RentalDurationInputCappedToMax6Months*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="parking-durationMonths" className="text-sm font-bold text-slate-700 flex items-center justify-between" style={{ color: '#3b4276' }}>
+                        <label htmlFor="parking-durationMonths" className="text-sm font-bold flex items-center justify-between text-brand">
                             <span>{t('parking.duration')}</span>
                             <span className="text-xs font-normal text-slate-500">{t('parking.maxMonths')}</span>
                         </label>
@@ -480,14 +475,13 @@ export default function ParkingReservation() {
                             onBlur={() => form.validateField('durationMonths', values)}
                             required
                             className={"parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.durationMonths)}
-                            style={{ color: '#1e293b' }}
                         />
                         <FieldError id="parking-durationMonths" error={form.errors.durationMonths} className="m-0" />
                     </div>
 
                     {/*EnhancedORCRFileUploadContainer*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="parking-uploadedFile" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.orcrLabel')}</label>
+                        <label htmlFor="parking-uploadedFile" className="text-sm font-bold text-brand">{t('parking.orcrLabel')}</label>
                         <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}

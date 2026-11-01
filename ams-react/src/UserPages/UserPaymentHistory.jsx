@@ -184,7 +184,9 @@ export default function UserPaymentHistory() {
         [t('paymentHistory.parking'), inv.parking], [t('paymentHistory.maintenance'), inv.maintenance],
     ].filter(([, v]) => parseFloat(v) > 0).map(([label, v]) => `${String(label).replace(/:\s*$/, '')} ${formatCurrency(v)}`).join(', ');
 
-    const RECEIPT_BTN = 'inline-flex items-center justify-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-bold border-0 cursor-pointer transition-colors';
+    // max-w + leading-tight: a long label ("Tingnan ang Resibo") wraps inside the
+    // button instead of pushing the button under the amount on phones.
+    const RECEIPT_BTN = 'inline-flex items-center justify-center gap-1.5 min-h-[44px] max-w-[10rem] px-4 py-1.5 rounded-lg leading-tight text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-bold border-0 cursor-pointer transition-colors';
 
     // One bill in a list. `nested`: shown inside a combined payment.
     const billRow = (inv, { nested = false } = {}) => {
@@ -211,7 +213,7 @@ export default function UserPaymentHistory() {
                     {charges && <p className="m-0 mt-1 text-sm text-slate-500">{charges}</p>}
                 </div>
                 <div className="payment-history-actions flex flex-wrap items-center gap-3 sm:justify-end shrink-0">
-                    <div className="sm:text-right">
+                    <div className="sm:text-right min-w-0 flex-[1_1_8rem]">
                         <p className={`m-0 font-bold text-slate-900 tabular-nums ${nested ? 'text-sm' : 'text-base'}`}>{formatCurrency(amount)}</p>
                         {partPaid && <p className="m-0 text-xs text-slate-500 tabular-nums">of {formatCurrency(inv.total_amount)}</p>}
                         {paid && inv.paid_at && <p className="m-0 text-sm text-emerald-700">{t('paymentHistory.paidOn')} {shortDay(inv.paid_at)}</p>}
@@ -240,7 +242,7 @@ export default function UserPaymentHistory() {
 
                 <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-slate-200 pb-4">
                     <div>
-                        <h1 className="payment-history-heading m-0 text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3" style={{ color: '#3b4276' }}>
+                        <h1 className="payment-history-heading m-0 text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3 text-brand">
                             <FontAwesomeIcon icon={faHistory} className="text-indigo-600 text-2xl sm:text-3xl" aria-hidden="true" />
                             {t('paymentHistory.heading')}
                         </h1>
@@ -266,7 +268,7 @@ export default function UserPaymentHistory() {
                 ) : (
                     <>
                         {/* Summary: what is owed now, and the last payment. */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-[#3b4276] text-white p-5 sm:p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-brand text-white p-5 sm:p-6">
                             <div>
                                 <p className="m-0 text-sm text-indigo-100">
                                     {payable.length > 0 ? `To pay across ${payable.length} bill${payable.length === 1 ? '' : 's'}` : 'Nothing to pay right now'}
@@ -279,7 +281,7 @@ export default function UserPaymentHistory() {
                                 )}
                             </div>
                             {payable.length > 0 && (
-                                <button type="button" onClick={() => navigate('/pay-bills')} className="self-start sm:self-auto inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl bg-white text-[#3b4276] text-sm font-bold border-0 cursor-pointer hover:bg-indigo-50">
+                                <button type="button" onClick={() => navigate('/pay-bills')} className="self-start sm:self-auto inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl bg-white text-brand text-sm font-bold border-0 cursor-pointer hover:bg-indigo-50">
                                     Go to Pay Bills <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
                                 </button>
                             )}
@@ -362,7 +364,7 @@ export default function UserPaymentHistory() {
             {showReceipt && receiptData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 modal-overlay-anim" onClick={() => setReceiptInvoiceId(null)}>
                     <div ref={(node) => { receiptRef.current = node; receiptDialogRef.current = node; }} role="dialog" aria-modal="true" aria-labelledby="receipt-title" tabIndex={-1} className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col outline-none" onClick={e => e.stopPropagation()}>
-                        <div className="bg-[#3b4276] text-white p-5 sm:p-6 text-center shrink-0 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
+                        <div className="bg-brand text-white p-5 sm:p-6 text-center shrink-0 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
                             <h2 id="receipt-title" className="m-0 text-xl sm:text-2xl font-bold tracking-wide italic font-serif">Apartment AMS</h2>
                             <p className="m-0 mt-2 text-sm font-semibold text-indigo-100 print:text-slate-700">{t('paymentHistory.officialReceipt')}</p>
                             <p className="m-0 mt-1 text-sm font-mono text-white print:text-slate-900">{receiptData.rctId}</p>

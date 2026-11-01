@@ -311,7 +311,7 @@ export default function ProfileSettings() {
             <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
                 <div className="profile-settings-header border-b border-slate-200 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
+                        <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
                             {t('profile.heading')}
                         </h1>
                         <p className="text-slate-500 text-sm mt-1 m-0">
@@ -332,8 +332,7 @@ export default function ProfileSettings() {
                                 />
                             ) : (
                                 <div
-                                    className="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black shrink-0 tracking-wider shadow-md border-2 border-white"
-                                    style={{ backgroundColor: '#3b4276' }}
+                                    className="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black shrink-0 tracking-wider shadow-md border-2 border-white bg-brand"
                                 >
                                     {getInitials() || "?"}
                                 </div>
@@ -360,7 +359,7 @@ export default function ProfileSettings() {
                         <h3 className="text-sm font-bold text-slate-700 m-0">{t('profile.avatarPhoto')}</h3>
 
                         {isCameraActive ? (
-                            <div className="max-w-sm w-full bg-slate-900 rounded-2xl overflow-hidden aspect-square relative flex flex-col items-center justify-center border border-slate-800">
+                            <div className="ut-native max-w-sm w-full bg-slate-900 rounded-2xl overflow-hidden aspect-square relative flex flex-col items-center justify-center border border-slate-800">
                                 {tempAvatar ? (
                                     <img src={tempAvatar} alt={t('profile.capturedAlt')} className="w-full h-full object-cover" />
                                 ) : (
@@ -445,7 +444,7 @@ export default function ProfileSettings() {
 
                     <form className="space-y-8" onSubmit={handleFormSubmit} noValidate>
                         <div className="space-y-4">
-                            <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>{t('profile.personalDetails')}</h3>
+                            <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2 text-brand">{t('profile.personalDetails')}</h3>
                             <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="profile-firstName" className="text-sm font-bold text-slate-700">{t('profile.firstName')}</label>

@@ -208,8 +208,7 @@ export default function UserNotifications() {
         <div className="border-b border-slate-200 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1
-              className="user-notif-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight text-slate-800"
-              style={{ color: '#3b4276' }}
+              className="user-notif-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight text-brand"
             >
               {t('notifications.heading')}
             </h1>
@@ -221,7 +220,7 @@ export default function UserNotifications() {
             <button
               onClick={handleMarkAllRead}
               disabled={unreadCount === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#3b4276] bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-brand bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
             >
               <FontAwesomeIcon icon={faCheckDouble} /> {t('notifications.markAllRead')}
             </button>
@@ -236,7 +235,7 @@ export default function UserNotifications() {
               type="button"
               aria-expanded={showSettings}
               onClick={() => setShowSettings(!showSettings)}
-              className={`lg:hidden flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all cursor-pointer border shadow-sm min-h-[44px] ${showSettings ? 'bg-[#3b4276] text-white border-[#3b4276]' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
+              className={`lg:hidden flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all cursor-pointer border shadow-sm min-h-[44px] ${showSettings ? 'bg-brand text-white border-brand' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
             >
               <FontAwesomeIcon icon={faCog} /> {t('notifications.preferences')}
             </button>
@@ -284,7 +283,7 @@ export default function UserNotifications() {
                   role="tab"
                   aria-selected={activeFilter === tab.key}
                   onClick={() => setActiveFilter(tab.key)}
-                  className={`user-notif-tab-btn min-h-[44px] px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap border-0 cursor-pointer transition-all duration-200 ${activeFilter === tab.key ? 'bg-[#3b4276] text-white shadow-sm' : 'bg-transparent text-slate-600 hover:bg-slate-200/80 hover:text-slate-800'}`}
+                  className={`user-notif-tab-btn min-h-[44px] px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap border-0 cursor-pointer transition-all duration-200 ${activeFilter === tab.key ? 'bg-brand text-white shadow-sm' : 'bg-transparent text-slate-600 hover:bg-slate-200/80 hover:text-slate-800'}`}
                 >
                   {tab.label}
                   {tab.key === 'unread' && unreadCount > 0 && (
@@ -299,7 +298,7 @@ export default function UserNotifications() {
                 <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center text-xs text-slate-500">{t('notifications.loading')}</div>
               ) : filteredNotifications.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center shadow-sm flex flex-col items-center">
-                  <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 text-[#3b4276]/30">
+                  <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 text-brand/30">
                     <FontAwesomeIcon icon={faBell} className="text-3xl" />
                   </div>
                   <h3 className="text-base font-bold text-slate-700 m-0">{t('notifications.noFound')}</h3>
@@ -453,7 +452,7 @@ export default function UserNotifications() {
               <button
                 onClick={savePreferences}
                 disabled={!prefDirty || prefSaving}
-                className="w-full py-3 bg-[#3b4276] hover:bg-[#2d325a] active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all border-0 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-brand hover:bg-[#2d325a] active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all border-0 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {prefSaving ? 'Saving…' : t('notifications.savePref')}
               </button>

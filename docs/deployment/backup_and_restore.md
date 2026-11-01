@@ -13,6 +13,7 @@ Answers the manager interview's Q26 (data loss or access; see [manager_interview
 | **Database `ams_db`** | MySQL 8 / MariaDB on the production host | Every tenant, room, invoice, payment, contract, notification and setting. |
 | **`backend/uploads/`** | Next to the API | User files the database only points to: valid IDs and application documents (`applications/`), contract PDFs and other rent documents (`documents/`), payment proofs (`payment_proofs/`, `payments/`), maintenance photos, service and utility bill attachments. A database restored without them leaves broken links. |
 | **`backend/room_images/`** | Next to the API | Room photos and floor plans the admin uploaded. Only a sample image is tracked in git. |
+| **`backend/site_assets/`** | Next to the API | The Glass theme background photos the admin uploaded (Other Settings → Glass Mode): the live one, named by `system_settings.glass_bg_image`, and up to five recent ones to switch back to. Only its `.htaccess` is tracked in git; without the live photo, tenants see the built-in one. |
 | **`backend/config.env.php`** | Server only, gitignored | Database credentials, `APP_URL`, `ALLOWED_ORIGINS`, timezone. Store a copy **securely** (password manager or encrypted archive), never in git and never next to the plain dumps. On Railway the same values are service variables: keep a private copy of them instead. |
 
 Not needed: `node_modules/`, `vendor/`, `ams-react/dist/` and the code itself (rebuilt from git), `backend/logs/`.

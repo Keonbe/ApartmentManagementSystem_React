@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./assets/styles/responsive/components/tables.responsive.css";
 @import "./assets/styles/animations.user.css";
+@import "./assets/styles/themes.user.css";
 
 /* Admin design tokens (Tailwind utilities: text-label, rounded-card, shadow-card…).
    Sizes are px, not rem, because the root font is 18px on desktop and rem-based
@@ -32,6 +33,10 @@
   --shadow-dialog: 0 24px 48px -12px rgb(15 23 42 / 0.3);
 
   --font-admin: 'IBM Plex Sans Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  /* The tenant side's indigo (TopBar, headings): text-brand, bg-brand … The
+     Dark and Glass themes lighten it as text (scripts/gen-theme-css.mjs). */
+  --color-brand: #3b4276;
 }
 
 :root {

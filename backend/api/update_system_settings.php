@@ -251,6 +251,37 @@ foreach ($input as $key => $value) {
         $refuse("Maximum occupants per unit must be a whole number between 1 and 20.");
     }
 
+    // Tenant Glass theme backdrop (Other Settings -> Glass Mode). Every visitor's
+    // page loads the image, so only a file upload_glass_background.php created
+    // (or '' for the built-in photo) is accepted. Checked only when it changes:
+    // the settings form posts every key, and a file removed by hand must not
+    // block saving the parking fee.
+    if ($key === 'glass_bg_image' && ($existing[$key] ?? '') !== $value) {
+        if ($value !== '' && !is_valid_glass_bg_path($value)) {
+            $refuse("Upload the background image again, or reset to the default photo.", ["glassBgImage" => "This image was not found."]);
+        }
+    }
+    if ($key === 'glass_overlay_opacity' && (!ctype_digit($value) || (int)$value > 95)) {
+        $refuse("The Glass overlay must be a whole number from 0 to 95 percent.", ["glassOverlayOpacity" => "Enter 0 to 95."]);
+    }
+    if ($key === 'glass_blur' && (!ctype_digit($value) || (int)$value > 20)) {
+        $refuse("The Glass background blur must be a whole number from 0 to 20 pixels.", ["glassBlur" => "Enter 0 to 20."]);
+    }
+    if ($key === 'glass_tint') {
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $value)) {
+            $refuse("The Glass tint must be a colour like #0f172a.", ["glassTint" => "Use a #rrggbb colour."]);
+        }
+        $value = strtolower($value);
+    }
+
+    // Home page text (Other Settings -> Home Page): four known items, each with
+    // a show switch and plain English / Filipino text; stored canonical.
+    if ($key === 'home_content') {
+        [$clean, $problem] = normalize_home_content($input[$key]);
+        if ($clean === null) $refuse($problem, ["homeContent" => $problem]);
+        $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
+    }
+
     if (array_key_exists($key, $existing) && $existing[$key] === $value) continue;
 
     $stmt->bind_param("sss", $key, $value, $value);
@@ -259,6 +290,13 @@ foreach ($input as $key => $value) {
 }
 $stmt->close();
 $conn->commit();
+
+// The photo it replaced stays in the recent list; switching can push an old
+// one past the last GLASS_BG_KEEP. Pruned only after the commit, so a refused
+// save never leaves the setting pointing at a deleted file.
+if (in_array('glass_bg_image', $changed, true)) {
+    prune_glass_bg_files(current_glass_bg($conn));
+}
 
 // The audit entry names what actually changed; it used to say "Updated multiple configuration keys" every time.
 if ($changed) {

@@ -1438,6 +1438,14 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('room_preview_mode', 'images'),
 -- Upper bound on a unit's occupant count (lease holder + household members).
 ('max_occupants_per_unit', '8'),
+-- Tenant Glass theme backdrop (Other Settings -> Glass Mode): '' image = the
+-- built-in photo; overlay 0-95 %, blur 0-20 px, tint #rrggbb.
+('glass_bg_image', ''),
+('glass_overlay_opacity', '78'),
+('glass_blur', '0'),
+('glass_tint', '#0f172a'),
+-- Home page text (Other Settings -> Home Page): '' text = the app's own wording.
+('home_content', '{"badge":{"show":true,"en":"","fil":""},"heading":{"show":true,"en":"","fil":""},"location":{"show":true,"en":"","fil":""},"description":{"show":true,"en":"","fil":""}}'),
 ('late_fee_enabled', 'false'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),

@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard, faImage, faHouse } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -68,6 +68,20 @@ export const SETTINGS_TABS = [
     keys: ['maintenanceMonthlyBudget', 'tenantResponsibilityClause'],
   },
   {
+    id: 'glass-mode',
+    label: 'Glass Mode',
+    icon: faImage,
+    description: "The photo, tint and blur behind tenant pages in the Glass theme, and on Home.",
+    keys: ['glassBgImage', 'glassOverlayOpacity', 'glassBlur', 'glassTint'],
+  },
+  {
+    id: 'home-page',
+    label: 'Home Page',
+    icon: faHouse,
+    description: 'The badge, heading, location and description on the Home page, in English and Filipino, and which of them show.',
+    keys: ['homeContent'],
+  },
+  {
     id: 'floor-rent',
     label: 'Floor Rent',
     icon: faLayerGroup,
@@ -115,9 +129,9 @@ export const OTHER_SETTINGS_GROUPS = [
   },
   {
     key: 'operations',
-    title: 'Operations',
+    title: 'Operations & Tenant Site',
     accentDot: 'bg-sky-500',
-    tabIds: ['notifications', 'maintenance'],
+    tabIds: ['notifications', 'maintenance', 'home-page', 'glass-mode'],
   },
   {
     key: 'policies',

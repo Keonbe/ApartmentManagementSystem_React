@@ -291,7 +291,7 @@ export default function UserVisitors() {
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold m-0 tracking-tight flex items-center gap-3" style={{ color: '#3b4276' }}>
+              <h1 className="text-2xl sm:text-3xl font-extrabold m-0 tracking-tight flex items-center gap-3 text-brand">
                 <FontAwesomeIcon icon={faIdBadge} className="text-indigo-600" />
                 {t('visitors.heading')}
               </h1>
