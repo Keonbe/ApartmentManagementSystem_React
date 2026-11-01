@@ -73,6 +73,9 @@ export default function AdminRefunds() {
       if (res.data.success) { done?.(); await load(); }
     } catch (err) {
       setNotice({ ok: false, text: apiErrorMessage(err) });
+      // Usually refused because the tenant or another admin changed the
+      // request meanwhile: show its current state instead of the stale one.
+      await load();
     } finally {
       setBusy(false);
     }

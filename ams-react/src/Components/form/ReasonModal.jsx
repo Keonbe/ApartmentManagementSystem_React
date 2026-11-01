@@ -6,6 +6,7 @@ import FieldError from './FieldError';
 import CharCount from './CharCount';
 import { invalidCls } from './formHelpers';
 import Modal from '../admin/Modal';
+import { apiErrorMessage } from '../../utils/apiError';
 
 // Replaces window.prompt() for reasons (reject, deny, close, terminate).
 // Render it only while open, so each opening starts empty. onConfirm(reason, file)
@@ -101,7 +102,8 @@ export default function ReasonModal({
     try {
       await onConfirm?.(typing ? reason.trim() : choice, attachment);
     } catch (err) {
-      setError(err?.message || 'Something went wrong. Please try again.');
+      // A rejected API call carries the server's reason; a thrown Error its own message.
+      setError(apiErrorMessage(err, err?.message || 'Something went wrong. Please try again.'));
     } finally {
       setBusy(false);
     }
