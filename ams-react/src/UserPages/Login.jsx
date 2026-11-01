@@ -37,10 +37,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     }, { idPrefix: 'login-' });
     const forgot = useFieldErrors({ email: emailRule }, { idPrefix: 'forgot-' });
 
+    // Leaving a field checks what was typed; an empty field is only reported
+    // when the form is submitted.
     const blurEmail = (form) => {
         const clean = normalizeEmail(email);
         setEmail(clean);
-        form.validateField('email', { email: clean });
+        if (clean) form.validateField('email', { email: clean });
     };
 
     const handleSubmit = async (e) => {
@@ -243,7 +245,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                         required
                                         value={password}
                                         onChange={(e) => { setPassword(e.target.value); login.clearError('password'); }}
-                                        onBlur={() => login.validateField('password', { password })}
+                                        onBlur={() => password && login.validateField('password', { password })}
                                     />
                                     <label
                                         htmlFor="login-password"

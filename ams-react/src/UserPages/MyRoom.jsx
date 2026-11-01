@@ -23,6 +23,7 @@ const DEFAULT_MOVE_OUT_MIN_DAYS = 15;
 const DEFAULT_MOVE_OUT_MAX_DAYS = 30;
 import { getSystemSettings } from '../config/systemSettings';
 import { useLang, dateLocale } from '../config/i18n';
+import { formatAvailable } from '../utils/availableDate';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
 export default function MyRoom() {
@@ -497,6 +498,7 @@ export default function MyRoom() {
                                         <p className="m-0 text-sm leading-relaxed text-slate-600">
                                             Each added month is billed a week before it starts.
                                             {extension?.maxMonthsAhead ? ` Your rent can reach at most ${extension.maxMonthsAhead} month(s) from today.` : ''}
+                                            {extension?.deadline && !extensionBlocked ? ` Requests close on ${formatAvailable(extension.deadline)}.` : ''}
                                         </p>
                                         {extensionBlocked && (
                                             <div role="status" className="flex flex-col items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

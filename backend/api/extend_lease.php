@@ -59,6 +59,11 @@ try {
         if ($reason = extension_block_reason($conn, $user, $ctr, $additionalMonths)) {
             throw new Exception($reason);
         }
+        // Other Settings → Contract End: the tenant's own request closes this
+        // many days before the rent ends (the admin can still extend).
+        if ($reason = extension_deadline_reason($conn, $ctr['lease_end'] ?? null)) {
+            throw new Exception($reason);
+        }
 
         $title = "Rent Extension Request";
         $msg = "$tenantName (Unit $roomName) requested a $additionalMonths month(s) rent extension.";

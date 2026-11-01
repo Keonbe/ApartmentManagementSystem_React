@@ -7,7 +7,8 @@ import ChatWidget from './Components/ChatWidget';
 // Components
 import TopBar from './Components/TopBar';
 import ServiceRouteGuard from './Components/ServiceRouteGuard';
-import { UserThemeScope } from './Components/UserTheme';
+import { UserThemeScope, ThemePicker, FloatingLangSwitch } from './Components/UserTheme';
+import { useTheme } from './config/theme';
 
 // User Pages
 import Home from './UserPages/Home';
@@ -152,7 +153,9 @@ function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
         username={username || "Guest"}
         onLoginClick={() => navigate('/login')}
       />
-      <main className="w-full flex-grow flex flex-col justify-start overflow-x-hidden">
+      {/* clip, not hidden: hidden makes <main> a scroll container, and sticky
+          children (the Preview map) would stick to it instead of the window. */}
+      <main className="w-full flex-grow flex flex-col justify-start overflow-x-clip">
         {/* Keyed by path so each page plays the entrance animation (ut-route in themes.user.css). */}
         <div key={location.pathname} className="ut-route w-full flex-grow flex flex-col">
           {children}
@@ -168,11 +171,18 @@ function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
 }
 
 // Sign-in, registration and password reset have no TopBar, but follow the theme too.
+// They offer Light and Dark only; a browser set to Glass sees them in Dark.
 function AuthThemeLayout({ children }) {
   const location = useLocation();
+  const { theme } = useTheme();
   return (
-    <UserThemeScope className="w-full min-h-screen flex flex-col">
+    <UserThemeScope force={theme === 'glass' ? 'dark' : undefined} className="w-full min-h-screen flex flex-col">
       <div key={location.pathname} className="ut-route w-full flex-grow flex flex-col">{children}</div>
+      {/* These pages have no TopBar, so the language and theme switches float top-right. */}
+      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-40 flex items-center gap-2">
+        <FloatingLangSwitch />
+        <ThemePicker variant="floating" />
+      </div>
     </UserThemeScope>
   );
 }

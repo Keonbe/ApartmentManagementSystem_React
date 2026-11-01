@@ -4,12 +4,9 @@
    These rules override/supplement on small screens.
    ===================================================== */
 
-/* Root wrapper: remove fixed viewport height on tablet/mobile.
-   Preview.jsx uses `lg:h-[calc(100vh-76px)]`; let it be natural below lg. */
+/* The page scrolls as a whole (the map sticks on large screens only). */
 @media (max-width: 1023px) {
   .preview-page-root {
-    height: auto !important;
-    overflow: visible !important;
     padding: 1rem !important;
   }
 
@@ -67,11 +64,5 @@
   .preview-room-card-actions button {
     min-height: 44px !important;
     font-size: 0.8125rem !important;
-  }
-
-  /* Room cards: remove max-height scroll limit — let page scroll instead */
-  .preview-room-list-scroll {
-    max-height: none !important;
-    overflow-y: visible !important;
   }
 }

@@ -115,6 +115,8 @@ if ($result->num_rows > 0) {
         if ($reason === null && $range['max'] < 1) {
             $reason = rent_end_ahead_error($conn, date('Y-m-d', strtotime($contract['lease_end'] . ' +1 month')));
         }
+        if ($reason === null) $reason = extension_deadline_reason($conn, $contract['lease_end'] ?? null);
+        $deadline = extension_deadline_date($conn, $contract['lease_end'] ?? null);
         $overdue = tenant_overdue_summary($conn, (int)$user_id);
         $room_data['extension'] = [
             'allowed' => $reason === null,
@@ -123,6 +125,8 @@ if ($result->num_rows > 0) {
             'maxMonthsAhead' => max_rent_ahead_months($conn),
             'minMonths' => $range['min'],
             'maxMonths' => $range['max'],
+            // Last day the tenant may ask (Settings → Contract End), or null.
+            'deadline' => $deadline,
         ];
     }
 

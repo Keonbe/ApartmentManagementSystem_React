@@ -1,7 +1,8 @@
 <?php
-// The Glass theme photos still on the server (Other Settings → Glass Mode →
-// Recent photos), newest first: the last GLASS_BG_KEEP uploads, the live one
-// marked. upload_glass_background.php adds to it and trims it.
+// The admin photos still on the server, newest first, the live one marked:
+// ?kind=glass (default) for Other Settings → Glass Mode, ?kind=preview for
+// Other Settings → Preview Page. The last SITE_IMAGE_KEEP uploads of each kind;
+// upload_glass_background.php / upload_preview_image.php add to them and trim.
 header('Content-Type: application/json');
 require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, OPTIONS");
@@ -22,9 +23,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 require_admin($conn);
 
+$kind = (string)($_GET['kind'] ?? 'glass');
+if (!in_array($kind, SITE_IMAGE_KINDS, true)) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Unknown photo list."]);
+    exit;
+}
+
 echo json_encode([
     "success" => true,
-    "backgrounds" => glass_bg_history(current_glass_bg($conn)),
-    "limit" => GLASS_BG_KEEP,
+    "backgrounds" => site_image_history($kind, current_site_image($conn, $kind)),
+    "limit" => SITE_IMAGE_KEEP,
 ]);
 $conn->close();

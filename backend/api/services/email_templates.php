@@ -216,10 +216,14 @@ function email_status_update_template($tenant_name, $request_type, $request_labe
     return email_base_template(ucfirst($request_type) . " Update - " . $request_label, $content);
 }
 
-function email_lease_reminder_template($tenant_name, $room, $lease_end, $days_left) {
+// $deadline: the last day to ask for an extension, already formatted, or null.
+function email_lease_reminder_template($tenant_name, $room, $lease_end, $days_left, $deadline = null) {
+    $ask = $deadline
+        ? "To stay, request an extension in <strong>My Room</strong> by <strong>" . esc($deadline) . "</strong>. After that date, please contact the admin office."
+        : "To stay, request an extension in <strong>My Room</strong>, or contact the admin office to discuss renewal options.";
     $content = "<p style=\"color:#334155;line-height:1.6;\">Hello <strong>" . esc($tenant_name) . "</strong>,</p>"
              . "<p style=\"color:#334155;line-height:1.6;\">Your rent for <strong>Unit " . esc($room) . "</strong> expires on <strong>" . esc($lease_end) . "</strong> "
              . "(<strong>" . (int)$days_left . " days remaining</strong>).</p>"
-             . "<p style=\"color:#334155;line-height:1.6;\">Please contact the admin office to discuss renewal options.</p>";
+             . "<p style=\"color:#334155;line-height:1.6;\">$ask</p>";
     return email_base_template("Rent Contract Expiring Soon - Unit " . $room, $content);
 }

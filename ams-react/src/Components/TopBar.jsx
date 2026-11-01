@@ -26,6 +26,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const navigate = useNavigate();
     const { lang, setLang, t } = useLang();
     const location = useLocation();
+    // Home is always Glass (App.jsx), so the theme switch would do nothing there.
+    const showThemePicker = location.pathname !== '/home';
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -460,8 +462,12 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         <span>{t('topbar.myRefunds')}</span>
                                     </button>
                                     <div className="border-t border-slate-100 my-1"></div>
-                                    <ThemePicker variant="menu" />
-                                    <div className="border-t border-slate-100 my-1"></div>
+                                    {showThemePicker && (
+                                        <>
+                                            <ThemePicker variant="menu" />
+                                            <div className="border-t border-slate-100 my-1"></div>
+                                        </>
+                                    )}
                                     <button onClick={() => { setIsDropdownOpen(false); handleLogout(); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
                                         <FontAwesomeIcon icon={faSignOutAlt} className="text-xs" />
                                         <span>{t('nav.logout')}</span>
@@ -472,7 +478,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     ) : (
                         <>
                             {/* Guests have no account menu, so the theme switch sits on the bar. */}
-                            <ThemePicker variant="bar" />
+                            {showThemePicker && <ThemePicker variant="bar" />}
                             <button onClick={onLoginClick} className="bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all duration-150 flex items-center space-x-1.5">
                                 <FontAwesomeIcon icon={faSignInAlt} />
                                 <span>{t('nav.login')}</span>
@@ -576,7 +582,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         </div>
                     </div>
 
-                    <ThemePicker variant="drawer" />
+                    {showThemePicker && <ThemePicker variant="drawer" />}
 
                     <div className="flex flex-col space-y-1">
                         <button

@@ -7,6 +7,7 @@ import { THEMES, useTheme, useGlassAppearance, glassTintGradient } from '../conf
 import { useLang } from '../config/i18n';
 
 const THEME_ICONS = { light: faSun, dark: faMoon, glass: faGem };
+const AUTH_THEMES = ['light', 'dark'];
 
 // Wraps user-side content in the chosen theme (.ut-root .ut-<theme>, see
 // assets/styles/themes.user.css). `force` pins one (Home is always Glass);
@@ -74,13 +75,16 @@ export function GlassLayers({ glassBgImage, glassOverlayOpacity, glassBlur, glas
 //   variant="menu"   inside a light dropdown (the account menu)
 //   variant="bar"    icons only, on the TopBar's coloured bar
 //   variant="drawer" labelled, on the dark mobile drawer
+//   variant="floating" icons only, Light and Dark, floating over the sign-in pages
 export function ThemePicker({ variant = 'menu' }) {
     const { theme, setTheme } = useTheme();
     const { t } = useLang();
 
     const groupLabel = t('theme.label');
+    // The sign-in pages offer Light and Dark only (App.jsx shows Glass as Dark there).
+    const shownTheme = variant === 'floating' && theme === 'glass' ? 'dark' : theme;
     const button = (id) => {
-        const active = theme === id;
+        const active = shownTheme === id;
         // Icon above the word, each button a third of the row: "Maliwanag" fits
         // as well as "Light", so switching language never resizes the menu.
         const base = 'flex items-center justify-center border-0 cursor-pointer transition-all duration-200 font-bold';
@@ -88,20 +92,23 @@ export function ThemePicker({ variant = 'menu' }) {
             ? `flex-1 basis-0 min-w-0 flex-col gap-0.5 min-h-[50px] px-1 rounded-lg text-[11px] leading-tight ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-white/60'}`
             : variant === 'bar'
                 ? `w-9 h-8 text-xs ${active ? 'bg-white text-brand' : 'bg-transparent text-white/70 hover:text-white'}`
-                : `flex-1 basis-0 min-w-0 flex-col gap-0.5 min-h-[50px] px-1 rounded-lg text-[11px] leading-tight ${active ? 'bg-white text-brand' : 'bg-transparent text-white/75 hover:text-white'}`;
+                : variant === 'floating'
+                    ? `w-10 h-10 rounded-lg text-sm ${active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`
+                    : `flex-1 basis-0 min-w-0 flex-col gap-0.5 min-h-[50px] px-1 rounded-lg text-[11px] leading-tight ${active ? 'bg-white text-brand' : 'bg-transparent text-white/75 hover:text-white'}`;
+        const iconOnly = variant === 'bar' || variant === 'floating';
         return (
             <button
                 key={id}
                 type="button"
                 role="radio"
                 aria-checked={active}
-                aria-label={variant === 'bar' ? t(`theme.${id}`) : undefined}
+                aria-label={iconOnly ? t(`theme.${id}`) : undefined}
                 title={t(`theme.${id}`)}
                 onClick={() => setTheme(id)}
                 className={`${base} ${look}`}
             >
                 <FontAwesomeIcon icon={THEME_ICONS[id]} aria-hidden="true" />
-                {variant !== 'bar' && <span className="max-w-full truncate">{t(`theme.${id}`)}</span>}
+                {!iconOnly && <span className="max-w-full truncate">{t(`theme.${id}`)}</span>}
             </button>
         );
     };
@@ -110,6 +117,16 @@ export function ThemePicker({ variant = 'menu' }) {
         return (
             <div role="radiogroup" aria-label={groupLabel} className="flex items-center bg-white/10 rounded-lg overflow-hidden select-none">
                 {THEMES.map(button)}
+            </div>
+        );
+    }
+
+    // Top-right of the sign-in, registration and reset pages (App.jsx AuthThemeLayout),
+    // which have no TopBar. Light and Dark only. Light-palette classes, so it follows the theme too.
+    if (variant === 'floating') {
+        return (
+            <div role="radiogroup" aria-label={groupLabel} className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-lg select-none">
+                {AUTH_THEMES.map(button)}
             </div>
         );
     }
@@ -131,6 +148,28 @@ export function ThemePicker({ variant = 'menu' }) {
             <div role="radiogroup" aria-label={groupLabel} className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 select-none">
                 {THEMES.map(button)}
             </div>
+        </div>
+    );
+}
+
+// EN / FIL switch floating over the sign-in, registration and reset pages
+// (App.jsx AuthThemeLayout), next to the floating theme switch: those pages
+// have no TopBar. Same look as ThemePicker variant="floating".
+export function FloatingLangSwitch() {
+    const { lang, setLang, t } = useLang();
+    return (
+        <div role="group" aria-label={t('topbar.language')} className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-lg select-none">
+            {[['en', 'EN'], ['fil', 'FIL']].map(([id, label]) => (
+                <button
+                    key={id}
+                    type="button"
+                    aria-pressed={lang === id}
+                    onClick={() => setLang(id)}
+                    className={`h-10 min-w-[2.75rem] px-2 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all duration-200 ${lang === id ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+                >
+                    {label}
+                </button>
+            ))}
         </div>
     );
 }

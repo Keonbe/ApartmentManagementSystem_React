@@ -78,6 +78,10 @@ if (isset($settings['glass_blur'])) $settings['glass_blur'] = (int)$settings['gl
 // app's own wording, all shown.
 [$home_content] = normalize_home_content($settings['home_content'] ?? '');
 $settings['home_content'] = $home_content ?? home_content_defaults();
+// Same for the Preview page hero.
+[$preview_hero] = normalize_preview_hero($settings['preview_hero'] ?? '');
+$settings['preview_hero'] = $preview_hero ?? preview_hero_defaults();
+$settings['extension_deadline_days'] = extension_deadline_days($conn);
 if (isset($settings['qrph_active_slot'])) {
     $settings['qrph_active_slot'] = (int)$settings['qrph_active_slot'];
 }

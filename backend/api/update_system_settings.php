@@ -274,6 +274,45 @@ foreach ($input as $key => $value) {
         $value = strtolower($value);
     }
 
+    // Contract End (Other Settings): on/off switches are stored as '1' / '0'.
+    if (in_array($key, ['lease_end_reminders_enabled', 'lease_end_reminder_email', 'lease_end_reminder_sms', 'upcoming_rooms_enabled'], true)) {
+        if (!in_array($value, ['1', '0', 'true', 'false'], true)) {
+            $refuse("Choose on or off for $key.");
+        }
+        $value = in_array($value, ['1', 'true'], true) ? '1' : '0';
+    }
+    if ($key === 'extension_deadline_days' && (!ctype_digit($value) || (int)$value > EXTENSION_DEADLINE_MAX_DAYS)) {
+        $refuse("The extension deadline must be a whole number of days from 0 to " . EXTENSION_DEADLINE_MAX_DAYS . ".",
+            ["extensionDeadlineDays" => "Enter 0 to " . EXTENSION_DEADLINE_MAX_DAYS . " days."]);
+    }
+    // The reminder has to reach tenants before requests close, or it tells
+    // them about a door that already shut. The other value comes from this
+    // request when it is being saved too.
+    if ($key === 'extension_deadline_days' || $key === 'lease_end_reminder_days') {
+        $pair_deadline = (int)($input['extension_deadline_days'] ?? $existing['extension_deadline_days'] ?? 0);
+        $pair_reminder = (int)($input['lease_end_reminder_days'] ?? $existing['lease_end_reminder_days'] ?? 30);
+        if ($pair_deadline > 0 && $pair_reminder <= $pair_deadline) {
+            $refuse("The rent-end reminder ($pair_reminder days before) must go out before extension requests close ($pair_deadline days before).",
+                ["leaseEndReminderDays" => "Send it more than $pair_deadline days before the end."]);
+        }
+    }
+
+    // Preview page hero (Other Settings -> Preview Page). The photo is checked
+    // like the Glass one: only an upload this app made, and only when it changes.
+    if ($key === 'preview_hero') {
+        [$clean, $problem] = normalize_preview_hero($input[$key]);
+        if ($clean === null) $refuse($problem, ["previewHero" => $problem]);
+        [$stored] = normalize_preview_hero($existing[$key] ?? '');
+        $old_image = $stored['image'] ?? '';
+        if ($clean['image'] !== $old_image) {
+            if ($clean['image'] !== '' && !is_valid_preview_hero_path($clean['image'])) {
+                $refuse("Upload the Preview photo again, or use the default photo.", ["previewHero" => "This image was not found."]);
+            }
+            $preview_image_changed = true;
+        }
+        $value = json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
     // Home page text (Other Settings -> Home Page): four known items, each with
     // a show switch and plain English / Filipino text; stored canonical.
     if ($key === 'home_content') {
@@ -296,6 +335,10 @@ $conn->commit();
 // save never leaves the setting pointing at a deleted file.
 if (in_array('glass_bg_image', $changed, true)) {
     prune_glass_bg_files(current_glass_bg($conn));
+}
+// Same for the Preview photo: the one it replaced stays in its recent list.
+if (!empty($preview_image_changed) && in_array('preview_hero', $changed, true)) {
+    prune_site_images('preview', current_site_image($conn, 'preview'));
 }
 
 // The audit entry names what actually changed; it used to say "Updated multiple configuration keys" every time.

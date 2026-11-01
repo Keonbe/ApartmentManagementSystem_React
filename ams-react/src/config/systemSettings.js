@@ -7,6 +7,10 @@
 
 import api from '../api/axiosConfig';
 import { HOME_CONTENT_DEFAULTS, parseHomeContent } from './homeContent';
+import { PREVIEW_HERO_DEFAULTS, parsePreviewHero } from './previewHero';
+
+// A stored on/off setting ('1' / 'true'); missing means the default.
+const isOn = (value, fallback) => (value === undefined || value === null ? fallback : value === '1' || value === 'true' || value === 1 || value === true);
 
 const DEFAULTS = {
   minLeaseDuration: 3,             // months
@@ -19,6 +23,12 @@ const DEFAULTS = {
   moveInMinDays: 0,                // a preferred move-in date is at least this many days away (0 = today)
   moveInMaxDays: 365,              // ...and at most this many
   leaseEndReminderDays: 30,        // a rent term counts as "ending soon" this many days before it ends
+  // Other Settings → Contract End (ranges match update_system_settings.php).
+  extensionDeadlineDays: 0,        // tenants may ask to extend until this many days before the end; 0 = no deadline
+  leaseEndRemindersEnabled: true,  // the rent-end reminder (in-app)...
+  leaseEndReminderEmail: true,     // ...also by email
+  leaseEndReminderSms: true,       // ...also by SMS
+  upcomingRoomsEnabled: true,      // Preview lists units that will free up
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
     'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
@@ -62,6 +72,8 @@ const DEFAULTS = {
 
   // Home page text (Other Settings → Home Page); see config/homeContent.js.
   homeContent: HOME_CONTENT_DEFAULTS,
+  // Preview page hero (Other Settings → Preview Page); see config/previewHero.js.
+  previewHero: PREVIEW_HERO_DEFAULTS,
 
   // Notification channels. Both switches ship off: email needs SMTP credentials
   // and SMS costs money and needs a carrier-registered sender ID. The 'log'
@@ -180,6 +192,12 @@ export const getSystemSettings = async ({ strict = false } = {}) => {
         occupantSurchargePerPerson: Number(dbSettings.occupant_surcharge_per_person ?? DEFAULTS.occupantSurchargePerPerson) || 0,
         ...parseGlassAppearance(dbSettings),
         homeContent: parseHomeContent(dbSettings.home_content),
+        previewHero: parsePreviewHero(dbSettings.preview_hero),
+        extensionDeadlineDays: intInRange(dbSettings.extension_deadline_days, 0, 90, DEFAULTS.extensionDeadlineDays),
+        leaseEndRemindersEnabled: isOn(dbSettings.lease_end_reminders_enabled, DEFAULTS.leaseEndRemindersEnabled),
+        leaseEndReminderEmail: isOn(dbSettings.lease_end_reminder_email, DEFAULTS.leaseEndReminderEmail),
+        leaseEndReminderSms: isOn(dbSettings.lease_end_reminder_sms, DEFAULTS.leaseEndReminderSms),
+        upcomingRoomsEnabled: isOn(dbSettings.upcoming_rooms_enabled, DEFAULTS.upcomingRoomsEnabled),
 
         // Notification channels. Credential fields arrive masked (••••1234) for
         // an admin and absent for anyone else; posting a mask back is treated
@@ -253,6 +271,13 @@ export const saveSystemSettings = async (settings) => {
       glass_blur: String(settings.glassBlur ?? DEFAULTS.glassBlur),
       glass_tint: settings.glassTint || DEFAULTS.glassTint,
       home_content: parseHomeContent(settings.homeContent),
+      preview_hero: parsePreviewHero(settings.previewHero),
+      lease_end_reminder_days: String(settings.leaseEndReminderDays ?? DEFAULTS.leaseEndReminderDays),
+      extension_deadline_days: String(settings.extensionDeadlineDays ?? DEFAULTS.extensionDeadlineDays),
+      lease_end_reminders_enabled: settings.leaseEndRemindersEnabled ? '1' : '0',
+      lease_end_reminder_email: settings.leaseEndReminderEmail ? '1' : '0',
+      lease_end_reminder_sms: settings.leaseEndReminderSms ? '1' : '0',
+      upcoming_rooms_enabled: settings.upcomingRoomsEnabled ? '1' : '0',
 
       // Notification channels. Credentials go back exactly as loaded: if the
       // admin did not edit a field it still holds the ••••1234 mask, which

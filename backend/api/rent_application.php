@@ -127,8 +127,18 @@ if (!ctype_digit((string)$months_of_rent) || (int)$months_of_rent < $min_months 
 }
 $months_of_rent = (int)$months_of_rent;
 
-// "ASAP" sends no date; a chosen one must be today or later (and not years out).
-if ($preferred_move_in_date !== null && ($date_error = move_in_date_error($conn, $preferred_move_in_date)) !== '') {
+// The unit must be vacant, or occupied but freeing up (Preview's "Coming
+// Soon"). This was only checked in the browser. A resubmission keeps its unit
+// as before; it still may not move in before the unit is free.
+[$available_from, $room_error] = room_open_for_application($conn, (string)$room_name);
+if ($room_error !== null && !$is_update) application_fail(409, $room_error, 'roomName');
+
+// For a unit that is still occupied, "ASAP" means the day it is free.
+if ($available_from !== null && $preferred_move_in_date === null) $preferred_move_in_date = $available_from;
+
+// "ASAP" sends no date; a chosen one must be today or later (and not years out),
+// and not before an occupied unit is free.
+if ($preferred_move_in_date !== null && ($date_error = move_in_date_error($conn, $preferred_move_in_date, $available_from)) !== '') {
     application_fail(422, $date_error, 'preferredMoveInDate');
 }
 

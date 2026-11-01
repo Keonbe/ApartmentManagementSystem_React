@@ -216,22 +216,31 @@ const longDay = (ymd) => {
 };
 
 // First and last allowed day as YYYY-MM-DD, for the date input's min / max.
-export const moveInBounds = (window = MOVE_IN_WINDOW_DEFAULT) => ({
-  min: addDays(window.min),
-  max: addDays(Math.max(window.min, window.max)),
-});
+// availableFrom (YYYY-MM-DD): a unit that is still occupied but frees up on that
+// day (Preview's "Coming Soon"). The earliest day moves up to it, and the
+// latest stretches to reach it, as config.php move_in_date_error() does.
+export const moveInBounds = (window = MOVE_IN_WINDOW_DEFAULT, availableFrom = null) => {
+  const min = addDays(window.min);
+  const max = addDays(Math.max(window.min, window.max));
+  if (!availableFrom) return { min, max };
+  return { min: availableFrom > min ? availableFrom : min, max: availableFrom > max ? availableFrom : max };
+};
 
 // Shown under the date field so the limit is not a sum the tenant has to do:
 // "Choose a date from October 26, 2026 to October 26, 2027."
-export const moveInRangeText = (window = MOVE_IN_WINDOW_DEFAULT) => {
-  const { min, max } = moveInBounds(window);
+export const moveInRangeText = (window = MOVE_IN_WINDOW_DEFAULT, availableFrom = null) => {
+  const { min, max } = moveInBounds(window, availableFrom);
+  if (min === max) return `Move in on ${longDay(min)}, when the unit is free.`;
   return `Choose a date from ${longDay(min)} to ${longDay(max)}.`;
 };
 
 // Same rule as config.php move_in_date_error(): a real date inside the window.
 // The messages name the actual first / last day.
-export const checkMoveInDate = (value, window = MOVE_IN_WINDOW_DEFAULT) => {
-  const { min, max } = moveInBounds(window);
+export const checkMoveInDate = (value, window = MOVE_IN_WINDOW_DEFAULT, availableFrom = null) => {
+  if (availableFrom && value && value < availableFrom) {
+    return `This unit is available from ${longDay(availableFrom)}. Choose that day or later.`;
+  }
+  const { min, max } = moveInBounds(window, availableFrom);
   const error = checkDate(value, { label: 'The move-in date', min, max });
   if (!error) return '';
   if (/cannot be before/.test(error)) {

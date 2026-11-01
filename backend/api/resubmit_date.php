@@ -22,8 +22,15 @@ if ($app_id <= 0 || empty($new_date)) {
     echo json_encode(['success' => false, 'message' => 'Missing application ID or date.']);
     exit;
 }
-// Same rule as the application form (the picker's min alone let 2023-02-01 through).
-$date_error = move_in_date_error($conn, $new_date);
+// Same rule as the application form (the picker's min alone let 2023-02-01 through),
+// including "not before the unit is free" for a unit that is still occupied.
+$room_stmt = $conn->prepare("SELECT room_name FROM rent_applications WHERE id = ? AND user_id = ?");
+$room_stmt->bind_param("ii", $app_id, $user_id);
+$room_stmt->execute();
+$app_room = $room_stmt->get_result()->fetch_assoc();
+$room_stmt->close();
+$available_from = $app_room ? room_open_for_application($conn, (string)$app_room['room_name'])[0] : null;
+$date_error = move_in_date_error($conn, $new_date, $available_from);
 if ($date_error !== '') {
     http_response_code(422);
     echo json_encode(['success' => false, 'message' => $date_error, 'field' => 'preferred_move_in_date']);

@@ -22,6 +22,8 @@ import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import MinorsPanel from './settings/MinorsPanel';
 import GlassModePanel from './settings/GlassModePanel';
 import HomePagePanel from './settings/HomePagePanel';
+import ContractEndPanel from './settings/ContractEndPanel';
+import PreviewPagePanel from './settings/PreviewPagePanel';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -174,7 +176,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure leasing policies, parking, notifications, maintenance, the Home page and Glass theme, floor rates, and building rules.
+                Configure leasing policies, contract end, parking, notifications, maintenance, the Home and Preview pages and Glass theme, floor rates, and building rules.
               </p>
             </div>
 
@@ -291,6 +293,12 @@ const AdminOtherSettings = () => {
                 </div>
                 <div data-tab="home-page" hidden={activeTab !== 'home-page'} className="space-y-6">
                   <HomePagePanel {...panelProps} />
+                </div>
+                <div data-tab="contract-end" hidden={activeTab !== 'contract-end'} className="space-y-6">
+                  <ContractEndPanel {...panelProps} />
+                </div>
+                <div data-tab="preview-page" hidden={activeTab !== 'preview-page'} className="space-y-6">
+                  <PreviewPagePanel {...panelProps} savedImage={savedSettings?.previewHero?.image ?? ''} />
                 </div>
               </form>
             )}

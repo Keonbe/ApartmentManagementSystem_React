@@ -283,7 +283,16 @@ function expire_lapsed_contracts($conn) {
 // something a tenant is actually told about rather than only visible if they
 // happen to open View Contract. Claimed via renewal_reminder_sent_at, so a
 // forced re-run the same day never sends a duplicate.
+//
+// Other Settings → Contract End can switch it off (nothing is claimed then, so
+// switching it back on still reminds tenants inside the window) and choose its
+// outside channels; the in-app notice always goes when it is on. When there is
+// an extension deadline, the reminder names it.
 function send_lease_end_reminders($conn) {
+    if (!setting_is_on($conn, 'lease_end_reminders_enabled')) return 0;
+    $use_email = setting_is_on($conn, 'lease_end_reminder_email');
+    $use_sms = setting_is_on($conn, 'lease_end_reminder_sms');
+    $deadline_days = extension_deadline_days($conn);
     $days = max(0, (int)get_setting($conn, 'lease_end_reminder_days', 30));
     $stmt = $conn->prepare("SELECT lc.id, ra.user_id, ra.room_name, lc.lease_end,
                                    DATEDIFF(lc.lease_end, CURDATE()) AS days_left FROM lease_contracts lc
@@ -307,18 +316,25 @@ function send_lease_end_reminders($conn) {
         if (!empty($row['user_id'])) {
             $unit = !empty($row['room_name']) ? "Unit {$row['room_name']}" : 'your unit';
             $end = date('M j, Y', strtotime($row['lease_end']));
+            // The last day to ask, if it is still ahead (no point naming a past one).
+            $deadline = $deadline_days > 0 ? date('Y-m-d', strtotime("{$row['lease_end']} -$deadline_days days")) : null;
+            if ($deadline !== null && $deadline < date('Y-m-d')) $deadline = null;
+            $ask = $deadline !== null
+                ? "Request an extension in My Room by " . date('M j, Y', strtotime($deadline)) . " if you'd like to stay."
+                : "Visit My Room to request an extension if you'd like to stay.";
             create_notification($conn, (int)$row['user_id'], 'contract_update', 'Rent Approaching End',
-                "Your rent for $unit ends on $end. Visit My Room to request an extension if you'd like to stay.");
+                "Your rent for $unit ends on $end. $ask");
 
-            // SMS and email too. After the claim, so a re-run never texts twice,
-            // and never allowed to stop the rest of the sweep.
+            // SMS and email too, as switched on. After the claim, so a re-run
+            // never texts twice, and never allowed to stop the rest of the sweep.
+            if (!$use_email && !$use_sms) continue;
             try {
                 require_once __DIR__ . '/api/services/send_notification.php';
                 dispatch_system_notification($conn, (int)$row['user_id'], 'contract_update', 'Rent Approaching End',
-                    sms_lease_reminder_template($row['room_name'], $row['lease_end'], $row['days_left']),
-                    email_lease_reminder_template(notify_recipient_name($conn, $row['user_id']),
-                        $row['room_name'] ?: '-', $end, (int)$row['days_left']),
-                    null);
+                    $use_sms ? sms_lease_reminder_template($row['room_name'], $row['lease_end'], $row['days_left'], $deadline) : null,
+                    $use_email ? email_lease_reminder_template(notify_recipient_name($conn, $row['user_id']),
+                        $row['room_name'] ?: '-', $end, (int)$row['days_left'],
+                        $deadline !== null ? date('M j, Y', strtotime($deadline)) : null) : null);
             } catch (Throwable $e) {
                 error_log('Rent-end reminder dispatch failed: ' . $e->getMessage());
             }
@@ -3580,52 +3596,94 @@ function delete_glass_bg_file($relative) {
     }
 }
 
-// The Glass Mode tab offers the last GLASS_BG_KEEP photos to switch back to.
-// The live one always stays and counts toward them; older ones are deleted.
-const GLASS_BG_KEEP = 6;
+// ── Recent site photos (Glass Mode background, Preview page hero) ──
+// Each kind of admin photo lives in site_assets/ as <prefix><ms>_<hex8>.<ext>.
+// Its tab offers the last SITE_IMAGE_KEEP uploads to switch back to; the live
+// one always stays and counts toward them, older ones are deleted. The kinds
+// never touch each other's files (different prefix and pattern).
+const SITE_IMAGE_KEEP = 6;
+const GLASS_BG_KEEP = SITE_IMAGE_KEEP;
+const SITE_IMAGE_KINDS = ['glass', 'preview'];
+
+// [glob prefix, path pattern] for a kind ('glass' or 'preview').
+function site_image_kind($kind) {
+    return $kind === 'preview'
+        ? ['preview_hero_', PREVIEW_HERO_PATH_PATTERN]
+        : ['glass_bg_', GLASS_BG_PATH_PATTERN];
+}
+
+function is_valid_site_image($kind, $relative) {
+    [, $pattern] = site_image_kind($kind);
+    return is_string($relative) && preg_match($pattern, $relative) === 1 && is_file(glass_bg_absolute_path($relative));
+}
+
+// Deletes one upload of that kind; only a generated name, so nothing outside
+// site_assets/ (or of the other kind) can be reached.
+function delete_site_image($kind, $relative) {
+    [, $pattern] = site_image_kind($kind);
+    if (is_string($relative) && preg_match($pattern, $relative) === 1) {
+        $path = glass_bg_absolute_path($relative);
+        if (is_file($path)) @unlink($path);
+    }
+}
 
 // When an upload was made, from the number in its generated name: milliseconds,
-// or seconds for uploads made before the history existed.
-function glass_bg_stamp_ms($relative) {
-    if (!preg_match('/glass_bg_([0-9]+)_/', (string)$relative, $m)) return 0;
+// or seconds for Glass uploads made before the history existed.
+function site_image_stamp_ms($relative) {
+    if (!preg_match('/_([0-9]+)_[a-f0-9]{8}\.[a-z]+$/', (string)$relative, $m)) return 0;
     $n = (int)$m[1];
     return $n < 100000000000 ? $n * 1000 : $n;
 }
+function glass_bg_stamp_ms($relative) { return site_image_stamp_ms($relative); }
 
-// Every stored upload, newest first.
-function glass_bg_files() {
+// Every stored upload of a kind, newest first.
+function site_image_files($kind) {
+    [$prefix, $pattern] = site_image_kind($kind);
     $files = [];
-    foreach (glob(glass_bg_absolute_path(GLASS_BG_DIR) . '/glass_bg_*') ?: [] as $abs) {
+    foreach (glob(glass_bg_absolute_path(GLASS_BG_DIR) . '/' . $prefix . '*') ?: [] as $abs) {
         $relative = GLASS_BG_DIR . '/' . basename($abs);
-        if (preg_match(GLASS_BG_PATH_PATTERN, $relative) === 1 && is_file($abs)) $files[] = $relative;
+        if (preg_match($pattern, $relative) === 1 && is_file($abs)) $files[] = $relative;
     }
-    usort($files, fn($a, $b) => [glass_bg_stamp_ms($b), $b] <=> [glass_bg_stamp_ms($a), $a]);
+    usort($files, fn($a, $b) => [site_image_stamp_ms($b), $b] <=> [site_image_stamp_ms($a), $a]);
     return $files;
 }
+function glass_bg_files() { return site_image_files('glass'); }
 
-// The stored uploads for the Glass Mode tab, newest first.
-function glass_bg_history($live) {
+// The stored uploads for the tab, newest first, the live one marked.
+function site_image_history($kind, $live) {
     return array_map(fn($relative) => [
         'path' => $relative,
-        'uploaded_at' => gmdate('c', intdiv(glass_bg_stamp_ms($relative), 1000)),
+        'uploaded_at' => gmdate('c', intdiv(site_image_stamp_ms($relative), 1000)),
         'live' => $relative === $live,
-    ], glass_bg_files());
+    ], site_image_files($kind));
 }
+function glass_bg_history($live) { return site_image_history('glass', $live); }
 
-// Keeps the live photo and the newest others, GLASS_BG_KEEP in all.
-function prune_glass_bg_files($live) {
-    $kept = is_valid_glass_bg_path($live) ? 1 : 0;
-    foreach (glass_bg_files() as $relative) {
+// Keeps the live photo and the newest others, SITE_IMAGE_KEEP in all.
+function prune_site_images($kind, $live) {
+    $kept = is_valid_site_image($kind, $live) ? 1 : 0;
+    foreach (site_image_files($kind) as $relative) {
         if ($relative === $live) continue;
-        if ($kept < GLASS_BG_KEEP) { $kept++; continue; }
-        delete_glass_bg_file($relative);
+        if ($kept < SITE_IMAGE_KEEP) { $kept++; continue; }
+        delete_site_image($kind, $relative);
     }
 }
+function prune_glass_bg_files($live) { prune_site_images('glass', $live); }
 
-function current_glass_bg($conn) {
-    $res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'glass_bg_image'");
-    return ($res && ($row = $res->fetch_assoc())) ? (string)$row['setting_value'] : '';
+// The photo of that kind tenants see now ('' = the built-in one).
+function current_site_image($conn, $kind) {
+    $key = $kind === 'preview' ? 'preview_hero' : 'glass_bg_image';
+    $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+    $stmt->bind_param("s", $key);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $value = $row ? (string)$row['setting_value'] : '';
+    if ($kind !== 'preview') return $value;
+    [$hero] = normalize_preview_hero($value);
+    return $hero['image'] ?? '';
 }
+function current_glass_bg($conn) { return current_site_image($conn, 'glass'); }
 
 // ── Home page text (Other Settings → Home Page) ──
 // setting home_content: {"badge": {"show": true, "en": "", "fil": ""}, ...}.
@@ -3664,6 +3722,241 @@ function normalize_home_content($raw) {
         }
     }
     return [$out, null];
+}
+
+// One line of plain text from admin input: control characters and runs of
+// whitespace become one space. null when it is not valid UTF-8.
+function plain_line($text) {
+    $text = preg_replace('/[\p{Cc}\s]+/u', ' ', (string)$text);
+    return $text === null ? null : trim($text);
+}
+
+// ── Preview page hero (Other Settings → Preview Page) ──
+// setting preview_hero: {"image": "", "badge"|"title"|"location": {show, en, fil},
+// "features": [{en, fil}, ...]}. image '' = the built-in photo, else a
+// site_assets/preview_hero_* upload (upload_preview_image.php). Empty badge,
+// title or location text means the app's own wording; features are the chips
+// under the location, written out in full so the admin can remove any of them.
+const PREVIEW_HERO_PATH_PATTERN = '/^site_assets\/preview_hero_[0-9]+_[a-f0-9]{8}\.(jpg|jpeg|png|webp)$/';
+const PREVIEW_HERO_TEXT_FIELDS = ['badge' => 40, 'title' => 60, 'location' => 80];
+const PREVIEW_HERO_FEATURE_MAX_LEN = 40;
+const PREVIEW_HERO_FEATURE_MAX_COUNT = 6;
+
+function preview_hero_defaults() {
+    $out = ['image' => ''];
+    foreach (PREVIEW_HERO_TEXT_FIELDS as $field => $_) $out[$field] = ['show' => true, 'en' => '', 'fil' => ''];
+    $out['features'] = [
+        ['en' => 'Motorcycle Parking', 'fil' => 'Paradahan ng Motor'],
+        ['en' => 'Bathroom per Room', 'fil' => 'Banyo sa Bawat Kwarto'],
+    ];
+    return $out;
+}
+
+function is_valid_preview_hero_path($relative) {
+    return is_string($relative)
+        && preg_match(PREVIEW_HERO_PATH_PATTERN, $relative) === 1
+        && is_file(glass_bg_absolute_path($relative));
+}
+
+// Posted or stored preview_hero → [canonical array, null] or [null, problem].
+// The image path is only checked for shape here; update_system_settings.php
+// also requires the file to exist when it changes.
+function normalize_preview_hero($raw) {
+    $decoded = is_array($raw) ? $raw : json_decode((string)$raw, true);
+    if (!is_array($decoded)) return [null, 'The Preview page settings could not be read.'];
+    $out = preview_hero_defaults();
+
+    if (array_key_exists('image', $decoded)) {
+        $image = $decoded['image'];
+        if (!is_string($image) || ($image !== '' && preg_match(PREVIEW_HERO_PATH_PATTERN, $image) !== 1)) {
+            return [null, 'Upload the Preview photo again, or use the default photo.'];
+        }
+        $out['image'] = $image;
+    }
+
+    foreach (PREVIEW_HERO_TEXT_FIELDS as $field => $max) {
+        if (!array_key_exists($field, $decoded)) continue;
+        $item = $decoded[$field];
+        if (!is_array($item) || !is_bool($item['show'] ?? null)) return [null, "Choose whether the $field is shown."];
+        $out[$field]['show'] = $item['show'];
+        foreach (['en' => 'English', 'fil' => 'Filipino'] as $lang => $language) {
+            $text = $item[$lang] ?? '';
+            if (!is_string($text) || ($text = plain_line($text)) === null) return [null, "The $language $field must be plain text."];
+            if (mb_strlen($text) > $max) return [null, "The $language $field can be at most $max characters."];
+            $out[$field][$lang] = $text;
+        }
+    }
+
+    if (array_key_exists('features', $decoded)) {
+        $features = $decoded['features'];
+        if (!is_array($features) || ($features && array_keys($features) !== range(0, count($features) - 1))) {
+            return [null, 'The features must be a list.'];
+        }
+        if (count($features) > PREVIEW_HERO_FEATURE_MAX_COUNT) {
+            return [null, 'Show at most ' . PREVIEW_HERO_FEATURE_MAX_COUNT . ' features.'];
+        }
+        $clean = [];
+        foreach ($features as $i => $feature) {
+            $n = $i + 1;
+            if (!is_array($feature)) return [null, "Feature $n could not be read."];
+            $en = $feature['en'] ?? '';
+            $fil = $feature['fil'] ?? '';
+            if (!is_string($en) || !is_string($fil) || ($en = plain_line($en)) === null || ($fil = plain_line($fil)) === null) {
+                return [null, "Feature $n must be plain text."];
+            }
+            if ($en === '') return [null, "Feature $n needs English text (or remove it)."];
+            if (mb_strlen($en) > PREVIEW_HERO_FEATURE_MAX_LEN || mb_strlen($fil) > PREVIEW_HERO_FEATURE_MAX_LEN) {
+                return [null, "Feature $n can be at most " . PREVIEW_HERO_FEATURE_MAX_LEN . " characters."];
+            }
+            $clean[] = ['en' => $en, 'fil' => $fil];
+        }
+        $out['features'] = $clean;
+    }
+    return [$out, null];
+}
+
+// The checks every site photo upload shares (Glass background, Preview hero):
+// the type from the content, never the name; 640-8000 px; 5 MB. Returns
+// [['ext', 'width', 'height', 'size'], null] or [null, [status, message]].
+const SITE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const SITE_IMAGE_MIN_SIDE = 640;     // smaller than this looks blurry stretched over a screen
+const SITE_IMAGE_MAX_SIDE = 8000;    // decoding anything bigger costs every visitor's phone
+
+function check_site_image_upload($file) {
+    if (!$file || !is_array($file) || !isset($file['error']) || is_array($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
+        return [null, [422, "Choose an image to upload."]];
+    }
+    if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE || $file['size'] > SITE_IMAGE_MAX_BYTES) {
+        return [null, [422, "The image must be 5 MB or smaller."]];
+    }
+    if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+        return [null, [422, "The upload failed. Please try again."]];
+    }
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+    if (!isset($extensions[$mime])) return [null, [422, "Use a JPG, PNG or WEBP image."]];
+
+    $size = @getimagesize($file['tmp_name']);
+    if (!$size || $size[0] < 1 || $size[1] < 1) return [null, [422, "This file is not a readable image."]];
+    [$width, $height] = $size;
+    if (max($width, $height) < SITE_IMAGE_MIN_SIDE) {
+        return [null, [422, "The image is too small. Use one at least " . SITE_IMAGE_MIN_SIDE . " pixels wide or tall."]];
+    }
+    if ($width > SITE_IMAGE_MAX_SIDE || $height > SITE_IMAGE_MAX_SIDE) {
+        return [null, [422, "The image is too large. Use one at most " . SITE_IMAGE_MAX_SIDE . " pixels on each side."]];
+    }
+    return [['ext' => $extensions[$mime], 'width' => $width, 'height' => $height, 'size' => (int)$file['size']], null];
+}
+
+// Moves a checked upload into backend/site_assets/ as <prefix><ms>_<hex8>.<ext>
+// and returns the path relative to backend/, or null. Writes the folder's
+// .htaccess too, in case the committed one was not deployed.
+function store_site_image($file, $prefix, $ext) {
+    $dir = glass_bg_absolute_path(GLASS_BG_DIR) . '/';
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) return null;
+    $htaccess = $dir . '.htaccess';
+    if (!is_file($htaccess)) {
+        file_put_contents($htaccess, "Options -Indexes\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|php7|phps|phar|pht|cgi|pl|py|sh|svg|html?)$\">\n    Require all denied\n</FilesMatch>\n");
+    }
+    // Milliseconds, so uploads made within the same second still sort in order.
+    $name = $prefix . (int)floor(microtime(true) * 1000) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    return move_uploaded_file($file['tmp_name'], $dir . $name) ? GLASS_BG_DIR . '/' . $name : null;
+}
+
+
+// ── Contract end (Other Settings → Contract End) ──
+// extension_deadline_days: a tenant may ask to extend until this many days
+// before the rent ends (0 = until the last day). It limits the tenant's own
+// request only; the approval of a request filed in time, and the admin's
+// Units → Extend Rent, are not limited by it.
+// lease_end_reminders_enabled / lease_end_reminder_email / lease_end_reminder_sms:
+// the rent-end reminder (send_lease_end_reminders) and its outside channels.
+// upcoming_rooms_enabled: the Preview page lists occupied units that will free up.
+const EXTENSION_DEADLINE_MAX_DAYS = 90;
+
+function setting_is_on($conn, $key, $default = true) {
+    $value = get_setting($conn, $key, null);
+    if ($value === null) return $default;
+    return in_array(strtolower(trim((string)$value)), ['1', 'true'], true);
+}
+
+function extension_deadline_days($conn) {
+    $value = (string)get_setting($conn, 'extension_deadline_days', '0');
+    return ctype_digit($value) ? min(EXTENSION_DEADLINE_MAX_DAYS, (int)$value) : 0;
+}
+
+// The last day a tenant may ask to extend rent ending on $lease_end, or null
+// when there is no deadline.
+function extension_deadline_date($conn, $lease_end) {
+    $days = extension_deadline_days($conn);
+    if ($days < 1 || empty($lease_end)) return null;
+    return date('Y-m-d', strtotime("$lease_end -$days days"));
+}
+
+function extension_deadline_reason($conn, $lease_end) {
+    $deadline = extension_deadline_date($conn, $lease_end);
+    if ($deadline === null || date('Y-m-d') <= $deadline) return null;
+    return "Extension requests closed on " . date('M j, Y', strtotime($deadline)) . ", " . extension_deadline_days($conn)
+        . " days before your rent ends. Please contact the office if you still want to stay.";
+}
+
+// Whether a unit can take a new rent application: a vacant one, or an occupied
+// one that will free up while Preview lists upcoming rooms. Returns
+// [available_from or null, error or null]; available_from is set for an
+// upcoming unit (the move-in date may not be earlier).
+function room_open_for_application($conn, $room_name) {
+    $stmt = $conn->prepare("SELECT status FROM rooms WHERE id = ? AND archived_at IS NULL");
+    $stmt->bind_param("s", $room_name);
+    $stmt->execute();
+    $room = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$room) return [null, "This unit is no longer available for applications."];
+    if ($room['status'] === 'vacant') return [null, null];
+    if (setting_is_on($conn, 'upcoming_rooms_enabled')) {
+        $dates = upcoming_room_dates($conn);
+        if (isset($dates[$room_name])) return [$dates[$room_name], null];
+    }
+    return [null, "Room $room_name is not open for applications right now. Please choose another unit."];
+}
+
+// Occupied units that will free up, as ['A' => 'YYYY-MM-DD'] (the day it is
+// free). A scheduled move-out counts from its date. An active contract counts
+// once its extension deadline has passed with no extension request open; with
+// no deadline set a tenant may still extend on the last day, so only scheduled
+// move-outs are listed. Two queries, whatever the number of units.
+function upcoming_room_dates($conn) {
+    $res = $conn->query("SELECT ra.room_name, ra.user_id, ra.status, ra.requested_move_out_date,
+                                lc.status AS contract_status, lc.lease_end
+                         FROM rent_applications ra
+                         JOIN rooms r ON r.id = ra.room_name AND r.status = 'occupied'
+                         LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
+                         WHERE ra.status IN ('active', 'pending-move-out')");
+    if (!$res) return [];
+    $rows = $res->fetch_all(MYSQLI_ASSOC);
+
+    $asking = [];
+    $res = $conn->query("SELECT DISTINCT user_id FROM notifications WHERE type = 'lease_extension_request' AND status = 'Pending'");
+    while ($res && ($row = $res->fetch_assoc())) $asking[(int)$row['user_id']] = true;
+
+    $today = date('Y-m-d');
+    $days = extension_deadline_days($conn);
+    $out = [];
+    foreach ($rows as $row) {
+        $from = null;
+        if ($row['status'] === 'pending-move-out' && !empty($row['requested_move_out_date'])) {
+            $from = $row['requested_move_out_date'];
+        } elseif ($days > 0 && $row['status'] === 'active' && $row['contract_status'] === 'active' && !empty($row['lease_end'])
+                  && $row['lease_end'] >= $today && empty($asking[(int)$row['user_id']])) {
+            $deadline = date('Y-m-d', strtotime("{$row['lease_end']} -$days days"));
+            if ($today > $deadline) $from = $row['lease_end'];
+        }
+        if ($from !== null && $from >= $today && (!isset($out[$row['room_name']]) || $from < $out[$row['room_name']])) {
+            $out[$row['room_name']] = $from;
+        }
+    }
+    return $out;
 }
 
 // ── External channels: SMS & email (checklist 6.6 / 6.7) ──
@@ -3741,13 +4034,20 @@ function move_in_window_days($conn) {
 // input's `min` only stops the picker; a typed or posted 2023-02-01 used to be
 // saved. Returns '' when valid, else the message to show (naming the first or
 // last allowed day).
-function move_in_date_error($conn, $date) {
+// $available_from: for a unit that is still occupied but will free up
+// (upcoming_room_dates()), the first day it is free. The date may not be
+// earlier, and the window's latest day stretches to reach it if needed.
+function move_in_date_error($conn, $date, $available_from = null) {
     $date = (string)$date;
     $parsed = DateTime::createFromFormat('!Y-m-d', $date);
     if (!$parsed || $parsed->format('Y-m-d') !== $date) return "Enter the move-in date as a valid date.";
+    if ($available_from !== null && $date < $available_from) {
+        return "This unit is available from " . date('F j, Y', strtotime($available_from)) . ". Choose that day or later.";
+    }
     $window = move_in_window_days($conn);
     $earliest = strtotime('+' . $window['min'] . ' days');
     $latest = strtotime('+' . $window['max'] . ' days');
+    if ($available_from !== null) $latest = max($latest, strtotime($available_from));
     if ($date < date('Y-m-d', $earliest)) {
         return $window['min'] === 0
             ? "The move-in date cannot be in the past."
