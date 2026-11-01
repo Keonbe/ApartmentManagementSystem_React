@@ -51,7 +51,7 @@ export function checkEnv(mode, root = ROOT) {
     if (target === 'saas' && api && !api.startsWith('https://')) {
         errors.push('SaaS build must use an https:// API URL.');
     }
-    for (const key of ['VITE_API_BASE_URL', 'VITE_ASSET_BASE_URL', 'VITE_PUBLIC_URL']) {
+    for (const key of ['VITE_API_BASE_URL', 'VITE_PUBLIC_URL']) {
         if (env[key] && LOCAL_URL.test(env[key]) && !allowLocalhost()) {
             errors.push(`${key} points at localhost in a production build (set AMS_ALLOW_LOCALHOST_BUILD=1 if intended).`);
         }

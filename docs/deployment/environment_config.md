@@ -66,7 +66,7 @@ These files contain no secrets, since every `VITE_*` value ends up in the public
 > cd ams-react && npm run build -- --mode development
 > ```
 
-Uploaded files (payment proofs, avatars, ID photos, lease documents) resolve through `ams-react/src/api/fileUrl.js`. It uses `VITE_ASSET_BASE_URL`, or else the host from the API base URL, so file links follow the same environment. `TopBar.jsx`, `AdminPayments.jsx` and `UserPaymentHistory.jsx` previously hardcoded `localhost` and now use the helper too.
+Uploaded files (payment proofs, avatars, ID photos, lease documents) resolve through `ams-react/src/api/fileUrl.js`. Private uploads go through `download_file.php` and the public images (room photos in `room_images/`, QR codes in `qr_codes/`, Glass photos in `site_assets/`) through `public_file.php`, both under `VITE_API_BASE_URL`, so file links follow the same environment and only the API folder needs to be reachable (the deployed server maps only `/api/`). `TopBar.jsx`, `AdminPayments.jsx` and `UserPaymentHistory.jsx` previously hardcoded `localhost` and now use the helper too.
 
 ---
 

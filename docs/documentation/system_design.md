@@ -23,7 +23,7 @@
 | Rooms & units | get_rooms, create_room, update_room, upload_room_images, update_room_image, delete_room_image |
 | Applications & tenancy | rent_application, get_applications, update_tenant_status, get_tenants, archive_tenant, restore_tenant, my_room, update_occupants, household_members, extend_lease, record_move_out, process_tenant_request |
 | Inquiries & holds | submit_inquiry, get_inquiries, update_inquiry_status, create_reservation, update_reservation_status, expire_reservations, manage_waitlist |
-| Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file |
+| Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file, public_file (public images: room photos, QR codes, Glass photos; no session) |
 | Billing & payments | get_invoices, create_invoice, adjust_invoice, advance_payment, pay_bill, record_payment_admin, upload_payment_proof, reject_payment_proof, schedule_payment, send_payment_reminder, check_due_date_reminders, get_payment_channels, create_checkout_session, release_checkout_session, paymongo_webhook, manage_expenses |
 | Utilities | get_utility_readings, save_utility_reading, delete_utility_reading, sync_utility_to_invoice, get_utilities_report_data |
 | Maintenance | maintenance_request, create_maintenance_request_admin, get_maintenance_requests, update_maintenance_status, sync_maintenance_to_invoice |

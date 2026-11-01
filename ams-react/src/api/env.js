@@ -23,12 +23,6 @@ export const API_BASE_URL = withSlash(
 export const CHAT_SOCKET_URL = import.meta.env.VITE_CHAT_SOCKET_URL
     || (import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin);
 
-// Base URL that stored upload paths ("uploads/...") are resolved against.
-// Defaults to the backend root, i.e. the API URL without its trailing "api/".
-export const ASSET_BASE_URL = withSlash(
-    import.meta.env.VITE_ASSET_BASE_URL || API_BASE_URL.replace(/api\/$/, '')
-);
-
 // Where the SPA itself is served (used for payment return links). When unset,
 // the page's current address is used, which is right for XAMPP's dist/ path.
 export const PUBLIC_URL = import.meta.env.VITE_PUBLIC_URL || '';

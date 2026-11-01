@@ -62,7 +62,6 @@ Before this change:
 |---|---|---|---|
 | `VITE_DEPLOYMENT_TARGET` | recommended | `local` in dev, otherwise the mode name | `local` / `saas` / `selfhosted`; checked by the guard |
 | `VITE_API_BASE_URL` | yes, for any non-dev build | XAMPP URL, **dev builds only** | full URL of the PHP API folder, trailing slash |
-| `VITE_ASSET_BASE_URL` | no | API URL minus `api/` | base for stored `uploads/...` paths |
 | `VITE_PUBLIC_URL` | no | current page (`origin + pathname`) | where the SPA is served; used for PayMongo return links |
 
 Payment configuration has no frontend variables: the SPA only calls `create_checkout_session.php`, and the payment methods shown come from the API.
@@ -559,7 +558,7 @@ The backend never needs switching on one machine. Each server reads its own `con
 - `VITE_API_BASE_URL` is missing, not absolute `http(s)`, or (SaaS) not `https://`
 - `VITE_DEPLOYMENT_TARGET` is unknown, or is `local` in a production build
 - a self-hosted build points at a `railway.app` API
-- `VITE_API_BASE_URL`, `VITE_ASSET_BASE_URL` or `VITE_PUBLIC_URL` is a localhost URL (override with `AMS_ALLOW_LOCALHOST_BUILD=1`)
+- `VITE_API_BASE_URL` or `VITE_PUBLIC_URL` is a localhost URL (override with `AMS_ALLOW_LOCALHOST_BUILD=1`)
 - a `VITE_*` name looks like a secret
 - the emitted JS/CSS/HTML contains `localhost`, `127.0.0.1` or `0.0.0.0` followed by a port or path. A bare `http://localhost` is ignored because react-router and axios use it as a URL-parsing placeholder.
 
@@ -599,9 +598,9 @@ It warns when `VITE_DEPLOYMENT_TARGET` is unset or the API URL lacks a trailing 
 
 Frontend (`ams-react/`)
 
-- `src/api/env.js` — **new**; the only reader of `import.meta.env` (`API_BASE_URL`, `ASSET_BASE_URL`, `PUBLIC_URL`, `DEPLOYMENT_TARGET`, `appReturnBase()`). The XAMPP fallback is dev-only.
+- `src/api/env.js` — **new**; the only reader of `import.meta.env` (`API_BASE_URL`, `PUBLIC_URL`, `DEPLOYMENT_TARGET`, `appReturnBase()`). The XAMPP fallback is dev-only.
 - `src/api/axiosConfig.js` — base URL from `env.js`.
-- `src/api/fileUrl.js` — resolves uploads against `ASSET_BASE_URL`.
+- `src/api/fileUrl.js` — private uploads through `download_file.php`, public images (room photos, QR codes, Glass photos) through `public_file.php`; both under `API_BASE_URL`, so only the API folder has to be reachable.
 - `src/UserPages/PayBills.jsx`, `src/UserPages/TrackApplication.jsx` — payment return base from `appReturnBase()`.
 - `scripts/deploy-guard.mjs` — **new**; build guard plugin and standalone checker.
 - `vite.config.js` — registers `deployGuard()`.
