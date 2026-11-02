@@ -6,8 +6,9 @@
 // ALLOWED_ORIGINS: comma-separated exact origins, e.g.
 //   https://ams.example.com,http://localhost:5173
 // - Set: only a listed Origin is echoed back (any environment).
-// - Unset in development: the local dev origins are echoed.
-// - Unset in production: the angcanan-ams.com origins are echoed.
+// - Unset: the angcanan-ams.com origins and the local dev origins are echoed
+//   (any APP_ENV). Any other address the site is opened from, such as the
+//   server's IP, must be listed in ALLOWED_ORIGINS.
 // An echoed origin also gets Access-Control-Allow-Credentials, so API requests
 // can carry the HttpOnly trusted-device cookie (verify_device.php). Credentials
 // are never combined with a wildcard; an Origin not on the list gets no header.
@@ -45,11 +46,13 @@ if (in_array('*', $ams_cors_list, true)) {
     error_log('[AMS] ALLOWED_ORIGINS contains "*"; ignoring it. List exact origins instead.');
     $ams_cors_list = array_values(array_diff($ams_cors_list, ['*']));
 }
+// Unset: the site's own domains plus the local dev origins, whatever APP_ENV
+// says (the live server does not set APP_ENV=production, and keying on it
+// left the real domains without a header).
 if (!$ams_cors_list) {
-    $ams_cors_list = ($ams_cors_env('APP_ENV') ?: 'development') === 'production'
-        ? ['https://angcanan-ams.com', 'https://www.angcanan-ams.com']
-        : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174',
-           'http://localhost', 'http://127.0.0.1', 'http://localhost:8080', 'http://127.0.0.1:8080'];
+    $ams_cors_list = ['https://angcanan-ams.com', 'https://www.angcanan-ams.com',
+        'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174',
+        'http://localhost', 'http://127.0.0.1', 'http://localhost:8080', 'http://127.0.0.1:8080'];
 }
 $ams_cors_origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
