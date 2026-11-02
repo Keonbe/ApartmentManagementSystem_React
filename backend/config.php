@@ -582,6 +582,177 @@ function application_transition_allowed($current_status, $new_status) {
     return in_array($new_status, $allowed, true);
 }
 
+// ===== Rent-application lifecycle ===========================================
+// Every status write goes through here: the row is locked, the move is checked
+// against APPLICATION_TRANSITIONS, the UPDATE is guarded on the status that was
+// read (affected_rows = 0 means someone else moved it first), and each target
+// resets the columns that belong to it. The caller owns the transaction and
+// everything that follows from the move (billing, deposit, notifications...).
+
+// Value for a column that should be set to NOW() (see write_application_status()).
+const APP_NOW = '@NOW';
+
+// The application row locked FOR UPDATE, or null.
+function lock_application($conn, $app_id) {
+    $stmt = $conn->prepare("SELECT status, user_id, room_name FROM rent_applications WHERE id = ? FOR UPDATE");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+// UPDATE rent_applications SET status = $to, <$cols> WHERE id AND status = $from.
+// $cols maps column => value (null = NULL, APP_NOW = NOW()); column names come
+// from code, never from a request. True when this call made the move.
+function write_application_status($conn, $app_id, $from, $to, array $cols = []) {
+    $sets = ['status = ?'];
+    $params = [$to];
+    foreach ($cols as $col => $value) {
+        if ($value === APP_NOW) {
+            $sets[] = "`$col` = NOW()";
+        } elseif ($value === null) {
+            $sets[] = "`$col` = NULL";
+        } else {
+            $sets[] = "`$col` = ?";
+            $params[] = (string)$value;
+        }
+    }
+    $params[] = $app_id;
+    $params[] = $from;
+    $stmt = $conn->prepare("UPDATE rent_applications SET " . implode(', ', $sets) . " WHERE id = ? AND status = ?");
+    $stmt->bind_param(str_repeat('s', count($params) - 2) . 'is', ...$params);
+    $stmt->execute();
+    $moved = $stmt->affected_rows > 0;
+    $stmt->close();
+    return $moved;
+}
+
+// Moves an application to $to. Options:
+//   user_id     the applicant must be this user (a tenant acting on their own)
+//   only_from   statuses the caller allows on top of the table
+//   reason, attachment   rejection_reason / rejection_attachment_path
+//   move_out_date        requested_move_out_date for 'pending-move-out'
+//   cols        extra columns for the same UPDATE (see write_application_status())
+// Returns ['ok' => bool, 'code' => 'not_found'|'not_allowed'|'changed'|null,
+//          'from' => status, 'user_id' => ?int, 'room_name' => ?string].
+function transition_application($conn, $app_id, $to, array $opts = []) {
+    $row = lock_application($conn, $app_id);
+    $none = ['ok' => false, 'from' => null, 'user_id' => null, 'room_name' => null];
+    if (!$row || (isset($opts['user_id']) && (int)$row['user_id'] !== (int)$opts['user_id'])) {
+        return $none + ['code' => 'not_found'];
+    }
+    $from = $row['status'];
+    $result = ['from' => $from, 'user_id' => $row['user_id'] !== null ? (int)$row['user_id'] : null, 'room_name' => $row['room_name']];
+    if (!application_transition_allowed($from, $to) || (isset($opts['only_from']) && !in_array($from, $opts['only_from'], true))) {
+        return ['ok' => false, 'code' => 'not_allowed'] + $result;
+    }
+
+    $cols = [];
+    if (in_array($to, ['Rejected', 'Declined', 'Cancelled', 'Action Required'], true)) {
+        $cols['rejection_reason'] = $opts['reason'] ?? null;
+        $cols['rejection_attachment_path'] = $opts['attachment'] ?? null;
+        if ($to === 'Cancelled') $cols['cancelled_at'] = APP_NOW;
+    } elseif ($to === 'pending-move-out') {
+        $cols['requested_move_out_date'] = $opts['move_out_date'] ?? null;
+        $cols['rejection_reason'] = null;
+        $cols['rejection_attachment_path'] = null;
+    } else {
+        $cols['rejection_reason'] = null;
+        $cols['rejection_attachment_path'] = null;
+        // Cancelling a move-out notice: the requested date no longer applies.
+        if ($from === 'pending-move-out' && $to === 'active') $cols['requested_move_out_date'] = null;
+    }
+    $cols = array_merge($cols, $opts['cols'] ?? []);
+
+    if (!write_application_status($conn, $app_id, $from, $to, $cols)) {
+        return ['ok' => false, 'code' => 'changed'] + $result;
+    }
+    return ['ok' => true, 'code' => null] + $result;
+}
+
+// Archives an application from any status but 'archived', remembering where it
+// was in pre_archive_status so restore_application() can put it back. Archiving
+// twice would overwrite that memory with 'archived', so it is refused.
+function archive_application($conn, $app_id, $reason, $notes) {
+    $row = lock_application($conn, $app_id);
+    if (!$row) return ['ok' => false, 'code' => 'not_found', 'from' => null];
+    if ($row['status'] === 'archived') return ['ok' => false, 'code' => 'not_allowed', 'from' => 'archived'];
+    $moved = write_application_status($conn, $app_id, $row['status'], 'archived', [
+        'pre_archive_status' => $row['status'], 'archive_date' => date('Y-m-d'),
+        'archive_reason' => $reason, 'archive_notes' => $notes,
+    ]);
+    return ['ok' => $moved, 'code' => $moved ? null : 'changed', 'from' => $row['status']];
+}
+
+// Puts an archived application back to the status it had (older rows without
+// pre_archive_status come back 'active'). 'restored_status' on success.
+function restore_application($conn, $app_id) {
+    $stmt = $conn->prepare("SELECT status, pre_archive_status FROM rent_applications WHERE id = ? FOR UPDATE");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) return ['ok' => false, 'code' => 'not_found'];
+    if ($row['status'] !== 'archived') return ['ok' => false, 'code' => 'not_allowed'];
+    $to = $row['pre_archive_status'] ?: 'active';
+    $moved = write_application_status($conn, $app_id, 'archived', $to, [
+        'pre_archive_status' => null, 'archive_date' => null, 'archive_reason' => null, 'archive_notes' => null,
+    ]);
+    return ['ok' => $moved, 'code' => $moved ? null : 'changed', 'restored_status' => $to];
+}
+
+// What a rejected / declined / cancelled / lapsed application gives back:
+// its open invoices (cancelled with $cancel_reason), the draft contract, the
+// reserved advance credits, the applicant's billing reminders and the room.
+// Options:
+//   room_name            the unit the application was for
+//   include_user_deposit also match the user's deposit invoices / credits that
+//                        carry no application link (an applicant cancelling)
+//   vacate_held_room     the application was Approved and held the room, so it
+//                        is vacated outright; otherwise it is only released when
+//                        no other application or hold still claims it
+// The caller has already moved the application out of its claiming status.
+function release_application_holds($conn, $app_id, $user_id, $cancel_reason, array $opts = []) {
+    $open = billing_open_status_sql();
+    $with_user = !empty($opts['include_user_deposit']) && $user_id;
+    $uid = (int)$user_id;
+
+    if ($with_user) {
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE (rent_application_id = ? OR (user_id = ? AND security_deposit > 0)) AND status IN $open");
+        $stmt->bind_param("sii", $cancel_reason, $app_id, $uid);
+    } else {
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE rent_application_id = ? AND status IN $open");
+        $stmt->bind_param("si", $cancel_reason, $app_id);
+    }
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt = $conn->prepare("DELETE FROM lease_contracts WHERE rent_application_id = ? AND status = 'draft'");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $stmt->close();
+
+    $credit_scope = $with_user ? "(rent_application_id = " . (int)$app_id . " OR user_id = $uid)" : "rent_application_id = " . (int)$app_id;
+    $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE $credit_scope AND status IN ('reserved', 'available')");
+
+    if ($uid) {
+        $conn->query("UPDATE notifications SET status = 'Resolved', is_read = 1 WHERE user_id = $uid AND type IN ('billing', 'rent_due', 'overdue') AND status = 'Pending'");
+    }
+
+    $room = (string)($opts['room_name'] ?? '');
+    if ($room === '') return;
+    if (!empty($opts['vacate_held_room'])) {
+        $room_clean = trim(str_replace('Room', '', $room));
+        $stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id IN (?, ?)");
+        $stmt->bind_param("ss", $room_clean, $room);
+        $stmt->execute();
+        $stmt->close();
+    } else {
+        release_room_if_unclaimed($conn, $room);
+    }
+}
+
 // Ends a tenant's occupancy of their room: vacates the unit, cancels any
 // still-open invoices for the application (tagged with $reason so
 // restore_tenant.php can tell which ones it is responsible for reinstating —
@@ -2859,36 +3030,16 @@ function void_lapsed_payments($conn) {
         $conn->begin_transaction();
         try {
             $reason = "Move-in payment was not made within $days days of approval.";
-            $claim = $conn->prepare("UPDATE rent_applications SET status = 'Cancelled', rejection_reason = ?, cancelled_at = NOW() WHERE id = ? AND status = 'Approved'");
-            $claim->bind_param("si", $reason, $app_id);
-            $claim->execute();
-            $won = $claim->affected_rows > 0;
-            $claim->close();
-            if (!$won) { $conn->rollback(); continue; }
-
-            $open = billing_open_status_sql();
-            $c = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Payment window lapsed' WHERE rent_application_id = ? AND status IN $open");
-            $c->bind_param("i", $app_id);
-            $c->execute();
-            $c->close();
-            $d = $conn->prepare("DELETE FROM lease_contracts WHERE rent_application_id = ? AND status = 'draft'");
-            $d->bind_param("i", $app_id);
-            $d->execute();
-            $d->close();
-            $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE rent_application_id = $app_id AND status IN ('reserved', 'available')");
+            $moved = transition_application($conn, $app_id, 'Cancelled', ['reason' => $reason, 'only_from' => ['Approved']]);
+            if (!$moved['ok']) { $conn->rollback(); continue; }
 
             $room = (string)$a['room_name'];
-            $room_clean = trim(str_replace('Room', '', $room));
-            $free = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id IN (?, ?) AND status = 'reserved'");
-            $free->bind_param("ss", $room_clean, $room);
-            $free->execute();
-            $free->close();
+            release_application_holds($conn, $app_id, (int)$a['user_id'], 'Payment window lapsed', ['room_name' => $room]);
 
             resolve_admin_queue($conn, 'rent_application', $app_id);
             create_notification($conn, (int)$a['user_id'], 'application_update', 'Application Cancelled',
                 "Your approved rent application for Unit $room was cancelled because the move-in payment was not made within $days days. You may apply again.");
             $conn->commit();
-            notify_unit_waitlist($conn, $room);
             notify_admins_info($conn, 'rent_application', 'Application Cancelled Automatically',
                 "Unit $room: the approved applicant did not pay the move-in invoice {$a['invoice_id']} in time.", "rent_application:$app_id");
             log_activity($conn, null, 'system', 'Payment Window Lapsed', "Application #$app_id cancelled; invoice {$a['invoice_id']} voided", 0);

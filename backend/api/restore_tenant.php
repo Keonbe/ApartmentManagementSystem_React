@@ -49,13 +49,12 @@ if ($id > 0) {
     $conn->begin_transaction();
     try {
         // 1. Restore rent application to its actual pre-archive status
-        $upd_stmt = $conn->prepare("UPDATE rent_applications SET status = ?, pre_archive_status = NULL, archive_date = NULL, archive_reason = NULL, archive_notes = NULL WHERE id = ? AND status = 'archived'");
-        $upd_stmt->bind_param("si", $restore_status, $id);
-        $upd_stmt->execute();
-        if ($upd_stmt->affected_rows === 0) {
+        $restored = restore_application($conn, (int)$id);
+        if (!$restored['ok']) {
             throw new Exception("Tenant could not be restored — this application is no longer archived.");
         }
-        $upd_stmt->close();
+        // The status written is the one read under the lock.
+        $restore_status = $restored['restored_status'];
 
         // 2. Unarchive corresponding user
         if ($user_id > 0) {
@@ -124,11 +123,16 @@ if ($id > 0) {
             $ca_stmt->close();
         }
 
-        $inv_stmt = $conn->prepare("UPDATE invoices SET status = 'pending', cancel_reason = NULL WHERE rent_application_id = ? AND status = 'cancelled' AND cancel_reason = 'Archived'");
-        $inv_stmt->bind_param("i", $id);
-        $inv_stmt->execute();
-        $invoices_restored = $inv_stmt->affected_rows;
-        $inv_stmt->close();
+        // Only when the tenancy is resuming: a tenant restored to 'moved-out'
+        // must not get their cancelled bills back.
+        $invoices_restored = 0;
+        if ($reactivate_tenancy) {
+            $inv_stmt = $conn->prepare("UPDATE invoices SET status = 'pending', cancel_reason = NULL WHERE rent_application_id = ? AND status = 'cancelled' AND cancel_reason = 'Archived'");
+            $inv_stmt->bind_param("i", $id);
+            $inv_stmt->execute();
+            $invoices_restored = $inv_stmt->affected_rows;
+            $inv_stmt->close();
+        }
 
         // 5. Try to reoccupy the room if it is currently vacant — only when
         // the tenant is going back to a live tenancy (H6); restoring to
@@ -142,8 +146,10 @@ if ($id > 0) {
             $room_check->close();
 
             if ($room_res && $room_res['status'] === 'vacant') {
-                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND status = 'vacant'");
-                $room_stmt->bind_param("sssis", $full_name, $lease_start, $lease_end, $occupants, $room_name);
+                // An Approved tenant has not moved in: the unit goes back to reserved, not occupied.
+                $room_state = $restore_status === 'Approved' ? 'reserved' : 'occupied';
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = ?, tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND status = 'vacant'");
+                $room_stmt->bind_param("ssssis", $room_state, $full_name, $lease_start, $lease_end, $occupants, $room_name);
                 $room_stmt->execute();
                 $room_restored = $room_stmt->affected_rows > 0;
                 $room_stmt->close();

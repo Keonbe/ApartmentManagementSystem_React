@@ -41,14 +41,14 @@ if ($id > 0) {
 
     $conn->begin_transaction();
     try {
-        $pre_archive_status = $room_res['status'];
-        $stmt = $conn->prepare("UPDATE rent_applications SET status = 'archived', pre_archive_status = ?, archive_date = ?, archive_reason = ?, archive_notes = ? WHERE id = ?");
-        $stmt->bind_param("ssssi", $pre_archive_status, $archiveDate, $archiveReason, $archiveNotes, $id);
-        $stmt->execute();
-        if ($stmt->affected_rows === 0) {
-            throw new Exception("Application could not be archived — it may no longer exist.");
+        // Refused when already archived: archiving twice would overwrite the
+        // status restore_tenant.php puts the application back to.
+        $archived = archive_application($conn, (int)$id, $archiveReason, $archiveNotes);
+        if (!$archived['ok']) {
+            throw new Exception($archived['code'] === 'not_allowed'
+                ? "This application is already archived."
+                : "Application could not be archived — it may no longer exist.");
         }
-        $stmt->close();
 
         // end_tenancy() vacates the room (only if this tenant still occupies
         // it), cancels open invoices tagged with this reason, releases

@@ -111,7 +111,7 @@ if ($id > 0 && !empty($status)) {
         // transaction and refuse a move it doesn't allow — e.g. a Pending
         // Review application can't be pushed straight to moved-out, and an
         // application that's already Rejected can't be moved again from here.
-        $cur_stmt = $conn->prepare("SELECT status, user_id FROM rent_applications WHERE id = ?");
+        $cur_stmt = $conn->prepare("SELECT status, user_id, room_name FROM rent_applications WHERE id = ? FOR UPDATE");
         $cur_stmt->bind_param("i", $id);
         $cur_stmt->execute();
         $cur_row = $cur_stmt->get_result()->fetch_assoc();
@@ -148,113 +148,47 @@ if ($id > 0 && !empty($status)) {
         }
         $refunds_raised = [];
 
-        if ($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ?, rejection_attachment_path = ? WHERE id = ? AND status = ?");
-            if (!$stmt) {
-                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?");
-                $stmt->bind_param("ssis", $status, $rejection_reason, $id, $current_status);
-            } else {
-                $stmt->bind_param("sssss", $status, $rejection_reason, $attachment_path, $id, $current_status);
-            }
-        } else if ($status === 'pending-move-out') {
+        $requested_move_out_date = null;
+        if ($status === 'pending-move-out') {
             $requested_move_out_date = $input['requested_move_out_date'] ?? null;
             if (empty($requested_move_out_date)) {
                 throw new Exception("Move-out date is required.");
             }
             $today = new DateTime(date('Y-m-d'));
             $selected_date = new DateTime($requested_move_out_date);
-            $interval = $today->diff($selected_date);
-            $days_diff = (int)$interval->format('%r%a');
+            $days_diff = (int)$today->diff($selected_date)->format('%r%a');
 
-            if ($days_diff < 15) {
-                throw new Exception("Prior notice of at least 15 days is required before actual move-out.");
+            // The notice window is the admin setting (Settings → Rental), the same
+            // one the tenant's own move-out request uses.
+            $notice = move_out_notice_days($conn);
+            if ($days_diff < $notice['min']) {
+                throw new Exception("Prior notice of at least {$notice['min']} days is required before actual move-out.");
             }
-            if ($days_diff > 30) {
-                throw new Exception("Move-out notice cannot exceed 30 days in advance.");
-            }
-
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL, rejection_attachment_path = NULL WHERE id = ? AND status = ?");
-            if (!$stmt) {
-                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
-                $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
-            } else {
-                $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
-            }
-        } else {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL, rejection_attachment_path = NULL WHERE id = ? AND status = ?");
-            if (!$stmt) {
-                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
-                $stmt->bind_param("sis", $status, $id, $current_status);
-            } else {
-                $stmt->bind_param("sis", $status, $id, $current_status);
+            if ($days_diff > $notice['max']) {
+                throw new Exception("Move-out notice cannot exceed {$notice['max']} days in advance.");
             }
         }
-        $stmt->execute();
-        if ($stmt->affected_rows === 0) {
-            $stmt->close();
+
+        $moved = transition_application($conn, $id, $status, [
+            'reason' => $rejection_reason, 'attachment' => $attachment_path, 'move_out_date' => $requested_move_out_date,
+        ]);
+        if (!$moved['ok']) {
             throw new Exception("This application was changed by someone else. Refresh and try again.");
         }
-        $stmt->close();
 
         if ($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') {
-            // Admin changed mind or cancelled: undo move-in invoices and contracts
-            // 1. Cancel all open move-in invoices
-            $open_statuses = billing_open_status_sql();
-            $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE rent_application_id = ? AND status IN $open_statuses");
-            $c_reason = "Application $status before move-in";
-            $cancel_inv->bind_param("si", $c_reason, $id);
-            $cancel_inv->execute();
-            $cancel_inv->close();
+            // Admin changed mind or cancelled: undo move-in invoices, contract,
+            // advance credits, reminders and free the room. An Approved
+            // application held the room, so it is vacated outright; before that
+            // the unit may belong to someone else and is only released if unclaimed.
+            release_application_holds($conn, $id, $cur_row['user_id'] ?? null, "Application $status before move-in", [
+                'room_name' => $cur_row['room_name'], 'vacate_held_room' => $current_status === 'Approved',
+            ]);
 
-            // 2. Delete draft lease contract
-            $del_ctr = $conn->prepare("DELETE FROM lease_contracts WHERE rent_application_id = ? AND status = 'draft'");
-            $del_ctr->bind_param("i", $id);
-            $del_ctr->execute();
-            $del_ctr->close();
-
-            // 3. Cancel open advance credits
-            $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE rent_application_id = " . (int)$id . " AND status IN ('reserved', 'available')");
-
-            // 3b. Money already paid on an approved application goes back through
+            // Money already paid on an approved application goes back through
             // a refund request per paid invoice (the admin decides at /admin-refunds).
             if ($refund_on_cancel && !empty($cur_row['user_id'])) {
                 $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, trim((string)$rejection_reason), $admin_id);
-            }
-
-            // 4. Resolve payment notifications for the applicant
-            if (!empty($cur_row['user_id'])) {
-                $conn->query("UPDATE notifications SET status = 'Resolved', is_read = 1 WHERE user_id = " . (int)$cur_row['user_id'] . " AND type IN ('billing', 'rent_due', 'overdue') AND status = 'Pending'");
-            }
-
-            // 5. Free the room
-            $app_q = $conn->prepare("SELECT room_name FROM rent_applications WHERE id = ?");
-            $app_q->bind_param("i", $id);
-            $app_q->execute();
-            $room_row = $app_q->get_result()->fetch_assoc();
-            $app_q->close();
-            if ($room_row) {
-                $room_name = $room_row['room_name'];
-
-                if ($current_status === 'Approved') {
-                    // An approved application holds the room ('reserved' for it).
-                    $room_id_clean = trim(str_replace('Room', '', $room_name));
-                    $free_room = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
-                    $free_room->bind_param("s", $room_id_clean);
-                    $free_room->execute();
-                    $free_room->close();
-
-                    $free_room2 = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
-                    $free_room2->bind_param("s", $room_name);
-                    $free_room2->execute();
-                    $free_room2->close();
-                } else {
-                    // Not yet approved: the room may belong to someone else (an
-                    // approved applicant or a tenant), so never vacate it outright.
-                    // It may still be 'reserved' from the Converted hold this
-                    // application came from (audit M5) — release it only if no
-                    // other application or hold claims it.
-                    release_room_if_unclaimed($conn, $room_name);
-                }
             }
         }
 
@@ -339,7 +273,11 @@ if ($id > 0 && !empty($status)) {
             $app_stmt->close();
         }
 
-        if ($status === 'active') {
+        if ($status === 'active' && $current_status === 'pending-move-out') {
+            // Cancelling a move-out notice: the tenancy simply carries on. The
+            // lease dates, contract and invoices are left as they were.
+            resolve_admin_queue($conn, 'move_out_request', $id);
+        } elseif ($status === 'active') {
             $move_in_q = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, occupants, move_in_date FROM rent_applications WHERE id = ? AND status = 'active'");
             $move_in_q->bind_param("i", $id);
             $move_in_q->execute();
@@ -509,7 +447,10 @@ if ($id > 0 && !empty($status)) {
                 $room = $u_res['room_name'];
                 
                 $notif_title = $status === 'active' ? 'Move-In Confirmed' : "Application " . ($status === 'Declined' ? 'Rejected' : $status);
-                if ($status === 'active') {
+                if ($status === 'active' && $current_status === 'pending-move-out') {
+                    $notif_title = 'Move-Out Cancelled';
+                    $notif_msg = "Your move-out notice for Unit $room has been cancelled. Your rent continues as before.";
+                } elseif ($status === 'active') {
                     $notif_msg = "Your move-in to Unit $room has been confirmed.";
                 } elseif ($status === 'Action Required') {
                     $notif_msg = "Your rent application for Unit $room needs more information from you.";

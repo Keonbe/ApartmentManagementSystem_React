@@ -16,9 +16,9 @@ import FieldError from '../Components/form/FieldError';
 import CharCount from '../Components/form/CharCount';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 
-// update_tenant_status.php: a scheduled move-out is 15–30 days ahead.
-const MOVE_OUT_MIN_DAYS = 15;
-const MOVE_OUT_MAX_DAYS = 30;
+// update_tenant_status.php: a scheduled move-out is within the notice window of Settings → Rental
+// (15–30 days until the settings load).
+const DEFAULT_MOVE_OUT_WINDOW = { min: 15, max: 30 };
 const money = (v) => Number(v) || 0;
 
 // deposit_deductions.category (update_tenant_status.php DEPOSIT_DEDUCTION_CATEGORIES).
@@ -37,6 +37,7 @@ import FilterTabs from '../Components/admin/ui/FilterTabs';
 import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import { SkeletonCards, SkeletonRows } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
+import { getSystemSettings } from '../config/systemSettings';
 
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
@@ -163,12 +164,19 @@ const AdminTenants = () => {
   // One hook for the archive, move-out and clearance modals; each submit
   // checks only its own fields. Keys match the endpoints' body fields.
   const [savingAction, setSavingAction] = useState('');
+  const [moveOutWindow, setMoveOutWindow] = useState(DEFAULT_MOVE_OUT_WINDOW);
+  useEffect(() => {
+    getSystemSettings().then((s) => setMoveOutWindow({
+      min: s.moveOutMinNoticeDays ?? DEFAULT_MOVE_OUT_WINDOW.min,
+      max: s.moveOutMaxNoticeDays ?? DEFAULT_MOVE_OUT_WINDOW.max,
+    })).catch(() => {});
+  }, []);
   const tenantForms = useFieldErrors({
     archiveReason: (v) => (archiveReasons.includes(v) ? '' : 'Choose an archive reason.'),
     archiveNotes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
-    requested_move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(MOVE_OUT_MIN_DAYS), max: addDays(MOVE_OUT_MAX_DAYS) })
-      .replace(/cannot be before .*/, `must be at least ${MOVE_OUT_MIN_DAYS} days from today.`)
-      .replace(/cannot be after .*/, `cannot be more than ${MOVE_OUT_MAX_DAYS} days from today.`),
+    requested_move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(moveOutWindow.min), max: addDays(moveOutWindow.max) })
+      .replace(/cannot be before .*/, `must be at least ${moveOutWindow.min} days from today.`)
+      .replace(/cannot be after .*/, `cannot be more than ${moveOutWindow.max} days from today.`),
     damage_notes: (v) => checkText(v, { label: 'Inspection notes', max: LIMITS.reason, required: false }),
   }, { idPrefix: 'tenant-' });
   const tenantValues = {
@@ -247,7 +255,7 @@ const AdminTenants = () => {
 
   const handleInitiateMoveOutClick = (tenant) => {
     setMoveOutTarget(tenant);
-    setMoveOutDate(addDays(MOVE_OUT_MIN_DAYS));
+    setMoveOutDate(addDays(moveOutWindow.min));
     tenantForms.setErrors({});
     setShowProfileModal(false);
     setShowMoveOutModal(true);
@@ -1121,8 +1129,8 @@ const AdminTenants = () => {
                     type="date"
                     {...tenantForms.fieldA11y('requested_move_out_date')}
                     value={moveOutDate}
-                    min={addDays(MOVE_OUT_MIN_DAYS)}
-                    max={addDays(MOVE_OUT_MAX_DAYS)}
+                    min={addDays(moveOutWindow.min)}
+                    max={addDays(moveOutWindow.max)}
                     onChange={(e) => { setMoveOutDate(e.target.value); tenantForms.clearError('requested_move_out_date'); }}
                     onBlur={() => blurTenantField('requested_move_out_date')}
                     className={`w-full px-3 py-2.5 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 bg-white text-slate-800${invalidCls(tenantForms.errors.requested_move_out_date)}`}

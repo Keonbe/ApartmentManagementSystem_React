@@ -82,11 +82,11 @@ try {
 // guard + affected_rows check catches the case where the application's
 // status changed between the SELECT above and this UPDATE (e.g. it was
 // concurrently moved-out/archived already).
-$update_stmt = $conn->prepare("UPDATE rent_applications SET status = 'pending-move-out', requested_move_out_date = ? WHERE id = ? AND status IN ('Approved', 'active')");
-$update_stmt->bind_param("si", $move_out_date, $app_id);
-$update_stmt->execute();
+$conn->begin_transaction();
+$moved = transition_application($conn, (int)$app_id, 'pending-move-out', ['user_id' => $user_id, 'only_from' => ['Approved', 'active'], 'move_out_date' => $move_out_date]);
 
-if ($update_stmt->affected_rows > 0) {
+if ($moved['ok']) {
+    $conn->commit();
     log_activity($conn, $user_id, 'tenant', "Requested Move Out", "Application ID: $app_id, Room: $room_name, Scheduled: $move_out_date");
 
     // The admin has to schedule clearance and final billing for this move-out
@@ -96,10 +96,9 @@ if ($update_stmt->affected_rows > 0) {
 
     echo json_encode(["success" => true, "message" => "Move-out request recorded successfully."]);
 } else {
+    $conn->rollback();
     echo json_encode(["success" => false, "message" => "Failed to submit move-out request — your application may have already changed status."]);
 }
 
-
-$update_stmt->close();
 $conn->close();
 ?>

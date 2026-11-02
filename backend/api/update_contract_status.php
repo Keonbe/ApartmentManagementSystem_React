@@ -284,21 +284,9 @@ if ($action === 'edit') {
             throw new Exception("Contract status changed before this could be applied. Try again.");
         }
 
-        $app_status_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE id = ?");
-        $app_status_stmt->bind_param("i", $app_id);
-        $app_status_stmt->execute();
-        $app_status_row = $app_status_stmt->get_result()->fetch_assoc();
-        $app_status_stmt->close();
-        if (!$app_status_row || !application_transition_allowed($app_status_row['status'], 'moved-out')) {
-            throw new Exception("This tenant has already moved out.");
-        }
-
-        $app_stmt = $conn->prepare("UPDATE rent_applications SET status = 'moved-out' WHERE id = ? AND status = ?");
-        $app_stmt->bind_param("is", $app_id, $app_status_row['status']);
-        $app_stmt->execute();
-        $app_changed = $app_stmt->affected_rows > 0;
-        $app_stmt->close();
-        if (!$app_changed) {
+        // Locks the application and checks it can still move out.
+        $ended = transition_application($conn, $app_id, 'moved-out');
+        if (!$ended['ok']) {
             throw new Exception("This tenant has already moved out.");
         }
 

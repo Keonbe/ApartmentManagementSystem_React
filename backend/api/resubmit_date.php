@@ -26,11 +26,10 @@ $errors = array_filter([
 if ($errors) validation_fail($errors);
 $app_id = (int)$app_id;
 
-$stmt = $conn->prepare("UPDATE rent_applications SET preferred_move_in_date = ?, status = 'Pending Review', rejection_reason = NULL WHERE id = ? AND user_id = ? AND status = 'Action Required'");
-$stmt->bind_param("sii", $new_date, $app_id, $user_id);
-$stmt->execute();
-
-if ($stmt->affected_rows > 0) {
+$conn->begin_transaction();
+$moved = transition_application($conn, $app_id, 'Pending Review', ['user_id' => $user_id, 'only_from' => ['Action Required'], 'cols' => ['preferred_move_in_date' => $new_date]]);
+if ($moved['ok']) {
+    $conn->commit();
     $shown_date = date('F j, Y', strtotime($new_date));
     log_activity($conn, $user_id, 'tenant', 'Resubmitted Move-In Date', "Application ID: $app_id, Date: $new_date");
     resolve_admin_queue($conn, 'rent_application', $app_id);
@@ -38,8 +37,8 @@ if ($stmt->affected_rows > 0) {
         "Application #$app_id is back for review with a new preferred move-in date of $shown_date.");
     echo json_encode(['success' => true]);
 } else {
+    $conn->rollback();
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Could not update application. Status may have changed.']);
 }
-$stmt->close();
 ?>
