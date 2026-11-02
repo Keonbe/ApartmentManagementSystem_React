@@ -9,6 +9,7 @@ import { useLang, dateLocale } from '../config/i18n';
 import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import { printElement } from '../utils/print';
 import useDialog from '../hooks/useDialog';
+import { invoiceOwed } from '../utils/invoiceBalance';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
 // Badge per invoice status. Anything awaiting management or the gateway is
@@ -153,7 +154,7 @@ export default function UserPaymentHistory() {
 
     // ── Grouping: To pay (open and awaiting), Paid by year, Cancelled ──
     const byDue = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
-    const owedOf = (i) => parseFloat(i.balance ?? i.total_amount) || 0;
+    const owedOf = invoiceOwed;
     const isOpen = (i) => PAYABLE_STATUSES.includes(i.status) || AWAITING_STATUSES.includes(i.status);
     const openBills = invoices.filter(isOpen).sort(byDue);
     const payable = openBills.filter((i) => PAYABLE_STATUSES.includes(i.status));

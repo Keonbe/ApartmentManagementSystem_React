@@ -34,6 +34,7 @@ const referenceInputProps = (label = '') => {
     if (isBankMethod(m)) return { maxLength: 55, inputMode: 'text', placeholder: m.includes('bpi') ? 'e.g. BPI-2026-000123' : 'e.g. BDO-2026-000123' };
     return { maxLength: LIMITS.paymentReference, inputMode: 'text', placeholder: 'e.g. 1002 9382 1823' };
 };
+import { invoiceOwed } from '../utils/invoiceBalance';
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
 
 const getQrTitle = (label) => {
@@ -123,7 +124,7 @@ export default function PayBills() {
     const isCancelledApp = (i) => ['cancelled', 'rejected', 'declined', 'moved-out', 'archived'].includes(String(i?.application_status || '').toLowerCase());
     const isGrouped = (i) => !!(i.payment_group || i.advance_months);
     // What is still owed on an open bill: its balance after any parts already received.
-    const owed = (i) => parseFloat(i.balance ?? i.total_amount) || 0;
+    const owed = invoiceOwed;
     const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !isGrouped(i) && !isCancelledApp(i)).sort(byDueDate);
     const awaitingInvoices = invoices.filter(i => AWAITING_STATUSES.includes(i.status) && !isCancelledApp(i)).sort(byDueDate);
     const hasCancelledApp = invoices.length > 0 && invoices.every(isCancelledApp);
@@ -445,7 +446,7 @@ export default function PayBills() {
     const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.services + billDetails.maintenance + billDetails.securityDeposit + billDetails.lateFee;
     // Installments: parts already received on this bill, and what is left.
     const paidSoFar = parseFloat(activeInv?.amount_paid) || 0;
-    const balanceDue = Math.max(0, Math.round((totalAmount - paidSoFar) * 100) / 100);
+    const balanceDue = activeInv ? invoiceOwed(activeInv) : Math.max(0, Math.round((totalAmount - paidSoFar) * 100) / 100);
     // The part the tenant pays now ('' = the whole balance). Single bills only.
     const [partAmount, setPartAmount] = useState('');
     const [partCapped, setPartCapped] = useState(false); // the last entry was over the balance
@@ -879,7 +880,7 @@ export default function PayBills() {
 
                     {/*Left Grid Parameter Block: Billing Items Statement Breakdown Ledger*/}
                     {payingGroup ? (
-                    <div className={`pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border-2 ${activeGroup.kind === 'bundle' ? 'border-rose-200' : 'border-indigo-200'} shadow-md p-5 sm:p-8 space-y-5`}>
+                    <div className={`pay-bills-card card-interactive md:col-start-1 md:col-span-7 md:row-start-1 bg-white rounded-3xl border-2 ${activeGroup.kind === 'bundle' ? 'border-rose-200' : 'border-indigo-200'} shadow-md p-5 sm:p-8 space-y-5`}>
                         <div className="flex justify-between items-start border-b border-slate-100 pb-3 gap-3">
                             <div>
                                 <h3 className="text-lg font-bold m-0 text-brand">{groupWord}</h3>
@@ -928,7 +929,7 @@ export default function PayBills() {
                         </div>
                     </div>
                     ) : (
-                    <div className="pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
+                    <div className="pay-bills-card card-interactive md:col-start-1 md:col-span-7 md:row-start-1 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         {/* Title, then the links on their own row: the same layout in
                             English and Filipino (the longer labels used to squeeze the title). */}
                         <div className="flex flex-col items-start gap-1 border-b border-slate-100 pb-3">
@@ -1021,7 +1022,7 @@ export default function PayBills() {
                     )}
 
                     {/*Right Grid Parameter Block: Clearing Channel Allocation Panel Controls*/}
-                    <div className="pay-bills-card card-interactive md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
+                    <div className="pay-bills-card card-interactive md:col-start-8 md:col-span-5 md:row-start-1 md:row-span-2 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3 text-brand">{t('payBills.paymentSettings')}</h3>
                         
                         {/* Native radios (was a custom dropdown with no keyboard or
@@ -1068,7 +1069,7 @@ export default function PayBills() {
                         </fieldset>
 
                         {!payingGroup && ['manual', 'split'].includes(currentMethodObj.family) && balanceDue > 0 && (
-                            <div className="flex flex-col gap-1 text-left">
+                            <div className="flex flex-col gap-2 text-left">
                                 <label htmlFor="pay-part_amount" className="text-xs font-bold text-slate-700 block">Amount you are paying now (₱)</label>
                                 {/* Text, not type="number" (which took 1e6, -5 and any size): digits
                                     and one point, 2 decimals, and never more than the balance. */}
@@ -1084,10 +1085,10 @@ export default function PayBills() {
                                     placeholder={`${balanceDue.toFixed(2)} (whole balance)`} aria-invalid={!!partError} aria-describedby="pay-part_amount-hint"
                                     className={`pay-bills-input w-full rounded-xl border px-3 py-2 text-sm text-slate-800 ${partError ? 'border-rose-400' : 'border-slate-200'}`} />
                                 {partError
-                                    ? <p id="pay-part_amount-hint" role="alert" className="m-0 text-xs font-semibold text-rose-600">{partError}</p>
+                                    ? <p id="pay-part_amount-hint" role="alert" className="m-0 mt-0.5 text-xs font-semibold text-rose-600">{partError}</p>
                                     : partCapped && partAmount !== ''
-                                    ? <p id="pay-part_amount-hint" role="status" className="m-0 text-xs font-semibold text-amber-700">The most you can pay is your balance, {fmtMoney(balanceDue)}.</p>
-                                    : <p id="pay-part_amount-hint" className="m-0 text-xs text-slate-500">Leave blank to pay the whole balance ({fmtMoney(balanceDue)}), or pay part now and the rest later.</p>}
+                                    ? <p id="pay-part_amount-hint" role="status" className="m-0 mt-0.5 text-xs font-semibold text-amber-700">The most you can pay is your balance, {fmtMoney(balanceDue)}.</p>
+                                    : <p id="pay-part_amount-hint" className="m-0 mt-0.5 text-xs text-slate-500">Leave blank to pay the whole balance ({fmtMoney(balanceDue)}), or pay part now and the rest later.</p>}
                             </div>
                         )}
 
@@ -1352,12 +1353,11 @@ export default function PayBills() {
                         </div>
 
                     </div>
-                </div>
 
                 {/* Pay in advance: one payment credits N upcoming months; each
                     month is still billed on its usual date and paid from it. */}
                 {(advance?.available || advance?.credits?.length > 0) && (
-                    <div id="pay-in-advance" className="pay-bills-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-4 scroll-mt-4">
+                    <div id="pay-in-advance" className="pay-bills-card md:col-start-1 md:col-span-7 md:row-start-2 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-4 scroll-mt-4">
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
                             <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 text-lg">
                                 <FontAwesomeIcon icon={faCalendarPlus} />
@@ -1492,6 +1492,8 @@ export default function PayBills() {
                         )}
                     </div>
                 )}
+                </div>
+
 
             </div>
 

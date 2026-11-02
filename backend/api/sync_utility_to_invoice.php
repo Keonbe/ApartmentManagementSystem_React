@@ -176,9 +176,10 @@ try {
         $payment_reference = $is_paid ? "UTIL-READING-{$id}" : null;
         $paid_at = $is_paid ? $now->format('Y-m-d H:i:s') : null;
 
-        $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, water, electricity, services, total_amount, billing_period, status, due_date, payment_method, payment_reference, paid_at)
-                                VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("siiddddssssss", $target_inv_id, $user_id, $rent_app_id, $water_total, $electric_total, $extra_total, $charge, $label, $status, $due_date, $payment_method, $payment_reference, $paid_at);
+        $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, water, electricity, services, total_amount, amount_paid, billing_period, status, due_date, payment_method, payment_reference, paid_at)
+                                VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $paid_now = $is_paid ? $charge : 0.0;
+        $stmt->bind_param("siidddddssssss", $target_inv_id, $user_id, $rent_app_id, $water_total, $electric_total, $extra_total, $charge, $paid_now, $label, $status, $due_date, $payment_method, $payment_reference, $paid_at);
         if (!$stmt->execute()) throw new Exception("Failed to create the utility invoice.");
         $stmt->close();
     }

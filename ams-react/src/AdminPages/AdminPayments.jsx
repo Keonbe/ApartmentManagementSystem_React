@@ -27,6 +27,7 @@ import { TH, btn } from '../Components/admin/ui/styles';
 import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import { Skeleton, SkeletonBlock, SkeletonList, SkeletonRows } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
+import { invoiceOwed } from '../utils/invoiceBalance';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -98,8 +99,7 @@ const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : 
 // The billing sum is the old fallback for an account with no balance figure; it is
 // skipped when the only open invoice is an advance, or that prepayment would be
 // counted as a debt after all.
-const owedBalance = (t) => t.outstandingBalance
-  || (t.advanceAwaiting > 0 ? 0 : t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance);
+const owedBalance = (t) => t.outstandingBalance ?? 0;
 
 const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
@@ -202,9 +202,9 @@ const AdminPayments = () => {
           
           const t = grouped[inv.user_id];
           
-          if (inv.status === 'pending' || inv.status === 'overdue' || inv.status === 'pending-verification' || inv.status === 'scheduled' || inv.status === 'processing' || inv.status === 'payment-failed') {
+          if (inv.status === 'pending' || inv.status === 'unpaid' || inv.status === 'overdue' || inv.status === 'pending-verification' || inv.status === 'scheduled' || inv.status === 'processing' || inv.status === 'payment-failed') {
             // Installments: only what is still owed (total less parts received).
-            const stillOwed = Math.max(0, parseFloat(inv.total_amount || 0) - parseFloat(inv.amount_paid || 0));
+            const stillOwed = invoiceOwed(inv);
             if (inv.advance_months) {
               // A prepayment the tenant chose to open, not a debt: nothing is owed for
               // those months until they are billed, and an unpaid one cancels itself.

@@ -287,7 +287,7 @@ $netMarginPct = $grossRevenue > 0 ? round(($netIncome / $grossRevenue) * 100, 1)
 // into 'overdue' — so arrears read ₱0 and collection efficiency 100% while
 // tenants were in fact behind.
 $totalOutstanding = 0.0;
-$stmt = $conn->prepare("SELECT SUM(total_amount - amount_paid) as overdue FROM invoices WHERE status IN " . billing_open_status_sql() . " AND due_date < CURDATE() AND advance_months IS NULL");
+$stmt = $conn->prepare("SELECT SUM(" . invoice_balance_sql('i') . ") as overdue FROM invoices i WHERE " . invoice_owed_where_sql('i', true));
 if ($stmt) {
     $stmt->execute();
     if ($row = $stmt->get_result()->fetch_assoc()) {
@@ -815,7 +815,7 @@ $stmt->close();
 
 // 3. outstandingBalances
 $data['outstandingBalances'] = [];
-$stmt = $conn->prepare("SELECT i.id, i.status, u.first_name, u.last_name, COALESCE(r.id, ra.room_name) as unit, i.total_amount, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status IN " . billing_open_status_sql() . " AND i.due_date < CURDATE() AND i.advance_months IS NULL ORDER BY i.due_date ASC");
+$stmt = $conn->prepare("SELECT i.id, i.status, u.first_name, u.last_name, COALESCE(r.id, ra.room_name) as unit, " . invoice_balance_sql('i') . " AS balance, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE " . invoice_owed_where_sql('i', true) . " ORDER BY i.due_date ASC");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
@@ -824,7 +824,7 @@ while ($row = $res->fetch_assoc()) {
         'status' => $row['status'],
         'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
         'unit' => $row['unit'] ?? 'N/A',
-        'balance' => (float)$row['total_amount'],
+        'balance' => (float)$row['balance'],
         'daysOverdue' => max(1, (int)$row['days_overdue'])
     ];
 }

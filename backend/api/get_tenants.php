@@ -15,7 +15,8 @@ require_once "../config.php";
 $admin_id = require_admin($conn);
 promote_overdue_invoices($conn);
 
-$open = billing_open_status_sql();
+$owed = invoice_owed_where_sql('i');
+$bal = invoice_balance_sql('i');
 
 // A tenant's balance covers invoices tied to this application, plus any invoice
 // for the same user that carries no application (e.g. older manual invoices).
@@ -24,9 +25,9 @@ $invoice_scope = "(i.rent_application_id = ra.id OR (i.rent_application_id IS NU
 $result = $conn->query("
     SELECT ra.*, lc.lease_start, lc.lease_end, lc.status AS contract_status,
            lc.id AS contract_id, lc.deposit_amount, lc.deposit_status, lc.damage_deduction, lc.utility_deduction, lc.refund_date,
-           (SELECT COALESCE(SUM(i.total_amount - i.amount_paid), 0) FROM invoices i WHERE $invoice_scope AND i.status IN $open) AS outstanding,
-           (SELECT COALESCE(SUM(i.total_amount - i.amount_paid), 0) FROM invoices i WHERE $invoice_scope AND i.status IN $open AND i.due_date < CURDATE()) AS overdue_amount,
-           (SELECT MIN(i.due_date) FROM invoices i WHERE $invoice_scope AND i.status IN $open AND i.due_date < CURDATE()) AS oldest_overdue_due
+           (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed) AS outstanding,
+           (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS overdue_amount,
+           (SELECT MIN(i.due_date) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS oldest_overdue_due
     FROM rent_applications ra
     LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
     ORDER BY ra.id DESC

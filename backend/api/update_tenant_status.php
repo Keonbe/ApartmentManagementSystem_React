@@ -415,7 +415,7 @@ if ($id > 0 && !empty($status)) {
             $deposit_amount = ($deposit_row && $deposit_row['deposit_status'] === 'Held') ? (float)$deposit_row['deposit_amount'] : 0.0;
             $settled_contract_id = $deposit_row ? $deposit_row['id'] : null;
 
-            $open_stmt = $conn->prepare("SELECT COALESCE(SUM(total_amount - amount_paid), 0) AS open_total FROM invoices WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
+            $open_stmt = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
             $open_stmt->bind_param("i", $id);
             $open_stmt->execute();
             $open_total = (float)$open_stmt->get_result()->fetch_assoc()['open_total'];
