@@ -60,10 +60,8 @@ if ($stmt->execute()) {
     $new_user_id = (int)$stmt->insert_id;
     log_activity($conn, $new_user_id, 'user', 'Account Registered', "New tenant account #$new_user_id ($email_address)", $new_user_id);
     require_once __DIR__ . '/auth_email.php';
-    $frontendBaseUrl = APP_ENV === 'development'
-        ? 'http://localhost:5174'
-        : 'https://www.angcanan-ams.com';
-    $verifyLink = $frontendBaseUrl . '/verify-email?token=' . rawurlencode($verification_token);
+    $frontend_url = rtrim($_SERVER['HTTP_ORIGIN'] ?? 'https://www.angcanan-ams.com', '/');
+    $verifyLink = $frontend_url . '/verify-email?token=' . rawurlencode($verification_token);
     $escapedVerifyLink = htmlspecialchars($verifyLink, ENT_QUOTES, 'UTF-8');
     $html = '<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b;padding:1px">'
         . '<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden">'
