@@ -94,7 +94,7 @@ if ($throttled) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT id, email_address, first_name, middle_name, last_name, suffix, contact_no, gender, password, role, is_archived FROM users WHERE email_address = ?");
+$stmt = $conn->prepare("SELECT id, email_address, first_name, middle_name, last_name, suffix, contact_no, gender, password, role, is_archived, email_verified_at FROM users WHERE email_address = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -119,6 +119,46 @@ if ((int)$user["is_archived"] === 1) {
     echo json_encode(["message" => "This account has been archived and cannot log in.", "valid" => false]);
     $conn->close();
     exit;
+}
+
+if (empty($user['email_verified_at'])) {
+    echo json_encode(["message" => "Please verify your email address before signing in.", "valid" => false, "email_verification_required" => true]);
+    $conn->close(); exit;
+}
+
+// A valid trusted-device cookie skips OTP; only its SHA-256 digest is persisted.
+$deviceToken = (string)($_COOKIE['ams_trusted_device'] ?? '');
+$isAdmin = ($user['role'] === 'admin');
+$trusted = $isAdmin; // Admins bypass device OTP and proceed to normal session issuance.
+if (!$isAdmin && preg_match('/^[a-f0-9]{64}$/i', $deviceToken)) {
+    $hash = hash('sha256', $deviceToken);
+    $device = $conn->prepare('SELECT id FROM trusted_devices WHERE user_id = ? AND device_token = ? LIMIT 1');
+    $uid = (int)$user['id']; $device->bind_param('is', $uid, $hash); $device->execute();
+    $trustedRow = $device->get_result()->fetch_assoc(); $device->close();
+    if ($trustedRow) {
+        $touch = $conn->prepare('UPDATE trusted_devices SET last_used_at = NOW(), ip_address = ?, user_agent = ? WHERE id = ?');
+        $agent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 512); $did = (int)$trustedRow['id'];
+        $touch->bind_param('ssi', $ip, $agent, $did); $touch->execute(); $touch->close(); $trusted = true;
+    }
+}
+if (!$trusted) {
+    $otpStmt = $conn->prepare("UPDATE users SET login_otp = LPAD(FLOOR(RAND() * 1000000), 6, '0'), login_otp_expires_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE), login_otp_attempts = 0 WHERE id = ?");
+    $uid = (int)$user['id']; $otpStmt->bind_param('i', $uid); $otpStmt->execute(); $otpStmt->close();
+    $loadOtp = $conn->prepare('SELECT login_otp FROM users WHERE id = ?'); $loadOtp->bind_param('i', $uid); $loadOtp->execute();
+    $otp = (string)$loadOtp->get_result()->fetch_assoc()['login_otp']; $loadOtp->close();
+    require_once __DIR__ . '/auth_email.php';
+    $safeOtp = htmlspecialchars($otp, ENT_QUOTES, 'UTF-8');
+    $otpHtml = '<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b;padding:1px">'
+        . '<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden">'
+        . '<div style="background:#3b4276;padding:26px;text-align:center;color:#fff;font-size:24px;font-weight:bold">AMS</div>'
+        . '<div style="padding:32px"><h1 style="font-size:22px;margin:0 0 18px">Login Verification Code</h1>'
+        . '<p style="line-height:1.6;margin:0 0 20px">Use this code to verify your sign-in from a new device:</p>'
+        . '<div style="background:#f1f5f9;border-radius:12px;padding:22px 16px;text-align:center;font-size:32px;line-height:1.2;font-weight:bold;letter-spacing:8px;color:#1e293b">' . $safeOtp . '</div>'
+        . '<p style="font-size:13px;color:#64748b;line-height:1.6;margin:22px 0 0">This code expires in 15 minutes. If you did not try to sign in, please secure your account.</p>'
+        . '</div></div></body></html>';
+    $sent = send_auth_email($conn, $user['email_address'], 'Your AMS login verification code', $otpHtml);
+    echo json_encode(['status' => 'device_verification_required', 'valid' => false, 'message' => $sent ? 'Enter the verification code sent to your email.' : 'Unable to send a verification code. Please try again later.']);
+    $conn->close(); exit;
 }
 
 clear_login_failures($conn, $email);
