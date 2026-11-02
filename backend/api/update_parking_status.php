@@ -147,7 +147,7 @@ $notification_dispatch = dispatch_admin_action_notification(
 // In automatic billing mode the first month is posted as soon as the slot is assigned.
 $billing = null;
 if ($status === 'Assigned' && get_setting($conn, 'parking_billing_mode', 'manual') === 'auto') {
-    $billing = post_parking_charge($conn, $id, new DateTime('now', new DateTimeZone('Asia/Manila')));
+    $billing = post_invoice_charge($conn, 'parking', $id, new DateTime('now', new DateTimeZone('Asia/Manila')));
     if ($billing['ok']) {
         log_activity($conn, $admin_id, 'billing', "Billed Parking Fee", "Reservation ID: $id — " . $billing['message']);
     }

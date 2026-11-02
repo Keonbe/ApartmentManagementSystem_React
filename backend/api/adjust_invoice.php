@@ -1,7 +1,7 @@
 <?php
 // Audit H8: create_invoice.php is insert-only now — re-issuing an invoice
 // used to rewrite parking/water/electricity/late_fee/total_amount wholesale,
-// silently erasing charges post_parking_charge()/sync_utility_to_invoice.php
+// silently erasing charges post_invoice_charge('parking')/sync_utility_to_invoice.php
 // had already posted (while the source rows still said they'd been billed,
 // so they could never be posted again). This is the separate adjustment
 // action the audit calls for: it only ever touches the manual lines, and

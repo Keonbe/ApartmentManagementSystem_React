@@ -44,7 +44,7 @@ if ((int)$request['is_invoiced']) {
     exit;
 }
 
-$charge = post_service_charge($conn, $id);
+$charge = post_invoice_charge($conn, 'service', $id);
 
 if ($charge['ok']) {
     log_activity($conn, $admin_id, 'service', "Posted Service Charge", "Service Request ID: $id billed to invoice " . ($charge['invoice_id'] ?? 'n/a'));

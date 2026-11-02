@@ -1440,7 +1440,7 @@ $conn->close();
 ?>
 ```
 
-> **Claim the batch, don't just lock the file.** The `flock` above only guards the CLI script — once the sweep and the `get_notifications.php` poll also drain the queue (change 1), two PHP processes can `SELECT` the same pending rows. Claim atomically instead, the same claim-first pattern `post_parking_charge()` uses:
+> **Claim the batch, don't just lock the file.** The `flock` above only guards the CLI script — once the sweep and the `get_notifications.php` poll also drain the queue (change 1), two PHP processes can `SELECT` the same pending rows. Claim atomically instead, the same claim-first pattern `post_invoice_charge('parking')` uses:
 >
 > ```php
 > $token = bin2hex(random_bytes(8));

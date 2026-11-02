@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 //   { reservation_id, period? }                     post one month's fee (manual "Bill this month")
 //   { reservation_id, period, action: "reverse" }   back a month out while its invoice is unpaid
 // The period is 'YYYY-MM' and defaults to the current month. A month can only be
-// billed once, however it is triggered (see post_parking_charge()).
+// billed once, however it is triggered (see post_invoice_charge()).
 $admin_id = require_admin($conn);
 
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
@@ -37,7 +37,7 @@ if (!is_valid_utility_period($period)) {
 }
 
 if ($action === 'reverse') {
-    $result = reverse_parking_charge($conn, $reservation_id, $period);
+    $result = reverse_invoice_charge($conn, 'parking', $reservation_id, ['period' => $period]);
     if ($result['ok']) {
         log_activity($conn, $admin_id, 'billing', "Reversed Parking Fee", "Reservation ID: $reservation_id, $period — " . $result['message']);
     } else {
@@ -48,7 +48,7 @@ if ($action === 'reverse') {
     exit;
 }
 
-$result = post_parking_charge($conn, $reservation_id, DateTime::createFromFormat('!Y-m', $period));
+$result = post_invoice_charge($conn, 'parking', $reservation_id, DateTime::createFromFormat('!Y-m', $period));
 if ($result['ok']) {
     log_activity($conn, $admin_id, 'billing', "Billed Parking Fee", "Reservation ID: $reservation_id — " . $result['message']);
 } else {

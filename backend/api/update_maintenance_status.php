@@ -138,6 +138,22 @@ if ($status_changed) {
     $types .= 's';
 }
 
+// Audit H10: a ticket flagged tenant-responsible is billed onto the tenant's
+// invoice once Completed. The charge is reversed if the flag is cleared or the
+// ticket is reopened out of Completed. The reversal shares a transaction with
+// the status change, so a refused reversal (the invoice was paid or is being
+// paid) leaves the ticket as it was instead of Completed-less with the charge
+// still on the bill.
+$final_status = $status_changed ? $new_status : $current['status'];
+$final_tenant_responsible = array_key_exists('tenantResponsible', $input)
+    ? (!empty($input['tenantResponsible']) ? 1 : 0)
+    : (int)$current['tenant_responsible'];
+$reversing = (int)$current['is_invoiced'] && (
+    $final_tenant_responsible === 0
+    || ($status_changed && $current['status'] === 'Completed' && $new_status !== 'Completed')
+);
+
+$conn->begin_transaction();
 $stmt = $conn->prepare($sql);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
@@ -145,10 +161,26 @@ $affected = $stmt->affected_rows;
 $stmt->close();
 
 if ($status_changed && $affected === 0) {
+    $conn->rollback();
     http_response_code(409);
     echo json_encode(["success" => false, "message" => "This request was changed by someone else. Refresh and try again."]);
     exit;
 }
+
+$reversal = null;
+if ($reversing) {
+    $reversal = reverse_invoice_charge($conn, 'maintenance', $id, [
+        'own_transaction' => false,
+        'refund_ctx' => ['reason' => trim((string)($input['rejectionReason'] ?? '')) ?: 'Ticket status changed to ' . $final_status, 'actor_id' => $admin_id],
+    ]);
+    if (!$reversal['ok']) {
+        $conn->rollback();
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => $reversal['message']]);
+        exit;
+    }
+}
+$conn->commit();
 
 $changed_fields = array_map(fn($set) => explode(' =', $set)[0], $sets);
 $details = $status_changed
@@ -187,33 +219,19 @@ if ($status_changed && $new_status !== 'Pending') {
     resolve_admin_queue($conn, 'maintenance_request', $id);
 }
 
-// Audit H10: a ticket flagged tenant-responsible was excluded from building
-// expenses and totalled in the UI as "tenant charged", but nothing ever
-// billed it. Post the charge the moment a Completed ticket is (or becomes)
-// tenant-responsible, and reverse it if the flag is cleared or the ticket
-// is reopened out of Completed — mirroring how service charges are posted
-// and reversed.
-$final_status = $status_changed ? $new_status : $current['status'];
-$final_tenant_responsible = array_key_exists('tenantResponsible', $input)
-    ? (!empty($input['tenantResponsible']) ? 1 : 0)
-    : (int)$current['tenant_responsible'];
-
+// Post the charge the moment a Completed ticket is (or becomes)
+// tenant-responsible; a failure here is not fatal, the status change stands and
+// sync_maintenance_to_invoice.php retries it.
 $billing_message = null;
 
 if ($final_status === 'Completed' && $final_tenant_responsible === 1 && !(int)$current['is_invoiced']) {
-    $charge = post_maintenance_charge($conn, $id);
+    $charge = post_invoice_charge($conn, 'maintenance', $id);
     if ($charge['ok'] && $charge['invoice_id']) {
         log_activity($conn, $admin_id, 'billing', "Posted Maintenance Charge", "Maintenance Ticket #$id billed to invoice " . $charge['invoice_id']);
     }
     $billing_message = $charge['message'];
-} elseif ((int)$current['is_invoiced'] && (
-    $final_tenant_responsible === 0
-    || ($status_changed && $current['status'] === 'Completed' && $new_status !== 'Completed')
-)) {
-    $reversal = reverse_maintenance_charge($conn, $id, ['reason' => trim((string)($input['rejectionReason'] ?? '')) ?: 'Ticket status changed to ' . $new_status, 'actor_id' => $admin_id]);
-    if ($reversal['ok']) {
-        log_activity($conn, $admin_id, 'billing', "Reversed Maintenance Charge", "Maintenance Ticket #$id: " . $reversal['message']);
-    }
+} elseif ($reversal) {
+    log_activity($conn, $admin_id, 'billing', "Reversed Maintenance Charge", "Maintenance Ticket #$id: " . $reversal['message']);
     $billing_message = $reversal['message'];
 }
 

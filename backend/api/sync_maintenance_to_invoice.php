@@ -49,7 +49,7 @@ if ((int)$request['is_invoiced']) {
     exit;
 }
 
-$charge = post_maintenance_charge($conn, $id);
+$charge = post_invoice_charge($conn, 'maintenance', $id);
 
 if ($charge['ok']) {
     log_activity($conn, $admin_id, 'billing', "Posted Maintenance Charge", "Maintenance Ticket #$id billed to invoice " . ($charge['invoice_id'] ?? 'n/a'));

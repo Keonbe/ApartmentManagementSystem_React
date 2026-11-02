@@ -88,7 +88,7 @@ try {
     }
 
     if ($reversing) {
-        $reversal = reverse_service_charge($conn, $id, false, ['reason' => (string)$admin_notes, 'actor_id' => $admin_id]);
+        $reversal = reverse_invoice_charge($conn, 'service', $id, ['own_transaction' => false, 'refund_ctx' => ['reason' => (string)$admin_notes, 'actor_id' => $admin_id]]);
         if (!$reversal['ok']) {
             $conn->rollback();
             http_response_code(409);
@@ -105,7 +105,7 @@ try {
     $invoice_id = null;
 
     if ($is_completing) {
-        $charge = post_service_charge($conn, $id);
+        $charge = post_invoice_charge($conn, 'service', $id);
         $billed = $charge['ok'];
         $invoice_id = $charge['invoice_id'];
         if (!$charge['ok']) $warning = $charge['message'];

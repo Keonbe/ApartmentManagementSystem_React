@@ -194,7 +194,7 @@ function process_notification_queue($conn, $limit = 20, $only_user_id = null) {
 
     // Claim first, then read back what was claimed. Two drains running at once
     // would otherwise SELECT the same pending rows and send them twice; this is
-    // the claim-first pattern post_parking_charge() already uses.
+    // the claim-first pattern post_invoice_charge('parking') already uses.
     // $only_user_id keeps a drain to one recipient's jobs: the selftest runs
     // with the 'log' drivers switched on and must not claim real tenants' jobs.
     $only_user_sql = $only_user_id !== null ? " AND user_id = " . (int)$only_user_id : "";

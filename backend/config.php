@@ -688,114 +688,312 @@ function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
     ];
 }
 
-// Posts a completed service request's cost onto the tenant's invoice for the
-// current billing period, mirroring how sync_utility_to_invoice.php merges
-// utility amounts. Unlike water/electricity the `services` column ACCUMULATES,
-// so several completed requests in one month add up on the same invoice.
+// ===== Charges onto invoices ================================================
+// Service, maintenance (tenant-caused repair) and parking charges all land on
+// the tenant's still-adjustable invoice for the month, in their own column, and
+// are claimed FIRST so a repeated call can never bill twice. One module owns
+// that: post_invoice_charge() / reverse_invoice_charge().
 //
-// The is_invoiced flag is claimed FIRST, inside the transaction, so a repeated
-// call (double-click, replayed request) can never bill twice. A rollback
-// un-claims it, leaving the request billable again via sync_service_to_invoice.php.
-//
-// Returns ['ok' => bool, 'invoice_id' => string|null, 'message' => string].
-function post_service_charge($conn, $service_request_id) {
-    $conn->begin_transaction();
+// Per kind: the invoice column, the source table (parking has none: its claim is
+// the parking_charges ledger row), the cost expression, and the wording.
+const INVOICE_CHARGE_KINDS = [
+    'service' => [
+        'column' => 'services', 'label' => 'Service', 'table' => 'service_requests', 'noun' => 'service request',
+        'cost_sql' => 'total_cost', 'free' => 'No charge for this service.',
+        'no_tenancy' => 'No active approved rental — cannot post service charge.',
+    ],
+    'maintenance' => [
+        'column' => 'maintenance', 'label' => 'Maintenance', 'table' => 'maintenance_requests', 'noun' => 'maintenance request',
+        'cost_sql' => 'COALESCE(actual_cost, estimated_cost, 0)', 'free' => 'No charge for this ticket.',
+        'no_tenancy' => 'No active approved rental — cannot post maintenance charge.',
+    ],
+    'parking' => [
+        'column' => 'parking', 'label' => 'Parking', 'table' => null, 'noun' => 'parking slot',
+        'cost_sql' => null, 'free' => 'No charge for parking.',
+        'no_tenancy' => 'The tenant has no active rental, so parking cannot be billed.',
+    ],
+];
 
-    try {
-        //1.ClaimTheRowBeforeTouchingAnyMoney
-        $claim = $conn->prepare("UPDATE service_requests SET is_invoiced = 1 WHERE id = ? AND is_invoiced = 0");
-        $claim->bind_param("i", $service_request_id);
-        $claim->execute();
-        $claimed = $claim->affected_rows;
-        $claim->close();
+// Finds (and locks) the tenant's adjustable invoice for $anchor's month, or
+// creates a charges-only one (base_rent 0, rent is never billed from here), then
+// adds $amount to $column and to total_amount. Runs inside the caller's
+// transaction. Returns ['invoice_id' => string] or ['error' => string]; throws
+// on a database failure.
+function attach_charge_to_invoice($conn, $user_id, DateTime $anchor, $column, $amount, $no_tenancy_message) {
+    $label = billing_period_label($anchor);
+    $legacy_period = $anchor->format('Y-m');
+    $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
 
-        if ($claimed === 0) {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => 'This service request has already been billed.'];
-        }
+    // FOR UPDATE: the invoice must not move to processing / paid between this
+    // read and the update below.
+    $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL ORDER BY created_at ASC LIMIT 1 FOR UPDATE");
+    $stmt->bind_param("iss", $user_id, $label, $legacy_period);
+    $stmt->execute();
+    $invoice = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $invoice_id = $invoice ? $invoice['id'] : null;
 
-        //2.LoadTheClaimedRequest
-        $stmt = $conn->prepare("SELECT user_id, total_cost, service_name FROM service_requests WHERE id = ? FOR UPDATE");
-        $stmt->bind_param("i", $service_request_id);
-        $stmt->execute();
-        $request = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+    if (!$invoice_id) {
+        $lease = get_active_tenancy($conn, $user_id);
+        if (!$lease) return ['error' => $no_tenancy_message];
 
-        if (!$request) {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => 'Service request not found.'];
-        }
-
-        $user_id = (int)$request['user_id'];
-        $amount = (float)$request['total_cost'];
-
-        //FreeServicesStayClaimedButNeverReachAnInvoice
-        if ($amount <= 0) {
-            $conn->commit();
-            return ['ok' => true, 'invoice_id' => null, 'message' => 'No charge for this service.'];
-        }
-
-        //3.BillingPeriodIsTheMonthOfDelivery,InManilaTime
-        $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
-        $period = billing_period_label($now);
-        $legacy_period = $now->format('Y-m');
-
-        //4.FindThisTenantsAdjustableInvoiceForThePeriod (label format, plus legacy 'Y-m')
-        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL ORDER BY created_at ASC LIMIT 1");
-        $stmt->bind_param("iss", $user_id, $period, $legacy_period);
-        $stmt->execute();
-        $invoice = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        $invoice_id = $invoice ? $invoice['id'] : null;
-
-        //5.NoAdjustableInvoice-CreateAServicesOnlyInvoice. Rent is never billed from here.
-        if (!$invoice_id) {
-            $lease = get_active_tenancy($conn, $user_id);
-
-            if (!$lease) {
-                //RollbackUnclaimsTheRowSoTheChargeCanBePostedLater
-                $conn->rollback();
-                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved rental — cannot post service charge.'];
-            }
-
-            $invoice_id = 'INV-' . $now->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
-            $due_date = (clone $now)->modify('first day of next month')->modify('+4 days')->format('Y-m-d');
-
-            $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
-                                    VALUES (?, ?, ?, 0, 0, ?, 'pending', ?)");
-            $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $period, $due_date);
-            if (!$stmt->execute()) {
-                $stmt->close();
-                error_log("[AMS] Failed to create services invoice: " . $conn->error);
-                throw new Exception("Failed to create services invoice.");
-            }
-            $stmt->close();
-        }
-
-        //6.AccumulateOntoTheServicesColumn,NeverOverwrite
-        $stmt = $conn->prepare("UPDATE invoices SET services = services + ?, total_amount = total_amount + ? WHERE id = ?");
-        $stmt->bind_param("dds", $amount, $amount, $invoice_id);
+        $invoice_id = 'INV-' . $anchor->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+        $due_date = (clone $anchor)->modify('first day of next month')->modify('+4 days')->format('Y-m-d');
+        $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
+                                VALUES (?, ?, ?, 0, 0, ?, 'pending', ?)");
+        $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $label, $due_date);
         if (!$stmt->execute()) {
             $stmt->close();
-            error_log("[AMS] Failed to post service charge: " . $conn->error);
-            throw new Exception("Failed to post service charge.");
+            error_log("[AMS] Failed to create charges invoice: " . $conn->error);
+            throw new Exception("Failed to create the invoice for this charge.");
         }
         $stmt->close();
+    }
 
-        //7.LinkTheRequestBackToTheInvoiceItLandedOn
-        $stmt = $conn->prepare("UPDATE service_requests SET invoice_id = ?, billing_period = ? WHERE id = ?");
-        $stmt->bind_param("ssi", $invoice_id, $period, $service_request_id);
+    // $column comes from INVOICE_CHARGE_KINDS, never request input. The status
+    // guard is belt and braces on top of the row lock.
+    $stmt = $conn->prepare("UPDATE invoices SET $column = $column + ?, total_amount = total_amount + ? WHERE id = ? AND status IN $adjustable");
+    $stmt->bind_param("dds", $amount, $amount, $invoice_id);
+    $ok = $stmt->execute() && $stmt->affected_rows === 1;
+    $stmt->close();
+    if (!$ok) {
+        error_log("[AMS] Failed to post $column charge onto $invoice_id: " . $conn->error);
+        throw new Exception("Failed to post the charge onto the invoice.");
+    }
+    return ['invoice_id' => $invoice_id];
+}
+
+// Posts one charge. $kind is 'service' or 'maintenance' ($source_id = the
+// request id; billed in the month of delivery) or 'parking' ($source_id = the
+// reservation id, $month = the permit month to bill).
+//
+// The source row is claimed first inside the transaction (is_invoiced = 1, or
+// the unique parking_charges row), so a double click or replayed request cannot
+// bill twice; a rollback un-claims it, leaving the charge postable again via
+// the sync_*_to_invoice.php retry endpoints. Free requests stay claimed but
+// never reach an invoice.
+//
+// Returns ['ok' => bool, 'invoice_id' => string|null, 'message' => string,
+//          'already' => bool].
+function post_invoice_charge($conn, $kind, $source_id, ?DateTime $month = null) {
+    $k = INVOICE_CHARGE_KINDS[$kind] ?? null;
+    $fail = fn($message, $already = false) => ['ok' => false, 'invoice_id' => null, 'message' => $message, 'already' => $already];
+    if (!$k) return $fail('Unknown charge kind.');
+    $is_parking = $kind === 'parking';
+    if ($is_parking && !$month) return $fail('A parking charge needs the month to bill.');
+
+    $anchor = $is_parking ? $month : new DateTime('now', new DateTimeZone('Asia/Manila'));
+    $label = billing_period_label($anchor);
+
+    $conn->begin_transaction();
+    try {
+        $charge_id = 0;
+        if ($is_parking) {
+            $stmt = $conn->prepare("SELECT user_id, status, assigned_at, duration_months FROM parking_reservations WHERE id = ? FOR UPDATE");
+            $stmt->bind_param("i", $source_id);
+            $stmt->execute();
+            $res = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$res) { $conn->rollback(); return $fail('Parking reservation not found.'); }
+            if ($res['status'] !== 'Assigned') { $conn->rollback(); return $fail('Only an assigned parking slot can be billed.'); }
+
+            // Billable months run from the month of assignment for duration_months.
+            $first = new DateTime(substr($res['assigned_at'], 0, 7) . '-01');
+            $end = (clone $first)->modify('+' . (int)$res['duration_months'] . ' months');
+            $this_month = new DateTime($anchor->format('Y-m') . '-01');
+            if ($this_month < $first || $this_month >= $end) {
+                $conn->rollback();
+                return $fail("$label is outside this permit's term.");
+            }
+
+            $user_id = (int)$res['user_id'];
+            $amount = parking_monthly_fee($conn);
+            $period = $anchor->format('Y-m');
+
+            $claim = $conn->prepare("INSERT IGNORE INTO parking_charges (reservation_id, billing_period, amount) VALUES (?, ?, ?)");
+            $claim->bind_param("isd", $source_id, $period, $amount);
+            $claim->execute();
+            $charge_id = $claim->affected_rows > 0 ? $claim->insert_id : 0;
+            $claim->close();
+            if (!$charge_id) {
+                $conn->rollback();
+                return $fail("Parking for $label has already been billed.", true);
+            }
+        } else {
+            $table = $k['table'];
+            $claim = $conn->prepare("UPDATE $table SET is_invoiced = 1 WHERE id = ? AND is_invoiced = 0");
+            $claim->bind_param("i", $source_id);
+            $claim->execute();
+            $claimed = $claim->affected_rows;
+            $claim->close();
+            if ($claimed === 0) {
+                $conn->rollback();
+                return $fail('This ' . $k['noun'] . ' has already been billed.');
+            }
+
+            $stmt = $conn->prepare("SELECT user_id, {$k['cost_sql']} AS cost FROM $table WHERE id = ? FOR UPDATE");
+            $stmt->bind_param("i", $source_id);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$row) { $conn->rollback(); return $fail(ucfirst($k['noun']) . ' not found.'); }
+
+            $user_id = (int)$row['user_id'];
+            $amount = (float)$row['cost'];
+            if ($amount <= 0) {
+                // Free: stays claimed, never reaches an invoice.
+                $conn->commit();
+                return ['ok' => true, 'invoice_id' => null, 'message' => $k['free'], 'already' => false];
+            }
+        }
+
+        $att = attach_charge_to_invoice($conn, $user_id, $anchor, $k['column'], $amount, $k['no_tenancy']);
+        if (isset($att['error'])) {
+            // Rollback un-claims the source row.
+            $conn->rollback();
+            return $fail($att['error']);
+        }
+        $invoice_id = $att['invoice_id'];
+
+        if ($is_parking) {
+            $stmt = $conn->prepare("UPDATE parking_charges SET invoice_id = ? WHERE id = ?");
+            $stmt->bind_param("si", $invoice_id, $charge_id);
+        } else {
+            // invoiced_amount: what was posted, so a reversal backs out exactly that
+            // even if the request's cost is edited afterwards.
+            $stmt = $conn->prepare("UPDATE {$k['table']} SET invoice_id = ?, billing_period = ?, invoiced_amount = ? WHERE id = ?");
+            $stmt->bind_param("ssdi", $invoice_id, $label, $amount, $source_id);
+        }
         $stmt->execute();
         $stmt->close();
 
         $conn->commit();
-        return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Charge posted to invoice $invoice_id ($period)."];
+
+        if ($is_parking) {
+            create_notification($conn, $user_id, 'billing', "Parking Fee Added: $label",
+                "Your parking fee of ₱" . number_format($amount, 2) . " for $label has been added to invoice $invoice_id.");
+            return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Parking for $label posted to invoice $invoice_id.", 'already' => false];
+        }
+        return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Charge posted to invoice $invoice_id ($label).", 'already' => false];
 
     } catch (Exception $e) {
         $conn->rollback();
-        return ['ok' => false, 'invoice_id' => null, 'message' => $e->getMessage()];
+        error_log("[AMS] post_invoice_charge($kind): " . $e->getMessage());
+        return $fail($is_parking ? 'Could not post the parking charge.' : $e->getMessage());
+    }
+}
+
+// Backs a charge out of its invoice. Only possible while that invoice is still
+// adjustable and the reduced total stays at or above what was already paid;
+// otherwise the money has changed hands and the admin must issue a manual
+// credit. With 'refund_ctx' (service, maintenance) a charge on an invoice that
+// is already paid is detached and a refund request is raised instead.
+//
+// $source_id is the request id (service, maintenance) or the reservation id
+// (parking, with 'period' = 'Y-m'). Options:
+//   own_transaction (default true): false when the caller holds a transaction
+//     and will commit or roll back itself (update_service_status.php claims the
+//     status in the same one, update_maintenance_status.php likewise).
+//   refund_ctx: ['reason' => string, 'actor_id' => int]
+//
+// Returns ['ok' => bool, 'message' => string] (+ 'refund_id' when one was raised).
+function reverse_invoice_charge($conn, $kind, $source_id, array $opts = []) {
+    $k = INVOICE_CHARGE_KINDS[$kind] ?? null;
+    if (!$k) return ['ok' => false, 'message' => 'Unknown charge kind.'];
+    $own = $opts['own_transaction'] ?? true;
+    $refund_ctx = $opts['refund_ctx'] ?? null;
+    $is_parking = $kind === 'parking';
+
+    if ($own) $conn->begin_transaction();
+    $end = function ($commit) use ($conn, $own) {
+        if ($own) $commit ? $conn->commit() : $conn->rollback();
+    };
+
+    try {
+        if ($is_parking) {
+            $stmt = $conn->prepare("SELECT id, invoice_id, amount FROM parking_charges WHERE reservation_id = ? AND billing_period = ? FOR UPDATE");
+            $period = (string)($opts['period'] ?? '');
+            $stmt->bind_param("is", $source_id, $period);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$row) { $end(false); return ['ok' => false, 'message' => 'That month has not been billed.']; }
+            $invoice_id = $row['invoice_id'];
+            $amount = (float)$row['amount'];
+            $user_id = null;
+        } else {
+            $table = $k['table'];
+            $stmt = $conn->prepare("SELECT {$k['cost_sql']} AS cost, invoiced_amount, invoice_id, is_invoiced, user_id FROM $table WHERE id = ? FOR UPDATE");
+            $stmt->bind_param("i", $source_id);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$row || !(int)$row['is_invoiced'] || !$row['invoice_id']) {
+                $end(false);
+                return ['ok' => true, 'message' => 'Nothing to reverse.'];
+            }
+            $invoice_id = $row['invoice_id'];
+            // What was posted; rows billed before invoiced_amount existed fall back to the current cost.
+            $amount = (float)($row['invoiced_amount'] ?? $row['cost']);
+            $user_id = $row['user_id'];
+        }
+
+        // Safe by construction: a paid or in-flight invoice matches no row, and so
+        // does one whose payments already exceed the reduced total.
+        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
+        $col = $k['column'];
+        $stmt = $conn->prepare("UPDATE invoices SET $col = GREATEST($col - ?, 0), total_amount = total_amount - CAST(? AS DECIMAL(10,2))
+                                WHERE id = ? AND status IN $adjustable AND total_amount - CAST(? AS DECIMAL(10,2)) >= amount_paid");
+        $stmt->bind_param("ddsd", $amount, $amount, $invoice_id, $amount);
+        $stmt->execute();
+        $reversed = $stmt->affected_rows;
+        $stmt->close();
+
+        $unlink = function () use ($conn, $is_parking, $k, $source_id, $row) {
+            if ($is_parking) {
+                $stmt = $conn->prepare("DELETE FROM parking_charges WHERE id = ?");
+                $stmt->bind_param("i", $row['id']);
+            } else {
+                $stmt = $conn->prepare("UPDATE {$k['table']} SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL, invoiced_amount = NULL WHERE id = ?");
+                $stmt->bind_param("i", $source_id);
+            }
+            $stmt->execute();
+            $stmt->close();
+        };
+
+        if ($reversed === 0 && $refund_ctx && $user_id !== null && invoice_is_paid($conn, $invoice_id)) {
+            // Already paid: detach the charge and ask for the money back.
+            $rid = refund_paid_charge($conn, $user_id, $invoice_id, $amount, $k['label'], $refund_ctx['reason'], $refund_ctx['actor_id']);
+            $unlink();
+            $end(true);
+            return ['ok' => true, 'message' => 'Charge was already paid; refund request #' . $rid . ' opened.', 'refund_id' => $rid];
+        }
+        if ($reversed === 0) {
+            $end(false);
+            $inv = $conn->prepare("SELECT status, amount_paid FROM invoices WHERE id = ?");
+            $inv->bind_param("s", $invoice_id);
+            $inv->execute();
+            $inv_row = $inv->get_result()->fetch_assoc();
+            $inv->close();
+            $inv_status = $inv_row['status'] ?? null;
+            $reason = match (true) {
+                $inv_status === 'processing' => 'has an online payment in progress',
+                $inv_status === 'pending-verification' => 'has a payment under verification',
+                $inv_status === 'paid' => 'is already paid; issue a manual credit instead',
+                in_array($inv_status, SERVICE_ADJUSTABLE_INVOICE_STATUSES, true) => 'already has ₱' . number_format((float)$inv_row['amount_paid'], 2) . ' paid, more than the total would be without this charge; adjust the invoice instead',
+                default => 'can no longer be adjusted',
+            };
+            return ['ok' => false, 'message' => 'Invoice ' . $invoice_id . ' ' . $reason . '.'];
+        }
+
+        $unlink();
+        $end(true);
+        return ['ok' => true, 'message' => $k['label'] . ' charge reversed from invoice ' . $invoice_id . '.'];
+
+    } catch (Exception $e) {
+        $end(false);
+        error_log("[AMS] reverse_invoice_charge($kind): " . $e->getMessage());
+        return ['ok' => false, 'message' => $is_parking ? 'Could not reverse the parking charge.' : $e->getMessage()];
     }
 }
 
@@ -828,252 +1026,6 @@ function refund_paid_charge($conn, $user_id, $invoice_id, $amount, $label, $reas
     $rid = insert_refund_request($conn, (int)$user_id, $app_id ? (int)$app_id : null, 'rejected_charge', $invoice_id, $amount, $why, (int)$actor_id, 'admin');
     notify_refund_raised($conn, $rid, $amount, strtolower($label) . ' charge');
     return $rid;
-}
-
-// Backs a service charge out of its invoice. Only possible while that invoice is
-// still unpaid — once settled the money has changed hands, so the admin must
-// issue a manual credit instead.
-//
-// Returns ['ok' => bool, 'message' => string]. Pass $own_transaction = false
-// when the caller already holds a transaction and will commit or roll back
-// itself (update_service_status.php claims the status in the same one, audit L5).
-function reverse_service_charge($conn, $service_request_id, $own_transaction = true, $refund_ctx = null) {
-    if ($own_transaction) $conn->begin_transaction();
-
-    try {
-        $stmt = $conn->prepare("SELECT total_cost, invoice_id, is_invoiced, user_id FROM service_requests WHERE id = ? FOR UPDATE");
-        $stmt->bind_param("i", $service_request_id);
-        $stmt->execute();
-        $request = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$request || !(int)$request['is_invoiced'] || !$request['invoice_id']) {
-            if ($own_transaction) $conn->rollback();
-            return ['ok' => true, 'message' => 'Nothing to reverse.'];
-        }
-
-        $amount = (float)$request['total_cost'];
-
-        //TheStatusGuardIsWhatMakesThisSafe:APaidOrInFlightInvoiceMatchesNoRows
-        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("UPDATE invoices SET services = GREATEST(services - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status IN $adjustable");
-        $stmt->bind_param("dds", $amount, $amount, $request['invoice_id']);
-        $stmt->execute();
-        $reversed = $stmt->affected_rows;
-        $stmt->close();
-
-        if ($reversed === 0 && $refund_ctx && invoice_is_paid($conn, $request['invoice_id'])) {
-            // Already paid: detach the charge and ask for the money back.
-            $rid = refund_paid_charge($conn, $request['user_id'], $request['invoice_id'], $amount, 'Service', $refund_ctx['reason'], $refund_ctx['actor_id']);
-            $stmt = $conn->prepare("UPDATE service_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
-            $stmt->bind_param("i", $service_request_id);
-            $stmt->execute();
-            $stmt->close();
-            if ($own_transaction) $conn->commit();
-            return ['ok' => true, 'message' => 'Charge was already paid; refund request #' . $rid . ' opened.', 'refund_id' => $rid];
-        }
-        if ($reversed === 0) {
-            if ($own_transaction) $conn->rollback();
-            $inv = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
-            $inv->bind_param("s", $request['invoice_id']);
-            $inv->execute();
-            $inv_status = $inv->get_result()->fetch_assoc()['status'] ?? null;
-            $inv->close();
-            $reason = match ($inv_status) {
-                'processing' => 'has an online payment in progress',
-                'pending-verification' => 'has a payment under verification',
-                'paid' => 'is already paid; issue a manual credit instead',
-                default => 'can no longer be adjusted',
-            };
-            return ['ok' => false, 'message' => 'Invoice ' . $request['invoice_id'] . ' ' . $reason . '.'];
-        }
-
-        $stmt = $conn->prepare("UPDATE service_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
-        $stmt->bind_param("i", $service_request_id);
-        $stmt->execute();
-        $stmt->close();
-
-        if ($own_transaction) $conn->commit();
-        return ['ok' => true, 'message' => 'Service charge reversed from invoice ' . $request['invoice_id'] . '.'];
-
-    } catch (Exception $e) {
-        if ($own_transaction) $conn->rollback();
-        return ['ok' => false, 'message' => $e->getMessage()];
-    }
-}
-
-// Posts a completed, tenant-caused repair's cost onto the tenant's invoice
-// for the current billing period — the same accumulate-not-overwrite pattern
-// post_service_charge() uses for `services`, but landing on its own
-// `maintenance` column so a repair recharge never blends into "Add-On
-// Service Revenue" in Reports (audit H10). Before this existed, a ticket
-// flagged tenant_responsible = 1 was excluded from building expenses and
-// totalled in the UI as "tenant charged", but nothing ever billed it — the
-// revenue reports counted as collected was never actually invoiced.
-//
-// The is_invoiced flag is claimed FIRST, inside the transaction, exactly like
-// post_service_charge(), so a repeated call can never bill twice.
-//
-// Returns ['ok' => bool, 'invoice_id' => string|null, 'message' => string].
-function post_maintenance_charge($conn, $maintenance_request_id) {
-    $conn->begin_transaction();
-
-    try {
-        $claim = $conn->prepare("UPDATE maintenance_requests SET is_invoiced = 1 WHERE id = ? AND is_invoiced = 0");
-        $claim->bind_param("i", $maintenance_request_id);
-        $claim->execute();
-        $claimed = $claim->affected_rows;
-        $claim->close();
-
-        if ($claimed === 0) {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => 'This maintenance request has already been billed.'];
-        }
-
-        $stmt = $conn->prepare("SELECT user_id, actual_cost, estimated_cost FROM maintenance_requests WHERE id = ? FOR UPDATE");
-        $stmt->bind_param("i", $maintenance_request_id);
-        $stmt->execute();
-        $request = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$request) {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => 'Maintenance request not found.'];
-        }
-
-        $user_id = (int)$request['user_id'];
-        $amount = (float)($request['actual_cost'] ?? $request['estimated_cost'] ?? 0);
-
-        if ($amount <= 0) {
-            $conn->commit();
-            return ['ok' => true, 'invoice_id' => null, 'message' => 'No charge for this ticket.'];
-        }
-
-        $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
-        $period = billing_period_label($now);
-        $legacy_period = $now->format('Y-m');
-
-        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL ORDER BY created_at ASC LIMIT 1");
-        $stmt->bind_param("iss", $user_id, $period, $legacy_period);
-        $stmt->execute();
-        $invoice = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        $invoice_id = $invoice ? $invoice['id'] : null;
-
-        if (!$invoice_id) {
-            $lease = get_active_tenancy($conn, $user_id);
-
-            if (!$lease) {
-                $conn->rollback();
-                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved rental — cannot post maintenance charge.'];
-            }
-
-            $invoice_id = 'INV-' . $now->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
-            $due_date = (clone $now)->modify('first day of next month')->modify('+4 days')->format('Y-m-d');
-
-            $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
-                                    VALUES (?, ?, ?, 0, 0, ?, 'pending', ?)");
-            $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $period, $due_date);
-            if (!$stmt->execute()) {
-                $stmt->close();
-                error_log("[AMS] Failed to create maintenance invoice: " . $conn->error);
-                throw new Exception("Failed to create maintenance invoice.");
-            }
-            $stmt->close();
-        }
-
-        $stmt = $conn->prepare("UPDATE invoices SET maintenance = maintenance + ?, total_amount = total_amount + ? WHERE id = ?");
-        $stmt->bind_param("dds", $amount, $amount, $invoice_id);
-        if (!$stmt->execute()) {
-            $stmt->close();
-            error_log("[AMS] Failed to post maintenance charge: " . $conn->error);
-            throw new Exception("Failed to post maintenance charge.");
-        }
-        $stmt->close();
-
-        $stmt = $conn->prepare("UPDATE maintenance_requests SET invoice_id = ?, billing_period = ? WHERE id = ?");
-        $stmt->bind_param("ssi", $invoice_id, $period, $maintenance_request_id);
-        $stmt->execute();
-        $stmt->close();
-
-        $conn->commit();
-        return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Charge posted to invoice $invoice_id ($period)."];
-
-    } catch (Exception $e) {
-        $conn->rollback();
-        return ['ok' => false, 'invoice_id' => null, 'message' => $e->getMessage()];
-    }
-}
-
-// Backs a tenant-responsibility repair charge out of its invoice, mirroring
-// reverse_service_charge(). Only possible while that invoice is still
-// unpaid — once settled the money has changed hands, so the admin must issue
-// a manual credit instead.
-//
-// Returns ['ok' => bool, 'message' => string].
-function reverse_maintenance_charge($conn, $maintenance_request_id, $refund_ctx = null) {
-    $conn->begin_transaction();
-
-    try {
-        $stmt = $conn->prepare("SELECT actual_cost, estimated_cost, invoice_id, is_invoiced, user_id FROM maintenance_requests WHERE id = ? FOR UPDATE");
-        $stmt->bind_param("i", $maintenance_request_id);
-        $stmt->execute();
-        $request = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$request || !(int)$request['is_invoiced'] || !$request['invoice_id']) {
-            $conn->rollback();
-            return ['ok' => true, 'message' => 'Nothing to reverse.'];
-        }
-
-        $amount = (float)($request['actual_cost'] ?? $request['estimated_cost'] ?? 0);
-
-        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("UPDATE invoices SET maintenance = GREATEST(maintenance - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status IN $adjustable");
-        $stmt->bind_param("dds", $amount, $amount, $request['invoice_id']);
-        $stmt->execute();
-        $reversed = $stmt->affected_rows;
-        $stmt->close();
-
-        if ($reversed === 0 && $refund_ctx && invoice_is_paid($conn, $request['invoice_id'])) {
-            $rid = refund_paid_charge($conn, $request['user_id'], $request['invoice_id'], $amount, 'Maintenance', $refund_ctx['reason'], $refund_ctx['actor_id']);
-            $stmt = $conn->prepare("UPDATE maintenance_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
-            $stmt->bind_param("i", $maintenance_request_id);
-            $stmt->execute();
-            $stmt->close();
-            $conn->commit();
-            return ['ok' => true, 'message' => 'Charge was already paid; refund request #' . $rid . ' opened.', 'refund_id' => $rid];
-        }
-        if ($reversed === 0) {
-            $conn->rollback();
-            $inv = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
-            $inv->bind_param("s", $request['invoice_id']);
-            $inv->execute();
-            $inv_status = $inv->get_result()->fetch_assoc()['status'] ?? null;
-            $inv->close();
-            $reason = match ($inv_status) {
-                'processing' => 'has an online payment in progress',
-                'pending-verification' => 'has a payment under verification',
-                'paid' => 'is already paid; issue a manual credit instead',
-                default => 'can no longer be adjusted',
-            };
-            return ['ok' => false, 'message' => 'Invoice ' . $request['invoice_id'] . ' ' . $reason . '.'];
-        }
-
-        $stmt = $conn->prepare("UPDATE maintenance_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
-        $stmt->bind_param("i", $maintenance_request_id);
-        $stmt->execute();
-        $stmt->close();
-
-        $conn->commit();
-        return ['ok' => true, 'message' => 'Maintenance charge reversed from invoice ' . $request['invoice_id'] . '.'];
-
-    } catch (Exception $e) {
-        $conn->rollback();
-        return ['ok' => false, 'message' => $e->getMessage()];
-    }
 }
 
 // Priority 5: Security
@@ -4331,7 +4283,7 @@ function run_notification_sweep($conn, $force = false) {
         $month = new DateTime('now', new DateTimeZone('Asia/Manila'));
         $ids = $conn->query("SELECT id FROM parking_reservations WHERE status = 'Assigned'");
         while ($ids && ($r = $ids->fetch_assoc())) {
-            $posted = post_parking_charge($conn, (int)$r['id'], $month);
+            $posted = post_invoice_charge($conn, 'parking', (int)$r['id'], $month);
             if ($posted['ok'] && !empty($posted['invoice_id'])) $result['parking_charges_posted']++;
         }
     }
@@ -4426,151 +4378,6 @@ function parking_term_end($assigned_at, $duration_months) {
     if (!$assigned_at) return null;
     $start = new DateTime(substr($assigned_at, 0, 10));
     return $start->modify('+' . (int)$duration_months . ' months');
-}
-
-// Posts one month's parking fee onto the tenant's invoice for that month
-// (checklist 10.3), mirroring post_service_charge(). The parking_charges row is
-// inserted first as the claim: its (reservation_id, billing_period) key means the
-// same month can never be billed twice, whether by the admin's button, the
-// automatic sweep, or both.
-//
-// Returns ['ok' => bool, 'invoice_id' => string|null, 'message' => string,
-//          'already' => bool].
-function post_parking_charge($conn, $reservation_id, DateTime $month) {
-    $period = $month->format('Y-m');
-    $label = billing_period_label($month);
-
-    $conn->begin_transaction();
-    try {
-        $stmt = $conn->prepare("SELECT user_id, status, assigned_at, duration_months FROM parking_reservations WHERE id = ? FOR UPDATE");
-        $stmt->bind_param("i", $reservation_id);
-        $stmt->execute();
-        $res = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$res) {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => 'Parking reservation not found.', 'already' => false];
-        }
-        if ($res['status'] !== 'Assigned') {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => 'Only an assigned parking slot can be billed.', 'already' => false];
-        }
-
-        // Billable months run from the month of assignment for duration_months.
-        $first = (new DateTime(substr($res['assigned_at'], 0, 7) . '-01'));
-        $end = (clone $first)->modify('+' . (int)$res['duration_months'] . ' months');
-        $this_month = new DateTime($period . '-01');
-        if ($this_month < $first || $this_month >= $end) {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => "$label is outside this permit's term.", 'already' => false];
-        }
-
-        $user_id = (int)$res['user_id'];
-        $amount = parking_monthly_fee($conn);
-
-        $claim = $conn->prepare("INSERT IGNORE INTO parking_charges (reservation_id, billing_period, amount) VALUES (?, ?, ?)");
-        $claim->bind_param("isd", $reservation_id, $period, $amount);
-        $claim->execute();
-        $charge_id = $claim->affected_rows > 0 ? $claim->insert_id : 0;
-        $claim->close();
-
-        if (!$charge_id) {
-            $conn->rollback();
-            return ['ok' => false, 'invoice_id' => null, 'message' => "Parking for $label has already been billed.", 'already' => true];
-        }
-
-        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL ORDER BY created_at ASC LIMIT 1");
-        $stmt->bind_param("iss", $user_id, $label, $period);
-        $stmt->execute();
-        $invoice = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        $invoice_id = $invoice ? $invoice['id'] : null;
-
-        if (!$invoice_id) {
-            $lease = get_active_tenancy($conn, $user_id);
-            if (!$lease) {
-                $conn->rollback();
-                return ['ok' => false, 'invoice_id' => null, 'message' => 'The tenant has no active rental, so parking cannot be billed.', 'already' => false];
-            }
-            // Parking-only invoice. Rent is never billed from here.
-            $invoice_id = 'INV-' . $month->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
-            $due_date = (clone $this_month)->modify('first day of next month')->modify('+4 days')->format('Y-m-d');
-            $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
-                                    VALUES (?, ?, ?, 0, 0, ?, 'pending', ?)");
-            $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $label, $due_date);
-            if (!$stmt->execute()) {
-                $stmt->close();
-                error_log("[AMS] Failed to create parking invoice: " . $conn->error);
-                throw new Exception("Failed to create parking invoice.");
-            }
-            $stmt->close();
-        }
-
-        $stmt = $conn->prepare("UPDATE invoices SET parking = parking + ?, total_amount = total_amount + ? WHERE id = ?");
-        $stmt->bind_param("dds", $amount, $amount, $invoice_id);
-        $stmt->execute();
-        $stmt->close();
-
-        $stmt = $conn->prepare("UPDATE parking_charges SET invoice_id = ? WHERE id = ?");
-        $stmt->bind_param("si", $invoice_id, $charge_id);
-        $stmt->execute();
-        $stmt->close();
-
-        $conn->commit();
-
-        create_notification($conn, $user_id, 'billing', "Parking Fee Added: $label",
-            "Your parking fee of ₱" . number_format($amount, 2) . " for $label has been added to invoice $invoice_id.");
-
-        return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Parking for $label posted to invoice $invoice_id.", 'already' => false];
-    } catch (Exception $e) {
-        $conn->rollback();
-        error_log('[AMS] post_parking_charge: ' . $e->getMessage());
-        return ['ok' => false, 'invoice_id' => null, 'message' => 'Could not post the parking charge.', 'already' => false];
-    }
-}
-
-// Backs one month's parking charge out of its invoice while that invoice can still
-// be adjusted. Once paid or mid-payment the admin must issue a manual credit.
-function reverse_parking_charge($conn, $reservation_id, $period) {
-    $conn->begin_transaction();
-    try {
-        $stmt = $conn->prepare("SELECT id, invoice_id, amount FROM parking_charges WHERE reservation_id = ? AND billing_period = ? FOR UPDATE");
-        $stmt->bind_param("is", $reservation_id, $period);
-        $stmt->execute();
-        $charge = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$charge) {
-            $conn->rollback();
-            return ['ok' => false, 'message' => 'That month has not been billed.'];
-        }
-
-        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("UPDATE invoices SET parking = GREATEST(parking - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status IN $adjustable");
-        $stmt->bind_param("dds", $charge['amount'], $charge['amount'], $charge['invoice_id']);
-        $stmt->execute();
-        $reversed = $stmt->affected_rows;
-        $stmt->close();
-
-        if ($reversed === 0) {
-            $conn->rollback();
-            return ['ok' => false, 'message' => "Invoice {$charge['invoice_id']} can no longer be adjusted (paid or payment in progress)."];
-        }
-
-        $stmt = $conn->prepare("DELETE FROM parking_charges WHERE id = ?");
-        $stmt->bind_param("i", $charge['id']);
-        $stmt->execute();
-        $stmt->close();
-
-        $conn->commit();
-        return ['ok' => true, 'message' => "Parking charge reversed from invoice {$charge['invoice_id']}."];
-    } catch (Exception $e) {
-        $conn->rollback();
-        error_log('[AMS] reverse_parking_charge: ' . $e->getMessage());
-        return ['ok' => false, 'message' => 'Could not reverse the parking charge.'];
-    }
 }
 
 // Ends a user's open parking when their tenancy ends (move-out, archive): an

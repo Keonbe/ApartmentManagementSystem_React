@@ -1050,7 +1050,7 @@ Seed fixtures used below: ticket **#6** (Unit L, Pending, Low), **#7** (Unit H, 
 |---|---|---|---|---|---|
 | `maintenance_request.php` | POST (multipart) | `require_user` + active lease | `issueType`, `preferredDate`, `preferredTime` (`morning`/`afternoon`), `description`, `permissionToEnter`; file `uploadedFile`. No priority field — any `urgency` sent is ignored | `success`, `id` | `401` · `403` no active lease · `422` bad category, date or file |
 | `get_maintenance_requests.php` | GET | `require_admin` | — | `success`, `requests[]` incl. `acknowledgedAt`, `startedAt`, `resolvedAt`, `resolutionHours` | `401` / `403` |
-| `update_maintenance_status.php` | POST | `require_admin` | `id`, plus any of `status`, `urgency`, `assignedTo`, `estimatedCost`, `actualCost`, `workNotes`, `tenantResponsible`, `rejectionReason` | `success`, `message`, `billing` (null unless a charge was posted/reversed) | `400` nothing to update · `404` · `409` invalid transition or concurrent change · `422` reject without reason, negative cost, or `urgency` not one of the four real priorities. A `Completed` ticket with `tenantResponsible: true` posts its cost onto the tenant's invoice via `post_maintenance_charge()`; clearing the flag, or reopening out of `Completed`, reverses it (audit H10). |
+| `update_maintenance_status.php` | POST | `require_admin` | `id`, plus any of `status`, `urgency`, `assignedTo`, `estimatedCost`, `actualCost`, `workNotes`, `tenantResponsible`, `rejectionReason` | `success`, `message`, `billing` (null unless a charge was posted/reversed) | `400` nothing to update · `404` · `409` invalid transition or concurrent change · `422` reject without reason, negative cost, or `urgency` not one of the four real priorities. A `Completed` ticket with `tenantResponsible: true` posts its cost onto the tenant's invoice via `post_invoice_charge('maintenance')`; clearing the flag, or reopening out of `Completed`, reverses it (audit H10). |
 | `sync_maintenance_to_invoice.php` | POST | `require_admin` | `id` | `success`, `invoiceId`, `message` | Retries billing for a `Completed`, tenant-responsible ticket that had no active lease to bill at the time — mirrors `sync_service_to_invoice.php` |
 | `create_maintenance_request_admin.php` | POST (multipart) | `require_admin` | `title`, `unit`, `issueType`, `priority`, `description`; file `photo` | `success`, `id` | `422` unknown unit, bad category or file |
 | `get_my_requests.php` | GET | `require_user` (an admin may pass `userId`) | — | `success`, `requests[]` across maintenance, CCTV, parking and services | `401` |
@@ -1277,7 +1277,7 @@ sequenceDiagram
     actor A as Admin
     participant AS as AdminServicePage.jsx
     participant US as update_service_status.php
-    participant PC as post_service_charge()
+    participant PC as post_invoice_charge('service')
     participant DB as ams_db
 
     A->>AS: Mark completed
@@ -1358,7 +1358,7 @@ flowchart LR
 3. **Tenant — book** · `/services` → `/service-booking?serviceId=N`. Only active items in enabled categories are offered. `service_request.php` recalculates the price, clamps quantity, enforces lead time and creates a Pending booking; admin notified.
 4. **Tenant — cancel** · `/my-requests` → `cancel_request.php` while the booking is Pending.
 5. **Admin — decide** · *Approve*, or *Reject* (with a confirmation) → tenant notified.
-6. **Admin — deliver** · *Start work*, then *Mark completed* → `post_service_charge()` bills the booking and the admin sees which invoice it landed on.
+6. **Admin — deliver** · *Start work*, then *Mark completed* → `post_invoice_charge('service')` bills the booking and the admin sees which invoice it landed on.
 7. **Admin — retry billing** · if no active lease was found at completion, a banner lists unbilled bookings with a *Post charge* button (`sync_service_to_invoice.php`).
 8. **Admin — reverse** · cancelling a Completed booking (with a confirmation) backs the charge out, provided the invoice is still adjustable.
 9. **CCTV** · tenant `/cctv-request` → `cctv_request.php` → Pending; admin approves or rejects once, from the CCTV tab or `/admin-cctv`.
@@ -2272,7 +2272,7 @@ flowchart LR
     W --> X["expire_lapsed_contracts()<br/>(notifies each tenant, §15)"]
     W --> N["send_lease_end_reminders()<br/>claim: renewal_reminder_sent_at (§15)"]
     W --> K["release_lapsed_parking()"]
-    W --> B["post_parking_charge() per Assigned reservation<br/>(only when parking_billing_mode='auto')"]
+    W --> B["post_invoice_charge('parking') per Assigned reservation<br/>(only when parking_billing_mode='auto')"]
     W --> L["log_activity 'system' — only if something happened"]
 ```
 
@@ -2353,7 +2353,7 @@ flowchart LR
 
 ## 14. Module 10 — Parking Reservation
 
-> Audited September 2026. The panel's flow calls for a specific slot allocated on approval, the fee added to the monthly invoice, and the slot released on move-out — none of which existed. Remediation: added numbered slots (`slot_number`, unique among `Assigned` rows) and a status-transition map (`Pending → Assigned | Rejected | Cancelled`, `Assigned → Released`) where previously any status could move to any other, including back to `Pending`, which bypassed the capacity check; the tenant's own slot counter called an admin-only endpoint and then a POST-only one, so it always read "3/3 free" — it now calls `get_available_parking_slots.php`; a tenant could hold several open reservations at once (now blocked by a unique key, `open_user`, on top of the application check); the fee was never billed from a reservation, only ever typed in manually — `post_parking_charge()` posts it per calendar month of the permit term, claimed via a `(reservation_id, billing_period)` unique key so a month can never be billed twice, whether by the admin's "Bill this month" button or the automatic daily sweep (admin-configurable `parking_billing_mode`); move-out and archiving never freed the slot — they now call `release_user_parking()`.
+> Audited September 2026. The panel's flow calls for a specific slot allocated on approval, the fee added to the monthly invoice, and the slot released on move-out — none of which existed. Remediation: added numbered slots (`slot_number`, unique among `Assigned` rows) and a status-transition map (`Pending → Assigned | Rejected | Cancelled`, `Assigned → Released`) where previously any status could move to any other, including back to `Pending`, which bypassed the capacity check; the tenant's own slot counter called an admin-only endpoint and then a POST-only one, so it always read "3/3 free" — it now calls `get_available_parking_slots.php`; a tenant could hold several open reservations at once (now blocked by a unique key, `open_user`, on top of the application check); the fee was never billed from a reservation, only ever typed in manually — `post_invoice_charge('parking')` posts it per calendar month of the permit term, claimed via a `(reservation_id, billing_period)` unique key so a month can never be billed twice, whether by the admin's "Bill this month" button or the automatic daily sweep (admin-configurable `parking_billing_mode`); move-out and archiving never freed the slot — they now call `release_user_parking()`.
 
 ### 14.1 API Contract
 
@@ -2402,7 +2402,7 @@ sequenceDiagram
         U->>DB: UPDATE status='Assigned', slot_number, assigned_at=NOW()
         U->>DB: resolve_admin_queue() + create_notification(tenant)
         alt parking_billing_mode = 'auto'
-            U->>DB: post_parking_charge() — this month's fee
+            U->>DB: post_invoice_charge('parking') — this month's fee
         end
         U-->>AP: {success, billing}
     end
@@ -2857,7 +2857,7 @@ Also: `expire_contracts.php` and `expire_reservations.php` mutate rows with **no
 - **Terminating a contract ends the tenancy, not just the lease record.** `update_contract_status.php`'s `terminate` action calls the same `vacate_tenant_room()` helper as an ordinary move-out: the room is vacated, pending invoices are cancelled, and parking/visitor requests are released. There is no separate "just mark the contract terminated" option.
 - **A visitor's overstay alert fires once per visit, not on a timer.** `alert_overstayed_visitors()` claims via `overstay_alerted_at`; clearing that column (as a test might) re-arms the alert for the same visit rather than it firing again on its own.
 - **`get_visitors.php`'s tenant scope is `user_id`, not "anyone visiting my current room."** A visitor logged under a previous occupant of the same unit will not appear in the current tenant's list, even though they're in the same physical unit — this is the fix for the M12-01 privacy issue, not a bug.
-- **A parking charge is billed per calendar month of the permit term**, not per admin action — `post_parking_charge()` refuses a month outside `[assigned_at, assigned_at + duration_months)`. Testing a later month means back-dating `parking_reservations.assigned_at`, not the invoice.
+- **A parking charge is billed per calendar month of the permit term**, not per admin action — `post_invoice_charge('parking')` refuses a month outside `[assigned_at, assigned_at + duration_months)`. Testing a later month means back-dating `parking_reservations.assigned_at`, not the invoice.
 - **~~No `status` allowlist on `rooms`~~** Resolved 2026-10-07 (audit M6): `update_room.php` accepts only `occupied` as a tenant assignment and refuses any other status with `422` (M2-14).
 - **Seed data predates the 1.7 gate** — see [§1.5](#15--the-seed-data-predates-the-acceptance-criteria-gate). No seeded application can be approved.
 - **Some booking refusals return HTTP 200.** `service_request.php` reports an inactive service, a disabled category or a date inside the lead time as `success:false` with HTTP 200. Only a missing tenancy (`403`) and a malformed date (`422`) set an error status, so assert on `success` for the others.

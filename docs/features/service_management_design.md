@@ -59,7 +59,7 @@ flowchart TD
     G --> I["Status: In Progress"]
     I -->|Cancel| H
     I --> J["Status: Completed"]
-    J --> K{"post_service_charge()"}
+    J --> K{"post_invoice_charge('service')"}
     K -->|Adjustable invoice for the month| L["invoices.services += total_cost<br/>is_invoiced = 1, invoice_id linked"]
     K -->|No adjustable invoice, or month already paid| S["Services-only invoice<br/>base_rent = 0"]
     S --> L
@@ -118,7 +118,7 @@ The charge is for work done, not for the intent to buy it. The tenant-facing
 
 ### Anti-double-billing
 
-`post_service_charge()` (in `backend/config.php`) claims the row **first**, inside
+`post_invoice_charge('service')` (in `backend/config.php`) claims the row **first**, inside
 the transaction, before any money moves:
 
 ```php
@@ -134,7 +134,7 @@ billable and the admin queue shows a **Post charge** retry button.
 
 ### Reversal
 
-`reverse_service_charge()` only succeeds while the invoice can still change —
+`reverse_invoice_charge('service')` only succeeds while the invoice can still change —
 the same `SERVICE_ADJUSTABLE_INVOICE_STATUSES` set used when posting. A paid
 invoice, one under payment verification, or one with an online checkout in
 progress matches zero rows, and the refusal message says which:
@@ -202,7 +202,7 @@ Additive only, per `.agents/CLAUDE.md`.
 | `sync_service_to_invoice.php` | `require_admin` | Manual retry for a completed-but-unbilled booking |
 | `cancel_request.php` | `require_user` | Tenant cancellation of their own Pending request, for all four request types; resolves the admin intake notification for services |
 
-Helpers `post_service_charge()` and `reverse_service_charge()` live in
+Helpers `post_invoice_charge('service')` and `reverse_invoice_charge('service')` live in
 `backend/config.php` beside `log_activity` and `verify_admin`.
 
 Uploads go to `backend/uploads/services/` and are stored **web-relative**

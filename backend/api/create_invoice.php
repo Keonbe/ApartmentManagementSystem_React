@@ -44,8 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Audit M8: billingPeriod was free text (e.g. "2026-9"), which never
-        // matches the "September 2026" label post_service_charge() and
-        // post_maintenance_charge() look invoices up by — a manual invoice in
+        // matches the "September 2026" label post_invoice_charge('service') and
+        // post_invoice_charge('maintenance') look invoices up by — a manual invoice in
         // that shape silently never received an accumulated charge again.
         // Accept only the canonical label produced by billing_period_label().
         $billing_period = trim($input['billingPeriod'] ?? '') ?: billing_period_label(new DateTime('now', new DateTimeZone('Asia/Manila')));
@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Audit H8: creation is insert-only. A fresh invoice starts with no
         // services/maintenance/security deposit — those only ever accumulate
-        // via post_service_charge()/post_maintenance_charge() or the move-in
+        // via post_invoice_charge('service')/post_invoice_charge('maintenance') or the move-in
         // flow, never here.
         $total_amount = $base_rent + $water + $electricity + $parking + $late_fee;
 
