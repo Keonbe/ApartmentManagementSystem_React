@@ -4,6 +4,7 @@ import { API_BASE_URL } from "./env";
 // Base URL for all API requests, chosen per build target in ./env.js.
 const api = axios.create({
     baseURL: API_BASE_URL,
+    withCredentials: true,
     headers: {
         "Content-Type": "application/json"
     }

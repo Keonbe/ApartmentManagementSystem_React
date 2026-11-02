@@ -8,7 +8,8 @@
 // - Set: only a listed Origin is echoed back (any environment).
 // - Unset in development: local dev origins are echoed, anything else gets "*".
 // - Unset in production: no cross-origin access at all.
-// Auth is a bearer token, not a cookie, so no Allow-Credentials is needed.
+// API requests can also carry the HttpOnly trusted-device cookie. Credentialed
+// CORS requires an explicit allowed origin; never combine it with wildcard ACAO.
 
 if (PHP_SAPI === 'cli') return;
 
@@ -54,8 +55,17 @@ if ($ams_cors_list) {
         header('Access-Control-Allow-Origin: ' . $ams_cors_origin);
     }
 } elseif (!$ams_cors_production) {
-    $ams_cors_local = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8080', 'http://127.0.0.1:8080'];
-    header('Access-Control-Allow-Origin: ' . (in_array($ams_cors_origin, $ams_cors_local, true) ? $ams_cors_origin : '*'));
+    $ams_cors_local = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174', 'http://localhost:8080', 'http://127.0.0.1:8080'];
+    if (in_array($ams_cors_origin, $ams_cors_local, true)) {
+        header('Access-Control-Allow-Origin: ' . $ams_cors_origin);
+        header('Access-Control-Allow-Credentials: true');
+    }
+}
+
+// Explicitly configured frontend origins are eligible for trusted-device
+// cookies; credentials are never enabled for an unapproved Origin.
+if ($ams_cors_list && $ams_cors_origin !== '' && in_array($ams_cors_origin, $ams_cors_list, true)) {
+    header('Access-Control-Allow-Credentials: true');
 }
 
 unset($ams_cors_env, $ams_cors_production, $ams_cors_list, $ams_cors_origin, $ams_cors_local);
