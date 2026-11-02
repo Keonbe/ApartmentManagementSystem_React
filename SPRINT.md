@@ -75,6 +75,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 | 53 | Preview rooms-first layout | UI/UX | Rooms-first layout, whole-building photo, footer padding (`b1be3f9`) | Done | Low | 2026-10-31 | 2026-10-31 |
 | 54 | Repo cleanup and public image serving | Chore | Stop tracking node_modules, websocket `.env` and stray upload; chat server setup docs; public file serving for images (`1e5a95e`, `8472e50`) | Done | Medium | 2026-10-31 | 2026-11-01 |
 | 55 | Manager interview comparison, README refresh, Claude settings | Docs | Manager interview comparison doc (Q1-Q26), README rewritten against current code, `.claude/settings.json` permissions, this sprint table | Done | Medium | 2026-10-19 | 2026-11-01 |
+| 91 | CCTV request rework | Feature | Incident-only requests (type, 20+ character description for "other", footage window), Settings → CCTV tab (locations, incident types, window, shortest reason), admin details modal, required decision note shown to the tenant in the notification and My Requests | Done | Medium | 2026-11-02 | 2026-11-02 |
 
 ## In progress
 
@@ -113,6 +114,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 | 81 | CI "Apply upgrade migrations" fails at HEAD | DevOps/CI | `2026_10_add_reference_norm_and_tables.sql` (duplicate column) and `2026_10_deployed_server_sync.sql` (needs `schema_migrations`), both from `9fbf1ef` | Open | High | 2026-10-30 | — |
 | 82 | Hash the guest chat token | Security | Store `guest_token` hashed | Open | Low | — | — |
 | 83 | Contract editor saved-time bug | Bug fix | "Saved <time> by You" formats a UTC timestamp as local time | Open | Low | — | — |
+| 90 | CCTV footage link or file | Feature | Shelved. Admin attaches a short clip (up to 25 MB) or a private https link to an Approved request; the tenant opens it from My Requests; session-checked, tenant opens logged, auto-expires after an admin-set number of days (default 14) and the file is deleted. Design: TASK.md "Shelved" | Open | Medium | — | — |
 
 ## Blocked (prod / operator)
 

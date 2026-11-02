@@ -23,10 +23,26 @@ if (!$id || !in_array($status, ['Approved', 'Rejected'], true)) {
     exit;
 }
 
+// The tenant is always told what happens next: where to view or collect the
+// footage when approved, why when rejected.
+const CCTV_NOTE_MAX = 500;
+$note = trim((string)($input['note'] ?? ''));
+if ($note === '' || mb_strlen($note) > CCTV_NOTE_MAX) {
+    http_response_code(422);
+    echo json_encode([
+        "success" => false,
+        "message" => $status === 'Approved'
+            ? "Tell the tenant where and when to view or collect the footage (up to " . CCTV_NOTE_MAX . " characters)."
+            : "Give the tenant a reason for the rejection (up to " . CCTV_NOTE_MAX . " characters).",
+        "field" => "note"
+    ]);
+    exit;
+}
+
 try {
     // A request is decided once: only a Pending request can be approved or rejected.
-    $stmt = $conn->prepare("UPDATE cctv_requests SET status = ? WHERE id = ? AND status = 'Pending'");
-    $stmt->bind_param("si", $status, $id);
+    $stmt = $conn->prepare("UPDATE cctv_requests SET status = ?, decision_note = ? WHERE id = ? AND status = 'Pending'");
+    $stmt->bind_param("ssi", $status, $note, $id);
     $stmt->execute();
     $affected = $stmt->affected_rows;
     $stmt->close();
@@ -55,21 +71,21 @@ try {
     $notification_dispatch = null;
     if ($cctv) {
         $notifTitle = "CCTV Request " . $status;
-        $notifMsg = "Your CCTV footage request for " . $cctv['location_details'] . " on " . $cctv['incident_date'] . " has been " . strtolower($status) . ".";
+        $notifMsg = "Your CCTV footage request for " . $cctv['location_details'] . " on " . $cctv['incident_date'] . " has been " . strtolower($status) . ". " . $note;
         create_notification($conn, $cctv['user_id'], 'cctv_request', $notifTitle, $notifMsg);
 
         $notification_dispatch = dispatch_admin_action_notification(
             $conn, $cctv['user_id'], 'cctv_request', $notifTitle,
-            sms_status_update_template('CCTV footage', $cctv['location_details'], $status),
+            sms_status_update_template('CCTV footage', $cctv['location_details'], $status, $note),
             email_status_update_template(
                 notify_recipient_name($conn, $cctv['user_id']),
-                'CCTV footage', $cctv['location_details'], $status
+                'CCTV footage', $cctv['location_details'], $status, $note
             )
         );
     }
 
     resolve_admin_queue($conn, 'cctv_request', $id);
-    log_activity($conn, $admin_id, 'service', "Updated CCTV Request", "CCTV Request ID: $id status set to $status");
+    log_activity($conn, $admin_id, 'service', "Updated CCTV Request", "CCTV Request ID: $id status set to $status. Note: $note");
 
     echo json_encode([
         "success" => true,

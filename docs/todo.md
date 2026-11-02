@@ -29,8 +29,8 @@
 * [x] Submit rent application with file uploads (Valid ID front/back, NBI Clearance).
 * [x] Store `user_id` FK on `rent_applications` when submitting application.
 * [x] Track application status via `/track-application` page with pending invoice payment.
-* [ ] Add application re-submission or update flow (if rejected, allow user to fix and resubmit).
-* [ ] Validate all input fields with min/max limits (plate numbers, contact numbers, etc.).
+* [x] Add application re-submission or update flow (if rejected, allow user to fix and resubmit). *(done — `rent_application.php` updates the existing application, logged as "Resubmitted Rental Application")*
+* [x] Validate all input fields with min/max limits (plate numbers, contact numbers, etc.). *(done — `LIMITS` in `utils/validation.js`, used across the forms)*
 
 ---
 
@@ -125,7 +125,7 @@
   * Created `get_parking_reservations.php` and `update_parking_status.php`.
   * Replaced mock `initialParkingReservations` array with live DB data.
   * Persists approve/reject actions.
-* [ ] Plate number validation (enforce text length limit in frontend).
+* [x] Plate number validation (enforce text length limit in frontend). *(done — `LIMITS.plate` in `ParkingReservation.jsx`)*
 
 ---
 
@@ -151,7 +151,7 @@
 ## Housekeeping
 
 * [ ] Garbage collection schedule page or announcement.
-* [ ] House rules page (can be a static page or served via `UserAnnouncements`).
+* [x] House rules page. *(done — admin-edited in Settings → House Rules via `house_rules.php`, shown to users in `HouseRulesModal.jsx`)*
 
 ---
 
@@ -165,7 +165,7 @@
   * Replaced mock `initialCctvRequests` array with live DB data.
   * Persists approve/reject actions.
 * [x] Add **Data Privacy consent checkbox** to the CCTV request form. *(done — `CctvRequest.jsx`)*
-* [ ] Restrict CCTV requests to incident-related purposes only (enforce via form validation and admin review).
+* [x] Restrict CCTV requests to incident-related purposes only. *(done — required incident type from a fixed list (`cctv_requests.incident_type`), "other" needs a 20+ character description, incidents older than the footage window (default 60 days) are refused; the admin queue shows the type next to the reason; locations, types, window and shortest reason are editable in Settings → CCTV)*
 
 ---
 

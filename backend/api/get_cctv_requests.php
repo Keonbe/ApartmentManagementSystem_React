@@ -24,9 +24,12 @@ try {
                 c.incident_date AS incidentDate,
                 c.incident_time AS time,
                 c.location_details AS location,
+                c.incident_type AS incidentType,
                 c.reason_request AS reason,
+                c.privacy_consent_at AS privacyConsentAt,
                 c.status,
-                c.created_at
+                c.decision_note AS decisionNote,
+                c.created_at AS createdAt
             FROM cctv_requests c
             LEFT JOIN users u ON c.user_id = u.id
             ORDER BY c.id DESC";

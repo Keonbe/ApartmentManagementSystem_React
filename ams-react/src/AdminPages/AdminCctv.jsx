@@ -4,8 +4,10 @@ import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faVideo, faCheck, faTimes, faSearch, faSync, 
-  faBuilding, faCalendarAlt
+  faBuilding, faCalendarAlt, faEye
 } from '@fortawesome/free-solid-svg-icons';
+import CctvDetailsModal from '../Components/CctvDetailsModal';
+import { CCTV_DEFAULTS, incidentTypeLabel, loadCctvConfig } from '../config/cctvConfig';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { LIMITS } from '../utils/validation';
@@ -20,6 +22,10 @@ export default function AdminCctv() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [detailId, setDetailId] = useState(null);
+  const [detailAction, setDetailAction] = useState(null);
+  // The incident types the admin has set up, for the badge labels.
+  const [incidentTypes, setIncidentTypes] = useState(CCTV_DEFAULTS.incidentTypes);
   const [statusFilter, setStatusFilter] = useUrlFilter('tab', 'all', ['all', 'pending', 'approved', 'rejected']);
 
   const loadCctvRequests = async () => {
@@ -45,15 +51,22 @@ export default function AdminCctv() {
   };
 
   useEffect(() => {
-    const load = async () => { await loadCctvRequests(); };
+    const load = async () => {
+      const [, config] = await Promise.all([loadCctvRequests(), loadCctvConfig()]);
+      setIncidentTypes(config.incidentTypes);
+    };
     load();
   }, []);
 
-  const handleStatusUpdate = async (id, newStatus) => {
+  const openDetail = (id, action = null) => { setDetailAction(action); setDetailId(id); };
+  const closeDetail = () => { setDetailId(null); setDetailAction(null); };
+
+  const handleStatusUpdate = async (id, newStatus, note) => {
     try {
       const res = await api.post('update_cctv_status.php', {
         id,
-        status: newStatus
+        status: newStatus,
+        note
       });
       if (res.data.success) {
         fetchCctvRequests();
@@ -177,8 +190,9 @@ export default function AdminCctv() {
                             {req.location}
                           </td>
 
-                          <td className="px-4 py-4 text-label text-slate-500 max-w-xs truncate" title={req.reason}>
-                            {req.reason}
+                          <td className="px-4 py-4 text-label text-slate-500 max-w-xs">
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-caption font-semibold text-indigo-700 whitespace-nowrap">{incidentTypeLabel(incidentTypes, req.incidentType)}</span>
+                            <div className="truncate mt-1" title={req.reason}>{req.reason}</div>
                           </td>
 
                           <td className="px-4 py-4 text-center">
@@ -192,11 +206,21 @@ export default function AdminCctv() {
                           </td>
 
                           <td className="px-5 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openDetail(req.id)}
+                              className="btn-interactive rounded-control bg-indigo-50 px-2.5 py-1.5 text-label font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border-0 cursor-pointer"
+                              title="View full details"
+                              aria-label={`View details of CCTV request ${req.id}`}
+                            >
+                              <FontAwesomeIcon icon={faEye} />
+                            </button>
                             {req.status === 'Pending' ? (
                               <div className="flex justify-end gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => handleStatusUpdate(req.id, 'Approved')}
+                                  onClick={() => openDetail(req.id, 'Approved')}
                                   className="btn-interactive rounded-control bg-emerald-50 px-2.5 py-1.5 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
                                   title="Approve Request"
                                 >
@@ -204,7 +228,7 @@ export default function AdminCctv() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleStatusUpdate(req.id, 'Rejected')}
+                                  onClick={() => openDetail(req.id, 'Rejected')}
                                   className="btn-interactive rounded-control bg-red-50 px-2.5 py-1.5 text-label font-bold text-red-700 hover:bg-red-100 transition-colors border-0 cursor-pointer"
                                   title="Reject Request"
                                 >
@@ -214,6 +238,7 @@ export default function AdminCctv() {
                             ) : (
                               <span className="text-label font-medium italic text-slate-500">Resolved</span>
                             )}
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -226,6 +251,20 @@ export default function AdminCctv() {
           </div>
         </main>
       </div>
+
+      {/* Full request as the tenant filed it; looked up by id so a decision made inside it shows at once. */}
+      {detailId !== null && (() => {
+        const detail = requests.find(r => r.id === detailId);
+        return detail ? (
+          <CctvDetailsModal
+            request={detail}
+            incidentLabel={incidentTypeLabel(incidentTypes, detail.incidentType)}
+            initialAction={detailAction}
+            onClose={closeDetail}
+            onDecide={(status, note) => { handleStatusUpdate(detail.id, status, note); closeDetail(); }}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

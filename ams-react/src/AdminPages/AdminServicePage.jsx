@@ -29,6 +29,8 @@ import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import ServiceCatalogModal from '../Components/ServiceCatalogModal';
+import CctvDetailsModal from '../Components/CctvDetailsModal';
+import { CCTV_DEFAULTS, incidentTypeLabel, loadCctvConfig } from '../config/cctvConfig';
 import ServiceAppearanceModal from '../Components/ServiceAppearanceModal';
 import { getServiceAppearance, parseServiceAppearance } from '../config/serviceAppearance';
 import useUrlFilter from '../hooks/useUrlFilter';
@@ -179,7 +181,7 @@ const SERVICE_TRANSITIONS = {
 };
 const canMove = (from, to) => (SERVICE_TRANSITIONS[from] || []).includes(to);
 
-const CATALOG_CATEGORY_BY_CARD = { cleaning: 'cleaning', laundry: 'laundry', 'other-services': 'other' };
+const CATALOG_CATEGORY_BY_CARD ={ cleaning: 'cleaning', laundry: 'laundry', 'other-services': 'other' };
 
 const CONFIRM_MESSAGES = {
   Rejected: 'Reject this booking? The tenant will be notified.',
@@ -191,6 +193,9 @@ const AdminServicePage = () => {
   const [services, setServices] = useState(initialServices);
   const [activeTab, setActiveTab] = useUrlFilter('tab', 'services', ['services', 'cctv', 'parking']);
   const [cctvRequests, setCctvRequests] = useState([]);
+  const [cctvDetailId, setCctvDetailId] = useState(null);
+  const [cctvDetailAction, setCctvDetailAction] = useState(null);
+  const [cctvIncidentTypes, setCctvIncidentTypes] = useState(CCTV_DEFAULTS.incidentTypes);
   const [parkingReservations, setParkingReservations] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
   const [catalog, setCatalog] = useState([]);
@@ -229,12 +234,14 @@ const AdminServicePage = () => {
       }
 
       //2.FetchCCTV,Parking,ServiceBookingsAndTheServiceCatalog
-      const [cctvRes, parkingRes, serviceRes, catalogRes] = await Promise.all([
+      const [cctvRes, parkingRes, serviceRes, catalogRes, cctvConfig] = await Promise.all([
         api.get('get_cctv_requests.php'),
         api.get('get_parking_reservations.php'),
         api.get('get_service_requests.php'),
         api.get('get_service_catalog.php'),
+        loadCctvConfig(),
       ]);
+      setCctvIncidentTypes(cctvConfig.incidentTypes);
 
       if (cctvRes.data.success) {
         setCctvRequests(cctvRes.data.requests.map(r => ({
@@ -246,6 +253,9 @@ const AdminServicePage = () => {
           time: r.time || r.incidentTime || r.incident_time || '',
           location: r.location || r.location_details,
           reason: r.reason || r.reason_request,
+          incidentType: r.incidentType || null,
+          privacyConsentAt: r.privacyConsentAt || null,
+          createdAt: r.createdAt || null,
           status: r.status,
         })));
       }
@@ -375,12 +385,15 @@ const AdminServicePage = () => {
     }
   };
 
-  const handleCctvStatus = async (item, newStatus) => {
+  const openCctvDetail = (id, action = null) => { setCctvDetailAction(action); setCctvDetailId(id); };
+  const closeCctvDetail = () => { setCctvDetailId(null); setCctvDetailAction(null); };
+
+  const handleCctvStatus = async (item, newStatus, note) => {
     const rawId = typeof item === 'object' ? (item.rawId || item.id) : item;
     const targetId = typeof item === 'object' ? item.id : item;
     setCctvRequests(prev => prev.map(r => r.id === targetId ? { ...r, status: newStatus } : r));
     try {
-      const res = await api.post('update_cctv_status.php', { rawId, status: newStatus });
+      const res = await api.post('update_cctv_status.php', { rawId, status: newStatus, note });
       if (!res.data.success) {
         fetchData();
         alert('Failed to update CCTV status: ' + (res.data.message || 'Unknown error'));
@@ -897,7 +910,7 @@ const AdminServicePage = () => {
                               <th className={TH}>Unit</th>
                               <th className={TH}>Incident Date</th>
                               <th className={TH}>Location</th>
-                              <th className={TH}>Reason</th>
+                              <th className={TH}>Incident &amp; Reason</th>
                               <th className={`${TH} text-center`}>Status</th>
                               <th className={`${TH} text-right`}>Actions</th>
                             </tr>
@@ -914,25 +927,33 @@ const AdminServicePage = () => {
                                     <span className="text-caption text-slate-500">{req.time}</span>
                                   </td>
                                   <td className="px-4 py-3 text-slate-600">{req.location}</td>
-                                  <td className="max-w-xs px-4 py-3 truncate text-slate-500" title={req.reason}>{req.reason}</td>
+                                  <td className="max-w-xs px-4 py-3 text-slate-500">
+                                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-caption font-semibold text-indigo-700 whitespace-nowrap">{incidentTypeLabel(cctvIncidentTypes, req.incidentType)}</span>
+                                    <div className="truncate mt-1" title={req.reason}>{req.reason}</div>
+                                  </td>
                                   <td className="px-4 py-3 text-center">
                                     <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${req.status === 'Pending' ? 'bg-amber-100 text-amber-700' : req.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                                       {req.status}
                                     </span>
                                   </td>
                                   <td className="px-4 py-3 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                    <button type="button" onClick={() => openCctvDetail(req.id)} className="rounded-control p-1.5 text-indigo-600 transition-colors hover:bg-indigo-50 border-0 cursor-pointer" title="View details" aria-label={`View details of CCTV request ${req.rawId}`}>
+                                      <FontAwesomeIcon icon={faEye} />
+                                    </button>
                                     {req.status === 'Pending' ? (
                                       <div className="flex justify-end gap-2">
-                                        <button type="button" onClick={() => handleCctvStatus(req.id, 'Approved')} className="rounded-control p-1.5 text-emerald-700 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
+                                        <button type="button" onClick={() => openCctvDetail(req.id, 'Approved')} className="rounded-control p-1.5 text-emerald-700 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
                                           <FontAwesomeIcon icon={faCheck} />
                                         </button>
-                                        <button type="button" onClick={() => handleCctvStatus(req.id, 'Rejected')} className="rounded-control p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reject">
+                                        <button type="button" onClick={() => openCctvDetail(req.id, 'Rejected')} className="rounded-control p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reject">
                                           <FontAwesomeIcon icon={faTimes} />
                                         </button>
                                       </div>
                                     ) : (
                                       <span className="text-label font-medium italic text-slate-500">Resolved</span>
                                     )}
+                                    </div>
                                   </td>
                                 </tr>
                               ))
@@ -1036,6 +1057,21 @@ const AdminServicePage = () => {
           </div>
         </main>
       </div>
+
+      {/*CctvRequestDetailsModal: everything the tenant entered. Looked up by id so an
+          approve/reject from inside it shows the new status straight away.*/}
+      {cctvDetailId !== null && (() => {
+        const detail = cctvRequests.find(r => r.id === cctvDetailId);
+        return detail ? (
+          <CctvDetailsModal
+            request={detail}
+            incidentLabel={incidentTypeLabel(cctvIncidentTypes, detail.incidentType)}
+            initialAction={cctvDetailAction}
+            onClose={closeCctvDetail}
+            onDecide={(status, note) => { handleCctvStatus(detail.id, status, note); closeCctvDetail(); }}
+          />
+        ) : null;
+      })()}
 
       {/*ServiceCatalogCreateEditModal*/}
       <ServiceCatalogModal

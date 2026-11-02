@@ -4257,6 +4257,95 @@ function get_setting($conn, $key, $default = null) {
     return $row ? $row['setting_value'] : $default;
 }
 
+// CCTV footage requests (Settings → CCTV): the camera locations and incident
+// types a tenant can pick, how many days back an incident may be, and the
+// shortest reason. Defaults are what the form shipped with, so a DB that never
+// saved these keys behaves as before. "other" is the one fixed type: it is
+// always present, always last, and needs a written description.
+const CCTV_DEFAULT_LOCATIONS = ['1st Floor', '2nd Floor', '3rd Floor', 'All Floors'];
+const CCTV_DEFAULT_INCIDENT_TYPES = [
+    ['key' => 'theft', 'label' => 'Theft or missing item'],
+    ['key' => 'vandalism', 'label' => 'Vandalism'],
+    ['key' => 'accident_injury', 'label' => 'Accident or injury'],
+    ['key' => 'property_damage', 'label' => 'Property damage'],
+    ['key' => 'security_concern', 'label' => 'Security concern (trespassing, harassment)'],
+    ['key' => 'other', 'label' => 'Other incident (describe below)'],
+];
+const CCTV_DEFAULT_LOOKBACK_DAYS = 60;
+const CCTV_DEFAULT_MIN_REASON_LENGTH = 10;
+const CCTV_MAX_LOCATIONS = 12;
+const CCTV_MAX_INCIDENT_TYPES = 10;
+
+// [clean list, null] or [null, message]. Used to validate a save and to read
+// back what is stored, so a garbled row falls back to the defaults.
+function cctv_normalize_locations($list) {
+    if (!is_array($list) || $list !== array_values($list)) return [null, 'Camera locations must be a list.'];
+    if (count($list) < 1 || count($list) > CCTV_MAX_LOCATIONS) return [null, 'Keep between 1 and ' . CCTV_MAX_LOCATIONS . ' camera locations.'];
+    $clean = [];
+    $seen = [];
+    foreach ($list as $loc) {
+        $loc = is_string($loc) ? trim(preg_replace('/\s+/', ' ', $loc)) : '';
+        if ($loc === '' || mb_strlen($loc) > 50) return [null, 'Each camera location needs a name of 1 to 50 characters.'];
+        $k = mb_strtolower($loc);
+        if (isset($seen[$k])) return [null, "\"$loc\" is listed twice."];
+        $seen[$k] = true;
+        $clean[] = $loc;
+    }
+    return [$clean, null];
+}
+
+function cctv_normalize_incident_types($list) {
+    if (!is_array($list) || $list !== array_values($list)) return [null, 'Incident types must be a list.'];
+    if (count($list) < 2 || count($list) > CCTV_MAX_INCIDENT_TYPES) {
+        return [null, 'Keep between 2 and ' . CCTV_MAX_INCIDENT_TYPES . ' incident types (Other plus at least one more).'];
+    }
+    $clean = [];
+    $keys = [];
+    $labels = [];
+    foreach ($list as $t) {
+        $label = is_array($t) && is_string($t['label'] ?? null) ? trim(preg_replace('/\s+/', ' ', $t['label'])) : '';
+        if ($label === '' || mb_strlen($label) > 60) return [null, 'Each incident type needs a name of 1 to 60 characters.'];
+        $lk = mb_strtolower($label);
+        if (isset($labels[$lk])) return [null, "\"$label\" is listed twice."];
+        $labels[$lk] = true;
+
+        // A key an existing type already has is kept (saved requests refer to
+        // it); a new type gets one made from its name.
+        $key = is_array($t) && is_string($t['key'] ?? null) ? $t['key'] : '';
+        if (preg_match('/^[a-z0-9_]{1,30}$/', $key)) {
+            if (isset($keys[$key])) return [null, 'An incident type is listed twice.'];
+        } else {
+            $base = substr(trim(preg_replace('/[^a-z0-9]+/', '_', strtolower($label)), '_'), 0, 24);
+            $key = $base !== '' ? $base : 'type';
+            for ($n = 2; isset($keys[$key]) || $key === 'other'; $n++) $key = $base . '_' . $n;
+            $key = substr($key, 0, 30);
+        }
+        $keys[$key] = true;
+        $clean[] = ['key' => $key, 'label' => $label];
+    }
+    if ($clean[count($clean) - 1]['key'] !== 'other') return [null, '"Other" must stay as the last incident type.'];
+    if (count(array_filter($clean, fn($t) => $t['key'] === 'other')) !== 1) return [null, '"Other" must appear exactly once.'];
+    return [$clean, null];
+}
+
+function cctv_settings($conn) {
+    $raw = [];
+    $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('cctv_locations', 'cctv_incident_types', 'cctv_lookback_days', 'cctv_min_reason_length')");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) $raw[$row['setting_key']] = $row['setting_value'];
+    }
+    [$locations] = cctv_normalize_locations(json_decode($raw['cctv_locations'] ?? '', true));
+    [$types] = cctv_normalize_incident_types(json_decode($raw['cctv_incident_types'] ?? '', true));
+    $days = $raw['cctv_lookback_days'] ?? '';
+    $min = $raw['cctv_min_reason_length'] ?? '';
+    return [
+        'locations' => $locations ?? CCTV_DEFAULT_LOCATIONS,
+        'incidentTypes' => $types ?? CCTV_DEFAULT_INCIDENT_TYPES,
+        'lookbackDays' => ctype_digit((string)$days) && (int)$days >= 1 && (int)$days <= 365 ? (int)$days : CCTV_DEFAULT_LOOKBACK_DAYS,
+        'minReasonLength' => ctype_digit((string)$min) && (int)$min >= 5 && (int)$min <= 200 ? (int)$min : CCTV_DEFAULT_MIN_REASON_LENGTH,
+    ];
+}
+
 // How far ahead a tenant must give a move-out notice (Settings → Rental). The
 // date has to fall between 'min' and 'max' days from today. Garbled stored
 // values fall back to the shipped 15 / 30, and max is never below min.

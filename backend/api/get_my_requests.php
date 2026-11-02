@@ -20,7 +20,7 @@ if ($auth['role'] === 'admin' && !empty($_GET['userId'])) {
 
 $query = "(SELECT id, 'Maintenance' AS type, COALESCE(title, issue_category) AS title, status, created_at, resolved_at, attachment_path, description, NULL AS total_cost, rejection_reason FROM maintenance_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'CCTV', location_details, status, created_at, NULL, NULL, reason_request, NULL, NULL FROM cctv_requests WHERE user_id = ?)
+          (SELECT id, 'CCTV', location_details, status, created_at, NULL, NULL, reason_request, NULL, decision_note FROM cctv_requests WHERE user_id = ?)
           UNION ALL
           (SELECT id, 'Parking', vehicle_type, status, created_at, NULL, document_path, vehicle_model, NULL, NULL FROM parking_reservations WHERE user_id = ?)
           UNION ALL

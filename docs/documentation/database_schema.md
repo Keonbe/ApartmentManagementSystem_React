@@ -178,6 +178,7 @@ erDiagram
         date incident_date
         varchar incident_time
         varchar location_details
+        varchar incident_type "theft | vandalism | accident_injury | property_damage | security_concern | other"
         text reason_request
         varchar status "Pending | Approved | Rejected"
         timestamp created_at
@@ -572,7 +573,7 @@ erDiagram
 | Table | Purpose |
 |---|---|
 | `maintenance_requests` | Tenant-submitted tickets. `room_name` is **snapshotted** from the tenant's active application when the ticket is created (a soft reference, no FK), so a later move doesn't reattribute the ticket. A ticket completed with `tenant_responsible=1` bills `COALESCE(actual_cost, estimated_cost)` onto `invoices.maintenance` (audit H10) — `is_invoiced`/`invoice_id`/`billing_period` mirror `service_requests`' claim-atomically pattern, so a double-click can't double-bill and clearing the flag (or reopening the ticket) reverses the charge while it's still unpaid. `invoiced_amount` records the amount posted (reversal backs out that, not the current cost). |
-| `cctv_requests` | Footage-request tickets tied to an incident date/time/location; `privacy_consent_at` records when the tenant agreed to the Data Privacy terms (required since 2026-10). |
+| `cctv_requests` | Footage-request tickets tied to an incident date/time/location; `privacy_consent_at` records when the tenant agreed to the Data Privacy terms (required since 2026-10); `decision_note` is the admin's note on the decision (pickup instructions when Approved, reason when Rejected; required since 2026-11, NULL on older rows); `incident_type` is required since 2026-11 (NULL on older rows) and is one of the keys in the `cctv_incident_types` setting (default theft, vandalism, accident_injury, property_damage, security_concern, other). The form's choices live in `system_settings`, edited in Settings → CCTV: `cctv_locations` (JSON list of names), `cctv_incident_types` (JSON list of `{key,label}`, `other` always last), `cctv_lookback_days` (default 60), `cctv_min_reason_length` (default 10). |
 | `parking_charges` | One row per parking reservation per billing month (`UNIQUE (reservation_id, billing_period)`), so a month is never billed twice whether billing is manual ("Bill this month") or automatic (daily sweep). `invoice_id` records where the charge landed. |
 | `parking_reservations` | `vehicle_type` must match the JSON array in the `parking_allowed_vehicle_types` setting; the admin-configured `max_parking_slots` cap counts rows in `Pending`/`Assigned`/`Approved`/`Active`. |
 | `service_catalog` | Admin-managed price list for add-on services (cleaning, laundry, pest control, ...). `is_active=0` hides an item from the tenant-facing catalog without deleting history. |

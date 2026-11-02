@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { CCTV_DEFAULTS, CCTV_OTHER_KEY, CCTV_OTHER_REASON_MIN, incidentTypeLabel, loadCctvConfig, locationLabel } from '../config/cctvConfig';
 import SuccessModal from '../Components/SuccessModal';
 import InlineAlert from '../Components/InlineAlert';
 import { useNavigate } from 'react-router-dom';
@@ -11,8 +12,6 @@ import CharCount from '../Components/form/CharCount';
 import { invalidCls } from '../Components/form/formHelpers';
 
 const TIME_WINDOWS = ['12:00 AM - 04:00 AM', '04:00 AM - 08:00 AM', '08:00 AM - 12:00 PM', '12:00 PM - 04:00 PM', '04:00 PM - 08:00 PM', '08:00 PM - 12:00 AM'];
-const LOCATIONS = ['1st Floor', '2nd Floor', '3rd Floor', 'All Floors'];
-const REASON_MIN = 10;
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/cctv-request.responsive.css';
 
@@ -21,6 +20,7 @@ export default function CctvRequest() {
     const [incidentDate, setIncidentDate] = useState('');
     const [incidentTime, setIncidentTime] = useState('');
     const [locationDetails, setLocationDetails] = useState('');
+    const [incidentType, setIncidentType] = useState('');
     const [reasonRequest, setReasonRequest] = useState('');
     const [privacyConsent, setPrivacyConsent] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,21 +29,36 @@ export default function CctvRequest() {
     const [submitError, setSubmitError] = useState('');
     const navigate = useNavigate();
 
-    // Footage is kept about two months. addDays, not setMonth(-2): that rolled
-    // Apr 30 over to Mar 2 (there is no Feb 30).
+    // The locations, incident types and footage window the admin set up in
+    // Settings -> CCTV. The defaults show until they load (or if they can't).
+    const [config, setConfig] = useState(CCTV_DEFAULTS);
+    useEffect(() => {
+        let active = true;
+        loadCctvConfig().then((c) => { if (active) setConfig(c); });
+        return () => { active = false; };
+    }, []);
+    const locations = config.locations;
+    const incidentTypes = config.incidentTypes;
+
+    // addDays, not setMonth(-N): that rolled Apr 30 over to Mar 2 (there is no Feb 30).
     const maxDateString = localDateString();
-    const minDateString = addDays(-60);
+    const minDateString = addDays(-config.lookbackDays);
 
     // Keys match cctv_request.php's body. reason_request is TEXT, so the
     // limit is the shared notes cap (the old hard-coded 1000).
     const form = useFieldErrors({
         incidentDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: t('cctv.incidentDateLabel') }),
         incidentTime: (v) => (TIME_WINDOWS.includes(v) ? '' : t('common.errTimeWindow')),
-        locationDetails: (v) => (LOCATIONS.includes(v) ? '' : t('cctv.errLocation')),
-        reasonRequest: (v) => checkText(v, { label: 'Reason', min: REASON_MIN, max: LIMITS.notes }),
+        locationDetails: (v) => (locations.includes(v) ? '' : t('cctv.errLocation')),
+        incidentType: (v) => (incidentTypes.some((x) => x.key === v) ? '' : t('cctv.errIncidentType')),
+        reasonRequest: (v, all) => {
+            const err = checkText(v, { label: 'Reason', min: config.minReasonLength, max: LIMITS.notes });
+            if (err) return err;
+            return all?.incidentType === CCTV_OTHER_KEY && v.trim().length < CCTV_OTHER_REASON_MIN ? t('cctv.errOtherReason') : '';
+        },
         privacyConsent: (v) => (v ? '' : t('cctv.errConsent')),
     }, { idPrefix: 'cctv-' });
-    const values = { incidentDate, incidentTime, locationDetails, reasonRequest, privacyConsent };
+    const values = { incidentDate, incidentTime, locationDetails, incidentType, reasonRequest, privacyConsent };
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
@@ -56,6 +71,7 @@ export default function CctvRequest() {
             incidentDate: incidentDate,
             incidentTime: incidentTime,
             locationDetails: locationDetails,
+            incidentType: incidentType,
             reasonRequest: reason,
             // cctv_request.php requires it and stores when it was given.
             privacyConsent: true
@@ -149,12 +165,26 @@ export default function CctvRequest() {
                             required
                         >
                             <option value="" disabled hidden>{t('cctv.selectFloor')}</option>
-                            <option value="1st Floor">{t('cctv.floor1')}</option>
-                            <option value="2nd Floor">{t('cctv.floor2')}</option>
-                            <option value="3rd Floor">{t('cctv.floor3')}</option>
-                            <option value="All Floors">{t('cctv.allFloors')}</option>
+                            {locations.map((loc) => <option key={loc} value={loc}>{locationLabel(loc, t)}</option>)}
                         </select>
                         <FieldError id="cctv-locationDetails" error={form.errors.locationDetails} className="m-0" />
+                    </div>
+
+                    {/*Incident type: footage is released for incidents only*/}
+                    <div className="flex flex-col space-y-2 md:col-span-2">
+                        <label htmlFor="cctv-incidentType" className="text-sm font-bold text-brand">{t('cctv.incidentType')}</label>
+                        <select
+                            {...form.fieldA11y('incidentType')}
+                            value={incidentType}
+                            onChange={(e) => { setIncidentType(e.target.value); form.clearError('incidentType'); form.clearError('reasonRequest'); }}
+                            className={"cctv-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.incidentType)}
+                            required
+                        >
+                            <option value="" disabled hidden>{t('cctv.selectIncidentType')}</option>
+                            {incidentTypes.map(x => <option key={x.key} value={x.key}>{incidentTypeLabel(incidentTypes, x.key, t)}</option>)}
+                        </select>
+                        <p className="text-xs text-slate-500 m-0">{t('cctv.incidentTypeHint', { days: config.lookbackDays })}</p>
+                        <FieldError id="cctv-incidentType" error={form.errors.incidentType} className="m-0" />
                     </div>
 
                     {/*Reason for Request text input area box layout Component*/}

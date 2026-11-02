@@ -176,6 +176,9 @@ export default function UserMyRequests() {
                                             {req.status === 'Rejected' && req.rejection_reason && (
                                                 <p className="text-xs text-red-600 m-0 mt-1">Reason: {req.rejection_reason}</p>
                                             )}
+                                            {req.status === 'Approved' && req.type === 'CCTV' && req.rejection_reason && (
+                                                <p className="text-xs text-emerald-700 m-0 mt-1">Footage pickup: {req.rejection_reason}</p>
+                                            )}
                                             {req.total_cost !== null && req.total_cost !== undefined && (
                                                 <p className="text-xs font-bold text-indigo-600 m-0 mt-1">
                                                     {t('myRequests.serviceCost')}: ₱{Number(req.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

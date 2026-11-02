@@ -20,6 +20,7 @@ import MaintenancePanel from './settings/MaintenancePanel';
 import HouseRulesPanel from './settings/HouseRulesPanel';
 import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
+import CctvPanel from './settings/CctvPanel';
 import MinorsPanel from './settings/MinorsPanel';
 import GlassModePanel from './settings/GlassModePanel';
 import HomePagePanel from './settings/HomePagePanel';
@@ -264,6 +265,7 @@ const AdminOtherSettings = () => {
             {activeTab === 'house-rules' && <HouseRulesPanel />}
             {activeTab === 'floor-rent' && <FloorRentPanel />}
             {activeTab === 'utility-types' && <UtilityTypesPanel />}
+            {activeTab === 'cctv' && <CctvPanel />}
             {activeTab === 'parking-rules' && <HouseRulesPanel scope="parking" />}
             {activeTab === 'minors' && <MinorsPanel />}
 

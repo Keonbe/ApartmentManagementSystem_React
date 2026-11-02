@@ -560,7 +560,7 @@ flowchart TD
 - [x] **11.2 Admin Authentication** ✅ — `login.php` session token. Admin sign-ins are recorded in the activity log. The account locks for 15 minutes after 5 failed attempts (20 per IP)
 - [x] **11.3 Tenant Authentication** ✅ — `login.php`, same lockout. Archived accounts are refused, and only after the correct password is given
 - [x] **11.4 Password Management** ✅ — `change_password.php` (own account only, verifies the current password, signs out other devices); email reset via `forgot_password.php` / `reset_password.php` (ends all sessions); admin reset in User Management; the admin's own password and profile in Account Settings. 8-character minimum on every path
-- [x] **11.5 CCTV Access Requests** ✅ — Tenant submits via `cctv_request.php`; admin approves/rejects via `update_cctv_status.php` (`AdminCctv.jsx`), which also notifies the tenant and logs the action; queue and counts via `get_cctv_requests.php`
+- [x] **11.5 CCTV Access Requests** ✅ — Tenant submits via `cctv_request.php` (incident-only: a required camera location and incident type from the lists in Settings → CCTV (`CctvPanel.jsx`, add/rename/reorder/remove), a 20+ character description for "other", a shortest reason, and an incident no older than the configured footage window, default 60 days; all enforced server-side); admins open a request's full details from the eye icon (`CctvDetailsModal.jsx`); admin approves/rejects via `update_cctv_status.php` (`AdminCctv.jsx`), which requires a note (pickup instructions or the reason, stored in `decision_note`, shown to the tenant in My Requests), also notifies the tenant and logs the action; queue and counts via `get_cctv_requests.php`
 
 ---
 

@@ -97,7 +97,7 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks ðŸ”
 | [x] | Unprioritized | **Enh** Add min/max limits to form inputs, including a plate-number `maxLength` in `ParkingReservation.jsx`. The backend already validates both. Done 2026-09-25 (branch `feature/frontend-validation`): limits come from `utils/validation.js` `LIMITS`, read from SetupDB column sizes. | [todo.md Registration & Application](todo.md#registration--application), [todo.md Parking Reservation](todo.md#parking-reservation) |
 | [ ] | Unprioritized | **Enh** Let a rejected applicant edit and resubmit their application. Today they can only file a new one. | [todo.md Registration & Application](todo.md#registration--application) |
 | [ ] | Unprioritized | **Enh** Documents: accept Police Clearance and Proof of Billing uploads, and let an admin request more documents from a tenant (with a notification). | [todo.md Documents](todo.md#documents) |
-| [ ] | Unprioritized | **Enh** Housekeeping pages (garbage schedule, house rules), terms for occupancy and tenant responsibility, and restricting CCTV requests to incidents. | [todo.md Housekeeping](todo.md#housekeeping), [todo.md Room & Occupancy](todo.md#room--occupancy), [todo.md CCTV](todo.md#cctv-footage-request) |
+| [ ] | Unprioritized | **Enh** Housekeeping pages (garbage schedule, house rules), and terms for occupancy and tenant responsibility. (House rules and the CCTV incident-only restriction are done.) | [todo.md Housekeeping](todo.md#housekeeping), [todo.md Room & Occupancy](todo.md#room--occupancy), [todo.md CCTV](todo.md#cctv-footage-request) |
 
 ## Security
 

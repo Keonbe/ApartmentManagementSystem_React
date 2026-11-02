@@ -9,7 +9,7 @@ beforeAll(async () => { maria = await loginAs('maria'); });
 
 const yesterday = async () => (await one("SELECT DATE_FORMAT(CURDATE() - INTERVAL 1 DAY, '%Y-%m-%d') AS d")).d;
 const body = async (extra = {}) => ({
-  incidentDate: await yesterday(), incidentTime: '8:00 PM', locationDetails: 'Parking area', reasonRequest: 'My bicycle was moved.', ...extra,
+  incidentDate: await yesterday(), incidentTime: '8:00 PM', locationDetails: '1st Floor', incidentType: 'property_damage', reasonRequest: 'My bicycle was moved.', ...extra,
 });
 const requestCount = async () => (await one('SELECT COUNT(*) AS c FROM cctv_requests WHERE user_id = 2')).c;
 

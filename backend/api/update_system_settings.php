@@ -82,6 +82,9 @@ $SETTING_RULES = [
     'notification_log_retention_days' => ['type' => 'int', 'min' => 0, 'max' => 3650, 'message' => 'Log retention must be a whole number of days from 0 (keep forever) to 3650.'],
     'rent_due_reminder_days'   => ['type' => 'int', 'min' => 0, 'max' => 30, 'message' => 'Rent-due reminder days must be a whole number between 0 and 30.'],
     'overdue_reminder_interval_days' => ['type' => 'int', 'min' => 1, 'max' => 30, 'message' => 'The overdue reminder interval must be a whole number between 1 and 30 days.'],
+    // Settings -> CCTV. The footage window cannot exceed what the building keeps.
+    'cctv_lookback_days'       => ['type' => 'int', 'min' => 1, 'max' => 365, 'message' => 'The footage window must be a whole number of days between 1 and 365.', 'field' => 'Enter 1 to 365 days.'],
+    'cctv_min_reason_length'   => ['type' => 'int', 'min' => 5, 'max' => 200, 'message' => 'The shortest reason must be a whole number of characters between 5 and 200.', 'field' => 'Enter 5 to 200.'],
     'glass_overlay_opacity'    => ['type' => 'int', 'min' => 0, 'max' => 95, 'message' => 'The Glass overlay must be a whole number from 0 to 95 percent.', 'field' => 'Enter 0 to 95.'],
     'glass_blur'               => ['type' => 'int', 'min' => 0, 'max' => 20, 'message' => 'The Glass background blur must be a whole number from 0 to 20 pixels.', 'field' => 'Enter 0 to 20.'],
 ];
@@ -151,6 +154,18 @@ foreach ($input as $key => $value) {
             $refuse("Each floor needs a rent above 0 and up to 1,000,000.");
         }
         $value = json_encode($clean, JSON_FORCE_OBJECT);
+    }
+    // CCTV request form choices (Settings -> CCTV): stored canonical, so what
+    // cctv_request.php validates against is exactly what was saved here.
+    if ($key === 'cctv_locations') {
+        [$clean, $problem] = cctv_normalize_locations(json_decode($value, true));
+        if ($clean === null) $refuse($problem, ["cctvLocations" => $problem]);
+        $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
+    }
+    if ($key === 'cctv_incident_types') {
+        [$clean, $problem] = cctv_normalize_incident_types(json_decode($value, true));
+        if ($clean === null) $refuse($problem, ["cctvIncidentTypes" => $problem]);
+        $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
     }
     // No young children on these floors (default 3F, because of the stairs).
     if ($key === 'child_restricted_floors') {

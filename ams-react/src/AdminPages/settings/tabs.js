@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard, faImage, faHouse, faAddressCard } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard, faImage, faHouse, faAddressCard, faVideo } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -100,6 +100,12 @@ export const SETTINGS_TABS = [
     description: 'Other utilities beyond water and electricity, such as internet or gas.',
   },
   {
+    id: 'cctv',
+    label: 'CCTV',
+    icon: faVideo,
+    description: 'The camera locations and incident types on the CCTV request form, and how far back footage is kept.',
+  },
+  {
     id: 'parking-rules',
     label: 'Parking Rules',
     icon: faSquareParking,
@@ -137,7 +143,7 @@ export const OTHER_SETTINGS_GROUPS = [
     key: 'operations',
     title: 'Operations & Tenant Site',
     accentDot: 'bg-sky-500',
-    tabIds: ['site', 'notifications', 'maintenance', 'home-page', 'glass-mode'],
+    tabIds: ['site', 'notifications', 'maintenance', 'cctv', 'home-page', 'glass-mode'],
   },
   {
     key: 'policies',
@@ -149,4 +155,4 @@ export const OTHER_SETTINGS_GROUPS = [
 
 // Tabs that save on their own (their panel talks to its own endpoints), so the
 // shared settings form and its save bar stay out of the way.
-export const SELF_SAVING_TAB_IDS = ['site', 'house-rules','floor-rent', 'utility-types', 'parking-rules', 'minors', 'requirements'];
+export const SELF_SAVING_TAB_IDS = ['site', 'house-rules','floor-rent', 'utility-types', 'cctv', 'parking-rules', 'minors', 'requirements'];
