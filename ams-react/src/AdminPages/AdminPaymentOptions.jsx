@@ -6,6 +6,7 @@ import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import { apiErrorSummary } from '../utils/apiError';
 import PaymentsPanel from './settings/PaymentsPanel';
+import LoadError from '../Components/admin/ui/LoadError';
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -27,14 +28,23 @@ const AdminPaymentOptions = () => {
   const [toast, setToast] = useState(null);
   const scrollRef = useRef(null);
 
+  // Strict: when the load fails the page shows an error with a retry. Showing the
+  // defaults instead would let Save overwrite the real stored values with them.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
     const loadSettings = async () => {
-      const data = await getSystemSettings();
-      setSettings(data);
-      setSavedSettings(data);
+      setLoadFailed(false);
+      try {
+        const data = await getSystemSettings({ strict: true });
+        setSettings(data);
+        setSavedSettings(data);
+      } catch {
+        setLoadFailed(true);
+      }
     };
     loadSettings();
-  }, []);
+  }, [loadAttempt]);
 
   const isDirty = useMemo(() => {
     if (!settings || !savedSettings) return false;
@@ -96,11 +106,15 @@ const AdminPaymentOptions = () => {
               </p>
             </div>
 
-            {!settings ? (
+            {!settings ? (loadFailed ? (
+              <div className="bg-white rounded-xl border border-slate-200">
+                <LoadError title="Couldn't load the payment options" message="Nothing was changed. Try again before editing, so a save cannot replace your stored settings." onRetry={() => setLoadAttempt((n) => n + 1)} />
+              </div>
+            ) : (
               <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">
                 <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading payment options…
               </div>
-            ) : (
+            )) : (
               <form onSubmit={handleSettingsSave} className="space-y-6">
                 <PaymentsPanel settings={settings} updateSetting={updateSetting} />
               </form>

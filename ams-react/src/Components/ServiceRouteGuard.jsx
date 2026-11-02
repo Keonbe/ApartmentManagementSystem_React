@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { isServiceSwitchOn } from '../config/settingsSchema';
 
 let cachedSettings = null;
 let cacheTime = 0;
@@ -36,13 +37,9 @@ if (typeof window !== 'undefined') {
 const isServiceKeyActive = (settings, settingKey) => {
   if (!settings) return true;
   if (Array.isArray(settingKey)) {
-    return settingKey.some((key) => {
-      const val = settings[key];
-      return val === undefined || val === null || val === 'true' || val === true || val === '1' || val === 1;
-    });
+    return settingKey.some((key) => isServiceSwitchOn(settings[key]));
   }
-  const val = settings[settingKey];
-  return val === undefined || val === null || val === 'true' || val === true || val === '1' || val === 1;
+  return isServiceSwitchOn(settings[settingKey]);
 };
 
 const getIsAdmin = () => {

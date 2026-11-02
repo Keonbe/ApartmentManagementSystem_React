@@ -5,6 +5,7 @@ import { faHourglassHalf, faConciergeBell, faBroom, faTshirt, faArrowLeft } from
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
+import { isServiceSwitchOn } from '../config/settingsSchema';
 import '../assets/styles/responsive/user/services.responsive.css';
 
 //MapsTheServiceCatalogIconColumnOntoRealFontAwesomeIcons
@@ -57,7 +58,7 @@ export default function ServiceCatalog() {
     const visibleCatalog = catalog.filter(row => {
         const key = `service_${row.category}_active`;
         if (!settings) return false;
-        return settings[key] === undefined || settings[key] === 'true' || settings[key] === true;
+        return isServiceSwitchOn(settings[key]);
     });
 
     if (loading) {

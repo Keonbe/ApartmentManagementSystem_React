@@ -12,6 +12,7 @@ import { useLang } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
 import { clickable } from '../utils/clickable';
 import { getServiceAppearance } from '../config/serviceAppearance';
+import { isServiceSwitchOn } from '../config/settingsSchema';
 import '../assets/styles/responsive/user/services.responsive.css';
 
 export default function Services() {
@@ -79,7 +80,7 @@ export default function Services() {
         (key) => {
             if (!key) return true; // Account utilities are always enabled
             if (!settings) return false;
-            return settings[key] === undefined || settings[key] === 'true' || settings[key] === true;
+            return isServiceSwitchOn(settings[key]);
         },
         [settings]
     );

@@ -35,6 +35,7 @@ import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import LoadError from '../Components/admin/ui/LoadError';
+import { isServiceSwitchOn } from '../config/settingsSchema';
 
 const initialServices = [
   {
@@ -220,7 +221,7 @@ const AdminServicePage = () => {
           prev.map(s => {
             if (s.isLocked) return { ...s, isActive: true };
             if (sysSettings[s.key] !== undefined) {
-              return { ...s, isActive: sysSettings[s.key] === 'true' || sysSettings[s.key] === true };
+              return { ...s, isActive: isServiceSwitchOn(sysSettings[s.key]) };
             }
             return s;
           })

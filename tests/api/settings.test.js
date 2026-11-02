@@ -129,3 +129,36 @@ describe('move-in date window (Settings → Rental)', () => {
     expect(s.move_in_max_days).toBe(90);
   });
 });
+
+describe('rule table (the plain single-value keys)', () => {
+  it.each([
+    ['overdue_threshold_days', '0'],
+    ['reservation_hold_days', '91'],
+    ['smtp_port', '70000'],
+    ['notifications_quiet_start', '24'],
+    ['notification_log_retention_days', '-1'],
+    ['maintenance_monthly_budget', 'lots'],
+    ['payment_mode', 'bitcoin'],
+    ['email_driver', 'carrier-pigeon'],
+    ['sms_provider', 'smoke-signal'],
+    ['overdue_reminder_interval_days', '0'],
+  ])('%s = %s → 422', async (key, value) => {
+    const before = await setting(key);
+    const res = await save({ [key]: value });
+    expect(res.status).toBe(422);
+    expect(await setting(key)).toBe(before);
+  });
+
+  it('0 is a valid log retention (keep forever) and a valid quiet hour', async () => {
+    const res = await save({ notification_log_retention_days: '0', notifications_quiet_start: '0' });
+    expect(res.status).toBe(200);
+    expect(await setting('notification_log_retention_days')).toBe('0');
+  });
+
+  it('a refused key in the same request saves none of them', async () => {
+    const before = await snapshot();
+    const res = await save({ overdue_threshold_days: '20', smtp_port: '0' });
+    expect(res.status).toBe(422);
+    expect(await snapshot()).toEqual(before);
+  });
+});

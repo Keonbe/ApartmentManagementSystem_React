@@ -206,7 +206,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const [overdueThresholdDays, setOverdueThresholdDays] = useState(15);
   const [endingDays, setEndingDays] = useState(30);
   useEffect(() => {
-    getSystemSettings().then(s => { setOverdueThresholdDays(s.overdueThresholdDays || 15); setEndingDays(s.leaseEndReminderDays ?? 30); });
+    getSystemSettings().then(s => { setOverdueThresholdDays(s.overdueThresholdDays); setEndingDays(s.leaseEndReminderDays ?? 30); });
   }, []);
 
   // Count overdue contracts exceeding threshold. Only an 'active' contract

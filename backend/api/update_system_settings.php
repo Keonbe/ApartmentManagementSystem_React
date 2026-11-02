@@ -46,6 +46,53 @@ $refuse = function ($message, $errors = null) {
 };
 $refused = [];
 
+// Plain single-value rules, one row per key. type 'int' = whole number in
+// [min, max]; 'num' = number in [min, max] (min_exclusive: above min); 'enum' =
+// one of values. 'field' is the inline message under that input (the field name
+// is the key in camelCase). Keys with cross-checks or structured values
+// (move-out / move-in pairs, parking slots, JSON lists, glass image) are
+// handled in the loop below. A key not listed here is stored as posted.
+$SETTING_RULES = [
+    'min_lease_duration'       => ['type' => 'int', 'min' => 1, 'max' => 24, 'message' => 'Minimum rent duration must be a whole number between 1 and 24 months.'],
+    'max_rent_ahead_months'    => ['type' => 'int', 'min' => 1, 'max' => MAX_RENT_AHEAD_MONTHS_CEILING, 'message' => 'Maximum months ahead must be a whole number between 1 and ' . MAX_RENT_AHEAD_MONTHS_CEILING . '.'],
+    'payment_window_days'      => ['type' => 'int', 'min' => 1, 'max' => 30, 'message' => 'Payment window must be a whole number of days between 1 and 30.', 'field' => 'Enter 1 to 30 days.'],
+    'overdue_threshold_days'   => ['type' => 'int', 'min' => 1, 'max' => 365, 'message' => 'The overdue threshold must be a whole number of days between 1 and 365.'],
+    'reservation_hold_days'    => ['type' => 'int', 'min' => 1, 'max' => 90, 'message' => 'A unit reservation must hold for a whole number of days between 1 and 90.'],
+    'lease_end_reminder_days'  => ['type' => 'int', 'min' => 0, 'max' => 180, 'message' => 'Rent-end reminder days must be a whole number between 0 and 180.'],
+    'maintenance_monthly_budget' => ['type' => 'num', 'min' => 0, 'max' => 100000000, 'message' => 'The monthly maintenance budget must be an amount from 0 to 100,000,000.'],
+    'max_occupants_per_unit'   => ['type' => 'int', 'min' => 1, 'max' => 20, 'message' => 'Maximum occupants per unit must be a whole number between 1 and 20.'],
+    'min_household_age'        => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The minimum household age must be a whole number from 0 to 17.'],
+    'child_restricted_below_age' => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The child age limit must be a whole number from 0 to 17.'],
+    'parking_billing_mode'     => ['type' => 'enum', 'values' => ['manual', 'auto'], 'message' => 'Parking billing mode must be manual or auto.'],
+    'parking_monthly_fee'      => ['type' => 'num', 'min' => 0, 'min_exclusive' => true, 'max' => 100000, 'message' => 'Parking monthly fee must be a positive amount.'],
+    // The UI's slider goes 1-168 hours (one week).
+    'visitor_overstay_hours'   => ['type' => 'int', 'min' => 1, 'max' => 168, 'message' => 'Visitor overstay threshold must be a whole number between 1 and 168 hours.'],
+    'qrph_active_slot'         => ['type' => 'int', 'min' => 1, 'max' => 5, 'message' => 'Active QR Ph slot must be between 1 and 5.'],
+    'room_preview_mode'        => ['type' => 'enum', 'values' => ['images', 'floor_plan'], 'message' => 'Room preview mode must be images or floor_plan.'],
+    'payment_mode'             => ['type' => 'enum', 'values' => ['manual', 'sandbox', 'both'], 'message' => 'Payment mode must be manual, sandbox or both.'],
+    'email_driver'             => ['type' => 'enum', 'values' => ['log', 'smtp'], 'message' => 'Email driver must be log or smtp.'],
+    'sms_provider'             => ['type' => 'enum', 'values' => ['log', 'semaphore'], 'message' => 'SMS provider must be log or semaphore.'],
+    'notifications_dispatch_mode' => ['type' => 'enum', 'values' => ['queue', 'sync'], 'message' => 'Dispatch mode must be queue or sync.'],
+    'smtp_port'                => ['type' => 'int', 'min' => 1, 'max' => 65535, 'message' => 'The SMTP port must be a whole number between 1 and 65535.'],
+    'sms_daily_cap'            => ['type' => 'int', 'min' => 0, 'max' => 100000, 'message' => 'The daily SMS cap must be a whole number from 0 (no cap) to 100,000.'],
+    'sms_unit_cost'            => ['type' => 'num', 'min' => 0, 'max' => 1000, 'message' => 'The SMS unit cost must be an amount from 0 to 1,000.'],
+    'notifications_quiet_start' => ['type' => 'int', 'min' => 0, 'max' => 23, 'message' => 'Quiet hours start must be an hour from 0 to 23.'],
+    'notifications_quiet_end'  => ['type' => 'int', 'min' => 0, 'max' => 23, 'message' => 'Quiet hours end must be an hour from 0 to 23.'],
+    // 0 = keep the notification log forever.
+    'notification_log_retention_days' => ['type' => 'int', 'min' => 0, 'max' => 3650, 'message' => 'Log retention must be a whole number of days from 0 (keep forever) to 3650.'],
+    'rent_due_reminder_days'   => ['type' => 'int', 'min' => 0, 'max' => 30, 'message' => 'Rent-due reminder days must be a whole number between 0 and 30.'],
+    'overdue_reminder_interval_days' => ['type' => 'int', 'min' => 1, 'max' => 30, 'message' => 'The overdue reminder interval must be a whole number between 1 and 30 days.'],
+    'glass_overlay_opacity'    => ['type' => 'int', 'min' => 0, 'max' => 95, 'message' => 'The Glass overlay must be a whole number from 0 to 95 percent.', 'field' => 'Enter 0 to 95.'],
+    'glass_blur'               => ['type' => 'int', 'min' => 0, 'max' => 20, 'message' => 'The Glass background blur must be a whole number from 0 to 20 pixels.', 'field' => 'Enter 0 to 20.'],
+];
+function setting_value_invalid(array $rule, string $value): bool {
+    if ($rule['type'] === 'enum') return !in_array($value, $rule['values'], true);
+    if ($rule['type'] === 'int') return !ctype_digit($value) || (int)$value < $rule['min'] || (int)$value > $rule['max'];
+    if (!is_numeric($value)) return true;
+    $n = (float)$value;
+    return $n < $rule['min'] || (!empty($rule['min_exclusive']) && $n == $rule['min']) || $n > $rule['max'];
+}
+
 $stmt = $conn->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
 $changed = [];
 
@@ -69,6 +116,12 @@ foreach ($input as $key => $value) {
         $value = json_encode($value);
     } else {
         $value = (string)$value;
+    }
+
+    if (isset($SETTING_RULES[$key]) && setting_value_invalid($SETTING_RULES[$key], $value)) {
+        $rule = $SETTING_RULES[$key];
+        $field = lcfirst(str_replace('_', '', ucwords($key, '_')));
+        $refuse($rule['message'], isset($rule['field']) ? [$field => $rule['field']] : null);
     }
 
     // Parking settings drive capacity and billing, so a bad value is refused
@@ -99,13 +152,7 @@ foreach ($input as $key => $value) {
         }
         $value = json_encode($clean, JSON_FORCE_OBJECT);
     }
-    if ($key === 'min_household_age' && (!ctype_digit($value) || (int)$value > 17)) {
-        $refuse("The minimum household age must be a whole number from 0 to 17.");
-    }
     // No young children on these floors (default 3F, because of the stairs).
-    if ($key === 'child_restricted_below_age' && (!ctype_digit($value) || (int)$value > 17)) {
-        $refuse("The child age limit must be a whole number from 0 to 17.");
-    }
     if ($key === 'child_restricted_floors') {
         $decoded = json_decode($value, true);
         $is_list = is_array($decoded) && array_keys($decoded) === range(0, count($decoded) - 1);
@@ -154,21 +201,6 @@ foreach ($input as $key => $value) {
         }
         $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
     }
-    if ($key === 'parking_billing_mode' && !in_array($value, ['manual', 'auto'], true)) {
-        $refuse("Parking billing mode must be manual or auto.");
-    }
-    if ($key === 'parking_monthly_fee' && (!is_numeric($value) || (float)$value <= 0 || (float)$value > 100000)) {
-        $refuse("Parking monthly fee must be a positive amount.");
-    }
-    // The UI's slider goes 1-168 hours (one week); the endpoint used to store
-    // whatever was posted, including 0 or non-numeric text, which then fell
-    // back to 24 with no indication anything was wrong.
-    if ($key === 'visitor_overstay_hours' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 168)) {
-        $refuse("Visitor overstay threshold must be a whole number between 1 and 168 hours.");
-    }
-    if ($key === 'qrph_active_slot' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 5)) {
-        $refuse("Active QR Ph slot must be between 1 and 5.");
-    }
     if ($key === 'qrph_slots') {
         $decoded = is_string($value) ? json_decode($value, true) : $value;
         if (!is_array($decoded) || count($decoded) > 5) {
@@ -191,12 +223,6 @@ foreach ($input as $key => $value) {
             ];
         }
         $value = json_encode($clean_slots, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    }
-    if ($key === 'payment_window_days' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 30)) {
-        $refuse("Payment window must be a whole number of days between 1 and 30.", ["paymentWindowDays" => "Enter 1 to 30 days."]);
-    }
-    if ($key === 'lease_end_reminder_days' && (!ctype_digit($value) || (int)$value < 0 || (int)$value > 180)) {
-        $refuse("Rent-end reminder days must be a whole number between 0 and 180.");
     }
 
     // Move-out notice window: min 1-60 days, max up to 90 and never below min.
@@ -243,18 +269,6 @@ foreach ($input as $key => $value) {
     if ($key === 'duplicate_reference_policy' && (!is_string($input[$key]) || !in_array($value, DUPLICATE_REFERENCE_POLICIES, true))) {
         $refuse("Reused payment reference must be warn or block.", ["duplicateReferencePolicy" => "Choose warn or block."]);
     }
-    if ($key === 'room_preview_mode' && !in_array($value, ['images', 'floor_plan'], true)) {
-        $refuse("Room preview mode must be images or floor_plan.");
-    }
-    if ($key === 'max_rent_ahead_months' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > MAX_RENT_AHEAD_MONTHS_CEILING)) {
-        $refuse("Maximum months ahead must be a whole number between 1 and " . MAX_RENT_AHEAD_MONTHS_CEILING . ".");
-    }
-    if ($key === 'min_lease_duration' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 24)) {
-        $refuse("Minimum rent duration must be a whole number between 1 and 24 months.");
-    }
-    if ($key === 'max_occupants_per_unit' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 20)) {
-        $refuse("Maximum occupants per unit must be a whole number between 1 and 20.");
-    }
 
     // Tenant Glass theme backdrop (Other Settings -> Glass Mode). Every visitor's
     // page loads the image, so only a file upload_glass_background.php created
@@ -265,12 +279,6 @@ foreach ($input as $key => $value) {
         if ($value !== '' && !is_valid_glass_bg_path($value)) {
             $refuse("Upload the background image again, or reset to the default photo.", ["glassBgImage" => "This image was not found."]);
         }
-    }
-    if ($key === 'glass_overlay_opacity' && (!ctype_digit($value) || (int)$value > 95)) {
-        $refuse("The Glass overlay must be a whole number from 0 to 95 percent.", ["glassOverlayOpacity" => "Enter 0 to 95."]);
-    }
-    if ($key === 'glass_blur' && (!ctype_digit($value) || (int)$value > 20)) {
-        $refuse("The Glass background blur must be a whole number from 0 to 20 pixels.", ["glassBlur" => "Enter 0 to 20."]);
     }
     if ($key === 'glass_tint') {
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $value)) {

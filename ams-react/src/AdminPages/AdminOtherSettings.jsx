@@ -24,6 +24,7 @@ import MinorsPanel from './settings/MinorsPanel';
 import GlassModePanel from './settings/GlassModePanel';
 import HomePagePanel from './settings/HomePagePanel';
 import AdminContractEditor from './AdminContractEditor';
+import LoadError from '../Components/admin/ui/LoadError';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -54,14 +55,23 @@ const AdminOtherSettings = () => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [activeTab]);
 
+  // Strict: when the load fails the page shows an error with a retry. Showing the
+  // defaults instead would let Save overwrite the real stored values with them.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
     const loadSettings = async () => {
-      const data = await getSystemSettings();
-      setSettings(data);
-      setSavedSettings(data);
+      setLoadFailed(false);
+      try {
+        const data = await getSystemSettings({ strict: true });
+        setSettings(data);
+        setSavedSettings(data);
+      } catch {
+        setLoadFailed(true);
+      }
     };
     loadSettings();
-  }, []);
+  }, [loadAttempt]);
 
   const dirtyTabs = useMemo(() => {
     if (!settings || !savedSettings) return new Set();
@@ -257,11 +267,15 @@ const AdminOtherSettings = () => {
             {activeTab === 'parking-rules' && <HouseRulesPanel scope="parking" />}
             {activeTab === 'minors' && <MinorsPanel />}
 
-            {!SELF_SAVING_TAB_IDS.includes(activeTab) && !settings && (
+            {!SELF_SAVING_TAB_IDS.includes(activeTab) && !settings && (loadFailed ? (
+              <div className="bg-white rounded-xl border border-slate-200">
+                <LoadError title="Couldn't load the settings" message="Nothing was changed. Try again before editing, so a save cannot replace your stored settings." onRetry={() => setLoadAttempt((n) => n + 1)} />
+              </div>
+            ) : (
               <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">
                 <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading settings…
               </div>
-            )}
+            ))}
 
             {settings && !SELF_SAVING_TAB_IDS.includes(activeTab) && (
               <form
