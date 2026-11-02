@@ -88,7 +88,15 @@ describe('guest token stays out of the URL', () => {
 });
 
 describe('guest chat follows the account at login', () => {
-  const loginWith = (who, guest_token) => api('login.php', { json: { email_address: ACCOUNTS[who][0], password: ACCOUNTS[who][1], guest_token } });
+  // A tenant on a new device finishes on verify_device.php, which must adopt
+  // the guest chat too (the Login page drops the guest token after it).
+  const loginWith = async (who, guest_token) => {
+    const [email_address, password] = ACCOUNTS[who];
+    const res = await api('login.php', { json: { email_address, password, guest_token } });
+    if (res.body?.status !== 'device_verification_required') return res;
+    const { login_otp: otp } = await one('SELECT login_otp FROM users WHERE email_address = ?', [email_address]);
+    return api('verify_device.php', { json: { email_address, otp, guest_token } });
+  };
   const chatCount = async (userId) => (await one('SELECT COUNT(*) AS c FROM messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId])).c;
 
   it('moves the thread into messages, keeping order, authors, replies and read state', async () => {

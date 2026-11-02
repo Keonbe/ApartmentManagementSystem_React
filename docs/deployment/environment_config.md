@@ -83,8 +83,10 @@ This replaces `header('Access-Control-Allow-Origin: *');`. `backend/cors.php` lo
 | Environment | `ALLOWED_ORIGINS` | Result |
 |---|---|---|
 | any | set | Only an `Origin` in the list is echoed back in `Access-Control-Allow-Origin` (plus `Vary: Origin`) |
-| development | unset | `localhost`/`127.0.0.1` on ports 5173 and 8080 are echoed; any other origin gets `*` (XAMPP behaves as before) |
-| production | unset | No `Access-Control-Allow-Origin`, so browsers on other origins are blocked |
+| development | unset | `localhost`/`127.0.0.1` on port 80 (no port), 5173, 5174 and 8080 are echoed; any other origin gets no header |
+| production | unset | `https://angcanan-ams.com` and `https://www.angcanan-ams.com` are echoed; any other origin gets no header. Another domain must set `ALLOWED_ORIGINS` |
+
+An echoed origin also gets `Access-Control-Allow-Credentials: true`: `axiosConfig.js` sends `withCredentials` so the HttpOnly `ams_trusted_device` cookie (a device that passed the sign-in code, `verify_device.php`) reaches `login.php`. A wildcard is never sent. `cors.php` answers an OPTIONS preflight itself (200, `Access-Control-Max-Age: 7200`).
 
 Origins must match exactly: scheme, host and port, with no trailing slash. Separate several with commas:
 

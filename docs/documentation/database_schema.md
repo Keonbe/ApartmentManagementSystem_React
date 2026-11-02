@@ -540,7 +540,8 @@ erDiagram
 ### Identity & Property
 | Table | Purpose |
 |---|---|
-| `users` | Single table for both tenants (`role='user'`) and admins (`role='admin'`). `email_address` is unique; auth is bcrypt (`password`). `is_archived` soft-deletes a tenant without breaking FK history. |
+| `users` | Single table for both tenants (`role='user'`) and admins (`role='admin'`). `email_address` is unique; auth is bcrypt (`password`). `is_archived` soft-deletes a tenant without breaking FK history. `email_verified_at` NULL = registered but not verified (`login.php` refuses; `verify_email.php` sets it from `verification_token`). `login_otp` / `login_otp_expires_at` / `login_otp_attempts`: the 6-digit code emailed for a sign-in from a new device (15 min, 3 tries; admins skip it). `2026_11_auth_security.sql` |
+| `trusted_devices` | Devices that passed the sign-in code (`verify_device.php`): SHA-256 of the HttpOnly `ams_trusted_device` cookie, user agent, IP, last use. A matching cookie lets `login.php` skip the code. Cascade-deleted with the user. |
 | `rooms` | The 14-unit inventory, PK is a letter code (`A`–`N`), not an integer. Current layout: **1F = A–D (4 rooms, ₱4,000)**, **2F = E–H (4 rooms, ₱4,000)**, **3F = I–N (6 rooms, ₱3,500)** — see §4 "Hardcoded room-letter pricing" below before ever renumbering these. `tenant_name`/`lease_start`/`lease_end` are a denormalized display cache kept in sync by the API layer, not derived live from `rent_applications`. `rent_is_custom` marks a rent an admin set by hand, so "apply floor rent" (`apply_floor_rate.php`) skips it; the floor price table is the `floor_rates` setting. |
 
 ### Applications & Leasing

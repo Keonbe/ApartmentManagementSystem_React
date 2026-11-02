@@ -63,8 +63,8 @@ TRUNCATE TABLE `application_requirements`;
 -- ============================================================
 
 -- 1. Default Admin User
-INSERT INTO `users` (`first_name`, `last_name`, `email_address`, `password`, `role`)
-VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin'); -- admin123
+INSERT INTO `users` (`first_name`, `last_name`, `email_address`, `password`, `role`, `email_verified_at`)
+VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin', NOW()); -- admin123
 
 -- 2. Initial Units
 -- Layout: 1F = A-D (4 rooms, PHP4,000), 2F = E-H (4 rooms, PHP4,000), 3F = I-N (6 rooms, PHP3,500).

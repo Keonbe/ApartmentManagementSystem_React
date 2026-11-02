@@ -27,6 +27,17 @@ try {
     $sessionToken = create_session($conn, (int)$user['id'], $user['role']);
     $conn->commit();
 } catch (Throwable $e) { $conn->rollback(); error_log('Device verification failed: ' . $e->getMessage()); http_response_code(500); echo json_encode(['valid'=>false,'message'=>'Could not complete verification.']); exit; }
+// The rest of a sign-in, as login.php does it for a known device: clear the
+// failed attempts, move a guest chat into the account (the Login page drops
+// its guest token after this call) and record the sign-in.
+clear_login_failures($conn, $user['email_address']);
+$guestToken = trim((string)($input['guest_token'] ?? ''));
+if ($user['role'] !== 'admin' && strlen($guestToken) === 64 && ctype_xdigit($guestToken)) {
+    require_once __DIR__ . '/services/guest_chat_adoption.php';
+    adopt_guest_chat($conn, (int)$user['id'], $guestToken);
+}
+log_activity($conn, (int)$user['id'], 'auth', 'Tenant Signed In',
+    "Tenant {$user['email_address']} signed in from $ip (new device verified)", (int)$user['id']);
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 setcookie('ams_trusted_device', $rawToken, ['expires'=>time()+31536000,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
 $userData = ['id'=>(int)$user['id'],'first_name'=>$user['first_name'],'middle_name'=>$user['middle_name'],'last_name'=>$user['last_name'],'suffix'=>$user['suffix'],'contact_no'=>$user['contact_no'],'gender'=>$user['gender'],'email_address'=>$user['email_address'],'role'=>$user['role']];

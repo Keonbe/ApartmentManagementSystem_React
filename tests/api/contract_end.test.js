@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { api, loginAs } from './lib/api.js';
+import { api, login, loginAs } from './lib/api.js';
 import { q, one, setting, setSetting } from './lib/db.js';
 import { ROOT } from './lib/env.js';
 
@@ -400,7 +400,7 @@ describe('applying for an upcoming unit', () => {
   const lizaApp = () => one("SELECT id, status, DATE_FORMAT(preferred_move_in_date, '%Y-%m-%d') AS d FROM rent_applications WHERE user_id = 17 ORDER BY id DESC LIMIT 1");
 
   beforeAll(async () => {
-    liza = (await api('login.php', { json: { email_address: 'liza.navarro@gmail.com', password: 'tenant123' } })).body.sessionToken;
+    liza = await login('liza.navarro@gmail.com', 'tenant123');
     uploadsBefore = new Set(listUploads());
     await setSetting('extension_deadline_days', '14');
     await setSetting('upcoming_rooms_enabled', '1');

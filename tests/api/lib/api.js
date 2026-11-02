@@ -1,5 +1,6 @@
 // HTTP helpers for the PHP endpoints on the test server.
 import { BASE } from './env.js';
+import { one } from './db.js';
 
 // api('get_rooms.php', { token, query, json, form, headers, method })
 // Returns { status, body, text }. body is the parsed JSON, or null when the
@@ -26,8 +27,15 @@ export async function api(endpoint, { token, query, json, form, headers = {}, me
   return { status: res.status, body, text };
 }
 
+// A tenant on a new device gets an emailed code first (login.php answers
+// status: 'device_verification_required'); the code is read from the test
+// database and sent to verify_device.php, as the Login page would.
 export async function login(email, password) {
-  const res = await api('login.php', { json: { email_address: email, password } });
+  let res = await api('login.php', { json: { email_address: email, password } });
+  if (res.body?.status === 'device_verification_required') {
+    const row = await one('SELECT login_otp FROM users WHERE email_address = ?', [email]);
+    res = await api('verify_device.php', { json: { email_address: email, otp: row?.login_otp } });
+  }
   if (!res.body?.sessionToken) throw new Error(`Login failed for ${email}: ${res.text}`);
   return res.body.sessionToken;
 }

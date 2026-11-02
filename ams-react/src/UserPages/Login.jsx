@@ -121,7 +121,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
         if (isSubmitting) return;
         setMessage(''); setIsSubmitting(true);
         try {
-            const res = await api.post('/verify_device.php', { email_address: normalizeEmail(email), otp: otp.replace(/\s/g, '') });
+            // The guest chat moves into the account here on a new device (login.php does it for a known one).
+            const res = await api.post('/verify_device.php', {
+                email_address: normalizeEmail(email),
+                otp: otp.replace(/\s/g, ''),
+                guest_token: localStorage.getItem('ams_guest_token') || undefined,
+            });
             if (!res.data.valid) { setMessage(res.data.message || 'Unable to verify code.'); return; }
             for (const key of Object.keys(localStorage)) if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
             sessionStorage.setItem('loggedInUser', JSON.stringify(res.data.user));

@@ -73,6 +73,9 @@ INSERT IGNORE INTO `users` (`id`, `first_name`, `middle_name`, `last_name`, `con
 (16, 'Ramon',  'L.', 'Aquino',      '+63 9171234514', 'Male',   'ramon.aquino@gmail.com',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
 (17, 'Liza',   'C.', 'Navarro',     '+63 9171234515', 'Female', 'liza.navarro@gmail.com',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user');
 
+-- Seed accounts have verified email (login.php refuses unverified ones).
+UPDATE `users` SET `email_verified_at` = NOW() WHERE `email_verified_at` IS NULL;
+
 -- ============================================================
 -- 2. RENT APPLICATIONS
 -- 9 'active' (moved in: A,B,C,D,F,G,H,K,M), 1 'pending-move-out' (L),

@@ -60,7 +60,10 @@ if ($stmt->execute()) {
     $new_user_id = (int)$stmt->insert_id;
     log_activity($conn, $new_user_id, 'user', 'Account Registered', "New tenant account #$new_user_id ($email_address)", $new_user_id);
     require_once __DIR__ . '/auth_email.php';
-    $frontend_url = rtrim($_SERVER['HTTP_ORIGIN'] ?? 'https://www.angcanan-ams.com', '/');
+    require_once __DIR__ . '/services/frontend_origin.php';
+    // Only this app's own origins (as for password reset links): a raw Origin
+    // header could point the emailed link at another site.
+    $frontend_url = password_reset_frontend_origin(null, $_SERVER);
     $verifyLink = $frontend_url . '/verify-email?token=' . rawurlencode($verification_token);
     $escapedVerifyLink = htmlspecialchars($verifyLink, ENT_QUOTES, 'UTF-8');
     $html = '<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b;padding:1px">'

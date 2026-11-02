@@ -5,18 +5,51 @@ import { api, login, loginAs } from './lib/api.js';
 import { q, one } from './lib/db.js';
 
 describe('login', () => {
-  beforeAll(async () => {
-    // Test fixtures are trusted seed accounts; ensure login tests remain valid
-    // whether the auth-security migration has already been applied or not.
-    try { await q('UPDATE users SET email_verified_at = NOW()'); } catch { /* migration not installed in this test database */ }
-  });
-  it('admin and tenant get a session token and their role', async () => {
+  it('admin gets a session token and their role at once', async () => {
     const admin = await api('login.php', { json: { email_address: 'admin@gmail.com', password: 'admin123' } });
     expect(admin.body).toMatchObject({ valid: true, role: 'admin' });
     expect(admin.body.sessionToken).toMatch(/^[0-9a-f]{64}$/);
+  });
 
-    const tenant = await api('login.php', { json: { email_address: 'maria.santos@gmail.com', password: 'tenant123' } });
-    expect(tenant.body).toMatchObject({ valid: true, role: 'user' });
+  it('seed accounts are verified (SetupDB / seed_mock_data)', async () => {
+    const row = await one('SELECT COUNT(*) AS c FROM users WHERE email_verified_at IS NULL');
+    expect(row.c).toBe(0);
+  });
+
+  it('a tenant on a new device needs the emailed code; the code makes the device trusted', async () => {
+    const maria = { email_address: 'maria.santos@gmail.com', password: 'tenant123' };
+    const first = await api('login.php', { json: maria });
+    expect(first.body).toMatchObject({ valid: false, status: 'device_verification_required' });
+    expect(first.body.sessionToken).toBeUndefined();
+
+    const { login_otp: otp } = await one('SELECT login_otp FROM users WHERE id = 2');
+    const wrong = String((Number(otp) + 1) % 1000000).padStart(6, '0');
+    expect((await api('verify_device.php', { json: { email_address: maria.email_address, otp: wrong } })).body.valid).toBe(false);
+
+    const ok = await api('verify_device.php', { json: { email_address: maria.email_address, otp } });
+    expect(ok.body).toMatchObject({ valid: true, role: 'user' });
+    expect(ok.body.sessionToken).toMatch(/^[0-9a-f]{64}$/);
+    // The code is single use.
+    expect((await api('verify_device.php', { json: { email_address: maria.email_address, otp } })).body.valid).toBe(false);
+  });
+
+  it('a trusted-device cookie skips the code; a made-up one does not', async () => {
+    const raw = 'a'.repeat(64);
+    const sha = (await import('node:crypto')).createHash('sha256').update(raw).digest('hex');
+    await q('INSERT INTO trusted_devices (user_id, device_token) VALUES (2, ?)', [sha]);
+    const maria = { email_address: 'maria.santos@gmail.com', password: 'tenant123' };
+    const trusted = await api('login.php', { json: maria, headers: { Cookie: `ams_trusted_device=${raw}` } });
+    expect(trusted.body).toMatchObject({ valid: true, role: 'user' });
+    const unknown = await api('login.php', { json: maria, headers: { Cookie: `ams_trusted_device=${'b'.repeat(64)}` } });
+    expect(unknown.body.status).toBe('device_verification_required');
+  });
+
+  it('an unverified account is refused before any code is sent', async () => {
+    await q("UPDATE users SET email_verified_at = NULL, login_otp = NULL WHERE email_address = 'jose.reyes@gmail.com'");
+    const res = await api('login.php', { json: { email_address: 'jose.reyes@gmail.com', password: 'tenant123' } });
+    expect(res.body).toMatchObject({ valid: false, email_verification_required: true });
+    expect((await one("SELECT login_otp FROM users WHERE email_address = 'jose.reyes@gmail.com'")).login_otp).toBeNull();
+    await q("UPDATE users SET email_verified_at = NOW() WHERE email_address = 'jose.reyes@gmail.com'");
   });
 
   it('a wrong password is refused and counted as a failure', async () => {
