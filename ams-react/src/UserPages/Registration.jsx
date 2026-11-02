@@ -122,8 +122,7 @@ export default function Registration({ onLoginRedirect }) {
         try {
             const res = await api.post("/registration.php", payload);
             if (res.data.success) {
-                setMessage(res.data.message || 'Account created. Check your email to verify your address before signing in.');
-                setValues(EMPTY);
+                navigate('/login', { state: { successMessage: 'Account created successfully! Please check your email to verify your address.' } });
             } else if (!form.applyServerErrors(res)) {
                 setMessage(res.data.message);
             }

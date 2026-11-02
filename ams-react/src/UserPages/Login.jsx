@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang, t as translate } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.webp";
@@ -16,6 +16,8 @@ const emailRule = (v) => checkEmail(v, { max: LIMITS.userEmail });
 
 export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedirect }) {
     const navigate = useNavigate();
+    const location = useLocation();
+    const successMessage = location.state?.successMessage;
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [otp, setOtp] = useState('');
@@ -263,6 +265,11 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     </div>
 
                     <div className="w-full space-y-6">
+                        {successMessage && !showOtpStep && (
+                            <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-800">
+                                {successMessage}
+                            </div>
+                        )}
                         {!showOtpStep && <div className="text-center">
                             <h2 className="login-heading text-3xl font-black tracking-tight border-0 m-0 text-brand">
                                 {isForgotPassword ? t('login.resetTitle') : t('login.title')}
