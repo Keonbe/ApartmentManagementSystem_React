@@ -16,7 +16,13 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 
 // Let the browser reuse a preflight answer. Without this every cross-origin API
 // call (the Authorization header forces one) costs an extra OPTIONS round-trip.
-$ams_cors_list = ['https://angcanan-ams.com', 'https://www.angcanan-ams.com', 'http://localhost:5174'];
+$ams_cors_list = [
+    'https://angcanan-ams.com',
+    'https://www.angcanan-ams.com',
+    'http://localhost:5174',
+    'http://localhost:5173',
+    'http://168.107.72.9',
+];
 $ams_cors_origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 header_remove('Access-Control-Allow-Origin');
