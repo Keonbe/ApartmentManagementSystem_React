@@ -22,6 +22,7 @@ $admin_id = require_admin($conn);
 $input = json_decode(file_get_contents("php://input"), true) ?: [];
 $room_id = trim((string)($input['roomId'] ?? ''));
 $add_months = (int)($input['addMonths'] ?? 0);
+$override_conflict = filter_var($input['overrideConflict'] ?? false, FILTER_VALIDATE_BOOLEAN);
 $new_rent = isset($input['newRent']) && $input['newRent'] !== '' && $input['newRent'] !== null ? (float)$input['newRent'] : null;
 
 if ($room_id === '') {
@@ -50,7 +51,7 @@ if (!$app) {
 
 $conn->begin_transaction();
 try {
-    $extension = extend_tenancy($conn, (int)$app['id'], $add_months, $admin_id, $new_rent);
+    $extension = extend_tenancy($conn, (int)$app['id'], $add_months, $admin_id, $new_rent, $override_conflict);
 
     $detail = "Unit $room_id, contract {$extension['contract_id']} extended by $add_months month(s): {$extension['previous_end']} → {$extension['new_end']}"
         . ($new_rent !== null ? ", rent ₱" . number_format($new_rent, 2) : '');
@@ -68,11 +69,31 @@ try {
     }
     create_notification($conn, $extension['user_id'], 'contract_update', 'Rent Extended', $msg);
 
+    // Applicants who wanted this unit before the new end are told their date moved.
+    // Their applications stay as they are: the admin decides what happens to them.
+    foreach ($extension['conflicts'] as $c) {
+        create_notification($conn, (int)$c['user_id'], 'application_update', 'Unit move-in date changed',
+            "Unit $room_id is occupied until " . date('M j, Y', strtotime($extension['new_end'])) . ". The office will contact you about your application, or you can choose another unit.");
+    }
+    if ($extension['conflicts']) {
+        log_activity($conn, $admin_id, 'contract', 'Extended Rent Over Pending Application',
+            "Unit $room_id extended to {$extension['new_end']} while application(s) #" . implode(', #', array_column($extension['conflicts'], 'id')) . " wanted it earlier");
+    }
+
     $conn->commit();
 } catch (ExtensionRefused $e) {
     $conn->rollback();
     http_response_code(409);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    $body = ["success" => false, "message" => $e->getMessage()];
+    if ($e->conflicts) {
+        $body['conflict'] = ['applications' => array_map(fn($c) => [
+            'id' => (int)$c['id'],
+            'name' => trim($c['first_name'] . ' ' . $c['last_name']),
+            'status' => $c['status'],
+            'moveInDate' => $c['preferred_move_in_date'],
+        ], $e->conflicts)];
+    }
+    echo json_encode($body);
     exit;
 } catch (Throwable $e) {
     $conn->rollback();

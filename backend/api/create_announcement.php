@@ -28,6 +28,44 @@ $unit = trim((string)($input['unit'] ?? ''));
 // With an attachment the page posts a form, where every value is a string:
 // "false" must not count as a draft, and channels arrives JSON-encoded.
 $is_draft = filter_var($input['draft'] ?? false, FILTER_VALIDATE_BOOLEAN);
+// "Schedule for later": stored like a draft, sent by send_due_announcements()
+// once scheduledAt (app timezone, 'Y-m-d H:i') has passed.
+$scheduled_raw = trim((string)($input['scheduledAt'] ?? ''));
+$is_scheduled = !$is_draft && $scheduled_raw !== '';
+$action = (string)($input['action'] ?? '');
+
+// History buttons on a scheduled announcement.
+if ($action === 'unschedule' || $action === 'sendNow') {
+    $ann_id = (int)($input['id'] ?? 0);
+    if ($action === 'unschedule') {
+        $stmt = $conn->prepare("UPDATE announcements SET status = 'draft', scheduled_date = NULL WHERE id = ? AND status = 'scheduled'");
+        $stmt->bind_param("i", $ann_id);
+        $stmt->execute();
+        $changed = $stmt->affected_rows === 1;
+        $stmt->close();
+        if (!$changed) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This announcement is no longer scheduled. It may already have been sent."]);
+            exit;
+        }
+        log_activity($conn, $admin_id, 'communication', 'Unscheduled Announcement', "Announcement ID: $ann_id returned to draft");
+        echo json_encode(["success" => true, "message" => "Back to a draft. Nobody was notified."]);
+        exit;
+    }
+    $out = send_scheduled_announcement($conn, $ann_id, $admin_id, false);
+    if ($out === null) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This announcement is no longer scheduled. It may already have been sent."]);
+        exit;
+    }
+    if ($out['status'] === 'no_recipients') {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "There are no current tenants to send this to. It was saved back as a draft."]);
+        exit;
+    }
+    echo json_encode(["success" => true, "message" => "Announcement sent to {$out['delivered']} tenant(s).", "recipient_count" => $out['recipient_count'], "delivered" => $out['delivered']]);
+    exit;
+}
 if (is_string($input['channels'] ?? null)) {
     $input['channels'] = json_decode($input['channels'], true);
 }
@@ -41,7 +79,7 @@ $want_email = in_array('email', $requested, true);
 // actually reached someone — a tenant may be opted out of SMS, or the channel
 // may be switched off building-wide, and the stored record should say so. A
 // draft keeps the channels it was composed with.
-$channels = json_encode($is_draft
+$channels = json_encode(($is_draft || $is_scheduled)
     ? array_values(array_merge(['in-app'], $want_sms ? ['sms'] : [], $want_email ? ['email'] : []))
     : ['in-app']);
 
@@ -83,7 +121,7 @@ $draft_id = (int)($input['draftId'] ?? 0);
 $remove_attachment = filter_var($input['removeAttachment'] ?? false, FILTER_VALIDATE_BOOLEAN);
 $draft = null;
 if ($draft_id) {
-    $stmt = $conn->prepare("SELECT id, attachment_path FROM announcements WHERE id = ? AND status = 'draft'");
+    $stmt = $conn->prepare("SELECT id, attachment_path FROM announcements WHERE id = ? AND status IN ('draft', 'scheduled')");
     $stmt->bind_param("i", $draft_id);
     $stmt->execute();
     $draft = $stmt->get_result()->fetch_assoc();
@@ -156,20 +194,43 @@ if (strcasecmp($send_to, 'Specific unit') === 0) {
         echo json_encode(["success" => false, "message" => "Choose the unit to send this announcement to."]);
         exit;
     }
-    $stmt = $conn->prepare("$tenancy AND ra.room_name = ?");
-    $stmt->bind_param("s", $unit);
     $send_to_label = "Unit $unit";
 } else {
-    $stmt = $conn->prepare($tenancy);
     $send_to_label = 'All Tenants';
 }
-$stmt->execute();
-$recipients = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'user_id'));
-$stmt->close();
+$recipients = announcement_recipients($conn, $send_to_label);
 
-// A draft notifies nobody: store it and stop.
-// A draft keeps its attachment (it used to be dropped).
-if ($is_draft) {
+// A time to send at: a valid future time, at most a year away.
+$scheduled_at = null;
+if ($is_scheduled) {
+    $when = DateTime::createFromFormat('Y-m-d H:i', str_replace('T', ' ', $scheduled_raw));
+    $now = new DateTime();
+    if (!$when || $when->format('Y-m-d H:i') !== str_replace('T', ' ', $scheduled_raw)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Choose a valid date and time to send at.", "fieldErrors" => ["scheduledAt" => "Choose a valid date and time to send at."]]);
+        exit;
+    }
+    if ($when < (clone $now)->modify('+1 minute')) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Choose a time at least a minute from now.", "fieldErrors" => ["scheduledAt" => "Choose a time at least a minute from now."]]);
+        exit;
+    }
+    if ($when > (clone $now)->modify('+' . ANNOUNCEMENT_MAX_SCHEDULE_DAYS . ' days')) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Schedule at most a year ahead.", "fieldErrors" => ["scheduledAt" => "Schedule at most a year ahead."]]);
+        exit;
+    }
+    $scheduled_at = $when->format('Y-m-d H:i:00');
+} elseif ($scheduled_raw !== '') {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "A draft cannot be scheduled. Choose Schedule or Save draft.", "fieldErrors" => ["scheduledAt" => "A draft cannot be scheduled."]]);
+    exit;
+}
+
+// A draft or a scheduled announcement notifies nobody yet: store it and stop.
+// Both keep their attachment.
+if ($is_draft || $is_scheduled) {
+    $store_status = $is_draft ? 'draft' : 'scheduled';
     $recipient_count = count($recipients);
     $new_upload = store_announcement_attachment($attachment_tmp, $attachment_ext);
     $attachment_path = $new_upload ?? $kept_attachment;
@@ -181,7 +242,7 @@ if ($is_draft) {
             // have sent or removed it since it was opened. Its file is read
             // here, under the lock, so only a file this draft still owns is
             // ever replaced or deleted.
-            $lock = $conn->prepare("SELECT attachment_path FROM announcements WHERE id = ? AND status = 'draft' FOR UPDATE");
+            $lock = $conn->prepare("SELECT attachment_path FROM announcements WHERE id = ? AND status IN ('draft', 'scheduled') FOR UPDATE");
             $lock->bind_param("i", $draft_id);
             $lock->execute();
             $current = $lock->get_result()->fetch_assoc();
@@ -195,11 +256,11 @@ if ($is_draft) {
             }
             $previous_attachment = $current['attachment_path'];
             $attachment_path = $new_upload ?? ($remove_attachment ? null : $previous_attachment);
-            $stmt = $conn->prepare("UPDATE announcements SET tag = ?, title = ?, body = ?, send_to = ?, channels = ?, recipient_count = ?, attachment_path = ? WHERE id = ?");
-            $stmt->bind_param("sssssisi", $tag, $title, $body, $send_to_label, $channels, $recipient_count, $attachment_path, $draft_id);
+            $stmt = $conn->prepare("UPDATE announcements SET tag = ?, title = ?, body = ?, send_to = ?, channels = ?, recipient_count = ?, attachment_path = ?, status = ?, scheduled_date = ? WHERE id = ?");
+            $stmt->bind_param("sssssisssi", $tag, $title, $body, $send_to_label, $channels, $recipient_count, $attachment_path, $store_status, $scheduled_at, $draft_id);
         } else {
-            $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, status, recipient_count, attachment_path) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)");
-            $stmt->bind_param("sssssis", $tag, $title, $body, $send_to_label, $channels, $recipient_count, $attachment_path);
+            $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, status, scheduled_date, recipient_count, attachment_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssssssis", $tag, $title, $body, $send_to_label, $channels, $store_status, $scheduled_at, $recipient_count, $attachment_path);
         }
         $stmt->execute();
         $stmt->close();
@@ -211,6 +272,11 @@ if ($is_draft) {
         exit;
     }
     discard_draft_attachment(['attachment_path' => $previous_attachment], $attachment_path);
+    if ($is_scheduled) {
+        log_activity($conn, $admin_id, 'communication', "Scheduled Announcement", "Title: $title; To: $send_to_label; for $scheduled_at" . ($attachment_path ? "; with attachment" : ''));
+        echo json_encode(["success" => true, "message" => "Announcement scheduled for " . date('M j, Y g:i A', strtotime($scheduled_at)) . ". Nobody was notified yet.", "scheduled" => true, "scheduledAt" => $scheduled_at]);
+        exit;
+    }
     log_activity($conn, $admin_id, 'communication', $draft ? "Updated Announcement Draft" : "Saved Announcement Draft", "Title: $title; To: $send_to_label" . ($attachment_path ? "; with attachment" : ''));
     echo json_encode(["success" => true, "message" => "Draft saved. Nobody was notified.", "draft" => true]);
     exit;
@@ -224,8 +290,6 @@ if (!$recipients) {
     exit;
 }
 
-$notif_type = ['Urgent' => 'warning', 'Reminder' => 'action'][$tag] ?? 'info';
-
 $new_upload = store_announcement_attachment($attachment_tmp, $attachment_ext);
 $attachment_path = $new_upload ?? $kept_attachment;
 $conn->begin_transaction();
@@ -235,7 +299,7 @@ try {
         // Sending a reopened draft turns that row into the announcement. Lock
         // it and read its file here, so an edit or send from another tab
         // cannot leave this one pointing at a file that was replaced.
-        $lock = $conn->prepare("SELECT attachment_path FROM announcements WHERE id = ? AND status = 'draft' FOR UPDATE");
+        $lock = $conn->prepare("SELECT attachment_path FROM announcements WHERE id = ? AND status IN ('draft', 'scheduled') FOR UPDATE");
         $lock->bind_param("i", $draft_id);
         $lock->execute();
         $current = $lock->get_result()->fetch_assoc();
@@ -243,7 +307,7 @@ try {
         if (!$current) throw new Exception("Draft $draft_id was already sent.");
         $draft['attachment_path'] = $current['attachment_path'];
         $attachment_path = $new_upload ?? ($remove_attachment ? null : $current['attachment_path']);
-        $stmt = $conn->prepare("UPDATE announcements SET tag = ?, title = ?, body = ?, send_to = ?, channels = ?, recipient_count = ?, attachment_path = ?, status = 'sent', created_at = NOW() WHERE id = ? AND status = 'draft'");
+        $stmt = $conn->prepare("UPDATE announcements SET tag = ?, title = ?, body = ?, send_to = ?, channels = ?, recipient_count = ?, attachment_path = ?, status = 'sent', scheduled_date = NULL, created_at = NOW() WHERE id = ? AND status IN ('draft', 'scheduled')");
         $stmt->bind_param("sssssisi", $tag, $title, $body, $send_to_label, $channels, $recipient_count, $attachment_path, $draft_id);
         $stmt->execute();
         if ($stmt->affected_rows !== 1) throw new Exception("Draft $draft_id was already sent.");
@@ -259,33 +323,7 @@ try {
     }
     $stmt->close();
 
-    // Announcements respect each tenant's "Building announcements" preference.
-    $delivered = 0;
-    $notif_ids = [];
-    foreach ($recipients as $uid) {
-        $nid = create_notification($conn, $uid, $notif_type, $title, $body);
-        if ($nid) {
-            $delivered++;
-            $notif_ids[] = $nid;
-        }
-    }
-    
-    if ($attachment_path) {
-        if (!empty($notif_ids)) {
-            $upd = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
-            foreach ($notif_ids as $nid) {
-                $upd->bind_param("si", $attachment_path, $nid);
-                $upd->execute();
-            }
-            $upd->close();
-        }
-        // The admin's history shows that a file went out, and opens it.
-        $ann_upd = $conn->prepare("UPDATE announcements SET attachment_path = ? WHERE id = ?");
-        $ann_upd->bind_param("si", $attachment_path, $announcement_id);
-        $ann_upd->execute();
-        $ann_upd->close();
-    }
-
+    $delivered = announcement_notify($conn, $announcement_id, $tag, $title, $body, $recipients, $attachment_path);
 
     $conn->commit();
     $committed = true;
@@ -293,21 +331,8 @@ try {
 
     // Broadcast outside the transaction: an SMS or email problem must not roll
     // back an announcement that tenants can already see in-app.
-    $notification_dispatch = dispatch_admin_action_broadcast(
-        $conn, $recipients, $notif_type, $title,
-        // null skips that channel in dispatch_external_notification().
-        $want_sms ? sms_announcement_template($title, $body, $tag) : null,
-        $want_email ? email_announcement_template($title, $body, $tag) : null
-    );
-
-    $used = ['in-app'];
-    if ($notification_dispatch['sms'] > 0) $used[] = 'sms';
-    if ($notification_dispatch['email'] > 0) $used[] = 'email';
-    $used_json = json_encode($used);
-    $stmt = $conn->prepare("UPDATE announcements SET channels = ? WHERE id = ?");
-    $stmt->bind_param("si", $used_json, $announcement_id);
-    $stmt->execute();
-    $stmt->close();
+    $notification_dispatch = announcement_broadcast($conn, $announcement_id, $tag, $title, $body, $recipients, $requested);
+    $used = $notification_dispatch['channels'];
 
     log_activity($conn, $admin_id, 'communication', "Created Announcement", "Title: $title; To: $send_to_label; Delivered in-app to $delivered of $recipient_count; channels: " . implode(', ', $used));
     echo json_encode([

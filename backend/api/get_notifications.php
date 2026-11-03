@@ -35,6 +35,12 @@ function run_poll_checks($conn) {
     }
 
     try {
+        send_due_announcements($conn);
+    } catch (Throwable $e) {
+        error_log('[AMS] scheduled announcements failed: ' . $e->getMessage());
+    }
+
+    try {
         purge_expired_cctv_footage($conn);
     } catch (Throwable $e) {
         error_log('[AMS] CCTV footage purge failed: ' . $e->getMessage());

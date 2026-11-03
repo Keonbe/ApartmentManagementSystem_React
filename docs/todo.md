@@ -143,7 +143,7 @@
   * Created `get_maintenance_requests.php` to fetch live requests.
   * Created `update_maintenance_status.php` to persist status, assignee, cost, notes, tenant responsibility, and `resolved_at`.
   * Wired to backend DB (`assigned_to`, `estimated_cost`, `work_notes`, `resolved_at`).
-* [ ] Tenant responsibility / discretion defined in Terms & Conditions.
+* [x] Tenant responsibility / discretion defined in Terms & Conditions. *(done — Terms of Service §6 "Maintenance and repairs", English and Filipino, written from the rent contract clauses)*
 * [x] Maintenance approval workflow — notify tenant when status changes (insert to `notifications`). *(done — `update_maintenance_status.php`, plus SMS/email dispatch)*
 
 ---
@@ -235,7 +235,7 @@ Generate reports by:
 * [x] Budget comparison/reporting in `AdminMaintainance.jsx` and `AdminReports.jsx`.
 * [x] Maintenance approval workflow (UI in `AdminMaintainance.jsx`).
 * [x] **Persist maintenance data to DB** (Priority A — Done via `update_maintenance_status.php` and `get_maintenance_requests.php`).
-* [ ] Tenant responsibility/discretion defined in Terms & Conditions.
+* [x] Tenant responsibility/discretion defined in Terms & Conditions. *(done — Terms of Service §6 "Maintenance and repairs", English and Filipino, written from the rent contract clauses)*
 
 ---
 
@@ -257,7 +257,7 @@ Generate reports by:
 * [x] Announcements persisted to `announcements` table.
 * [x] Creating an announcement auto-creates in-app notifications for all non-admin users.
 * [x] Tenant announcement board at `/announcements` (`UserAnnouncements.jsx`).
-* [ ] Allow admin to schedule announcements for future delivery. *(Drafts exist since 2026-09-24; scheduled sending does not.)*
+* [x] Allow admin to schedule announcements for future delivery. *(done 2026-11-03 — "Schedule for later" in the composer stores a `scheduled` row; `send_due_announcements()` sends it once from the poll in `get_notifications.php` and `cron/process_queue.php`; History offers Edit, Send now and Back to draft)*
 * [~] Allow admin to target specific tenants. *(One unit's current tenants can be targeted; individual tenants cannot.)*
 
 ---
@@ -293,7 +293,7 @@ Generate reports by:
 # Open Questions
 
 * ~~Should occupant changes require admin approval or allow direct self-service?~~ **Decided 2026-09-16:** admin approval (see Room & Occupancy).
-* How should lease extension conflicts be resolved when a room is already reserved by another applicant?
+* ~~How should lease extension conflicts be resolved when a room is already reserved by another applicant?~~ **Decided 2026-11-03:** an extension is refused while another applicant (Pending Review / Action Required / Approved) wants the unit before the new rent end; the admin can override from Units → Extend Rent, which notifies the applicant (`extension_competing_applications()`).
 * ~~What is the password change/reset policy (max changes, cooldown period)?~~ **Decided 2026-09-16:** light policy — no cap or cooldown, new ≠ current, 3 reset requests per email per hour (see Account Management).
 * ~~Is CCTV request approval manual (admin reviews) or automatic?~~ **Answered in code:** manual — the admin approves or denies in CCTV requests (`update_cctv_status.php`).
 * ~~Should 360° room viewing be required or optional for listing?~~ **Decided 2026-09-16:** not planned; admin chooses images or floor plan (see Unit Information).

@@ -27,6 +27,7 @@ foreach ($argv as $arg) {
 }
 
 $result = process_notification_queue($conn, $limit);
+$result['announcements'] = send_due_announcements($conn);
 
 echo '[' . date('Y-m-d H:i:s') . "] Notification queue drain\n";
 foreach ($result as $key => $value) {

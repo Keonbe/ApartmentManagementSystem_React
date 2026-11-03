@@ -35,7 +35,7 @@ const tagStyleMap = { Urgent: 'bg-red-100 text-red-800', Reminder: 'bg-blue-100 
 const CURRENT_STATUSES = ['active', 'Approved', 'pending-move-out'];
 // draftId / draftAttachment: a reopened draft and the file it already holds;
 // removeAttachment drops that file on the next save or send.
-const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'], attachment: null, draftId: null, draftAttachment: null, removeAttachment: false };
+const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'], attachment: null, draftId: null, draftAttachment: null, removeAttachment: false, schedule: false, scheduledAt: '' };
 
 const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-control bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
 const LABEL = 'block text-label font-medium text-slate-600 mb-1';
@@ -144,6 +144,9 @@ const AdminAnnouncements = () => {
           tagStyle: tagStyleMap[ann.tag] || tagStyleMap.General,
           date: new Date(ann.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           recipients: ann.recipient_count || 0,
+          scheduledLabel: ann.scheduled_date && ann.status === 'scheduled'
+            ? new Date(ann.scheduled_date.replace(' ', 'T')).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+            : '',
         })));
         historyState.ready();
       } else {
@@ -201,6 +204,13 @@ const AdminAnnouncements = () => {
       return;
     }
 
+    const scheduling = !draft && form.schedule;
+    if (scheduling) {
+      const when = form.scheduledAt ? new Date(form.scheduledAt) : null;
+      if (!when || Number.isNaN(when.getTime())) { setNotice({ ok: false, text: 'Choose the date and time to send at.' }); return; }
+      if (when.getTime() < Date.now() + 60 * 1000) { setNotice({ ok: false, text: 'Choose a time at least a minute from now.' }); return; }
+    }
+
     setSending(draft ? 'draft' : 'send');
     try {
       const payload = {
@@ -211,6 +221,7 @@ const AdminAnnouncements = () => {
         unit: specific ? form.unit : '',
         channels: form.channels,
         draft,
+        ...(scheduling ? { scheduledAt: form.scheduledAt } : {}),
         // A reopened draft is updated (or sent) in place, keeping its file
         // unless it was removed or replaced.
         ...(form.draftId ? { draftId: form.draftId, removeAttachment: form.removeAttachment } : {}),
@@ -227,7 +238,7 @@ const AdminAnnouncements = () => {
         config = { headers: { 'Content-Type': 'multipart/form-data' } };
       }
       const response = await api.post('create_announcement.php', body, config);
-      if (!response.data.success && fields.applyServerErrors(response)) return;
+      if (!response.data.success && !response.data.fieldErrors?.scheduledAt && fields.applyServerErrors(response)) return;
       setNotice({ ok: !!response.data.success, text: response.data.message || (response.data.success ? 'Done.' : 'Failed.') });
       if (response.data.success) {
         setForm(EMPTY_FORM);
@@ -236,9 +247,38 @@ const AdminAnnouncements = () => {
         fetchAnnouncements();
       }
     } catch (err) {
-      if (!fields.applyServerErrors(err)) setNotice({ ok: false, text: apiErrorMessage(err, 'Could not send the announcement.') });
+      if (err?.response?.data?.fieldErrors?.scheduledAt || !fields.applyServerErrors(err)) setNotice({ ok: false, text: apiErrorMessage(err, 'Could not send the announcement.') });
     } finally {
       setSending(null);
+    }
+  };
+
+  // History buttons on a scheduled announcement.
+  const sendScheduledNow = async (item) => {
+    if (sending || !window.confirm(`Send "${item.title}" now instead of ${item.scheduledLabel}?`)) return;
+    setSending(`now-${item.id}`);
+    try {
+      const res = await api.post('create_announcement.php', { action: 'sendNow', id: item.id });
+      setNotice({ ok: !!res.data.success, text: res.data.message || 'Done.' });
+    } catch (err) {
+      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not send the announcement.') });
+    } finally {
+      setSending(null);
+      fetchAnnouncements();
+    }
+  };
+  const unscheduleItem = async (item) => {
+    if (sending) return;
+    setSending(`back-${item.id}`);
+    try {
+      const res = await api.post('create_announcement.php', { action: 'unschedule', id: item.id });
+      setNotice({ ok: !!res.data.success, text: res.data.message || 'Done.' });
+      if (form.draftId === item.id) setForm(EMPTY_FORM);
+    } catch (err) {
+      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not change the announcement.') });
+    } finally {
+      setSending(null);
+      fetchAnnouncements();
     }
   };
 
@@ -256,11 +296,14 @@ const AdminAnnouncements = () => {
       channels: item.channels.includes('in-app') ? item.channels : ['in-app', ...item.channels],
       draftId: item.id,
       draftAttachment: item.attachment_path || null,
+      // A scheduled row reopens with its time (datetime-local wants YYYY-MM-DDTHH:MM).
+      schedule: item.status === 'scheduled',
+      scheduledAt: item.status === 'scheduled' && item.scheduled_date ? item.scheduled_date.slice(0, 16).replace(' ', 'T') : '',
     });
     setAttachmentError('');
     setFileKey(k => k + 1);
     fields.setErrors({});
-    setNotice({ ok: true, text: 'Draft opened. Save it again or send it.' });
+    setNotice({ ok: true, text: item.status === 'scheduled' ? 'Scheduled announcement opened. Change it and schedule it again, or send it now.' : 'Draft opened. Save it again or send it.' });
     // The composer sits above the history: bring it into view.
     requestAnimationFrame(() => document.getElementById(fields.idFor('title'))?.focus());
   };
@@ -284,7 +327,9 @@ const AdminAnnouncements = () => {
     }
   };
 
-  const sendLabel = specific ? (form.unit ? `Send to Unit ${form.unit}` : 'Send to unit') : 'Send to all tenants';
+  const sendLabel = form.schedule ? 'Schedule announcement' : specific ? (form.unit ? `Send to Unit ${form.unit}` : 'Send to unit') : 'Send to all tenants';
+  // Earliest time the picker offers: one minute from now, in the browser's own time.
+  const [minSchedule] = useState(() => { const d = new Date(Date.now() + 60 * 1000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); });
 
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
@@ -451,6 +496,20 @@ const AdminAnnouncements = () => {
                 )}
               </div>
 
+              <div className="mb-4">
+                <label className="inline-flex items-center gap-2 text-label font-medium text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={form.schedule} onChange={e => setForm(p => ({ ...p, schedule: e.target.checked, scheduledAt: e.target.checked ? p.scheduledAt : '' }))} />
+                  Schedule for later
+                </label>
+                {form.schedule && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <input type="datetime-local" aria-label="Send at" value={form.scheduledAt} min={minSchedule}
+                      onChange={e => setForm(p => ({ ...p, scheduledAt: e.target.value }))} className={`${INPUT} !w-auto`} />
+                    <span className="text-caption text-slate-500">Tenants are worked out when it is sent. You can edit, send it now or turn it back into a draft until then.</span>
+                  </div>
+                )}
+              </div>
+
               {notice && (
                 <div role={notice.ok ? 'status' : 'alert'} className={`mb-4 rounded-control px-3 py-2 text-label font-medium ${notice.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
                   {notice.text}
@@ -461,7 +520,7 @@ const AdminAnnouncements = () => {
                 <button type="button" onClick={() => handleSend(false)} disabled={!!sending || isSmsOverLimit}
                   title={isSmsOverLimit ? `SMS length (${smsLength}/160) exceeds the 160-character limit. Shorten text or uncheck SMS.` : undefined}
                   className={btn('primary', 'sm', 'btn-interactive')}>
-                  <FontAwesomeIcon icon={sending === 'send' ? faSpinner : faPaperPlane} spin={sending === 'send'} />
+                  <FontAwesomeIcon icon={sending === 'send' ? faSpinner : form.schedule ? faCalendarAlt : faPaperPlane} spin={sending === 'send'} />
                   {sendLabel}
                 </button>
                 <button type="button" onClick={() => handleSend(true)} disabled={!!sending}
@@ -493,6 +552,23 @@ const AdminAnnouncements = () => {
                         className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-control bg-indigo-50 text-indigo-700 text-caption font-semibold no-underline hover:bg-indigo-100">
                         <FontAwesomeIcon icon={faPaperclip} /> View attachment
                       </a>
+                    )}
+                    {item.status === 'scheduled' && (
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span className="text-caption font-semibold text-blue-700">Scheduled for {item.scheduledLabel}</span>
+                        <button type="button" onClick={() => openDraft(item)} disabled={!!sending || form.draftId === item.id}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-slate-100 text-slate-700 text-caption font-semibold border-0 cursor-pointer hover:bg-slate-200 disabled:opacity-60 disabled:cursor-default">
+                          {form.draftId === item.id ? 'Open in composer' : 'Edit'}
+                        </button>
+                        <button type="button" onClick={() => sendScheduledNow(item)} disabled={!!sending}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-indigo-50 text-indigo-700 text-caption font-semibold border-0 cursor-pointer hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-default">
+                          Send now
+                        </button>
+                        <button type="button" onClick={() => unscheduleItem(item)} disabled={!!sending}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-slate-100 text-slate-700 text-caption font-semibold border-0 cursor-pointer hover:bg-slate-200 disabled:opacity-60 disabled:cursor-default">
+                          Back to draft
+                        </button>
+                      </div>
                     )}
                     {item.status === 'draft' && (
                       <button type="button" onClick={() => openDraft(item)} disabled={!!sending || form.draftId === item.id}

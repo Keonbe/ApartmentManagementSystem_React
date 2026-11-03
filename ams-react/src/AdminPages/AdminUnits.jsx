@@ -242,6 +242,9 @@ const AdminUnits = () => {
   }, { idPrefix: 'extend-' });
   const [assigning, setAssigning] = useState(false);
   const [extending, setExtending] = useState(false);
+  // Other applicants who want this unit before the new rent end (409 from admin_extend_rent.php).
+  const [extendConflict, setExtendConflict] = useState(null);
+  const [overrideConflict, setOverrideConflict] = useState(false);
 
   const handleAddUnit = async (e) => {
     e?.preventDefault();
@@ -356,6 +359,7 @@ const AdminUnits = () => {
     if (!selectedUnit || extending) return;
     if (!extendErrors.validateAll(extendForm)) return;
     setLeaseError('');
+    setExtendConflict(null);
 
     setExtending(true);
     try {
@@ -365,12 +369,14 @@ const AdminUnits = () => {
         roomId: selectedUnit.id,
         addMonths: Number(extendForm.addMonths),
         newRent: extendForm.newRent !== '' ? Number(extendForm.newRent) : null,
+        overrideConflict,
       };
 
       const response = await api.post('admin_extend_rent.php', payload);
       if (response.data.success) {
         fetchRooms();
         setExtendForm({ addMonths: '', newRent: '' });
+        setOverrideConflict(false);
         setShowExtendForm(false);
         alert(response.data.message);
       } else if (!extendErrors.applyServerErrors(response)) {
@@ -378,6 +384,7 @@ const AdminUnits = () => {
       }
     } catch (error) {
       console.error('Failed to extend lease:', error);
+      setExtendConflict(error?.response?.data?.conflict ?? null);
       if (!extendErrors.applyServerErrors(error)) setLeaseError(apiErrorMessage(error, 'Failed to extend rent.'));
     } finally {
       setExtending(false);
@@ -737,6 +744,7 @@ const AdminUnits = () => {
           onAssign={() => { setShowDetailModal(false); setAssignForm({ ...emptyAssignForm, rent: String(selectedUnit.rent) }); setShowAssignModal(true); }}
           onRemove={() => promptRemoveUnit(selectedUnit)}
           showExtendForm={showExtendForm} setShowExtendForm={setShowExtendForm} extendForm={extendForm} setExtendForm={setExtendForm} onExtendLease={handleExtendLease}
+          extendConflict={extendConflict} overrideConflict={overrideConflict} setOverrideConflict={setOverrideConflict}
           minLeaseDuration={minLeaseDuration} leaseError={leaseError} setLeaseError={setLeaseError}
           extendErrors={extendErrors} extending={extending}
           onUpdateSuccess={fetchRooms}
@@ -747,7 +755,7 @@ const AdminUnits = () => {
 };
 
 /* ─── Unit Detail Tabbed Modal Sub-Component ─── */
-const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError, extendErrors, extending, onUpdateSuccess }) => {
+const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, extendConflict, overrideConflict, setOverrideConflict, minLeaseDuration, leaseError, setLeaseError, extendErrors, extending, onUpdateSuccess }) => {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Unit status monitoring edit states
@@ -1157,6 +1165,20 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, showExtendForm, se
                         <div className="bg-red-50 border border-red-200 rounded-control p-3 flex items-start gap-2 text-label text-red-700">
                           <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                           {leaseError}
+                        </div>
+                      )}
+                      {extendConflict?.applications?.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-control p-3 text-label text-amber-800 space-y-2">
+                          <p className="m-0 font-semibold">Other applicants want this unit before the new rent end:</p>
+                          <ul className="m-0 pl-5">
+                            {extendConflict.applications.map(a => (
+                              <li key={a.id}>{a.name} (application #{a.id}, {a.status}) {a.moveInDate ? `from ${a.moveInDate}` : 'as soon as it is free'}</li>
+                            ))}
+                          </ul>
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input type="checkbox" checked={overrideConflict} onChange={e => setOverrideConflict(e.target.checked)} className="mt-0.5" />
+                            <span>Extend anyway and tell them the unit is occupied until the new end. Their applications stay open for you to decide.</span>
+                          </label>
                         </div>
                       )}
                       <div className="flex gap-3">

@@ -412,7 +412,29 @@ function extension_range_settings($conn) {
 // tenant's request (extend_lease.php), its approval (process_tenant_request.php)
 // and the admin's Units -> Extend Rent (admin_extend_rent.php).
 
-class ExtensionRefused extends Exception {}
+// $conflicts: set when the refusal is because other applicants want the unit
+// (extension_competing_applications()), so admin_extend_rent.php can show them.
+class ExtensionRefused extends Exception {
+    public $conflicts = [];
+}
+
+// Applications from other people for the unit a tenant wants to extend: still
+// in the pipeline (not yet moved in, not rejected or cancelled) and wanting to
+// move in before the extended rent would end (or "as soon as it is free").
+// Reservations cannot exist on an occupied unit and the waitlist is not a claim.
+function extension_competing_applications($conn, $room_name, $tenant_user_id, $proposed_end) {
+    $stmt = $conn->prepare("SELECT id, user_id, first_name, last_name, status, preferred_move_in_date
+                            FROM rent_applications
+                            WHERE room_name = ? AND user_id <> ?
+                              AND status IN ('Pending Review', 'Action Required', 'Approved')
+                              AND (preferred_move_in_date IS NULL OR preferred_move_in_date < ?)
+                            ORDER BY id");
+    $stmt->bind_param("sis", $room_name, $tenant_user_id, $proposed_end);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
 
 // The tenant's past-due bills. Payments already submitted or in progress
 // (pending-verification, processing) don't count, and neither does an unpaid
@@ -437,7 +459,8 @@ function tenant_overdue_summary($conn, $user_id) {
 // can. $app needs status, user_id, requested_move_out_date; $contract needs
 // status, lease_end (or is null). Pass $add_months = 0 to check everything but
 // the months-ahead limit (my_room.php, before the tenant picks a number).
-function extension_block_reason($conn, $app, $contract, $add_months) {
+function extension_block_reason($conn, $app, $contract, $add_months, $override_conflicts = false, &$conflicts = null) {
+    $conflicts = [];
     if (($app['status'] ?? '') === 'pending-move-out') {
         $when = !empty($app['requested_move_out_date']) ? ' on ' . date('M j, Y', strtotime($app['requested_move_out_date'])) : '';
         return "A move-out is scheduled$when. It must be cancelled by management before the rent can be extended.";
@@ -458,6 +481,15 @@ function extension_block_reason($conn, $app, $contract, $add_months) {
         }
         $proposed_end = date('Y-m-d', strtotime($contract['lease_end'] . " +$add_months months"));
         if ($ahead_error = rent_end_ahead_error($conn, $proposed_end)) return $ahead_error;
+        if (!empty($app['room_name'])) {
+            $conflicts = extension_competing_applications($conn, $app['room_name'], (int)$app['user_id'], $proposed_end);
+            if ($conflicts && !$override_conflicts) {
+                $wanted = array_filter(array_column($conflicts, 'preferred_move_in_date'));
+                $when = $wanted ? 'from ' . date('M j, Y', strtotime(min($wanted))) : 'as soon as it is free';
+                return "Another applicant has asked for Unit {$app['room_name']} $when, before the new rent end of "
+                    . date('M j, Y', strtotime($proposed_end)) . ". The office has to settle that application first, so please contact the office.";
+            }
+        }
     }
     return null;
 }
@@ -470,7 +502,7 @@ function extension_block_reason($conn, $app, $contract, $add_months) {
 // expired (the generator never back-bills them), due RENT_INVOICE_LEAD_DAYS
 // from today so they aren't overdue the moment they're issued. $new_rent
 // (optional) applies to months billed from now on.
-function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null) {
+function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null, $override_conflicts = false) {
     $add_months = (int)$add_months;
     if ($add_months < 1 || $add_months > MAX_RENT_AHEAD_MONTHS_CEILING) {
         throw new ExtensionRefused("Extensions are 1 to " . MAX_RENT_AHEAD_MONTHS_CEILING . " months.");
@@ -491,8 +523,11 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
     $contract = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if ($reason = extension_block_reason($conn, $app, $contract, $add_months)) {
-        throw new ExtensionRefused($reason);
+    $conflicts = [];
+    if ($reason = extension_block_reason($conn, $app, $contract, $add_months, $override_conflicts, $conflicts)) {
+        $refusal = new ExtensionRefused($reason);
+        $refusal->conflicts = $conflicts;
+        throw $refusal;
     }
 
     $user_id = (int)$app['user_id'];
@@ -569,6 +604,7 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
         'reactivated' => $was_expired,
         'holdover_invoices' => $holdover,
         'holdover_total' => $holdover_total,
+        'conflicts' => $conflicts,
     ];
 }
 
@@ -4742,6 +4778,164 @@ function purge_expired_cctv_footage($conn) {
     }
     $claim->close();
     return $out;
+}
+
+// ── Announcements: delivery and scheduling ──
+// An announcement goes to the tenants living in the building (or in one unit)
+// at the moment it is sent. create_announcement.php sends immediately; a
+// scheduled one is stored with status 'scheduled' and sent by
+// send_due_announcements() from the poll in get_notifications.php and
+// cron/process_queue.php. Both use the same three steps below.
+const ANNOUNCEMENT_MAX_SCHEDULE_DAYS = 365;
+
+// $send_to_label is the stored label: 'All Tenants' or 'Unit X'.
+function announcement_recipients($conn, $send_to_label) {
+    $sql = "SELECT DISTINCT ra.user_id FROM rent_applications ra
+            JOIN users u ON u.id = ra.user_id
+            WHERE ra.status IN ('Approved', 'active', 'pending-move-out') AND u.role = 'user' AND u.is_archived = 0";
+    if (strncmp($send_to_label, 'Unit ', 5) === 0) {
+        $unit = substr($send_to_label, 5);
+        $stmt = $conn->prepare("$sql AND ra.room_name = ?");
+        $stmt->bind_param("s", $unit);
+    } else {
+        $stmt = $conn->prepare($sql);
+    }
+    $stmt->execute();
+    $ids = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'user_id'));
+    $stmt->close();
+    return $ids;
+}
+
+function announcement_notification_type($tag) {
+    return ['Urgent' => 'warning', 'Reminder' => 'action'][$tag] ?? 'info';
+}
+
+// The in-app half, inside the caller's transaction: one notification per
+// recipient (respecting their "Building announcements" preference) carrying the
+// attachment. Returns how many were delivered.
+function announcement_notify($conn, $announcement_id, $tag, $title, $body, $recipients, $attachment_path) {
+    $type = announcement_notification_type($tag);
+    $delivered = 0;
+    $notif_ids = [];
+    foreach ($recipients as $uid) {
+        $nid = create_notification($conn, $uid, $type, $title, $body);
+        if ($nid) {
+            $delivered++;
+            $notif_ids[] = $nid;
+        }
+    }
+    if ($attachment_path) {
+        if ($notif_ids) {
+            $upd = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
+            foreach ($notif_ids as $nid) {
+                $upd->bind_param("si", $attachment_path, $nid);
+                $upd->execute();
+            }
+            $upd->close();
+        }
+        // The admin's history shows that a file went out, and opens it.
+        $ann_upd = $conn->prepare("UPDATE announcements SET attachment_path = ? WHERE id = ?");
+        $ann_upd->bind_param("si", $attachment_path, $announcement_id);
+        $ann_upd->execute();
+        $ann_upd->close();
+    }
+    return $delivered;
+}
+
+// After the commit: SMS and email, then the channels that actually reached
+// someone. An SMS or email problem must not undo an announcement tenants can
+// already see in-app. Returns the dispatch summary.
+function announcement_broadcast($conn, $announcement_id, $tag, $title, $body, $recipients, $requested_channels) {
+    require_once __DIR__ . '/api/services/send_notification.php';
+    $requested = is_array($requested_channels) ? array_map('strtolower', $requested_channels) : [];
+    $want_sms = in_array('sms', $requested, true);
+    $want_email = in_array('email', $requested, true);
+    $dispatch = dispatch_admin_action_broadcast(
+        $conn, $recipients, announcement_notification_type($tag), $title,
+        // null skips that channel in dispatch_external_notification().
+        $want_sms ? sms_announcement_template($title, $body, $tag) : null,
+        $want_email ? email_announcement_template($title, $body, $tag) : null
+    );
+    $used = ['in-app'];
+    if ($dispatch['sms'] > 0) $used[] = 'sms';
+    if ($dispatch['email'] > 0) $used[] = 'email';
+    $used_json = json_encode($used);
+    $stmt = $conn->prepare("UPDATE announcements SET channels = ? WHERE id = ?");
+    $stmt->bind_param("si", $used_json, $announcement_id);
+    $stmt->execute();
+    $stmt->close();
+    $dispatch['channels'] = $used;
+    return $dispatch;
+}
+
+// Sends one scheduled announcement. $only_if_due is true for the sweep (the
+// time must have come) and false for the admin's "Send now". Claim-first: the
+// row is flipped to 'sent' by exactly one caller. Returns null when it was not
+// (or no longer) scheduled, ['status' => 'no_recipients'] when nobody lives in
+// the building (it goes back to a draft), or ['status' => 'sent', 'delivered' => n, ...].
+function send_scheduled_announcement($conn, $id, $admin_id = 0, $only_if_due = true) {
+    $id = (int)$id;
+    $admin_id = (int)$admin_id;
+    $due = $only_if_due ? " AND scheduled_date <= NOW()" : "";
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare("SELECT tag, title, body, send_to, channels, attachment_path FROM announcements WHERE id = ? AND status = 'scheduled'$due FOR UPDATE");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$row) {
+            $conn->rollback();
+            return null;
+        }
+
+        $recipients = announcement_recipients($conn, $row['send_to']);
+        if (!$recipients) {
+            $stmt = $conn->prepare("UPDATE announcements SET status = 'draft', scheduled_date = NULL WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+            $conn->commit();
+            notify_admins_info($conn, 'info', 'Scheduled announcement not sent',
+                "\"{$row['title']}\" was due, but {$row['send_to']} has no current tenants. It was saved back as a draft.");
+            log_activity($conn, $admin_id, 'communication', 'Scheduled Announcement Not Sent', "Title: {$row['title']}; To: {$row['send_to']}; no current tenants, returned to draft", $admin_id);
+            return ['status' => 'no_recipients'];
+        }
+
+        $count = count($recipients);
+        $stmt = $conn->prepare("UPDATE announcements SET status = 'sent', created_at = NOW(), recipient_count = ? WHERE id = ?");
+        $stmt->bind_param("ii", $count, $id);
+        $stmt->execute();
+        $stmt->close();
+        $delivered = announcement_notify($conn, $id, $row['tag'], $row['title'], $row['body'], $recipients, $row['attachment_path']);
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('[AMS] scheduled announcement #' . $id . ' failed: ' . $e->getMessage());
+        return null;
+    }
+
+    $dispatch = ['channels' => ['in-app']];
+    try {
+        $dispatch = announcement_broadcast($conn, $id, $row['tag'], $row['title'], $row['body'], $recipients, json_decode($row['channels'] ?? '[]', true));
+    } catch (Throwable $e) {
+        error_log('[AMS] scheduled announcement #' . $id . ' SMS/email failed after send: ' . $e->getMessage());
+    }
+    log_activity($conn, $admin_id, 'communication', $only_if_due ? 'Sent Scheduled Announcement' : 'Sent Announcement Now',
+        "Title: {$row['title']}; To: {$row['send_to']}; Delivered in-app to $delivered of $count; channels: " . implode(', ', $dispatch['channels']), $admin_id);
+    return ['status' => 'sent', 'delivered' => $delivered, 'recipient_count' => $count, 'dispatch' => $dispatch];
+}
+
+// Sends every scheduled announcement whose time has come. Returns how many went out.
+function send_due_announcements($conn) {
+    $res = $conn->query("SELECT id FROM announcements WHERE status = 'scheduled' AND scheduled_date <= NOW() ORDER BY scheduled_date, id LIMIT 20");
+    if (!$res) return 0;
+    $sent = 0;
+    foreach ($res->fetch_all(MYSQLI_ASSOC) as $r) {
+        $out = send_scheduled_announcement($conn, (int)$r['id'], 0, true);
+        if ($out && $out['status'] === 'sent') $sent++;
+    }
+    return $sent;
 }
 
 // How far ahead a tenant must give a move-out notice (Settings → Rental). The

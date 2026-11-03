@@ -61,7 +61,19 @@ const en = {
         ],
       },
       {
-        h: '6. Ending a tenancy and archiving of accounts',
+        h: '6. Maintenance and repairs',
+        p: ['These points follow the standard rent contract. If your signed rent contract words something differently, the contract has the final say.'],
+        li: [
+          'Management is responsible for repairing major damage and for maintaining the building. Major damage means the unit\'s water, electrical and structural systems.',
+          'You keep the unit and the fixtures and items included in it clean and in good order, and you allow Management to inspect the unit to check its condition.',
+          'You may not alter, damage or make permanent use of any part of the unit (for example drilling into walls or using hard-to-remove adhesives) without Management\'s permission.',
+          'Report a problem by sending a maintenance request in the System, with a photo or short video if you can. Management reviews it, decides whether the repair is Management\'s or yours, and schedules the work.',
+          'Repairs that are your responsibility, such as damage caused by negligence or misuse, are billed to you as a maintenance charge on an invoice. The security deposit may also be applied to damage.',
+          'Electricity, water, internet and other utility services are your expense unless you and Management agreed otherwise. Management does not pay to reconnect a service that was cut for unpaid bills.',
+        ],
+      },
+      {
+        h: '7. Ending a tenancy and archiving of accounts',
         p: ['Only Management can archive or restore a tenant record. When a rent term ends, or for another recorded reason, Management archives the tenancy. This has the following effects:'],
         li: [
           'the unit is marked vacant and your household record is ended;',
@@ -80,15 +92,15 @@ const en = {
         ],
       },
       {
-        h: '7. Notifications',
+        h: '8. Notifications',
         p: ['The System sends notices in the app and, depending on your preferences, by email and SMS. Notices about bills, overdue accounts, payments, application and rent decisions, maintenance, contracts and move-out cannot be switched off, because they affect your tenancy. Other categories can be turned off in your notification settings.'],
       },
       {
-        h: '8. Acceptable use',
+        h: '9. Acceptable use',
         p: ['You must not misuse the System: no false documents or payment proofs, no attempts to access another person\'s data, no interference with the service, and no uploading of unlawful content. Management may restrict or archive an account that breaches these Terms.'],
       },
       {
-        h: '9. Liability and changes',
+        h: '10. Liability and changes',
         p: [
           'The System is provided to support the management of the property. Management is not liable for losses caused by interruptions, third-party services (such as SMS or email delivery) or events outside its control, to the extent allowed by law.',
           'These Terms may be updated. The date above shows the current version; continued use after an update means you accept it.',
@@ -229,7 +241,19 @@ const fil = {
         ],
       },
       {
-        h: '6. Pagtatapos ng paninirahan at pag-archive ng account',
+        h: '6. Maintenance at pagkukumpuni',
+        p: ['Sinusunod ng mga punto rito ang karaniwang kontrata sa pag-upa. Kung iba ang nakasulat sa nilagdaang kontrata mo, ang kontrata ang masusunod.'],
+        li: [
+          'Ang Pamunuan ang responsable sa pagpapagawa ng mga pangunahing sira at sa pagpapanatili ng gusali. Ang pangunahing sira ay may kinalaman sa mga sistema ng tubig, kuryente at estruktura ng unit.',
+          'Ikaw ang mag-iingat at magpapanatiling malinis at maayos ng unit at ng mga kagamitang kasama rito, at pinapayagan mo ang Pamunuan na suriin ang unit upang tingnan ang kondisyon nito.',
+          'Hindi mo maaaring baguhin, sirain o gawing permanenteng gamit ang anumang bahagi ng unit (halimbawa, pagbutas sa pader o paggamit ng pandikit na mahirap alisin) nang walang pahintulot ng Pamunuan.',
+          'Mag-ulat ng problema sa pamamagitan ng maintenance request sa System, may kasamang larawan o maikling video kung maaari. Susuriin ito ng Pamunuan, pagpapasyahan kung kanino ang pagkukumpuni, at iiskedyul ang gawain.',
+          'Ang mga pagkukumpuning ikaw ang may pananagutan, tulad ng pinsalang dulot ng kapabayaan o maling paggamit, ay sisingilin sa iyo bilang maintenance charge sa invoice. Maaari ring gamitin ang security deposit para sa pinsala.',
+          'Ang kuryente, tubig, internet at iba pang serbisyo ay gastos mo maliban kung may ibang napagkasunduan kayo ng Pamunuan. Hindi babayaran ng Pamunuan ang muling pagkonekta ng serbisyong naputol dahil sa hindi nabayarang singil.',
+        ],
+      },
+      {
+        h: '7. Pagtatapos ng paninirahan at pag-archive ng account',
         p: ['Ang Pamunuan lamang ang makakapag-archive o makakapag-restore ng tenant record. Kapag natapos ang termino ng upa, o dahil sa ibang naitalang dahilan, ina-archive ng Pamunuan ang paninirahan. Narito ang epekto:'],
         li: [
           'ang unit ay mamarkahang bakante at tatapusin ang household record mo;',
@@ -248,15 +272,15 @@ const fil = {
         ],
       },
       {
-        h: '7. Mga abiso',
+        h: '8. Mga abiso',
         p: ['Nagpapadala ang System ng abiso sa app at, ayon sa iyong kagustuhan, sa email at SMS. Ang mga abiso tungkol sa bill, overdue, bayad, desisyon sa aplikasyon at upa, maintenance, kontrata at paglipat-labas ay hindi maaaring patayin dahil nakaaapekto ito sa iyong paninirahan. Ang ibang kategorya ay maaaring patayin sa notification settings.'],
       },
       {
-        h: '8. Wastong paggamit',
+        h: '9. Wastong paggamit',
         p: ['Huwag abusuhin ang System: walang pekeng dokumento o patunay ng bayad, walang pagtatangkang makuha ang data ng iba, walang panggugulo sa serbisyo, at walang pag-upload ng labag sa batas. Maaaring higpitan o i-archive ng Pamunuan ang account na lumabag sa mga Tuntuning ito.'],
       },
       {
-        h: '9. Pananagutan at mga pagbabago',
+        h: '10. Pananagutan at mga pagbabago',
         p: [
           'Ibinibigay ang System upang suportahan ang pamamahala ng property. Hindi mananagot ang Pamunuan sa pagkalugi dahil sa pagkaantala, third-party services (tulad ng SMS o email) o mga pangyayaring wala sa kontrol nito, hanggang sa pinapayagan ng batas.',
           'Maaaring baguhin ang mga Tuntuning ito. Ang petsa sa itaas ang kasalukuyang bersyon; ang patuloy na paggamit pagkatapos ng pagbabago ay pagsang-ayon dito.',
