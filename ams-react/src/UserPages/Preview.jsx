@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Eye, Mail, MapPin, CheckCircle2, ShieldCheck, CalendarClock, ArrowUpDown } from 'lucide-react';
-import ApartmentPic from '../assets/Apartment_Pic.webp';
+import { Eye, Mail, ShieldCheck, CalendarClock, ArrowUpDown } from 'lucide-react';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
+import PreviewHero from '../Components/PreviewHero';
+import RulesCarousel from '../Components/RulesCarousel';
 import api from '../api/axiosConfig';
 import useAllRules from '../hooks/useAllRules';
 import { useLang } from '../config/i18n';
-import { publicAssetUrl } from '../api/fileUrl';
 import { usePublicSettings } from '../config/publicSettings';
 import { previewText, previewFeatures } from '../config/previewHero';
 import { formatAvailable } from '../utils/availableDate';
+import '../assets/styles/responsive/user/preview.responsive.css';
 
 const toCard = (r) => ({
     id: r.id,
@@ -84,13 +85,6 @@ export default function Preview({ onRentClick, onInquireClick }) {
     const sortKey = showingUpcoming ? sortBy.upcoming : sortBy.available;
     const sortedList = [...list].sort(SORTERS[sortKey] || byRoom);
     const selectedRoom = [...rooms, ...upcoming].find(r => r.id === selectedRoomId) || null;
-    const heroText = hero ? {
-        badge: previewText(hero, 'badge', lang),
-        title: previewText(hero, 'title', lang),
-        location: previewText(hero, 'location', lang),
-        features: previewFeatures(hero, lang),
-    } : null;
-    const heroImage = hero?.image ? publicAssetUrl(hero.image) : ApartmentPic;
 
     const handleOpenPreview = (roomId) => {
         setSelectedRoomId(roomId);
@@ -101,71 +95,34 @@ export default function Preview({ onRentClick, onInquireClick }) {
     const countClass = (active) => `min-w-[1.25rem] rounded-full px-1.5 text-[11px] leading-5 text-center ${active ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`;
 
     return (
-        // No overflow-x-hidden root class here (shared .*-root rule): it would break the sticky map column.
-        <div className="w-full min-h-[calc(100svh-76px)] bg-slate-50 p-4 md:p-8 box-border">
-            <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 text-left items-start">
+        <div className="preview-page-root w-full bg-slate-50 p-4 md:p-8 box-border">
+            <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 text-left items-start">
 
-                {/*Left column: header, rules and the room list; the page scrolls, not the list*/}
-                <div className="lg:col-span-8 flex flex-col min-w-0 gap-5 animate-slide-up">
+                {/*Left Column Layout*/}
+                <div className="lg:col-span-7 flex flex-col space-y-4 animate-slide-up">
 
-                    {/*Page header from the admin's Preview Page settings. Waits for them so the
-                       built-in wording never flashes before the admin's own.*/}
-                    {heroText ? (
-                        <header className="flex flex-col gap-2">
-                            {heroText.badge && (
-                                <span className="self-start rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-brand">{heroText.badge}</span>
-                            )}
-                            {heroText.title ? (
-                                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 m-0 break-words">{heroText.title}</h1>
-                            ) : (
-                                <h1 className="sr-only">{t('preview.title')}</h1>
-                            )}
-                            {heroText.location && (
-                                <p className="text-slate-600 text-sm sm:text-base m-0 font-medium flex items-center gap-1.5">
-                                    <MapPin aria-hidden="true" className="w-4 h-4 flex-shrink-0 text-brand" />
-                                    <span className="min-w-0 break-words">{heroText.location}</span>
-                                </p>
-                            )}
-                            {heroText.features.length > 0 && (
-                                <ul className="m-0 p-0 list-none flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-brand">
-                                    {heroText.features.map((feature) => (
-                                        <li key={feature} className="flex items-center gap-1.5"><CheckCircle2 aria-hidden="true" className="w-4 h-4" /><span>{feature}</span></li>
-                                    ))}
-                                </ul>
-                            )}
-                        </header>
+                    {/* Hero banner (Settings → Preview Page). Waits for the settings so the
+                        built-in wording never flashes before the admin's own. */}
+                    {hero ? (
+                        <PreviewHero
+                            image={hero.image}
+                            badge={previewText(hero, 'badge', lang)}
+                            title={previewText(hero, 'title', lang)}
+                            location={previewText(hero, 'location', lang)}
+                            features={previewFeatures(hero, lang)}
+                        />
                     ) : (
-                        <div className="h-[104px] rounded-2xl bg-slate-200/60 animate-pulse" aria-hidden="true" />
+                        <div className="ut-native rounded-[2rem] bg-brand shadow-xl flex-shrink-0 w-full h-[190px] animate-pulse" aria-hidden="true" />
                     )}
 
-                    {/*Apartment rules summary and modal action*/}
-                    <section aria-label={t('houseRules.title')} className="w-full min-w-0 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-xs">
-                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-                            <h2 className="m-0 flex flex-shrink-0 items-center gap-1.5 text-xs font-bold text-slate-800 sm:min-h-7">
-                                <ShieldCheck aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-indigo-600" />
-                                <span>{t('houseRules.title')}</span>
-                            </h2>
-                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                                {houseRules.map((rule) => (
-                                    <button
-                                        key={rule.id}
-                                        type="button"
-                                        title={getRuleTitle(rule)}
-                                        onClick={() => setActiveModalRule(rule)}
-                                        className="inline-flex min-h-7 max-w-full cursor-pointer items-center rounded-full border border-slate-200/90 bg-slate-100/80 px-3 py-0.5 text-left text-xs font-medium text-slate-700 transition-all duration-150 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 hover:shadow-2xs"
-                                    >
-                                        <span>{getRuleTitle(rule)}</span>
-                                    </button>
-                                ))}
-                                {houseRules.length === 0 && <span className="text-xs text-slate-500">{t('houseRules.empty')}</span>}
-                            </div>
-                            {houseRules.length > 0 && (
-                                <button type="button" onClick={() => setIsHouseRulesOpen(true)} className="inline-flex min-h-7 flex-shrink-0 self-start cursor-pointer items-center border-0 bg-transparent p-0 text-xs font-semibold text-indigo-600 transition-colors hover:text-indigo-800">
-                                    {t('houseRules.viewAll')}
-                                </button>
-                            )}
-                        </div>
-                    </section>
+                    {/* Apartment rules: one line that pages through on its own. */}
+                    <RulesCarousel
+                        rules={houseRules}
+                        getTitle={getRuleTitle}
+                        onPick={setActiveModalRule}
+                        onViewAll={() => setIsHouseRulesOpen(true)}
+                        t={t}
+                    />
 
                     {/* List heading, then the switch (left) and sort (right) on their own
                         row, so the layout is the same in English and Filipino (the longer
@@ -220,7 +177,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                 <p className="text-slate-500 font-medium m-0">{t('preview.noRooms')}</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="preview-room-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {sortedList.map((room) => {
                                     const canPreview = previewMode === 'floor_plan' || (room.images && room.images.length > 0);
                                     const soon = !!room.availableFrom && showingUpcoming;
@@ -249,14 +206,13 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                         </div>
 
                                         {/* An upcoming unit can be applied for too: the application
-                                            only takes a move-in date from the day it is free.
-                                            Below md, Rent Now drops to its own full-width row. */}
-                                        <div className="flex flex-wrap gap-2">
+                                            only takes a move-in date from the day it is free. */}
+                                        <div className="preview-room-card-actions flex gap-2">
                                             {canPreview && (
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenPreview(room.id)}
-                                                className="flex-[1] min-h-11 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-semibold py-2.5 rounded-xl text-xs transition-all border border-slate-200 cursor-pointer flex items-center justify-center shadow-sm group/btn"
+                                                className="flex-[1] bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-semibold py-2.5 rounded-xl text-xs transition-all border border-slate-200 cursor-pointer flex items-center justify-center shadow-sm group/btn"
                                                 title={t('preview.viewLayout')}
                                                 aria-label={`${t('preview.viewLayout')}: Room ${room.id}`}
                                             >
@@ -267,15 +223,15 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                                 type="button"
                                                 onClick={() => onInquireClick(room.id)}
                                                 aria-label={`${t('preview.inquire')}: Room ${room.id}`}
-                                                className={`min-h-11 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5 ${canPreview ? 'flex-[1.5]' : 'flex-[1]'}`}
+                                                className={`bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5 ${canPreview ? 'flex-[1.5]' : 'flex-[1]'}`}
                                             >
                                                 <Mail aria-hidden="true" className="w-4 h-4" />
-                                                <span>{t('preview.inquire')}</span>
+                                                <span className="hidden sm:inline lg:hidden xl:inline">{t('preview.inquire')}</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => onRentClick(room.id)}
-                                                className={`basis-full md:basis-0 min-h-11 bg-emerald-700 hover:bg-emerald-800 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-black py-2.5 rounded-xl text-xs transition-all duration-200 shadow-md shadow-emerald-600/30 border-0 cursor-pointer text-center uppercase tracking-wide ${canPreview ? 'md:flex-[3]' : 'md:flex-[2]'}`}
+                                                className={`bg-emerald-700 hover:bg-emerald-800 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-black py-2.5 rounded-xl text-xs transition-all duration-200 shadow-md shadow-emerald-600/30 border-0 cursor-pointer text-center uppercase tracking-wide ${canPreview ? 'flex-[3]' : 'flex-[2]'}`}
                                             >
                                                 {t('preview.rentNow')}
                                             </button>
@@ -289,31 +245,19 @@ export default function Preview({ onRentClick, onInquireClick }) {
 
                 </div>
 
-                {/*Right column: building photo and map, sticky under the 76px top bar on desktop*/}
-                {/*Desktop: fixed-height column (76px top bar + 32px page padding + 16px gap) so it fits before and after sticking; the photo keeps its 3:2 shape and the map takes what is left*/}
-                <aside className="lg:col-span-4 lg:sticky lg:top-[92px] grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-col lg:h-[calc(100vh-124px)] gap-4 animate-slide-up" style={{animationDelay: '0.1s'}}>
-                    <img
-                        key={heroImage}
-                        src={heroImage}
-                        alt={t('preview.title')}
-                        className="hidden sm:block self-start lg:shrink-0 w-full aspect-[3/2] object-cover object-center rounded-[2rem] shadow-xl"
-                        onError={(e) => {
-                            // A removed upload falls back to the built-in photo.
-                            if (e.currentTarget.src !== new URL(ApartmentPic, window.location.href).href) e.currentTarget.src = ApartmentPic;
-                        }}
-                    />
-                    <div className="h-[260px] sm:h-auto sm:min-h-[200px] lg:flex-1 lg:min-h-[240px] bg-white rounded-[2rem] border-2 border-brand shadow-xl overflow-hidden flex">
-                        <iframe
-                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
-                            className="w-full h-full border-0 flex-grow min-h-0 grayscale-[20%] contrast-125 transition-all duration-700 hover:grayscale-0 hover:contrast-100 rounded-2xl"
-                            allowFullScreen=""
-                            loading="lazy"
-                            referrerPolicy="strict-origin-when-cross-origin"
-                            title="Apartment Location Map"
-                        ></iframe>
-                    </div>
-                </aside>
-
+                {/*Right Column: Maps Embed. Sticks below the TopBar (76px) while the page
+                   scrolls on large screens.*/}
+                <div className="preview-map-wrapper lg:col-span-5 h-[400px] lg:h-[calc(100vh-76px-4rem)] lg:sticky lg:top-[calc(76px+2rem)] bg-white rounded-[2rem] border-2 border-brand shadow-xl overflow-hidden flex animate-slide-up" style={{animationDelay: '0.1s'}}>
+                    <iframe
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
+                        className="w-full h-full border-0 flex-grow min-h-0 grayscale-[20%] contrast-125 transition-all duration-700 hover:grayscale-0 hover:contrast-100 rounded-2xl"
+                        allowFullScreen=""
+                        loading="lazy"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        title="Apartment Location Map"
+                    ></iframe>
+                </div>
+                                    
             </div>
 
             <style>
@@ -326,6 +270,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                     animation: slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
                     opacity: 0;
                 }
+                
                 `}
             </style>
 
