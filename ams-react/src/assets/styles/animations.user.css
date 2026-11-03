@@ -166,11 +166,20 @@
 .stagger-children > *:nth-child(10) { animation-delay: 360ms; }
 .stagger-children > *:nth-child(n + 11) { animation-delay: 400ms; }
 
-/* Modal transitions */
+/* Modal transitions. No backdrop blur: re-blurring the whole page behind a
+   modal on every scroll frame made scrolling inside any modal stutter, and the
+   overlay's own bg-black/50-60 dims the page well enough. */
 .modal-overlay-anim {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overscroll-behavior: contain;
+}
+
+/* Overlays that don't use the shared Modal (user pages) get the same treatment. */
+.fixed.inset-0[class*="backdrop-blur"] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .modal-card-anim {

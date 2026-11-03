@@ -741,7 +741,7 @@ export default function AdminInquiries() {
               </div>
 
               {selected.matchedThreadId && (
-                <p role="note" className="m-0 rounded-card border border-amber-200 bg-amber-50 p-3 text-label text-amber-900">
+                <p role="note" className="rounded-card border border-amber-200 bg-amber-50 p-3 text-label text-amber-900">
                   Same email or phone as conversation #{selected.matchedThreadId}, but the sender is not verified: anyone can type an email or phone number.
                   It was not added to that conversation. The owner of that conversation was emailed a link to it; do not share their details here.
                 </p>

@@ -88,8 +88,8 @@ export default function Registration({ onLoginRedirect }) {
         else if (name !== 'password' && name !== 'conPassword') v = v.trim();
         const next = { ...values, [name]: v };
         setValues(next);
-        // Leaving an untouched empty field shouldn't shout before a submit.
-        if (!hasSubmitted && v === '') return;
+        // An empty field is only reported when the form is submitted.
+        if (v === '') return;
         form.validateField(name, next);
     };
 
