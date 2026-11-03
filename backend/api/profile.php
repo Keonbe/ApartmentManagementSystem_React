@@ -144,6 +144,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (mb_strlen($first_name) > 30) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "First name must be 30 characters or fewer."]);
+        exit;
+    }
+    if (!empty($middle_name) && mb_strlen($middle_name) > 50) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Middle name must be 50 characters or fewer."]);
+        exit;
+    }
+    if (mb_strlen($last_name) > 30) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Last name must be 30 characters or fewer."]);
+        exit;
+    }
+    if (!empty($suffix) && mb_strlen($suffix) > 20) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Suffix must be 20 characters or fewer."]);
+        exit;
+    }
+    if (mb_strlen($new_email) > 190) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Email address must be 190 characters or fewer."]);
+        exit;
+    }
+
     // email_address is UNIQUE. Without this check a taken address made the UPDATE
     // fail silently (mysqli does not throw here), yet the response still said
     // the profile was saved.

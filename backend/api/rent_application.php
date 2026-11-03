@@ -117,6 +117,15 @@ if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($emai
     exit;
 }
 
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    application_fail(422, "Please enter a valid email address.", 'email');
+}
+if (mb_strlen($first_name) > 30) application_fail(422, "First name must be 30 characters or fewer.", 'firstName');
+if (!empty($middle_name) && mb_strlen($middle_name) > 50) application_fail(422, "Middle name must be 50 characters or fewer.", 'middleName');
+if (mb_strlen($last_name) > 30) application_fail(422, "Last name must be 30 characters or fewer.", 'lastName');
+if (!empty($suffix) && mb_strlen($suffix) > 20) application_fail(422, "Suffix must be 20 characters or fewer.", 'suffix');
+if (mb_strlen($email) > 150) application_fail(422, "Email address must be 150 characters or fewer.", 'email');
+
 // The rent term follows the admin's Minimum Rent Duration setting; 24 matches
 // the form's MAX_MONTHS.
 $min_months = max(1, (int)get_setting($conn, 'min_lease_duration', 3));

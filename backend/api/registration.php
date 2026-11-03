@@ -28,7 +28,11 @@ $confirmPass = (string)($input["conPassword"] ?? '');
 
 if ($first_name === '' || $last_name === '' || $email_address === '') fail("First name, last name and email address are required.");
 if (!filter_var($email_address, FILTER_VALIDATE_EMAIL)) fail("Please enter a valid email address.");
-if (mb_strlen($first_name) > 100 || mb_strlen($last_name) > 100) fail("Names must be 100 characters or fewer.");
+if (mb_strlen($first_name) > 30) fail("First name must be 30 characters or fewer.");
+if ($middle_name !== null && mb_strlen($middle_name) > 50) fail("Middle name must be 50 characters or fewer.");
+if (mb_strlen($last_name) > 30) fail("Last name must be 30 characters or fewer.");
+if ($suffix !== null && mb_strlen($suffix) > 20) fail("Suffix must be 20 characters or fewer.");
+if (mb_strlen($email_address) > 190) fail("Email address must be 190 characters or fewer.");
 if ($pw_error = password_policy_error($password)) fail($pw_error);
 if ($password !== $confirmPass) fail("Confirmed password does not match");
 

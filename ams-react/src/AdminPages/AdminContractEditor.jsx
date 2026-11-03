@@ -20,6 +20,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import { printElement } from '../utils/print';
 import { btn } from '../Components/admin/ui/styles';
 import Spinner from '../Components/admin/ui/Spinner';
+import { LIMITS } from '../utils/validation';
 
 // Simple GCash validation: 11-digit PH mobile (09xx) or +639xx, or the literal '*********'
 const isValidGcashNumber = (num) => {
@@ -971,6 +972,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               <label className="text-label font-medium text-slate-600 block mb-1">Tenant Name</label>
               <input
                 type="text"
+                maxLength={LIMITS.fullName}
                 value={customPreviewData.tenantName || ''}
                 onChange={(e) => setCustomPreviewData((p) => ({ ...p, tenantName: e.target.value }))}
                 className="w-full text-label px-2.5 py-1.5 border border-slate-200 rounded-control bg-white outline-none"
