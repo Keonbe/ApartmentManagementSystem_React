@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~70 s, 500 tests (31 files)
+npm test           # ~4 min, 630 tests (41 files)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -54,7 +54,7 @@ tests/api/
   lib/env.js            ports, DB settings, paths
   lib/mysql.js          mysql / mysqldump runner, name rewrite
   lib/db.js             q(), one(), setting(), setSetting() for fixtures and checks
-  lib/api.js            api(endpoint, {token, json, form, query, headers}), loginAs('admin'|'maria'|...)
+  lib/api.js            api(endpoint, {token, json, form, query, headers}), loginAs('admin'|'maria'|...); marks each test account's device trusted so tenant logins skip the emailed code (send an empty `Cookie` header to test the code itself)
   lib/paymongo.js       sendWebhook(), signature(), failedEvent(), paidEvent()
   lib/fixtures.js       addInvoice(), invoice(), notificationCount()
   *.test.js             the suites
@@ -75,6 +75,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 
 | File | Tests | Covers |
 |---|---|---|
+| `auth_security.test.js` | 7 | Email verification (refused until verified, link works once, bad token) and the device sign-in code (new device gets a code, wrong code counted and locked after three, right code signs in and trusts the device, admin skips it) |
 | `auth.test.js` | 8 | Login, wrong password, `email_address` field, 401/403 gates, forged `X-User-Id`, archived account and its old session |
 | `settings.test.js` | 33 | Atomic save (one bad key saves nothing), bounds for `min_lease_duration`, `payment_window_days`, `max_rent_ahead_months`, `max_parking_slots`, injection value; move-in window: shipped 0 / 365, a pair saves together, earliest 61 / -1 / 1.5 / text and latest 0 / 366 / empty → 422, latest below the earliest (same request or stored) → 422, 0 allowed, numbers in `get_system_settings.php` |
 | `contract_end.test.js` | 43 | Contract End: defaults; switches stored 1/0, other values → 422; deadline 0-90; the reminder must go out more days before the end than the deadline (either key, also against the stored value); tenant refused. Deadline: before it My Room is allowed and names the last day, after it my_room/extend_lease refuse ("Extension requests closed on …"), the deadline day itself is open, 0 = no deadline. Upcoming rooms (guest `get_rooms.php` `availableFrom`): a unit past its deadline and a scheduled move-out are listed with the date only (no tenant name); inside the deadline, or with an open extension request, it is not; with no deadline only move-outs; switched off, none. Reminder: switched off sends nothing and claims nothing; on with a deadline sends one in-app reminder naming the last day, nothing by email/SMS when those are off, never twice. `preview_hero`: defaults; unchanged form changes nothing; text tidied, unknown keys dropped, features replaced (also to none); 7 features, empty English, over 40 chars, non-list, long title, non-boolean show, bad / missing / Glass image → 422; garbled stored value reads as defaults. `upload_preview_image.php`: tenant 403, no session 401, no file / tiny → 422; live on save, served by `public_file.php`; the photo it replaced stays in the Preview recent list (`get_glass_backgrounds.php?kind=preview`, separate from Glass), only the last 6 are kept and never the live one; removal refuses the live photo, a Glass name or an unknown kind. Applying for an upcoming unit: an occupied unit not freeing up → 409 (roomName); a date before it is free → 422; "any time" is stored as the free day; resubmit_date.php refuses an earlier date; approval refuses while the tenant is still there |

@@ -11,8 +11,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/../config.php';
 $adminId = require_admin($conn);
-$input = json_decode(file_get_contents('php://input'), true) ?? [];
-$roomId = trim((string)($input['id'] ?? ''));
+$rawInput = file_get_contents('php://input');
+$input = json_decode($rawInput, true);
+if (!is_array($input)) {
+    $input = $_POST;
+}
+$roomId = trim((string)(
+    $input['id'] ??
+    $input['roomId'] ??
+    $input['room_id'] ??
+    $input['room_name'] ??
+    $_POST['id'] ??
+    $_POST['roomId'] ??
+    $_POST['room_id'] ??
+    $_GET['id'] ??
+    $_GET['roomId'] ??
+    ''
+));
 
 // Older databases may not yet have the room-archiving migration applied.
 $columns = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");

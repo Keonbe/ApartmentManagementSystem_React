@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang, t as translate } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.webp";
@@ -16,8 +16,13 @@ const emailRule = (v) => checkEmail(v, { max: LIMITS.userEmail });
 
 export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedirect }) {
     const navigate = useNavigate();
+    const location = useLocation();
+    const successMessage = location.state?.successMessage;
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [otp, setOtp] = useState('');
+    const otpInputRefs = useRef([]);
+    const [showOtpStep, setShowOtpStep] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     // Set when axiosConfig bounced a request whose session had ended.
     const [message, setMessage] = useState(() =>
@@ -64,7 +69,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 guest_token: localStorage.getItem('ams_guest_token') || undefined
             });
 
-            if (res.data.valid) {
+            if (res.data.status === 'device_verification_required') {
+                setShowOtpStep(true);
+                setMessage('');
+            } else if (res.data.email_verification_required) {
+                setMessage(res.data.message);
+            } else if (res.data.valid) {
                 for (const key of Object.keys(localStorage)) {
                     if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
                 }
@@ -104,6 +114,61 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleOtpSubmit = async (e) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+        setMessage(''); setIsSubmitting(true);
+        try {
+            const res = await api.post('/verify_device.php', { email_address: normalizeEmail(email), otp: otp.replace(/\s/g, '') });
+            if (!res.data.valid) { setMessage(res.data.message || 'Unable to verify code.'); return; }
+            for (const key of Object.keys(localStorage)) if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
+            sessionStorage.setItem('loggedInUser', JSON.stringify(res.data.user));
+            sessionStorage.setItem('sessionToken', res.data.sessionToken);
+            window.dispatchEvent(new Event('auth-changed'));
+            if (res.data.role === 'admin') onAdminRedirect();
+            else {
+                try {
+                    const roomRes = await api.get(`/my_room.php?email=${encodeURIComponent(res.data.user.email_address || '')}`);
+                    const room = roomRes.data.success ? roomRes.data.data : null;
+                    writeRoomCache(res.data.user.id, roomKindFor(room?.status));
+                    const target = landingPathFor(room);
+                    if (target !== '/home') { navigate(target, { replace: true }); return; }
+                } catch (err) { console.error('Failed to check pending status', err); }
+                onHomeRedirect();
+            }
+        } catch (error) { setMessage(apiErrorMessage(error, 'Unable to verify code.')); }
+        finally { setIsSubmitting(false); }
+    };
+
+    const updateOtpDigit = (index, value) => {
+        const digit = value.replace(/\D/g, '').slice(-1);
+        const digits = otp.padEnd(6, ' ').slice(0, 6).split('');
+        digits[index] = digit || ' ';
+        setOtp(digits.join(''));
+        if (digit && index < 5) otpInputRefs.current[index + 1]?.focus();
+    };
+
+    const handleOtpKeyDown = (index, event) => {
+        if (event.key === 'Backspace') {
+            if (otp[index]) updateOtpDigit(index, '');
+            if (index > 0) {
+                if (!otp[index]) updateOtpDigit(index - 1, '');
+                otpInputRefs.current[index - 1]?.focus();
+            }
+        } else if (event.key === 'ArrowLeft' && index > 0) {
+            otpInputRefs.current[index - 1]?.focus();
+        } else if (event.key === 'ArrowRight' && index < 5) {
+            otpInputRefs.current[index + 1]?.focus();
+        }
+    };
+
+    const handleOtpPaste = (event) => {
+        event.preventDefault();
+        const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+        setOtp(pasted.padEnd(6, ' '));
+        otpInputRefs.current[Math.min(pasted.length, 5)]?.focus();
     };
 
     const handleForgotSubmit = async (e) => {
@@ -200,16 +265,48 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     </div>
 
                     <div className="w-full space-y-6">
-                        <div className="text-center">
+                        {successMessage && !showOtpStep && (
+                            <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-800">
+                                {successMessage}
+                            </div>
+                        )}
+                        {!showOtpStep && <div className="text-center">
                             <h2 className="login-heading text-3xl font-black tracking-tight border-0 m-0 text-brand">
                                 {isForgotPassword ? t('login.resetTitle') : t('login.title')}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">
                                 {isForgotPassword ? t('login.resetSubtitle') : t('login.subtitle')}
                             </p>
-                        </div>
+                        </div>}
 
-                        {!isForgotPassword ? (
+                        {showOtpStep ? (
+                            <form onSubmit={handleOtpSubmit} className="w-full space-y-7 text-center">
+                                <div>
+                                    <h2 className="login-heading text-2xl font-black tracking-tight border-0 m-0 text-brand">Device Verification</h2>
+                                    <p className="text-sm text-slate-500 mt-3 mb-0">Enter the 6-digit code sent to {email}</p>
+                                </div>
+                                <div className="flex justify-center gap-2.5 sm:gap-3" onPaste={handleOtpPaste}>
+                                    {Array.from({ length: 6 }, (_, index) => (
+                                        <input
+                                            key={index}
+                                            ref={(element) => { otpInputRefs.current[index] = element; }}
+                                            type="text"
+                                            inputMode="numeric"
+                                            autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                                            aria-label={`Verification code digit ${index + 1}`}
+                                            maxLength={1}
+                                            value={(otp[index] || '').trim()}
+                                            onChange={(event) => updateOtpDigit(index, event.target.value)}
+                                            onKeyDown={(event) => handleOtpKeyDown(index, event)}
+                                            className="h-12 w-10 sm:h-14 sm:w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-xl font-bold text-slate-900 shadow-inner transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    ))}
+                                </div>
+                                {message && <p role="alert" className="text-sm text-rose-700 m-0">{message}</p>}
+                                <button type="submit" disabled={isSubmitting || otp.replace(/\s/g, '').length !== 6} className="btn-interactive w-full bg-indigo-600 text-white py-3.5 px-4 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70">{isSubmitting ? 'Verifying…' : 'Verify and Sign In'}</button>
+                                <button type="button" onClick={() => { setShowOtpStep(false); setOtp(''); setMessage(''); }} className="text-sm text-indigo-600 hover:underline font-semibold bg-transparent border-0 p-0 cursor-pointer">Back to Login</button>
+                            </form>
+                        ) : !isForgotPassword ? (
                         <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleSubmit} onInvalid={() => setHasSubmitted(true)} noValidate>
                             {/*EmailAddressField*/}
                             <div className="relative group">
@@ -324,7 +421,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                         </form>
                         )}
 
-                        {!isForgotPassword && (
+                        {!isForgotPassword && !showOtpStep && (
                             <div className="text-center pt-2 border-t border-slate-100">
                                 <p className="text-xs text-slate-500 m-0">
                                     {t('login.noAccount')}{' '}

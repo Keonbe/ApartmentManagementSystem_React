@@ -5,6 +5,11 @@ import { api, login, loginAs } from './lib/api.js';
 import { q, one } from './lib/db.js';
 
 describe('login', () => {
+  beforeAll(async () => {
+    // Test fixtures are trusted seed accounts; ensure login tests remain valid
+    // whether the auth-security migration has already been applied or not.
+    try { await q('UPDATE users SET email_verified_at = NOW()'); } catch { /* migration not installed in this test database */ }
+  });
   it('admin and tenant get a session token and their role', async () => {
     const admin = await api('login.php', { json: { email_address: 'admin@gmail.com', password: 'admin123' } });
     expect(admin.body).toMatchObject({ valid: true, role: 'admin' });

@@ -108,6 +108,9 @@ INSERT INTO users (first_name, middle_name, last_name, contact_no, gender, email
 ('Omar',      'K.', 'Castillo', '+63 9000000115', 'Male',   'omar.castillo@demo.example.com',   @pw, 'user', 1, 1),
 ('Patricia',  'N.', 'Navarro',  '+63 9000000116', 'Female', 'patricia.navarro@demo.example.com', @pw, 'user', 1, 1);
 
+-- Seeded accounts sign in straight away (login.php refuses an unverified email).
+UPDATE `users` SET `email_verified_at` = COALESCE(`email_verified_at`, CURRENT_TIMESTAMP) WHERE `email_verified_at` IS NULL;
+
 SET @u_ana  = (SELECT id FROM users WHERE email_address = 'angela.dizon@demo.example.com');
 SET @u_ben  = (SELECT id FROM users WHERE email_address = 'benedict.mercado@demo.example.com');
 SET @u_cia  = (SELECT id FROM users WHERE email_address = 'cecilia.aguilar@demo.example.com');

@@ -107,7 +107,8 @@ $is_update = $app_id !== null;
 
 // Every personal-detail field is checked together so the form can mark all of
 // them at once (keys are RentApplication.jsx's field names). Lengths follow
-// the rent_applications columns.
+// the user's profile columns (users.first_name / last_name are 30, middle_name
+// 50), because the names are copied onto the account when the application is saved.
 $max_occupants = max_occupants_per_unit($conn);
 // The rent term follows the admin's Minimum Rent Duration setting; 24 matches
 // the form's MAX_MONTHS.
@@ -129,9 +130,9 @@ if ($available_from !== null && $preferred_move_in_date === null) $preferred_mov
 
 $address_len = mb_strlen($previous_address);
 $errors = array_filter([
-    'firstName' => v_str($first_name, 'First name', 1, 100),
-    'middleName' => v_str($middle_name, 'Middle name', 1, 100, false),
-    'lastName' => v_str($last_name, 'Last name', 1, 100),
+    'firstName' => v_str($first_name, 'First name', 1, 30),
+    'middleName' => v_str($middle_name, 'Middle name', 1, 50, false),
+    'lastName' => v_str($last_name, 'Last name', 1, 30),
     'suffix' => v_str($suffix, 'Suffix', 1, 20, false),
     'email' => trim((string)$email) === '' ? 'Email is required.'
         : (!filter_var(trim((string)$email), FILTER_VALIDATE_EMAIL) || mb_strlen(trim((string)$email)) > 150 ? 'Enter a valid email address.' : ''),

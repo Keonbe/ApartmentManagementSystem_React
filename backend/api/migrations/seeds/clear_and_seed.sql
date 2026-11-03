@@ -68,6 +68,9 @@ TRUNCATE TABLE `application_requirements`;
 INSERT INTO `users` (`first_name`, `last_name`, `email_address`, `password`, `role`)
 VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin'); -- admin123
 
+-- Seeded accounts sign in straight away (login.php refuses an unverified email).
+UPDATE `users` SET `email_verified_at` = COALESCE(`email_verified_at`, CURRENT_TIMESTAMP) WHERE `email_verified_at` IS NULL;
+
 -- 2. Initial Units
 -- Layout: 1F = A-D (4 rooms, PHP4,000), 2F = E-H (4 rooms, PHP4,000), 3F = I-N (6 rooms, PHP3,500).
 -- 3F is deliberately kept as exactly I/J/K/L/M/N because RentApplication.jsx

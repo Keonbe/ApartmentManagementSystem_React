@@ -6,7 +6,7 @@ import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
   faHistory, faLayerGroup, faSync, faWrench,
-  faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive
+  faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive, faSpinner
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
@@ -96,6 +96,8 @@ const AdminUnits = () => {
   const [addUnitSubmitting, setAddUnitSubmitting] = useState(false);
   const [removingUnitId, setRemovingUnitId] = useState(null);
   const [unitActionError, setUnitActionError] = useState('');
+  const [unitToRemove, setUnitToRemove] = useState(null);
+  const [removeModalError, setRemoveModalError] = useState('');
   
   // Settings → Rental → Minimum Rent Duration.
   const [minLeaseDuration, setMinLeaseDuration] = useState(3);
@@ -274,28 +276,41 @@ const AdminUnits = () => {
   const closeAddModal = () => { setShowAddModal(false); setAddUnitError(''); unitErrors.setErrors({}); };
   const closeAssignModal = () => { setShowAssignModal(false); setLeaseError(''); assignErrors.setErrors({}); };
 
-  const handleRemoveUnit = async (unit) => {
-    if (removingUnitId) return;
-    const confirmed = window.confirm(
-      `Remove Unit ${unit.id} from active listings? This is allowed only for a vacant unit with no active tenancy or reservation. Historical records will be retained.`
-    );
-    if (!confirmed) return;
+  const promptRemoveUnit = (unit) => {
+    setUnitToRemove(unit);
+    setRemoveModalError('');
+  };
 
+  const closeRemoveModal = () => {
+    if (removingUnitId) return;
+    setUnitToRemove(null);
+    setRemoveModalError('');
+  };
+
+  const confirmRemoveUnit = async () => {
+    if (!unitToRemove || removingUnitId) return;
+    setRemoveModalError('');
     setUnitActionError('');
-    setRemovingUnitId(unit.id);
+    setRemovingUnitId(unitToRemove.id);
     try {
-      const response = await api.post('archive_room.php', { id: unit.id });
+      const response = await api.post('archive_room.php', {
+        id: unitToRemove.id,
+        roomId: unitToRemove.id,
+        room_id: unitToRemove.id
+      });
       if (!response.data.success) {
-        setUnitActionError(response.data.message || 'Failed to remove unit.');
+        setRemoveModalError(response.data.message || 'Failed to remove unit.');
         return;
       }
-      setUnits(current => current.filter(item => item.id !== unit.id));
-      if (selectedUnit?.id === unit.id) {
+      const removedId = unitToRemove.id;
+      setUnits(current => current.filter(item => item.id !== removedId));
+      if (selectedUnit?.id === removedId) {
         setShowDetailModal(false);
         setSelectedUnit(null);
       }
+      setUnitToRemove(null);
     } catch (error) {
-      setUnitActionError(apiErrorMessage(error, 'Failed to remove unit.'));
+      setRemoveModalError(apiErrorMessage(error, 'Failed to remove unit.'));
     } finally {
       setRemovingUnitId(null);
     }
@@ -484,7 +499,7 @@ const AdminUnits = () => {
                         <button
                           type="button"
                           disabled={removingUnitId !== null}
-                          onClick={() => handleRemoveUnit(unit)}
+                          onClick={() => promptRemoveUnit(unit)}
                           title={`Remove Unit ${unit.id} from active listings`}
                           className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-control px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -657,11 +672,70 @@ const AdminUnits = () => {
           </Modal>
       )}
 
+      {/* Remove Unit Confirmation Modal */}
+      {unitToRemove && (
+        <Modal
+          title={`Remove Unit ${unitToRemove.id}?`}
+          onClose={closeRemoveModal}
+          busy={removingUnitId !== null}
+          overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          className="w-full max-w-md rounded-card bg-white p-6 shadow-dialog space-y-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-base">
+              <FontAwesomeIcon icon={faBoxArchive} />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-title font-bold text-slate-800 m-0">Remove Unit {unitToRemove.id}?</h3>
+              <p className="text-body text-slate-500 m-0">
+                Are you sure you want to remove Unit <strong>{unitToRemove.id}</strong> from active listings?
+              </p>
+              <p className="text-label text-slate-400 m-0">
+                This is allowed only for vacant units with no active tenancy or reservation. Historical records and logs will be retained.
+              </p>
+            </div>
+          </div>
+
+          {removeModalError && (
+            <div role="alert" className="text-label font-medium text-red-700 bg-red-50 border border-red-200 rounded-control px-3.5 py-2.5">
+              {removeModalError}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              disabled={removingUnitId !== null}
+              onClick={closeRemoveModal}
+              className={btn('secondary', 'md')}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={removingUnitId !== null}
+              onClick={confirmRemoveUnit}
+              className={btn('danger', 'md')}
+            >
+              {removingUnitId !== null ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin className="mr-1.5" />
+                  <span>Removing…</span>
+                </>
+              ) : (
+                'Yes, remove unit'
+              )}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {/* Unit Detail Modal */}
       {showDetailModal && selectedUnit && (
         <UnitDetailModal
           unit={selectedUnit} onClose={() => { setShowDetailModal(false); setSelectedUnit(null); setShowExtendForm(false); setLeaseError(''); }}
           onAssign={() => { setShowDetailModal(false); setAssignForm({ ...emptyAssignForm, rent: String(selectedUnit.rent) }); setShowAssignModal(true); }}
+          onRemove={() => promptRemoveUnit(selectedUnit)}
           showExtendForm={showExtendForm} setShowExtendForm={setShowExtendForm} extendForm={extendForm} setExtendForm={setExtendForm} onExtendLease={handleExtendLease}
           minLeaseDuration={minLeaseDuration} leaseError={leaseError} setLeaseError={setLeaseError}
           extendErrors={extendErrors} extending={extending}
@@ -673,7 +747,7 @@ const AdminUnits = () => {
 };
 
 /* ─── Unit Detail Tabbed Modal Sub-Component ─── */
-const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError, extendErrors, extending, onUpdateSuccess }) => {
+const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError, extendErrors, extending, onUpdateSuccess }) => {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Unit status monitoring edit states
@@ -845,7 +919,12 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                     </div>
                   </div>
                   {unit.status === 'vacant' && (
-                    <button onClick={onAssign} className={btn('success', 'sm')}><FontAwesomeIcon icon={faUserPlus} /> Assign Tenant</button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={onAssign} className={btn('success', 'sm')}><FontAwesomeIcon icon={faUserPlus} /> Assign Tenant</button>
+                      {!unit.tenant && onRemove && (
+                        <button type="button" onClick={onRemove} className={btn('danger', 'sm')}><FontAwesomeIcon icon={faBoxArchive} /> Remove Unit</button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

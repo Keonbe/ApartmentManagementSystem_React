@@ -638,15 +638,15 @@ export default function RentApplication() {
                             <div className="rent-app-personal-grid grid grid-cols-1 md:grid-cols-4 gap-5">
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-firstName" className={LABEL_CLS}>{t('rent.firstName')}</label>
-                                    <input id="rent-firstName" type="text" value={firstName} maxLength={LIMITS.applicantName} disabled className={LOCKED_CLS} />
+                                    <input id="rent-firstName" type="text" value={firstName} maxLength={LIMITS.firstName} disabled className={LOCKED_CLS} />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-middleName" className={LABEL_CLS}>{t('rent.middleName')}</label>
-                                    <input id="rent-middleName" type="text" value={middleName} maxLength={LIMITS.applicantName} disabled className={LOCKED_CLS} />
+                                    <input id="rent-middleName" type="text" value={middleName} maxLength={LIMITS.middleName} disabled className={LOCKED_CLS} />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-lastName" className={LABEL_CLS}>{t('rent.lastName')}</label>
-                                    <input id="rent-lastName" type="text" value={lastName} maxLength={LIMITS.applicantName} disabled className={LOCKED_CLS} />
+                                    <input id="rent-lastName" type="text" value={lastName} maxLength={LIMITS.lastName} disabled className={LOCKED_CLS} />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-suffix" className={LABEL_CLS}>

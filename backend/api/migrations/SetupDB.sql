@@ -431,6 +431,11 @@ CREATE TABLE `users` (
   `role` varchar(20) DEFAULT 'user',
   `avatar_url` varchar(255) DEFAULT NULL,
   `is_archived` tinyint(1) NOT NULL DEFAULT 0,
+  `email_verified_at` datetime DEFAULT NULL,
+  `verification_token` varchar(64) DEFAULT NULL,
+  `login_otp` varchar(6) DEFAULT NULL,
+  `login_otp_expires_at` datetime DEFAULT NULL,
+  `login_otp_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email_address` (`email_address`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -452,8 +457,8 @@ CREATE TABLE `users` (
 -- --------------------------------------------------------
 
 -- 1. Default Admin User
-INSERT IGNORE INTO `users` (`first_name`, `last_name`, `email_address`, `password`, `role`) 
-VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin'); -- admin123
+INSERT IGNORE INTO `users` (`first_name`, `last_name`, `email_address`, `password`, `role`, `email_verified_at`) 
+VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin', CURRENT_TIMESTAMP); -- admin123
 
 -- 2. Initial Units
 -- Layout: 1F = A-D (4 rooms, PHP4,000), 2F = E-H (4 rooms, PHP4,000), 3F = I-N (6 rooms, PHP3,500).
@@ -1011,6 +1016,25 @@ CREATE TABLE IF NOT EXISTS `sessions` (
   PRIMARY KEY (`token`),
   KEY `fk_session_user` (`user_id`),
   CONSTRAINT `fk_session_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `trusted_devices`
+-- SHA-256 of the cookie a device holds after it passed the emailed sign-in code
+-- (login.php, verify_device.php), so it skips the code next time.
+--
+CREATE TABLE IF NOT EXISTS `trusted_devices` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `device_token` char(64) NOT NULL,
+  `user_agent` varchar(512) NOT NULL DEFAULT '',
+  `ip_address` varchar(45) NOT NULL DEFAULT '',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `last_used_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_trusted_device_token` (`device_token`),
+  KEY `idx_trusted_devices_user` (`user_id`),
+  CONSTRAINT `fk_trusted_devices_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --

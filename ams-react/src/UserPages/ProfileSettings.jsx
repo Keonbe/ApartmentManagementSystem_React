@@ -24,6 +24,7 @@ const GENDERS = ['Male', 'Female', 'Other'];
 // Names match profile.php's body keys, so a server field error lands on the input.
 const VALIDATORS = {
     firstName: (v) => checkPersonName(v, { label: translate('profile.firstNameLabel'), max: LIMITS.firstName }),
+    middleName: (v) => checkPersonName(v, { label: translate('reg.middleNameLabel') || 'Middle name', max: LIMITS.middleName, required: false }),
     lastName: (v) => checkPersonName(v, { label: translate('profile.lastNameLabel'), max: LIMITS.lastName }),
     suffix: (v) => checkPersonName(v, { label: translate('profile.suffixLabel'), max: LIMITS.suffix, required: false }),
     contactNo: (v) => checkPhMobile(v),
@@ -37,6 +38,7 @@ export default function ProfileSettings() {
     const [loggedInUser, setLoggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
 
     const [firstName, setFirstName] = useState(loggedInUser.first_name || '');
+    const [middleName, setMiddleName] = useState(loggedInUser.middle_name || '');
     const [lastName, setLastName] = useState(loggedInUser.last_name || '');
     const [suffix, setSuffix] = useState(loggedInUser.suffix || '');
     const [phoneRawNumber, setPhoneRawNumber] = useState(toPhLocal10(loggedInUser.contact_no));
@@ -84,6 +86,7 @@ export default function ProfileSettings() {
                 if (res.data.success && res.data.data) {
                     const data = res.data.data;
                     setFirstName(data.first_name || '');
+                    setMiddleName(data.middle_name || '');
                     setLastName(data.last_name || '');
                     setSuffix(data.suffix || '');
                     setGender(data.gender || '');
@@ -184,8 +187,8 @@ export default function ProfileSettings() {
         startCamera();
     };
 
-    const values = { firstName, lastName, suffix, contactNo: phoneRawNumber, email, gender };
-    const setters = { firstName: setFirstName, lastName: setLastName, suffix: setSuffix, email: setEmail, gender: setGender };
+    const values = { firstName, middleName, lastName, suffix, contactNo: phoneRawNumber, email, gender };
+    const setters = { firstName: setFirstName, middleName: setMiddleName, lastName: setLastName, suffix: setSuffix, email: setEmail, gender: setGender };
 
     const change = (name) => (e) => {
         setters[name](e.target.value);
@@ -214,11 +217,13 @@ export default function ProfileSettings() {
         const clean = {
             ...values,
             firstName: firstName.trim(),
+            middleName: middleName.trim(),
             lastName: lastName.trim(),
             suffix: suffix.trim(),
             email: normalizeEmail(email),
         };
         setFirstName(clean.firstName);
+        setMiddleName(clean.middleName);
         setLastName(clean.lastName);
         setSuffix(clean.suffix);
         setEmail(clean.email);
@@ -254,7 +259,7 @@ export default function ProfileSettings() {
                 oldEmail: loggedInUser.email_address,
                 email: clean.email,
                 firstName: clean.firstName,
-                middleName: loggedInUser.middle_name || '',
+                middleName: clean.middleName,
                 lastName: clean.lastName,
                 suffix: clean.suffix,
                 contactNo: fullContactNumber,
@@ -271,6 +276,7 @@ export default function ProfileSettings() {
                     ...loggedInUser,
                     email_address: clean.email,
                     first_name: clean.firstName,
+                    middle_name: clean.middleName,
                     last_name: clean.lastName,
                     suffix: clean.suffix,
                     contact_no: fullContactNumber,
@@ -445,7 +451,7 @@ export default function ProfileSettings() {
                     <form className="space-y-8" onSubmit={handleFormSubmit} noValidate>
                         <div className="space-y-4">
                             <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2 text-brand">{t('profile.personalDetails')}</h3>
-                            <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="profile-details-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="profile-firstName" className="text-sm font-bold text-slate-700">{t('profile.firstName')}</label>
                                     <input
@@ -460,6 +466,20 @@ export default function ProfileSettings() {
                                         required
                                     />
                                     <FieldError id="profile-firstName" error={form.errors.firstName} className="m-0" />
+                                </div>
+                                <div className="flex flex-col space-y-1.5">
+                                    <label htmlFor="profile-middleName" className="text-sm font-bold text-slate-700">{t('reg.middleName') || 'Middle Name'}</label>
+                                    <input
+                                        type="text"
+                                        {...form.fieldA11y('middleName')}
+                                        autoComplete="additional-name"
+                                        value={middleName}
+                                        maxLength={LIMITS.middleName}
+                                        onChange={change('middleName')}
+                                        onBlur={blur('middleName')}
+                                        className={INPUT_CLS + invalidCls(form.errors.middleName)}
+                                    />
+                                    <FieldError id="profile-middleName" error={form.errors.middleName} className="m-0" />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="profile-lastName" className="text-sm font-bold text-slate-700">{t('profile.lastName')}</label>

@@ -82,6 +82,11 @@ switch ($action) {
 
         if ($fn === '' || $ln === '' || $em === '') fail(422, "First name, last name, and email are required.");
         if (!filter_var($em, FILTER_VALIDATE_EMAIL)) fail(422, "Please enter a valid email address.");
+        if (mb_strlen($fn) > 30) fail(422, "First name must be 30 characters or fewer.");
+        if ($mn !== '' && mb_strlen($mn) > 50) fail(422, "Middle name must be 50 characters or fewer.");
+        if (mb_strlen($ln) > 30) fail(422, "Last name must be 30 characters or fewer.");
+        if ($sx !== '' && mb_strlen($sx) > 20) fail(422, "Suffix must be 20 characters or fewer.");
+        if (mb_strlen($em) > 190) fail(422, "Email address must be 190 characters or fewer.");
         if ($ph !== '') {
             $ph = normalize_ph_mobile($ph); // stored as +639XXXXXXXXX
             if ($ph === null) fail(422, "Invalid Philippine mobile number (e.g. +63 912 345 6789).");

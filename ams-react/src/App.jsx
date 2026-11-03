@@ -19,6 +19,7 @@ const InquiryForm = lazy(() => import('./UserPages/InquiryForm'));
 import Login from './UserPages/Login';
 const Registration = lazy(() => import('./UserPages/Registration'));
 const ResetPassword = lazy(() => import('./UserPages/ResetPassword'));
+const VerifyEmail = lazy(() => import('./UserPages/VerifyEmail'));
 const Services = lazy(() => import('./UserPages/Services'));
 const PayBills = lazy(() => import('./UserPages/PayBills'));
 const ParkingReservation = lazy(() => import('./UserPages/ParkingReservation'));
@@ -322,6 +323,7 @@ function AppContent() {
         <Route path="/login" element={<AuthThemeLayout><Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/></AuthThemeLayout>} />
         <Route path="/register" element={<AuthThemeLayout><Registration onLoginRedirect={() => navigate('/login')} onHomeRedirect={() => navigate('/home')} /></AuthThemeLayout>} />
         <Route path="/reset-password" element={<AuthThemeLayout><ResetPassword /></AuthThemeLayout>} />
+        <Route path="/verify-email" element={<AuthThemeLayout><VerifyEmail /></AuthThemeLayout>} />
 
         {/* ADMIN WORKSPACES */}
         <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />

@@ -11,8 +11,9 @@ const summary = (token, query = {}) => api('my_room.php', { token, query: { summ
 let maria, newcomer;
 
 beforeAll(async () => {
-  await q(`INSERT INTO users (id, first_name, last_name, contact_no, gender, email_address, password, role)
-           VALUES (90, 'Nina', 'Newcomer', '+63 9171234590', 'Female', 'nina.newcomer@gmail.com', ?, 'user')`, [HASH]);
+  // Verified: login.php refuses an address that has not been confirmed.
+  await q(`INSERT INTO users (id, first_name, last_name, contact_no, gender, email_address, password, role, email_verified_at)
+           VALUES (90, 'Nina', 'Newcomer', '+63 9171234590', 'Female', 'nina.newcomer@gmail.com', ?, 'user', NOW())`, [HASH]);
   [maria, newcomer] = await Promise.all([loginAs('maria'), login('nina.newcomer@gmail.com', 'tenant123')]);
 });
 
