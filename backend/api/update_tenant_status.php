@@ -464,6 +464,8 @@ if ($id > 0 && !empty($status)) {
                     $notif_msg = "Your move-in to Unit $room has been confirmed.";
                 } elseif ($status === 'Action Required') {
                     $notif_msg = "Your rent application for Unit $room needs more information from you.";
+                } elseif ($status === 'Approved') {
+                    $notif_msg = "Your rent application for Unit $room has been approved. Your rent contract is ready: open Track Application, read and sign it, upload the signed copy, then pay the move-in invoice.";
                 } else {
                     $notif_msg = "Your rent application for Unit $room has been " . strtolower($status === 'Declined' ? 'Rejected' : $status) . ".";
                 }

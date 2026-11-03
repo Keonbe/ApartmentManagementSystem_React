@@ -58,8 +58,8 @@
   * Shared occupancy responsibilities.
   * Separation of occupants.
   * Replacement procedures.
-* [ ] Lease extension history tab in `AdminUnits` detail modal.
-* [ ] Configurable minimum lease duration (default: 3 months — currently enforced at 6 months in `AdminUnits`).
+* [x] Lease extension history tab in `AdminUnits` detail modal. *(done — the unit detail shows each occupancy with its previous extensions)*
+* [x] Configurable minimum lease duration. *(done — Settings → Rental `min_lease_duration`, default 3 months, enforced in `rent_application.php` and `extend_lease.php`)*
 
 ---
 
@@ -212,8 +212,8 @@ Generate reports by:
 * [x] Lease history.
 * [x] DB-backed room CRUD via `get_rooms.php` / `update_room.php`.
 * [x] Room sync from approved rent applications (`update_tenant_status.php`).
-* [ ] Lease extension history tab in unit detail modal.
-* [ ] Configurable minimum lease duration (default: 3 months).
+* [x] Lease extension history tab in unit detail modal. *(done, see above)*
+* [x] Configurable minimum lease duration (default: 3 months). *(done, see above)*
 
 ---
 

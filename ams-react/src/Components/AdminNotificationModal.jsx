@@ -20,6 +20,7 @@ const TYPE_CONFIG = {
   occupancy_request: { label: 'Occupancy Request', icon: faUsers, color: 'bg-purple-100 text-purple-600', badge: 'bg-purple-100 text-purple-700' },
   household_request: { label: 'Household Change', icon: faUsers, color: 'bg-violet-100 text-violet-600', badge: 'bg-violet-100 text-violet-700' },
   lease_extension_request: { label: 'Rent Extension', icon: faCalendarPlus, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+  new_user: { label: 'New Account', icon: faUsers, color: 'bg-blue-100 text-blue-600', badge: 'bg-blue-100 text-blue-700' },
   rent_application: { label: 'Rent Application', icon: faFileContract, color: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' },
   maintenance_request: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-100 text-amber-700', badge: 'bg-amber-100 text-amber-700' },
   parking_reservation: { label: 'Parking', icon: faCar, color: 'bg-teal-100 text-teal-600', badge: 'bg-teal-100 text-teal-700' },

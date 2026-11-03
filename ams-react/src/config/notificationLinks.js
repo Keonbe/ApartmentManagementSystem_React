@@ -3,6 +3,7 @@
 // backend/config.php). A type missing from a map simply has no link.
 
 export const TENANT_NOTIFICATION_LINKS = {
+  welcome: { path: '/preview', label: 'Browse Units' },
   rent_due: { path: '/pay-bills', label: 'Pay Bill' },
   overdue: { path: '/pay-bills', label: 'Pay Bill' },
   billing: { path: '/pay-bills', label: 'View Bill' },
@@ -29,6 +30,7 @@ export const TENANT_NOTIFICATION_LINKS = {
 
 export const ADMIN_NOTIFICATION_LINKS = {
   rent_application: '/admin-applications',
+  new_user: '/admin-users',
   maintenance_request: '/admin-maintenance',
   cctv_request: '/admin-cctv',
   parking_reservation: '/admin-parking',
@@ -51,6 +53,7 @@ export const ADMIN_NOTIFICATION_LINKS = {
 
 export const ADMIN_NOTIFICATION_TARGETS = {
   rent_application: { path: '/admin-applications', label: 'Go to Applications' },
+  new_user: { path: '/admin-users', label: 'Go to Users' },
   maintenance_request: { path: '/admin-maintenance', label: 'Go to Maintenance' },
   cctv_request: { path: '/admin-cctv', label: 'Go to CCTV' },
   parking_reservation: { path: '/admin-parking', label: 'Go to Parking' },

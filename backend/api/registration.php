@@ -63,6 +63,15 @@ $stmt->bind_param("sssssss", $first_name, $middle_name, $last_name, $suffix, $em
 if ($stmt->execute()) {
     $new_user_id = (int)$stmt->insert_id;
     log_activity($conn, $new_user_id, 'user', 'Account Registered', "New tenant account #$new_user_id ($email_address)", $new_user_id);
+    // Best effort: the account already exists, so a notification problem must not fail the sign-up.
+    try {
+        create_notification($conn, $new_user_id, 'welcome', 'Welcome to AMS',
+            "Hi $first_name, your account is ready. Verify your email, then browse the available units and send a rent application.");
+        notify_admins_info($conn, 'new_user', 'New Tenant Account',
+            trim("$first_name $last_name") . " ($email_address) created an account.", "new_user:$new_user_id");
+    } catch (Throwable $e) {
+        error_log('[AMS] registration notifications failed: ' . $e->getMessage());
+    }
     require_once __DIR__ . '/auth_email.php';
     $frontend_url = rtrim($_SERVER['HTTP_ORIGIN'] ?? 'https://www.angcanan-ams.com', '/');
     $verifyLink = $frontend_url . '/verify-email?token=' . rawurlencode($verification_token);

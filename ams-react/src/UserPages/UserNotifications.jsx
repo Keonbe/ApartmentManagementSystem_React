@@ -21,6 +21,7 @@ import fileUrl from '../api/fileUrl';
 const typeConfig = {
   warning: { label: 'notifications.type.warning', icon: faExclamationTriangle, color: 'bg-red-50 text-red-500 border-red-100', badge: 'bg-red-100 text-red-700' },
   action: { label: 'notifications.type.action', icon: faBullhorn, color: 'bg-indigo-50 text-indigo-500 border-indigo-100', badge: 'bg-indigo-100 text-indigo-700' },
+  welcome: { label: 'notifications.type.welcome', icon: faInfoCircle, color: 'bg-emerald-50 text-emerald-600 border-emerald-100', badge: 'bg-emerald-100 text-emerald-700' },
   info: { label: 'notifications.type.info', icon: faInfoCircle, color: 'bg-blue-50 text-blue-500 border-blue-100', badge: 'bg-blue-100 text-blue-700' },
   maintenance_update: { label: 'notifications.type.maintenance_update', icon: faWrench, color: 'bg-amber-50 text-amber-500 border-amber-100', badge: 'bg-amber-100 text-amber-700' },
   application_update: { label: 'notifications.type.application_update', icon: faFileContract, color: 'bg-indigo-50 text-indigo-500 border-indigo-100', badge: 'bg-indigo-100 text-indigo-700' },
