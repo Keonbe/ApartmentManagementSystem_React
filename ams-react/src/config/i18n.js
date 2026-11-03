@@ -76,6 +76,7 @@ const translations = {
 
     // --- Preview ---
     'preview.title': 'Apartment in Silang',
+    'preview.featured': 'Featured Listing',
     'preview.location': 'Maguyam Silang, Cavite',
     'preview.parking': 'Motorcycle Parking',
     'preview.bathroom': 'Bathroom per Room',
@@ -87,6 +88,20 @@ const translations = {
     'preview.inquire': 'Inquire',
     'preview.units': '{n} units',
     'preview.vacant': 'Vacant',
+    'preview.availableFrom': 'Available {date}',
+    'preview.comingSoon': 'Coming Soon',
+    'preview.tabAvailable': 'Available',
+    'preview.roomLists': 'Room lists',
+    'preview.upcomingNote': 'These units free up soon. Apply now for a move-in on or after the date shown, or send an inquiry.',
+    'preview.sortBy': 'Sort by',
+    'houseRules.prev': 'Previous rules',
+    'houseRules.stripTitle': 'Rules & Policies',
+    'houseRules.viewAllShort': 'View All',
+    'houseRules.next': 'Next rules',
+    'preview.sortRoom': 'Room',
+    'preview.sortPriceLow': 'Price: low to high',
+    'preview.sortPriceHigh': 'Price: high to low',
+    'preview.sortSoonest': 'Available soonest',
 
     // --- Inquiry ---
     'inquiry.heading': 'Send an Inquiry',
@@ -1235,6 +1250,7 @@ const translations = {
 
     // --- Preview ---
     'preview.title': 'Apartment sa Silang',
+    'preview.featured': 'Tampok na Listahan',
     'preview.location': 'Maguyam Silang, Cavite',
     'preview.parking': 'Paradahan ng Motor',
     'preview.bathroom': 'Banyo sa Bawat Kwarto',
@@ -1246,6 +1262,20 @@ const translations = {
     'preview.inquire': 'Magtanong',
     'preview.units': '{n} kwarto',
     'preview.vacant': 'Bakante',
+    'preview.availableFrom': 'Bakante sa {date}',
+    'preview.comingSoon': 'Malapit nang Mabakante',
+    'preview.tabAvailable': 'Bakante',
+    'preview.roomLists': 'Mga listahan ng kwarto',
+    'preview.upcomingNote': 'Malapit nang mabakante ang mga kwartong ito. Mag-apply na para sa paglipat sa o pagkatapos ng petsang nakasaad, o magpadala ng inquiry.',
+    'preview.sortBy': 'Ayusin ayon sa',
+    'houseRules.prev': 'Mga naunang patakaran',
+    'houseRules.stripTitle': 'Mga Patakaran',
+    'houseRules.viewAllShort': 'Tingnan Lahat',
+    'houseRules.next': 'Mga susunod na patakaran',
+    'preview.sortRoom': 'Kwarto',
+    'preview.sortPriceLow': 'Presyo: mababa pataas',
+    'preview.sortPriceHigh': 'Presyo: mataas pababa',
+    'preview.sortSoonest': 'Pinakamaagang mabakante',
 
     // --- Inquiry ---
     'inquiry.heading': 'Magpadala ng Katanungan',
