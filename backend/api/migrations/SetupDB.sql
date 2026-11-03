@@ -1169,7 +1169,7 @@ CREATE TABLE IF NOT EXISTS `guest_messages` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- One-time "continue your conversation" links for guest chats, emailed to the
--- thread's address; only the sha256 of the code is stored (2026_10_guest_chat_links.sql).
+-- thread's address; only the sha256 of the code is stored (2026_11_cctv_auth_chat_billing.sql).
 CREATE TABLE IF NOT EXISTS `guest_chat_links` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `inquiry_id` int(11) NOT NULL,

@@ -3219,7 +3219,7 @@ Seed: `seeds/seed_defense_scenarios.sql` (checklist in `docs/date_dependent_test
 
 ## 22. Guest Inquiry Chat Links (2026-10-31)
 
-Checklist 7.8. Migration: `2026_10_guest_chat_links.sql`. Automated: `tests/api/guest_chat_links.test.js`. Emails need Settings → Notifications email on; with the `log` driver they land in `backend/logs/notification_outbox/` (the link is in the HTML).
+Checklist 7.8. Migration: `2026_11_cctv_auth_chat_billing.sql`. Automated: `tests/api/guest_chat_links.test.js`. Emails need Settings → Notifications email on; with the `log` driver they land in `backend/logs/notification_outbox/` (the link is in the HTML).
 
 | ID | Type | Step | Expected |
 |---|---|---|---|
