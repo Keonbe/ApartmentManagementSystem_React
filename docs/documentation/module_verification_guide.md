@@ -344,13 +344,9 @@ Two consequences that will otherwise waste your time:
 
 ### 3.4 The tenant room gate (precondition for most tenant tests)
 
-`AppContent` re-fetches `my_room.php` **on every route change** and admits a tenant only when **all** of these hold:
+`AppContent` asks `my_room.php?summary=1` (one query: `{ success, status }`, `status` null when the user never applied) and admits a tenant only when the latest application's `status` ∈ `('active', 'pending-move-out')` (case-insensitive). An `Approved` applicant, even with the first payment confirmed, stays on Track Application until the admin confirms move-in. The answer is cached per user and tab (`sessionStorage` `ams_has_room` = `<userId>:<tenant|applicant|none>:<ms>`) and asked again on a page change only once it is 60 s old, after a new application, or when a new notice arrives. Sign-in fills it from the full `my_room.php`. `none` also hides Track Application from the TopBar.
 
-- `success === true` and `data` is present
-- `data.status` ∈ `('Approved', 'active', 'pending-move-out')` (case-insensitive)
-- `data.has_pending_first_payment === false`
-
-`my_room.php` returns only the **most recent** application (`ORDER BY created_at DESC LIMIT 1`), and sets `has_pending_first_payment = true` when an invoice exists for that application with `security_deposit > 0` and status in `('pending','pending-verification')`.
+`my_room.php` returns only the **most recent** application (`ORDER BY created_at DESC LIMIT 1`), and sets `has_pending_first_payment = true` when an invoice exists for that application with `security_deposit > 0` and status in `('pending','pending-verification')`. The contract-expiry sweep runs on the full read only, not on `?summary=1`.
 
 A logged-in tenant is therefore **locked out** of `/my-room`, `/pay-bills`, `/services` etc. when:
 
@@ -2629,7 +2625,7 @@ flowchart LR
 6. **Admin — flag / clear eviction** · Overdue-payment banner or per-contract panel → `flag` (only from `active`) / `clear` (only from `eviction-pending`, target status date-derived).
 7. **Admin — terminate early** · Contracts preview → *Terminate Lease* (reason required, confirmation prompt since it ends the tenancy) → `update_contract_status.php {action:'terminate', reason}` → contract `terminated`, tenant moved out, room vacated, pending invoices cancelled, parking/visitor requests released.
 8. **Tenant — request an extension** · `/my-room` → `extend_lease.php` → `lease_extension_request` notification. **Admin — approve** · `/admin-notifications` → `process_tenant_request.php` extends `lease_contracts.lease_end` in place and records the extension in `lease_renewals` (reactivating an `expired` contract if the tenant is continuing occupancy). Approval re-checks the same rules as the request (contract `active`/`expired`, new end within `max_rent_ahead_months`; `409` otherwise) and clears `renewal_reminder_sent_at`, so the new term gets its own rent-end reminder (audit L6). *Units → Extend Rent* (`update_room.php` `lease_end`) is held to the same horizon (`422`).
-9. **System — daily sweep** · `expire_lapsed_contracts()` expires any `active` contract whose `lease_end` has passed and notifies the tenant; `send_lease_end_reminders()` notifies a tenant once, `lease_end_reminder_days` (default 30) before `lease_end`, with a link to request an extension.
+9. **System — daily sweep** · `expire_lapsed_contracts()` expires any `active` contract whose `lease_end` has passed and notifies the tenant; `send_lease_end_reminders()` notifies a tenant once, `lease_end_reminder_days` (default 30) before `lease_end`, with a link to request an extension (and the last day to ask, when Other Settings → Contract End sets `extension_deadline_days`). That tab can switch the reminder off (`lease_end_reminders_enabled`; nothing is claimed while off) and its email / SMS separately; a tenant's own extension request is refused after the deadline (`extension_deadline_reason()`), the admin's Extend Rent is not.
 10. **Admin — edit the contract** · sidebar → *Contracts* → *Contract Template Editor* tab (`/admin-contracts?tab=editor`; the old `/admin-contract-editor` URL redirects there). *Clauses & Terms*: bilingual sections/clauses, add/remove/reorder, placeholder chips insert `{{key}}` at the cursor. *Details & Payments*: landlord details, payment accounts, custom values. *Preview* renders sample data; *History* loads an old version back into the editor. Save → `save_contract_template.php` (new version). Contracts issued afterwards pin it (`contract_template_pin_version_id()`, called by `update_tenant_status.php` and `create_contract.php`; the first pin before any save writes the default as version 1).
 
 ### 15.4 Test Conditions
