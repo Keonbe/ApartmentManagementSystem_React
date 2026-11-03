@@ -7,6 +7,7 @@ import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/login.responsive.css';
 import { LIMITS, checkEmail, normalizeEmail } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import { roomKindFor, landingPathFor, writeRoomCache } from '../config/tenantHome';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { invalidCls } from '../Components/form/formHelpers';
@@ -37,10 +38,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     }, { idPrefix: 'login-' });
     const forgot = useFieldErrors({ email: emailRule }, { idPrefix: 'forgot-' });
 
+    // Leaving a field checks what was typed; an empty field is only reported
+    // when the form is submitted.
     const blurEmail = (form) => {
         const clean = normalizeEmail(email);
         setEmail(clean);
-        form.validateField('email', { email: clean });
+        if (clean) form.validateField('email', { email: clean });
     };
 
     const handleSubmit = async (e) => {
@@ -74,14 +77,16 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 if (res.data.role === 'admin') {
                     onAdminRedirect();
                 } else {
+                    // Tenants start on My Room, applicants with an application in
+                    // progress on Track Application, everyone else on Home.
                     try {
                         const roomRes = await api.get(`/my_room.php?email=${encodeURIComponent(res.data.user.email_address || '')}`);
-                        if (roomRes.data.success && roomRes.data.data) {
-                            const status = roomRes.data.data.status?.toLowerCase();
-                            if (['pending', 'pending review', 'approved', 'action required', 'pending deposit'].includes(status) || roomRes.data.data.has_pending_first_payment) {
-                                navigate('/track-application', { replace: true });
-                                return;
-                            }
+                        const room = roomRes.data.success ? roomRes.data.data : null;
+                        writeRoomCache(res.data.user.id, roomKindFor(room?.status));
+                        const target = landingPathFor(room);
+                        if (target !== '/home') {
+                            navigate(target, { replace: true });
+                            return;
                         }
                     } catch (err) {
                         console.error("Failed to check pending status", err);
@@ -243,7 +248,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                         required
                                         value={password}
                                         onChange={(e) => { setPassword(e.target.value); login.clearError('password'); }}
-                                        onBlur={() => login.validateField('password', { password })}
+                                        onBlur={() => password && login.validateField('password', { password })}
                                     />
                                     <label
                                         htmlFor="login-password"

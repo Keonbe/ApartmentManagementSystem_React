@@ -13,6 +13,7 @@
 import api from '../api/axiosConfig';
 import { HOME_CONTENT_DEFAULTS, parseHomeContent } from './homeContent';
 import { SCHEMA_DEFAULTS, parseSchemaSettings, encodeSchemaSettings } from './settingsSchema';
+import { PREVIEW_HERO_DEFAULTS, parsePreviewHero } from './previewHero';
 
 const DEFAULTS = {
   ...SCHEMA_DEFAULTS,
@@ -34,6 +35,9 @@ const DEFAULTS = {
 
   // Home page text (Other Settings → Home Page); see config/homeContent.js.
   homeContent: HOME_CONTENT_DEFAULTS,
+
+  // Preview page hero (Other Settings → Preview Page); see config/previewHero.js.
+  previewHero: PREVIEW_HERO_DEFAULTS
 };
 
 // A whole number within [min, max]; anything else (missing, garbled) is the
@@ -84,6 +88,7 @@ export const getSystemSettings = async ({ strict = false } = {}) => {
         parkingAllowedVehicleTypes: parseList(dbSettings.parking_allowed_vehicle_types, DEFAULTS.parkingAllowedVehicleTypes),
         ...parseGlassAppearance(dbSettings),
         homeContent: parseHomeContent(dbSettings.home_content),
+        previewHero: parsePreviewHero(dbSettings.preview_hero),
       };
     }
     if (strict) throw new Error(response.data?.message || 'The settings did not load.');
@@ -108,6 +113,7 @@ export const saveSystemSettings = async (settings) => {
       glass_blur: String(settings.glassBlur ?? DEFAULTS.glassBlur),
       glass_tint: settings.glassTint || DEFAULTS.glassTint,
       home_content: parseHomeContent(settings.homeContent),
+      preview_hero: parsePreviewHero(settings.previewHero),
     };
     await api.post('update_system_settings.php', payload);
   } catch (e) {

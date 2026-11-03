@@ -22,19 +22,112 @@
     align-items: center !important;
     justify-content: center !important;
   }
-
-  .topbar-mobile-drawer {
-    animation: slideDownMobileNav 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
 }
 
-@keyframes slideDownMobileNav {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* ---------- Desktop links: the pill under the current page ---------- */
+.topbar-nav-pill {
+  transition:
+    transform 0.42s cubic-bezier(0.34, 1.25, 0.64, 1),
+    width 0.42s cubic-bezier(0.34, 1.25, 0.64, 1),
+    opacity 0.2s ease;
+}
+
+/* ---------- Menus open and close (TopBar.jsx usePresence) ---------- */
+/* Account menu and bell dropdown grow out of their button, top right. */
+.topbar-pop {
+  transform-origin: top right;
+  animation: topbarPopIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.topbar-pop[data-closing] {
+  animation: topbarPopOut 0.16s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+/* Their items follow a beat behind. */
+.topbar-menu-stagger > * {
+  animation: topbarItemIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.topbar-menu-stagger > *:nth-child(2) { animation-delay: 25ms; }
+.topbar-menu-stagger > *:nth-child(3) { animation-delay: 50ms; }
+.topbar-menu-stagger > *:nth-child(4) { animation-delay: 75ms; }
+.topbar-menu-stagger > *:nth-child(5) { animation-delay: 100ms; }
+.topbar-menu-stagger > *:nth-child(n + 6) { animation-delay: 125ms; }
+
+[data-closing] .topbar-menu-stagger > *,
+.topbar-menu-stagger[data-closing] > * {
+  animation: none;
+}
+
+/* Phone drawer drops from the bar and lifts away when closed. */
+.topbar-mobile-drawer {
+  transform-origin: top center;
+  animation: topbarDrawerIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.topbar-mobile-drawer[data-closing] {
+  animation: topbarDrawerOut 0.16s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+@keyframes topbarPopIn {
+  from { opacity: 0; transform: translate3d(0, -8px, 0) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes topbarPopOut {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translate3d(0, -6px, 0) scale(0.96); }
+}
+
+@keyframes topbarItemIn {
+  from { opacity: 0; transform: translate3d(0, -4px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes topbarDrawerIn {
+  from { opacity: 0; transform: translate3d(0, -10px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes topbarDrawerOut {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translate3d(0, -10px, 0); }
+}
+
+/* ---------- Notification bell ---------- */
+/* The count pops in whenever it changes, and a halo pulses out three times. */
+.topbar-badge {
+  animation: topbarBadgePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.topbar-badge-halo {
+  opacity: 0;
+  animation: topbarBadgeHalo 1.6s cubic-bezier(0, 0, 0.2, 1) 0.2s 3;
+}
+
+/* A new notice rings the bell. */
+.topbar-bell-ring {
+  transform-origin: 50% 8%;
+  animation: topbarBellRing 0.9s ease-in-out;
+}
+
+@keyframes topbarBadgePop {
+  0%   { transform: scale(0.3); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes topbarBadgeHalo {
+  0%   { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes topbarBellRing {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(16deg); }
+  30% { transform: rotate(-14deg); }
+  45% { transform: rotate(10deg); }
+  60% { transform: rotate(-6deg); }
+  75% { transform: rotate(3deg); }
 }

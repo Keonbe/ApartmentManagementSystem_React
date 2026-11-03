@@ -231,13 +231,15 @@
 .user-visitors-root,
 .view-contract-root {
   min-height: calc(100dvh - 76px);
-  overflow-x: hidden;
+  /* clip, not hidden: hidden turns the page root into a scroll container, which
+     breaks position: sticky inside it (the Preview map). */
+  overflow-x: clip;
 }
 
 .login-page-root,
 .registration-page-root {
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 @supports not (height: 100dvh) {

@@ -255,6 +255,16 @@ if ($id > 0 && !empty($status)) {
                 $room_stmt->close();
 
                 if (!$room_claimed) {
+                    // An application for an upcoming unit (Preview's "Coming Soon")
+                    // waits until the current tenant has moved out.
+                    $state_stmt = $conn->prepare("SELECT status FROM rooms WHERE id = ?");
+                    $state_stmt->bind_param("s", $room_name);
+                    $state_stmt->execute();
+                    $state = $state_stmt->get_result()->fetch_assoc()['status'] ?? '';
+                    $state_stmt->close();
+                    if ($state === 'occupied') {
+                        throw new Exception("Room $room_name still has a tenant. Approve this application after they move out and the room is vacant.");
+                    }
                     throw new Exception("Room $room_name is no longer available — it may have just been assigned to another tenant.");
                 }
 

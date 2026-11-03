@@ -77,7 +77,8 @@ body {
   padding: 0;
   min-width: 100%;
   min-height: 100vh;
-  overflow-x: hidden;
+  /* clip, not hidden: no scroll container, so position: sticky keeps working. */
+  overflow-x: clip;
 }
 
 /* FIXED CONTAINER:

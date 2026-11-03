@@ -1472,6 +1472,12 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('glass_tint', '#0f172a'),
 -- Home page text (Other Settings -> Home Page): '' text = the app's own wording.
 ('home_content', '{"badge":{"show":true,"en":"","fil":""},"heading":{"show":true,"en":"","fil":""},"location":{"show":true,"en":"","fil":""},"description":{"show":true,"en":"","fil":""}}'),
+('preview_hero', '{"image":"","badge":{"show":true,"en":"","fil":""},"title":{"show":true,"en":"","fil":""},"location":{"show":true,"en":"","fil":""},"features":[{"en":"Motorcycle Parking","fil":"Paradahan ng Motor"},{"en":"Bathroom per Room","fil":"Banyo sa Bawat Kwarto"}]}'),
+('extension_deadline_days', '0'),
+('lease_end_reminders_enabled', '1'),
+('lease_end_reminder_email', '1'),
+('lease_end_reminder_sms', '1'),
+('upcoming_rooms_enabled', '1'),
 ('late_fee_enabled', 'false'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),

@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useReducer, useCallback, useMemo, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
@@ -8,7 +8,9 @@ import ChatWidget from './Components/ChatWidget';
 // Components
 import TopBar from './Components/TopBar';
 import ServiceRouteGuard from './Components/ServiceRouteGuard';
-import { UserThemeScope } from './Components/UserTheme';
+import { UserThemeScope, ThemePicker, FloatingLangSwitch } from './Components/UserTheme';
+import { useTheme } from './config/theme';
+import { readRoomCache, writeRoomCache, roomKindFor, ROOM_RECHECK_MS, RoomStatusContext } from './config/tenantHome';
 
 // User Pages
 import Home from './UserPages/Home';
@@ -105,13 +107,7 @@ function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
   }
 
   // Hold off on redirecting until the backend room check completes!
-  if (isCheckingRoom) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center bg-slate-900 text-white font-bold">
-        Loading session...
-      </div>
-    );
-  }
+  if (isCheckingRoom) return <SessionLoading />;
   
   if (!hasRentedRoom) {
     return <Navigate to="/home" replace />;
@@ -153,7 +149,8 @@ function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
         username={username || "Guest"}
         onLoginClick={() => navigate('/login')}
       />
-      {/* overflow-x-clip, not hidden: hidden makes <main> a scroll container and breaks position: sticky inside pages */}
+      {/* clip, not hidden: hidden makes <main> a scroll container, and sticky
+          children (the Preview map) would stick to it instead of the window. */}
       <main className="w-full flex-grow flex flex-col justify-start overflow-x-clip">
         {/* Keyed by path so each page plays the entrance animation (ut-route in themes.user.css). */}
         <div key={location.pathname} className="ut-route w-full flex-grow flex flex-col">
@@ -171,60 +168,92 @@ function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
 }
 
 // Sign-in, registration and password reset have no TopBar, but follow the theme too.
+// They offer Light and Dark only; a browser set to Glass sees them in Dark.
 function AuthThemeLayout({ children }) {
   const location = useLocation();
+  const { theme } = useTheme();
   return (
-    <UserThemeScope className="w-full min-h-screen flex flex-col">
+    <UserThemeScope force={theme === 'glass' ? 'dark' : undefined} className="w-full min-h-screen flex flex-col">
       <div key={location.pathname} className="ut-route w-full flex-grow flex flex-col">{children}</div>
+      {/* These pages have no TopBar, so the language and theme switches float top-right. */}
+      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-40 flex items-center gap-2">
+        <FloatingLangSwitch />
+        <ThemePicker variant="floating" />
+      </div>
     </UserThemeScope>
   );
 }
 
+// Home is for guests and applicants. A tenant's home is My Room, so a tenant
+// who opens Home (a link, the address bar, "/") is sent there instead.
+function HomeRoute({ hasRentedRoom, isCheckingRoom, children }) {
+  const user = currentUser();
+  if (!user || user.role === 'admin') return children;
+  if (isCheckingRoom) return <SessionLoading />;
+  if (hasRentedRoom) return <Navigate to="/my-room" replace />;
+  return children;
+}
+
+const currentUser = () => JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "null");
+
+const SessionLoading = () => (
+  <div className="w-full h-screen flex items-center justify-center bg-slate-900 text-white font-bold">
+    Loading session...
+  </div>
+);
+
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const [hasRentedRoom, setHasRentedRoom] = useState(false);
-  // NEW: Track status loading to hold route evaluation
-  const [isCheckingRoom, setIsCheckingRoom] = useState(true);
 
+  // The signed-in user's room check lives in this tab's cache (tenantHome.js),
+  // read on every render so the TopBar and the Home redirect are right on first
+  // paint; a server answer bumps roomVersion to re-render.
+  const user = currentUser();
+  const isAdmin = user?.role === 'admin';
+  const userId = user?.id;
+  const [roomVersion, bumpRoomVersion] = useReducer((n) => n + 1, 0);
+  const roomKind = user && !isAdmin ? readRoomCache(userId)?.kind ?? null : null;
+  const hasRentedRoom = isAdmin || roomKind === 'tenant';
+  const hasApplication = roomKind === 'tenant' || roomKind === 'applicant';
+  // Guards wait only until this user has been checked once, not on every
+  // recheck (that used to swap each page for "Loading session..." on navigation).
+  const isCheckingRoom = !!user && !isAdmin && roomKind === null;
+
+  // Asked again on a page change only once the last answer is ROOM_RECHECK_MS
+  // old, through my_room.php's one-query summary. It used to fetch the whole
+  // room (contract sweep included) on every page change.
   useEffect(() => {
-    const checkRoomStatus = async () => {
-      setIsCheckingRoom(true); // Begin check
-      const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
-      
-      if (!loggedInUserStr) {
-        setHasRentedRoom(false);
-        setIsCheckingRoom(false);
-        return;
-      }
-      
-      const loggedInUser = JSON.parse(loggedInUserStr);
-      if (loggedInUser.role === 'admin') {
-        setHasRentedRoom(true);
-        setIsCheckingRoom(false);
-        return;
-      }
-      
-      try {
-        const res = await api.get(`/my_room.php?email=${encodeURIComponent(loggedInUser.email_address || '')}`);
+    if (userId == null || isAdmin) return;
+    const cached = readRoomCache(userId);
+    if (cached && Date.now() - cached.at < ROOM_RECHECK_MS) return;
+    api.get('/my_room.php', { params: { summary: 1 } })
+      .then((res) => {
         // Only a confirmed move-in makes the user a tenant. An Approved applicant —
         // even one whose first payment is confirmed — stays on Track Application
         // until the admin confirms occupancy (status 'active').
-        if (res.data.success && res.data.data && ['active', 'pending-move-out'].includes(res.data.data.status?.toLowerCase())) {
-          setHasRentedRoom(true);
-        } else {
-          setHasRentedRoom(false);
-        }
-      } catch (err) {
+        writeRoomCache(userId, roomKindFor(res.data.success ? res.data.status : null));
+        bumpRoomVersion();
+      })
+      .catch((err) => {
         console.error("Error checking room status:", err);
-        setHasRentedRoom(false);
-      } finally {
-        setIsCheckingRoom(false); // Complete check
-      }
-    };
-    checkRoomStatus();
-  }, [location.pathname]);
+        // Never checked: release the guards (as no room); otherwise keep the last answer.
+        if (!readRoomCache(userId)) {
+          writeRoomCache(userId, 'none');
+          bumpRoomVersion();
+        }
+      });
+  }, [location.pathname, userId, isAdmin, roomVersion]);
+
+  // A new application, or a new notice (it may be a move-in confirmation),
+  // asks again now instead of waiting out the recheck time.
+  const refreshRoomStatus = useCallback(() => {
+    const cached = readRoomCache(userId);
+    if (!cached) return;
+    writeRoomCache(userId, cached.kind, 0);
+    bumpRoomVersion();
+  }, [userId, bumpRoomVersion]);
+  const roomStatus = useMemo(() => ({ hasApplication, refreshRoomStatus }), [hasApplication, refreshRoomStatus]);
 
   // Whether the chat widget is mounted is read from storage at render time. A
   // guest chat key stored or removed without a route change (emailed link
@@ -256,13 +285,14 @@ function AppContent() {
   };
 
   return (
+    <RoomStatusContext.Provider value={roomStatus}>
     <ChatProvider>
       <>
       <Suspense fallback={null}>
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
+        <Route path="/home" element={<HomeRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={user?.first_name} /></BaseAppLayout></HomeRoute>} />
         <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} onInquireClick={handleInquireTrigger} /></BaseAppLayout>} />
         <Route path="/inquire" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout>} />
         
@@ -335,6 +365,7 @@ function AppContent() {
             : <UserThemeScope force={location.pathname === '/home' ? 'glass' : undefined} backdrop={false} className="contents"><ChatWidget /></UserThemeScope>)}
       </>
     </ChatProvider>
+    </RoomStatusContext.Provider>
   );
 }
 

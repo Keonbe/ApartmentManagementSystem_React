@@ -148,11 +148,14 @@ function sms_status_update_template($request_type, $request_label, $new_status, 
     return sms_fit("$head is now $status. ", $details);
 }
 
-function sms_lease_reminder_template($room, $lease_end, $days_left) {
+// $deadline: the last day to ask for an extension (Settings → Contract End), or null.
+function sms_lease_reminder_template($room, $lease_end, $days_left, $deadline = null) {
     $days_left = max(0, (int)$days_left);
     $when = $days_left === 0 ? 'today' : sms_days($days_left) . ' left';
-    return sms_fit('AMS: Your rent for ' . sms_unit($room) . ' ends ' . sms_date($lease_end)
-        . " ($when). To stay, request an extension in My Room or contact the office.", '');
+    $ask = $deadline
+        ? ' To stay, request an extension in My Room by ' . sms_date($deadline) . '.'
+        : ' To stay, request an extension in My Room or contact the office.';
+    return sms_fit('AMS: Your rent for ' . sms_unit($room) . ' ends ' . sms_date($lease_end) . " ($when)." . $ask, '');
 }
 
 function sms_test_template($stamp) {

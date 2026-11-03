@@ -638,8 +638,8 @@ export default function ParkingReservation() {
             <SuccessModal
                 isOpen={isModalOpen}
                 onClose={() => {
-                    setIsModalOpen(false); 
-                    navigate('/home');
+                    setIsModalOpen(false);
+                    navigate('/services');
                 }}
                 message={t('parking.success')}
             />

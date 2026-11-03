@@ -1,5 +1,10 @@
 // Red border for an invalid field; append to the input's own classes.
-export const invalidCls = (error) => (error ? ' !border-red-400 ring-1 ring-red-400' : '');
+// A field with an error shows a red outline; while it is selected it shows the
+// usual blue focus ring instead, never both (a red border inside a blue ring
+// read as a muddy double outline).
+export const invalidCls = (error) => (error
+  ? ' !border-red-400 ring-1 ring-red-400 focus:!border-transparent focus:!ring-2 focus:!ring-indigo-500'
+  : '');
 
 // onKeyDown for number inputs: blocks e/E/+/- (and '.' for whole numbers),
 // which type="number" otherwise accepts.

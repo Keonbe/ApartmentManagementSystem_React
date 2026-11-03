@@ -113,6 +113,20 @@ $max_occupants = max_occupants_per_unit($conn);
 // the form's MAX_MONTHS.
 $min_months = max(1, (int)get_setting($conn, 'min_lease_duration', 3));
 $normalized_contact = normalize_ph_mobile($contact_no);
+
+// The unit must be vacant, or occupied but freeing up (Preview's "Coming
+// Soon"). This was only checked in the browser. A resubmission keeps its unit
+// as before; it still may not move in before the unit is free. A missing unit
+// is left to the field check below.
+$available_from = null;
+if ($room_name !== '') {
+    [$available_from, $room_error] = room_open_for_application($conn, (string)$room_name);
+    if ($room_error !== null && !$is_update) application_fail(409, $room_error, 'roomName');
+}
+
+// For a unit that is still occupied, "ASAP" means the day it is free.
+if ($available_from !== null && $preferred_move_in_date === null) $preferred_move_in_date = $available_from;
+
 $address_len = mb_strlen($previous_address);
 $errors = array_filter([
     'firstName' => v_str($first_name, 'First name', 1, 100),
@@ -127,8 +141,9 @@ $errors = array_filter([
     // Occupants: the applicant plus their household, up to the configured maximum.
     'occupants' => ctype_digit((string)$occupants) && (int)$occupants >= 1 && (int)$occupants <= $max_occupants ? '' : "Occupants must be between 1 and $max_occupants.",
     'monthsOfRent' => ctype_digit((string)$months_of_rent) && (int)$months_of_rent >= $min_months && (int)$months_of_rent <= 24 ? '' : "Months of rent must be between $min_months and 24.",
-    // "ASAP" sends no date; a chosen one must be inside the move-in window.
-    'prefMoveInDate' => $preferred_move_in_date !== null ? move_in_date_error($conn, $preferred_move_in_date) : '',
+    // "ASAP" sends no date; a chosen one must be inside the move-in window and
+    // not before an occupied unit is free.
+    'prefMoveInDate' => $preferred_move_in_date !== null ? move_in_date_error($conn, $preferred_move_in_date, $available_from) : '',
     // Where the applicant lived before (asked at the manager interview, Q5).
     'previousAddress' => $address_len === 0 ? "Please enter your previous address."
         : ($address_len < 5 || $address_len > 255 ? "Previous address must be 5 to 255 characters."

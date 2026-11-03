@@ -90,7 +90,10 @@ try {
     // The frontend expects: id, type, rent, status, tenant, lastTenant, floor, leaseStart, leaseEnd, maintenanceFlag
     // Read once: extension_month_range() per room used to cost two queries each.
     $rangeSettings = $is_admin ? extension_range_settings($conn) : null;
-    $formattedRooms = array_map(function($room) use ($conn, $is_admin, $maintByRoom, $occByRoom, $leaseByRoom, $extByContract, $deductionsByApp, $rangeSettings) {
+    // Occupied units that will free up (Preview's "Coming soon"): only the
+    // date, never who is leaving. Settings → Contract End can turn it off.
+    $upcoming = (!$is_admin && setting_is_on($conn, 'upcoming_rooms_enabled')) ? upcoming_room_dates($conn) : [];
+    $formattedRooms = array_map(function($room) use ($conn, $is_admin, $maintByRoom, $occByRoom, $leaseByRoom, $extByContract, $deductionsByApp, $rangeSettings, $upcoming) {
         $roomId = $room['id'];
 
         // Showcase photos are meant for guests browsing Preview.jsx, so they're
@@ -108,6 +111,7 @@ try {
                 'roomCondition' => $room['room_condition'] ?? 'Good',
                 'furnishingStatus' => $room['furnishing_status'] ?? 'Unfurnished',
                 'images' => $images,
+                'availableFrom' => $upcoming[$room['id']] ?? null,
             ];
         }
 

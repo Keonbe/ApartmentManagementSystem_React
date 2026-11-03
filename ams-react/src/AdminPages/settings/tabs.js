@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard, faImage, faHouse, faAddressCard, faVideo } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard, faImage, faHouse, faAddressCard, faVideo, faHourglassHalf, faEye } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -75,6 +75,20 @@ export const SETTINGS_TABS = [
     keys: ['glassBgImage', 'glassOverlayOpacity', 'glassBlur', 'glassTint'],
   },
   {
+    id: 'contract-end',
+    label: 'Contract End',
+    icon: faHourglassHalf,
+    description: 'The deadline for extension requests, the rent-end reminder and its channels, and upcoming rooms on the Preview page.',
+    keys: ['extensionDeadlineDays', 'leaseEndRemindersEnabled', 'leaseEndReminderDays', 'leaseEndReminderEmail', 'leaseEndReminderSms', 'upcomingRoomsEnabled'],
+  },
+  {
+    id: 'preview-page',
+    label: 'Preview Page',
+    icon: faEye,
+    description: 'The photo, badge, title, location and feature chips at the top of the public Preview page.',
+    keys: ['previewHero'],
+  },
+  {
     id: 'home-page',
     label: 'Home Page',
     icon: faHouse,
@@ -137,13 +151,13 @@ export const OTHER_SETTINGS_GROUPS = [
     key: 'leasing',
     title: 'Leasing & Rates',
     accentDot: 'bg-indigo-500',
-    tabIds: ['leasing', 'floor-rent', 'utility-types', 'parking'],
+    tabIds: ['leasing', 'contract-end', 'floor-rent', 'utility-types', 'parking'],
   },
   {
     key: 'operations',
     title: 'Operations & Tenant Site',
     accentDot: 'bg-sky-500',
-    tabIds: ['site', 'notifications', 'maintenance', 'cctv', 'home-page', 'glass-mode'],
+    tabIds: ['site', 'notifications', 'maintenance', 'cctv', 'home-page', 'preview-page', 'glass-mode'],
   },
   {
     key: 'policies',

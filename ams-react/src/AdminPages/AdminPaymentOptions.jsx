@@ -155,7 +155,7 @@ const AdminPaymentOptions = () => {
 
         {/* Floating Toast Notification */}
         {toast && (
-          <div className={`fixed right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn ${isDirty ? 'bottom-24' : 'bottom-6'}`}>
+          <div className={`fixed top-24 right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn`}>
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
               <FontAwesomeIcon icon={toast.type === 'success' ? faCheckCircle : faExclamationTriangle} className="text-base" />
             </div>

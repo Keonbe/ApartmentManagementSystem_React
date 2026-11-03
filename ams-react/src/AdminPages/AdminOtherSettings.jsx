@@ -26,6 +26,8 @@ import GlassModePanel from './settings/GlassModePanel';
 import HomePagePanel from './settings/HomePagePanel';
 import AdminContractEditor from './AdminContractEditor';
 import LoadError from '../Components/admin/ui/LoadError';
+import ContractEndPanel from './settings/ContractEndPanel';
+import PreviewPagePanel from './settings/PreviewPagePanel';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -187,7 +189,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure rent policies, parking, contact and payment details, notifications, maintenance, the Home page and Glass theme, floor rates, and building rules.
+                Configure rent policies, contract end, parking, contact and payment details, notifications, maintenance, the Home and Preview pages and Glass theme, floor rates, and building rules.
               </p>
             </div>
 
@@ -311,6 +313,12 @@ const AdminOtherSettings = () => {
                 <div data-tab="home-page" hidden={activeTab !== 'home-page'} className="space-y-6">
                   <HomePagePanel {...panelProps} />
                 </div>
+                <div data-tab="contract-end" hidden={activeTab !== 'contract-end'} className="space-y-6">
+                  <ContractEndPanel {...panelProps} />
+                </div>
+                <div data-tab="preview-page" hidden={activeTab !== 'preview-page'} className="space-y-6">
+                  <PreviewPagePanel {...panelProps} savedImage={savedSettings?.previewHero?.image ?? ''} />
+                </div>
               </form>
             )}
           </div>
@@ -354,7 +362,7 @@ const AdminOtherSettings = () => {
 
         {/* Floating Toast Notification */}
         {toast && (
-          <div className={`fixed right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn ${showSaveBar ? 'bottom-24' : 'bottom-6'}`}>
+          <div className={`fixed top-24 right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn`}>
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
               <FontAwesomeIcon icon={toast.type === 'success' ? faCheckCircle : faExclamationTriangle} className="text-base" />
             </div>

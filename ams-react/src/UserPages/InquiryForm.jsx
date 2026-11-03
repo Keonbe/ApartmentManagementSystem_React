@@ -17,6 +17,7 @@ import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers'
 import { useLang } from '../config/i18n';
 import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
 import { useChat } from '../context/ChatContext';
+import { formatAvailable } from '../utils/availableDate';
 
 const MAX_OCCUPANTS = 20;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
@@ -121,7 +122,8 @@ export default function InquiryForm() {
             try {
                 const res = await api.get('get_rooms.php');
                 if (res.data.success && Array.isArray(res.data.rooms)) {
-                    setRooms(res.data.rooms.filter(r => r.status && r.status.toLowerCase() === 'vacant'));
+                    // Vacant units, and occupied ones that will free up (Preview's "Coming soon").
+                    setRooms(res.data.rooms.filter(r => (r.status && r.status.toLowerCase() === 'vacant') || r.availableFrom));
                 }
             } catch (error) {
                 console.error('Failed to fetch available rooms', error);
@@ -356,7 +358,7 @@ export default function InquiryForm() {
                             <option value="">{loadingRooms ? t('inquiry.loadingRooms') : t('inquiry.unitAny')}</option>
                             {rooms.map(room => (
                                 <option key={room.id} value={room.id}>
-                                    Room {room.id} — {room.type} (₱{Number(room.rent).toLocaleString()}/mo)
+                                    Room {room.id} — {room.type} (₱{Number(room.rent).toLocaleString()}/mo){room.availableFrom ? ` · ${t('preview.availableFrom').replace('{date}', formatAvailable(room.availableFrom))}` : ''}
                                 </option>
                             ))}
                         </select>

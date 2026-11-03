@@ -5,6 +5,7 @@ import HouseRulesModal from '../Components/HouseRulesModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
+import { formatAvailable } from '../utils/availableDate';
 import { useLang } from '../config/i18n';
 import { LIMITS, MOVE_IN_WINDOW_DEFAULT, checkMoveInDate, moveInBounds, moveInRangeText, checkIntRange, checkPersonName, checkPhMobile, checkText, toPhLocal10, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
@@ -14,6 +15,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import InlineAlert from '../Components/InlineAlert';
 import useDialog from '../hooks/useDialog';
+import { useRoomStatus } from '../config/tenantHome';
 import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
 
@@ -133,6 +135,7 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
 
 export default function RentApplication() {
     const navigate = useNavigate();
+    const { refreshRoomStatus } = useRoomStatus();
     const location = useLocation();
     const { t, lang } = useLang();
 
@@ -177,7 +180,6 @@ export default function RentApplication() {
     const [minMonths, setMinMonths] = useState(1);
     // Settings → Rental → Earliest / Latest Move-In Date (rent_application.php enforces it too).
     const [moveInWindow, setMoveInWindow] = useState(MOVE_IN_WINDOW_DEFAULT);
-    const moveInLimits = moveInBounds(moveInWindow);
     // Settings → Rental → Maximum Occupants per Unit, and the per-person surcharge.
     const [maxOccupants, setMaxOccupants] = useState(MAX_OCCUPANTS);
     const [surchargePerPerson, setSurchargePerPerson] = useState(null);
@@ -244,10 +246,15 @@ export default function RentApplication() {
     const [selectedRoomId, setSelectedRoomId] = useState(isEditing ? passedRoomId : (location.state?.selectedRoomId || draft.selectedRoomId || passedRoomId));
     const [rooms, setRooms] = useState([]);
     const [showRoomModal, setShowRoomModal] = useState(false);
-    const availableRooms = rooms.filter(r => r.status?.toLowerCase() === 'vacant');
+    // Vacant units, and occupied ones that will free up (Preview's "Coming Soon",
+    // availableFrom from get_rooms.php): those can be applied for, moving in
+    // no earlier than the day they are free.
+    const availableRooms = rooms.filter(r => r.status?.toLowerCase() === 'vacant' || r.availableFrom);
     // Ids compared as strings: the API may send them as numbers.
     const sameRoom = (a, b) => String(a ?? '') === String(b ?? '');
     const selectedRoom = rooms.find(r => sameRoom(r.id, selectedRoomId)) || null;
+    const availableFrom = selectedRoom?.availableFrom || null;
+    const moveInLimits = moveInBounds(moveInWindow, availableFrom);
     // The room's base rate (what rent_application.php bills); an edit whose room
     // is not in the list falls back to the application's own rate. null = not
     // known yet, shown as a dash, never as a guessed price.
@@ -365,7 +372,7 @@ export default function RentApplication() {
         prefMoveInDate: (v) => {
             if (isASAP) return '';
             if (!v) return t('rent.errMoveIn');
-            return checkMoveInDate(v, moveInWindow);
+            return checkMoveInDate(v, moveInWindow, availableFrom);
         },
         // Only a vacant unit can be applied for (checked once the list has loaded).
         roomName: (v) => (!v ? t('rent.errRoom')
@@ -521,6 +528,7 @@ export default function RentApplication() {
                     };
                     sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
                 } catch { /* ignore */ }
+                refreshRoomStatus(); // the TopBar now offers Track Application
                 setShowSuccessModal(true);
             } else if (!form.applyServerErrors(res)) {
                 setNotice(res.data.message || t('rent.submitFailed'));
@@ -835,7 +843,7 @@ export default function RentApplication() {
                                     {isASAP ? (
                                         <input
                                             type="text"
-                                            value="Any time (Flexible)"
+                                            value={availableFrom ? `Any time from ${formatAvailable(availableFrom)}` : "Any time (Flexible)"}
                                             disabled
                                             className={`${INPUT_CLS} bg-slate-100/70 text-slate-600 font-bold cursor-not-allowed select-none`}
                                         />
@@ -857,9 +865,9 @@ export default function RentApplication() {
                                         {form.errors.prefMoveInDate ? (
                                             <FieldError id="rent-prefMoveInDate" error={form.errors.prefMoveInDate} className="m-0" />
                                         ) : !isASAP && !isReadOnly ? (
-                                            <p className="m-0 text-xs text-slate-500 font-medium leading-relaxed">{moveInRangeText(moveInWindow)}</p>
+                                            <p className="m-0 text-xs text-slate-500 font-medium leading-relaxed">{moveInRangeText(moveInWindow, availableFrom)}</p>
                                         ) : (
-                                            <p className="m-0 text-xs text-emerald-600 font-medium leading-relaxed">No fixed move-in deadline</p>
+                                            <p className="m-0 text-xs text-emerald-600 font-medium leading-relaxed">{availableFrom ? `The unit is free from ${formatAvailable(availableFrom)}; that is your move-in date.` : 'No fixed move-in deadline'}</p>
                                         )}
                                     </div>
                                 </div>
@@ -924,7 +932,7 @@ export default function RentApplication() {
                                         <FieldError id="rent-roomName" error={form.errors.roomName} className="m-0" />
                                         {!form.errors.roomName && (
                                             <p className="text-xs text-slate-500 m-0 font-medium">
-                                                {selectedRoom ? `Floor ${selectedRoom.floor || 1} • Unit Available` : 'Choose a vacant unit to proceed'}
+                                                {selectedRoom ? `Floor ${selectedRoom.floor || 1} • ${availableFrom ? `Available from ${formatAvailable(availableFrom)}` : 'Unit Available'}` : 'Choose a vacant unit to proceed'}
                                             </p>
                                         )}
                                     </div>
@@ -1107,7 +1115,7 @@ export default function RentApplication() {
                 )}
             </div>
 
-            {/* Room Selection Modal: vacant units only */}
+            {/* Room Selection Modal: vacant units, and units that will free up */}
             {showRoomModal && (
                 <div onClick={() => setShowRoomModal(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
                     <div ref={roomDialogRef} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="rent-room-modal-title" className="outline-none bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-scale-in overflow-hidden">
@@ -1128,7 +1136,11 @@ export default function RentApplication() {
                                 >
                                     <span className="flex justify-between items-start mb-2">
                                         <span className="text-lg font-black text-slate-900">Room {room.id}</span>
-                                        <span className="text-xs font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">{t('rent.available')}</span>
+                                        {room.availableFrom ? (
+                                            <span className="text-xs font-black bg-amber-100 text-amber-800 px-2 py-1 rounded-md">{t('preview.availableFrom').replace('{date}', formatAvailable(room.availableFrom))}</span>
+                                        ) : (
+                                            <span className="text-xs font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">{t('rent.available')}</span>
+                                        )}
                                     </span>
                                     <span className="block text-sm font-medium text-slate-500">{t('rent.floor')} <span className="text-slate-800 font-bold">{room.floor || '—'}</span></span>
                                     <span className="block text-indigo-700 font-black text-lg">₱{Number(room.rent).toLocaleString(undefined, { minimumFractionDigits: 2 })}<span className="text-xs text-indigo-500 font-medium">{t('rent.perMonth')}</span></span>
