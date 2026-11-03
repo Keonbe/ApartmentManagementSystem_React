@@ -166,6 +166,7 @@
   * Persists approve/reject actions.
 * [x] Add **Data Privacy consent checkbox** to the CCTV request form. *(done — `CctvRequest.jsx`)*
 * [x] Restrict CCTV requests to incident-related purposes only. *(done — required incident type from a fixed list (`cctv_requests.incident_type`), "other" needs a 20+ character description, incidents older than the footage window (default 60 days) are refused; the admin queue shows the type next to the reason; locations, types, window and shortest reason are editable in Settings → CCTV)*
+* [x] Hand approved footage to the tenant. *(done — the admin attaches a short clip or a private link from the details modal (`attach_cctv_footage.php`); the tenant opens it from My Requests until it expires (`cctv_footage_days`, default 14), opens are logged, `purge_expired_cctv_footage()` deletes it; tests in `cctv_footage.test.js`)*
 
 ---
 

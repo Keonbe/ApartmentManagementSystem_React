@@ -89,6 +89,17 @@ if ($owner === null) {
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM maintenance_requests WHERE attachment_path IN (?,?) LIMIT 1", $two);
 }
+$cctv_footage = null;
+if ($owner === null) {
+    // Footage the admin attached to an approved CCTV request: only the
+    // requesting tenant (or an admin), and only until it expires.
+    $stmt = $conn->prepare("SELECT id, user_id, (footage_expires_at IS NOT NULL AND footage_expires_at <= NOW()) AS expired FROM cctv_requests WHERE footage_path IN (?,?) LIMIT 1");
+    $stmt->bind_param('ss', $candidates[0], $candidates[1]);
+    $stmt->execute();
+    $cctv_footage = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($cctv_footage) $owner = (int)$cctv_footage['user_id'];
+}
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM parking_reservations WHERE document_path IN (?,?) LIMIT 1", $two);
 }
@@ -160,7 +171,11 @@ if ($notification_recipients !== null) {
 } elseif ($access === 'admin_only') {
     require_admin($conn);
 } else {
-    require_owner_or_admin($conn, $owner);
+    $viewer = require_owner_or_admin($conn, $owner);
+    if ($cctv_footage) {
+        if ((int)$cctv_footage['expired'] === 1) download_fail(410, "This footage is no longer available.");
+        log_cctv_footage_view($conn, $viewer, (int)$cctv_footage['id'], 'file');
+    }
 }
 
 $finfo = finfo_open(FILEINFO_MIME_TYPE);

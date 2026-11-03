@@ -4275,6 +4275,8 @@ const CCTV_DEFAULT_LOOKBACK_DAYS = 60;
 const CCTV_DEFAULT_MIN_REASON_LENGTH = 10;
 const CCTV_MAX_LOCATIONS = 12;
 const CCTV_MAX_INCIDENT_TYPES = 10;
+const CCTV_DEFAULT_FOOTAGE_DAYS = 14;
+const CCTV_FOOTAGE_MAX_BYTES = 25 * 1024 * 1024;
 
 // [clean list, null] or [null, message]. Used to validate a save and to read
 // back what is stored, so a garbled row falls back to the defaults.
@@ -4330,7 +4332,7 @@ function cctv_normalize_incident_types($list) {
 
 function cctv_settings($conn) {
     $raw = [];
-    $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('cctv_locations', 'cctv_incident_types', 'cctv_lookback_days', 'cctv_min_reason_length')");
+    $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('cctv_locations', 'cctv_incident_types', 'cctv_lookback_days', 'cctv_min_reason_length', 'cctv_footage_days')");
     if ($res) {
         while ($row = $res->fetch_assoc()) $raw[$row['setting_key']] = $row['setting_value'];
     }
@@ -4338,12 +4340,108 @@ function cctv_settings($conn) {
     [$types] = cctv_normalize_incident_types(json_decode($raw['cctv_incident_types'] ?? '', true));
     $days = $raw['cctv_lookback_days'] ?? '';
     $min = $raw['cctv_min_reason_length'] ?? '';
+    $keep = $raw['cctv_footage_days'] ?? '';
     return [
         'locations' => $locations ?? CCTV_DEFAULT_LOCATIONS,
         'incidentTypes' => $types ?? CCTV_DEFAULT_INCIDENT_TYPES,
         'lookbackDays' => ctype_digit((string)$days) && (int)$days >= 1 && (int)$days <= 365 ? (int)$days : CCTV_DEFAULT_LOOKBACK_DAYS,
         'minReasonLength' => ctype_digit((string)$min) && (int)$min >= 5 && (int)$min <= 200 ? (int)$min : CCTV_DEFAULT_MIN_REASON_LENGTH,
+        'footageDays' => ctype_digit((string)$keep) && (int)$keep >= 1 && (int)$keep <= 90 ? (int)$keep : CCTV_DEFAULT_FOOTAGE_DAYS,
     ];
+}
+
+// Approved CCTV footage the admin hands to the tenant: a short clip stored under
+// uploads/cctv/ (served only by download_file.php) or a private https link. It is
+// available for cctv_footage_days after it is attached, then removed.
+
+// Absolute path of a stored footage file, or null if it is not a plain file
+// inside uploads/cctv/ (so a bad stored value can never delete anything else).
+function cctv_footage_file_path($path) {
+    if (!is_string($path) || !preg_match('#^uploads/cctv/[a-zA-Z0-9_.-]+$#', $path)) return null;
+    $full = __DIR__ . '/' . $path;
+    return is_file($full) ? $full : null;
+}
+
+function delete_cctv_footage_file($path) {
+    $full = cctv_footage_file_path($path);
+    if ($full !== null) @unlink($full);
+}
+
+// Validates and stores footage. Returns [path|null, error|null].
+function store_cctv_footage($file) {
+    if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) return [null, 'Choose a footage file or paste a link.'];
+    if ($file['error'] !== UPLOAD_ERR_OK) return [null, 'File upload failed. Footage files must be 25MB or smaller.'];
+    if ($file['size'] > CCTV_FOOTAGE_MAX_BYTES) return [null, 'Footage files must be 25MB or smaller. For longer footage, paste a link instead.'];
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['mp4', 'm4v', 'webm', 'mov', 'jpg', 'jpeg', 'png', 'webp'], true)) {
+        return [null, 'Allowed formats: MP4, WEBM or MOV video, or JPG, PNG or WEBP images.'];
+    }
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    if (!in_array($mime, ['video/mp4', 'video/x-m4v', 'video/webm', 'video/quicktime', 'image/jpeg', 'image/png', 'image/webp'], true)) {
+        return [null, 'File content does not match an allowed video or image format.'];
+    }
+
+    $dir = __DIR__ . '/uploads/cctv/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $name = time() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $dir . $name)) return [null, 'Failed to save the footage file.'];
+    return ['uploads/cctv/' . $name, null];
+}
+
+// A private https link, without credentials in it. Returns [url|null, error|null].
+function cctv_footage_link($raw) {
+    $url = trim((string)$raw);
+    if ($url === '' || strlen($url) > 500) return [null, 'Paste a link of up to 500 characters.'];
+    $parts = parse_url($url);
+    if (!filter_var($url, FILTER_VALIDATE_URL) || !$parts || strtolower($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])
+        || isset($parts['user']) || isset($parts['pass'])) {
+        return [null, 'The link must be a full https:// address without a username or password.'];
+    }
+    return [$url, null];
+}
+
+// Records that a tenant opened their footage. A <video> sends several requests
+// for one play, so the same tenant opening the same request again within a
+// minute is one entry. Admins' own opens are not logged.
+function log_cctv_footage_view($conn, $viewer, $request_id, $kind) {
+    if (!$viewer || $viewer['role'] === 'admin') return;
+    $uid = (int)$viewer['id'];
+    $details = "CCTV Request ID: " . (int)$request_id . " footage opened ($kind)";
+    $stmt = $conn->prepare("SELECT 1 FROM activity_logs WHERE performed_by = ? AND action = 'Viewed CCTV Footage' AND details = ? AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1");
+    $stmt->bind_param("is", $uid, $details);
+    $stmt->execute();
+    $recent = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$recent) log_activity($conn, $uid, 'service', 'Viewed CCTV Footage', $details);
+}
+
+// Deletes footage past its expiry and clears the link. Claim-first: the row is
+// cleared before the file goes, and only by the process whose UPDATE matched.
+// Access is also refused once expired, so a late run is harmless.
+function purge_expired_cctv_footage($conn) {
+    $out = ['cctv_footage_purged' => 0];
+    $res = $conn->query("SELECT id, footage_path FROM cctv_requests
+                         WHERE footage_expires_at IS NOT NULL AND footage_expires_at <= NOW()
+                           AND (footage_path IS NOT NULL OR footage_url IS NOT NULL) LIMIT 200");
+    if (!$res) return $out;
+    $rows = $res->fetch_all(MYSQLI_ASSOC);
+    $claim = $conn->prepare("UPDATE cctv_requests SET footage_path = NULL, footage_url = NULL
+                             WHERE id = ? AND footage_expires_at IS NOT NULL AND footage_expires_at <= NOW()");
+    if (!$claim) return $out;
+    foreach ($rows as $r) {
+        $id = (int)$r['id'];
+        $claim->bind_param("i", $id);
+        $claim->execute();
+        if ($claim->affected_rows !== 1) continue;
+        delete_cctv_footage_file($r['footage_path']);
+        log_activity($conn, 0, 'service', 'Expired CCTV Footage Removed', "CCTV Request ID: $id footage passed its availability period and was removed", 0);
+        $out['cctv_footage_purged']++;
+    }
+    $claim->close();
+    return $out;
 }
 
 // How far ahead a tenant must give a move-out notice (Settings → Rental). The

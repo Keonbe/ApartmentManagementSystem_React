@@ -1235,6 +1235,9 @@ DELETE FROM notifications WHERE created_at >= NOW() - INTERVAL 1 HOUR;
 | `cctv_request.php` | POST (JSON) | `require_user` + active lease | `incidentDate`, `incidentTime`, `locationDetails`, `reasonRequest`, `privacyConsent` (must be JSON `true`) | `success`, `id` | `401` · `403` · `422` future date or over-length fields, or no consent (`field: privacyConsent`). Stores `privacy_consent_at` |
 | `get_cctv_requests.php` | GET | `require_admin` | — | `success`, `requests[]` | `403` |
 | `update_cctv_status.php` | POST | `require_admin` | `id` / `rawId`, `status` (`Approved` / `Rejected`) | `success` | `404` · `409` already decided · `422` |
+| `attach_cctv_footage.php` | POST (multipart) | `require_admin` | `id`, exactly one of `file` (MP4/WEBM/MOV/JPG/PNG/WEBP, 25MB) or `url` (https, no credentials) | `success`, `footageKind`, `footageExpiresAt`; tenant notified | `404` · `409` request not Approved · `413`/`422` bad or missing footage |
+| `remove_cctv_footage.php` | POST | `require_admin` | `id` | `success` (file deleted, expiry moved to now) | `404` nothing attached · `422` |
+| `open_cctv_footage.php` | GET | owner or admin (token may be a query param) | `id` | `302` to the stored link, tenant open logged | `403` · `404` · `410` expired or removed |
 
 **Rules** — defined in `backend/config.php`:
 

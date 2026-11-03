@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { fileUrl } from '../api/fileUrl';
+import { fileUrl, cctvFootageLinkUrl } from '../api/fileUrl';
 import { useLang, dateLocale } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
 import ConfirmDialog from '../Components/ConfirmDialog';
@@ -177,7 +177,24 @@ export default function UserMyRequests() {
                                                 <p className="text-xs text-red-600 m-0 mt-1">Reason: {req.rejection_reason}</p>
                                             )}
                                             {req.status === 'Approved' && req.type === 'CCTV' && req.rejection_reason && (
-                                                <p className="text-xs text-emerald-700 m-0 mt-1">Footage pickup: {req.rejection_reason}</p>
+                                                <p className="text-xs text-emerald-700 m-0 mt-1">{t('myRequests.footagePickup')} {req.rejection_reason}</p>
+                                            )}
+                                            {req.type === 'CCTV' && req.footage_kind && Number(req.footage_expired) !== 1 && (
+                                                <div className="mt-2">
+                                                    <a
+                                                        href={req.footage_kind === 'file' ? fileUrl(req.footage_path) : cctvFootageLinkUrl(req.id)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex min-h-[36px] items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white no-underline hover:bg-blue-700"
+                                                    >
+                                                        <FontAwesomeIcon icon={faVideo} /> {req.footage_kind === 'file' ? t('myRequests.footageView') : t('myRequests.footageOpenLink')}
+                                                    </a>
+                                                    <p className="text-xs text-slate-600 m-0 mt-1">{t('myRequests.footageUntil', { date: formatStamp(req.footage_expires_at) })}</p>
+                                                    <p className="text-xs text-amber-700 m-0 mt-1">{t('myRequests.footageNotice')}</p>
+                                                </div>
+                                            )}
+                                            {req.type === 'CCTV' && !req.footage_kind && req.footage_expires_at && (
+                                                <p className="text-xs text-slate-500 m-0 mt-1">{t('myRequests.footageExpired')}</p>
                                             )}
                                             {req.total_cost !== null && req.total_cost !== undefined && (
                                                 <p className="text-xs font-bold text-indigo-600 m-0 mt-1">

@@ -78,6 +78,7 @@ $settings['cctv_locations'] = $cctv['locations'];
 $settings['cctv_incident_types'] = $cctv['incidentTypes'];
 $settings['cctv_lookback_days'] = $cctv['lookbackDays'];
 $settings['cctv_min_reason_length'] = $cctv['minReasonLength'];
+$settings['cctv_footage_days'] = $cctv['footageDays'];
 if (isset($settings['glass_overlay_opacity'])) $settings['glass_overlay_opacity'] = (int)$settings['glass_overlay_opacity'];
 if (isset($settings['glass_blur'])) $settings['glass_blur'] = (int)$settings['glass_blur'];
 // Always an object of the four items; a missing or garbled row reads as the

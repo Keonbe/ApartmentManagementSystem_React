@@ -24,6 +24,7 @@ export default function AdminCctv() {
   const [searchQuery, setSearchQuery] = useState('');
   const [detailId, setDetailId] = useState(null);
   const [detailAction, setDetailAction] = useState(null);
+  const [footageDays, setFootageDays] = useState(14);
   // The incident types the admin has set up, for the badge labels.
   const [incidentTypes, setIncidentTypes] = useState(CCTV_DEFAULTS.incidentTypes);
   const [statusFilter, setStatusFilter] = useUrlFilter('tab', 'all', ['all', 'pending', 'approved', 'rejected']);
@@ -54,6 +55,7 @@ export default function AdminCctv() {
     const load = async () => {
       const [, config] = await Promise.all([loadCctvRequests(), loadCctvConfig()]);
       setIncidentTypes(config.incidentTypes);
+      setFootageDays(config.footageDays);
     };
     load();
   }, []);
@@ -192,6 +194,7 @@ export default function AdminCctv() {
 
                           <td className="px-4 py-4 text-label text-slate-500 max-w-xs">
                             <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-caption font-semibold text-indigo-700 whitespace-nowrap">{incidentTypeLabel(incidentTypes, req.incidentType)}</span>
+                            {req.footageKind && !Number(req.footageExpired) && <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-caption font-semibold text-emerald-700 whitespace-nowrap">Footage sent</span>}
                             <div className="truncate mt-1" title={req.reason}>{req.reason}</div>
                           </td>
 
@@ -260,6 +263,8 @@ export default function AdminCctv() {
             request={detail}
             incidentLabel={incidentTypeLabel(incidentTypes, detail.incidentType)}
             initialAction={detailAction}
+            footageDays={footageDays}
+            onFootageChange={loadCctvRequests}
             onClose={closeDetail}
             onDecide={(status, note) => { handleStatusUpdate(detail.id, status, note); closeDetail(); }}
           />

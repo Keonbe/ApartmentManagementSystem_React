@@ -18,6 +18,7 @@ export const CCTV_DEFAULTS = {
   ],
   lookbackDays: 60,
   minReasonLength: 10,
+  footageDays: 14,
 };
 
 // "Other" is the one fixed type: always present, always last, needs a written
@@ -53,6 +54,7 @@ export const parseCctvConfig = (raw = {}) => {
     incidentTypes: types.some((t) => t.key === CCTV_OTHER_KEY) ? types : CCTV_DEFAULTS.incidentTypes,
     lookbackDays: wholeNumber(raw.cctv_lookback_days, 1, 365, CCTV_DEFAULTS.lookbackDays),
     minReasonLength: wholeNumber(raw.cctv_min_reason_length, 5, 200, CCTV_DEFAULTS.minReasonLength),
+    footageDays: wholeNumber(raw.cctv_footage_days, 1, 90, CCTV_DEFAULTS.footageDays),
   };
 };
 

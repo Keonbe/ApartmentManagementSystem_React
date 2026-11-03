@@ -29,6 +29,10 @@ try {
                 c.privacy_consent_at AS privacyConsentAt,
                 c.status,
                 c.decision_note AS decisionNote,
+                CASE WHEN c.footage_path IS NOT NULL THEN 'file' WHEN c.footage_url IS NOT NULL THEN 'link' ELSE NULL END AS footageKind,
+                c.footage_attached_at AS footageAttachedAt,
+                c.footage_expires_at AS footageExpiresAt,
+                (c.footage_expires_at IS NOT NULL AND c.footage_expires_at <= NOW()) AS footageExpired,
                 c.created_at AS createdAt
             FROM cctv_requests c
             LEFT JOIN users u ON c.user_id = u.id

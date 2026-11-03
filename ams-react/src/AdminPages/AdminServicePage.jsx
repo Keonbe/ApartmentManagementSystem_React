@@ -195,6 +195,7 @@ const AdminServicePage = () => {
   const [cctvRequests, setCctvRequests] = useState([]);
   const [cctvDetailId, setCctvDetailId] = useState(null);
   const [cctvDetailAction, setCctvDetailAction] = useState(null);
+  const [cctvFootageDays, setCctvFootageDays] = useState(CCTV_DEFAULTS.footageDays);
   const [cctvIncidentTypes, setCctvIncidentTypes] = useState(CCTV_DEFAULTS.incidentTypes);
   const [parkingReservations, setParkingReservations] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
@@ -242,6 +243,7 @@ const AdminServicePage = () => {
         loadCctvConfig(),
       ]);
       setCctvIncidentTypes(cctvConfig.incidentTypes);
+      setCctvFootageDays(cctvConfig.footageDays);
 
       if (cctvRes.data.success) {
         setCctvRequests(cctvRes.data.requests.map(r => ({
@@ -929,6 +931,7 @@ const AdminServicePage = () => {
                                   <td className="px-4 py-3 text-slate-600">{req.location}</td>
                                   <td className="max-w-xs px-4 py-3 text-slate-500">
                                     <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-caption font-semibold text-indigo-700 whitespace-nowrap">{incidentTypeLabel(cctvIncidentTypes, req.incidentType)}</span>
+                                    {req.footageKind && !Number(req.footageExpired) && <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-caption font-semibold text-emerald-700 whitespace-nowrap">Footage sent</span>}
                                     <div className="truncate mt-1" title={req.reason}>{req.reason}</div>
                                   </td>
                                   <td className="px-4 py-3 text-center">
@@ -1067,6 +1070,8 @@ const AdminServicePage = () => {
             request={detail}
             incidentLabel={incidentTypeLabel(cctvIncidentTypes, detail.incidentType)}
             initialAction={cctvDetailAction}
+            footageDays={cctvFootageDays}
+            onFootageChange={loadData}
             onClose={closeCctvDetail}
             onDecide={(status, note) => { handleCctvStatus(detail.id, status, note); closeCctvDetail(); }}
           />

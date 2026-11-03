@@ -9,7 +9,7 @@ import {
 const INPUT = 'rounded-control border border-slate-300 px-3 py-2 text-body';
 const ICON_BTN = 'cursor-pointer rounded-control border border-slate-200 bg-white px-2.5 py-1.5 text-label font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40';
 
-const snapshot = (c) => JSON.stringify([c.locations, c.incidentTypes, String(c.lookbackDays), String(c.minReasonLength)]);
+const snapshot = (c) => JSON.stringify([c.locations, c.incidentTypes, String(c.lookbackDays), String(c.minReasonLength), String(c.footageDays)]);
 
 // A list of names that can be added to, renamed, reordered and removed. Rows
 // are plain strings (locations) or { key, label } (incident types); `get` and
@@ -49,6 +49,7 @@ export default function CctvPanel() {
   const [otherLabel, setOtherLabel] = useState('');
   const [lookbackDays, setLookbackDays] = useState('');
   const [minReason, setMinReason] = useState('');
+  const [footageDays, setFootageDays] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [newType, setNewType] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,6 +61,7 @@ export default function CctvPanel() {
     setOtherLabel(c.incidentTypes.find((t) => t.key === CCTV_OTHER_KEY)?.label ?? '');
     setLookbackDays(String(c.lookbackDays));
     setMinReason(String(c.minReasonLength));
+    setFootageDays(String(c.footageDays));
   }, []);
 
   const load = useCallback(async () => {
@@ -79,7 +81,7 @@ export default function CctvPanel() {
   }, [load]);
 
   const incidentTypes = [...types, { key: CCTV_OTHER_KEY, label: otherLabel }];
-  const current = { locations, incidentTypes, lookbackDays, minReasonLength: minReason };
+  const current = { locations, incidentTypes, lookbackDays, minReasonLength: minReason, footageDays };
   const dirty = saved !== null && snapshot(current) !== saved;
 
   const addLocation = () => {
@@ -114,6 +116,7 @@ export default function CctvPanel() {
         cctv_incident_types: [...types.map((t) => ({ ...t, label: t.label.trim() })), { key: CCTV_OTHER_KEY, label: otherLabel.trim() }],
         cctv_lookback_days: String(lookbackDays).trim(),
         cctv_min_reason_length: String(minReason).trim(),
+        cctv_footage_days: String(footageDays).trim(),
       });
       if (!res.data.success) throw res;
       setNotice({ ok: true, text: 'CCTV settings saved. The request form uses them straight away; requests already filed are unchanged.' });
@@ -171,7 +174,7 @@ export default function CctvPanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 rounded-card border border-slate-200 bg-white p-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 rounded-card border border-slate-200 bg-white p-5 md:grid-cols-3">
         <label className="block text-body font-semibold text-slate-700">Footage kept for
           <span className="mt-1 flex items-center gap-2 font-normal">
             <input type="number" inputMode="numeric" min="1" max="365" step="1" value={lookbackDays} onChange={(e) => setLookbackDays(e.target.value)} className={`${INPUT} w-24`} />
@@ -185,6 +188,13 @@ export default function CctvPanel() {
             <span className="text-slate-500">characters</span>
           </span>
           <span className="mt-1 block text-label font-normal text-slate-500">Requests with a shorter reason are refused. 5 to 200.</span>
+        </label>
+        <label className="block text-body font-semibold text-slate-700">Footage available to the tenant for
+          <span className="mt-1 flex items-center gap-2 font-normal">
+            <input type="number" inputMode="numeric" min="1" max="90" step="1" value={footageDays} onChange={(e) => setFootageDays(e.target.value)} className={`${INPUT} w-24`} />
+            <span className="text-slate-500">days</span>
+          </span>
+          <span className="mt-1 block text-label font-normal text-slate-500">Footage you attach to an approved request is deleted this many days later. 1 to 90.</span>
         </label>
       </div>
 

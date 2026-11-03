@@ -84,6 +84,7 @@ $SETTING_RULES = [
     'overdue_reminder_interval_days' => ['type' => 'int', 'min' => 1, 'max' => 30, 'message' => 'The overdue reminder interval must be a whole number between 1 and 30 days.'],
     // Settings -> CCTV. The footage window cannot exceed what the building keeps.
     'cctv_lookback_days'       => ['type' => 'int', 'min' => 1, 'max' => 365, 'message' => 'The footage window must be a whole number of days between 1 and 365.', 'field' => 'Enter 1 to 365 days.'],
+    'cctv_footage_days'        => ['type' => 'int', 'min' => 1, 'max' => 90, 'message' => 'Footage availability must be a whole number of days between 1 and 90.', 'field' => 'Enter 1 to 90 days.'],
     'cctv_min_reason_length'   => ['type' => 'int', 'min' => 5, 'max' => 200, 'message' => 'The shortest reason must be a whole number of characters between 5 and 200.', 'field' => 'Enter 5 to 200.'],
     'glass_overlay_opacity'    => ['type' => 'int', 'min' => 0, 'max' => 95, 'message' => 'The Glass overlay must be a whole number from 0 to 95 percent.', 'field' => 'Enter 0 to 95.'],
     'glass_blur'               => ['type' => 'int', 'min' => 0, 'max' => 20, 'message' => 'The Glass background blur must be a whole number from 0 to 20 pixels.', 'field' => 'Enter 0 to 20.'],

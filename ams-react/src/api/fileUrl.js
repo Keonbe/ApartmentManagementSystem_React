@@ -15,6 +15,14 @@ export const fileUrl = (path) => {
     return `${API_BASE_URL}download_file.php?path=${encodeURIComponent(relative)}&token=${encodeURIComponent(token)}`;
 };
 
+// Approved CCTV footage kept as a private link: the browser goes through the
+// API (which checks the session, logs the open and redirects), so the real link
+// is never sent to the page.
+export const cctvFootageLinkUrl = (requestId) => {
+    const token = sessionStorage.getItem('sessionToken') || localStorage.getItem('sessionToken') || '';
+    return `${API_BASE_URL}open_cctv_footage.php?id=${encodeURIComponent(requestId)}&token=${encodeURIComponent(token)}`;
+};
+
 // Unlike fileUrl(), for genuinely public images (unit photos in room_images/,
 // payment QR codes in qr_codes/, Glass theme photos in site_assets/) that have
 // no owner to authenticate against and must be visible to logged-out guests.

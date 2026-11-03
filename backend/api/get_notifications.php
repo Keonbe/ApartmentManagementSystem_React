@@ -34,6 +34,12 @@ function run_poll_checks($conn) {
         error_log('[AMS] payment window sweep failed: ' . $e->getMessage());
     }
 
+    try {
+        purge_expired_cctv_footage($conn);
+    } catch (Throwable $e) {
+        error_log('[AMS] CCTV footage purge failed: ' . $e->getMessage());
+    }
+
     // Visitor overstay alerts are checked here too, not only in the daily sweep
     // above — the threshold is in hours, so a once-a-day check is too coarse.
     try {
