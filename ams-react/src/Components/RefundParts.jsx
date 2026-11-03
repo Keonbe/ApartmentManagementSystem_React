@@ -15,7 +15,7 @@ export function RefundTrail({ events }) {
       {events.map((e, i) => (
         <li key={i} className="text-xs text-slate-600">
           <span className="font-bold text-slate-800">{ACTION_LABELS[e.action] || e.action}</span>
-          <span className="text-slate-400"> · {e.actorName || (e.actorRole === 'admin' ? 'Admin' : 'Tenant')} · {when(e.createdAt)}</span>
+          <span className="text-slate-400"> · {e.actorName || (e.actorRole === 'admin' ? 'Admin' : e.actorRole === 'system' ? 'System' : 'Tenant')} · {when(e.createdAt)}</span>
           {e.message ? <p className="m-0 mt-0.5 whitespace-pre-wrap text-slate-600">{e.message}</p> : null}
         </li>
       ))}

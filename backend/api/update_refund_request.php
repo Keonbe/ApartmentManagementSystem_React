@@ -4,6 +4,7 @@ require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
+require_once __DIR__ . '/../paymongo_gateway.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -19,6 +20,9 @@ function refund_fail($code, $msg) {
 }
 
 // Admin decisions: approve | reject | request_info | mark_refunded.
+// mark_refunded with gateway=true pays the refund back through PayMongo
+// (POST /v1/refunds on the payment the money came in on); without it the
+// admin records a payout made by hand (method + reference).
 $admin_id = (int)require_admin($conn);
 $input = json_decode(file_get_contents("php://input"), true) ?: [];
 $id = (int)($input['id'] ?? 0);
@@ -32,7 +36,7 @@ if (in_array($action, ['reject', 'request_info'], true) && $message === '') {
 }
 if (mb_strlen($message) > 1000) refund_fail(400, "Keep the message under 1000 characters.");
 
-$stmt = $conn->prepare("SELECT user_id, type, amount, status FROM refund_requests WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, user_id, type, invoice_id, amount, status, paymongo_payment_id, gateway_status FROM refund_requests WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $req = $stmt->get_result()->fetch_assoc();
@@ -47,7 +51,42 @@ if (!in_array($to, REFUND_TRANSITIONS[$from] ?? [], true)) {
 
 $method = null;
 $reference = null;
-if ($action === 'mark_refunded') {
+$via_gateway = $action === 'mark_refunded' && !empty($input['gateway']);
+$gateway_refund_id = null;
+if ($action === 'mark_refunded' && $req['gateway_status'] === 'requesting') {
+    refund_fail(409, "A PayMongo refund for this request is already in progress.");
+}
+if ($via_gateway) {
+    $source_payment = refund_source_payment($conn, $req);
+    if (!$source_payment) refund_fail(422, "This money did not come in through PayMongo. Record the payout by hand instead.");
+    $cents = (int)round((float)$req['amount'] * 100);
+    if ($cents < 100) refund_fail(422, "PayMongo refunds start at ₱1.00.");
+
+    // Claim the payout first so a second click (or tab) cannot refund twice.
+    $claim = $conn->prepare("UPDATE refund_requests SET gateway_status = 'requesting' WHERE id = ? AND status = 'Approved' AND gateway_status IS NULL");
+    $claim->bind_param("i", $id);
+    $claim->execute();
+    $claimed = $claim->affected_rows > 0;
+    $claim->close();
+    if (!$claimed) refund_fail(409, "This request changed while you were working. Reload and try again.");
+
+    $gw = paymongo_create_refund($conn, $source_payment, $cents, "AMS refund request #$id", "ams-refund-$id");
+    if (!$gw['ok'] || !$gw['refund_id']) {
+        $release = $conn->prepare("UPDATE refund_requests SET gateway_status = NULL WHERE id = ? AND gateway_status = 'requesting'");
+        $release->bind_param("i", $id);
+        $release->execute();
+        $release->close();
+        refund_fail(502, $gw['message'] ?: "PayMongo did not accept the refund.");
+    }
+    // The money has moved: keep the refund id before anything else can fail.
+    $gateway_refund_id = $gw['refund_id'];
+    $keep = $conn->prepare("UPDATE refund_requests SET gateway_refund_id = ?, gateway_status = ? WHERE id = ?");
+    $keep->bind_param("ssi", $gateway_refund_id, $gw['status'], $id);
+    $keep->execute();
+    $keep->close();
+    $method = 'PayMongo';
+    $reference = $gateway_refund_id;
+} elseif ($action === 'mark_refunded') {
     $method = trim((string)($input['payout_method'] ?? ''));
     $reference = trim((string)($input['payout_reference'] ?? ''));
     if ($method === '' || mb_strlen($method) > 50) refund_fail(400, "Enter how the refund was paid out.");
@@ -90,6 +129,11 @@ try {
     $conn->commit();
 } catch (Exception $e) {
     $conn->rollback();
+    if ($gateway_refund_id) {
+        // PayMongo already took the refund; only the AMS record failed.
+        error_log("Refund #$id paid through PayMongo ($gateway_refund_id) but not recorded: " . $e->getMessage());
+        refund_fail(500, "PayMongo accepted the refund ($gateway_refund_id) but AMS could not record it. Reload: do not refund again.");
+    }
     refund_fail(409, $e->getMessage());
 }
 

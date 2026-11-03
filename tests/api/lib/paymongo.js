@@ -25,12 +25,17 @@ export const failedEvent = ({ intentId, metadata = {} } = {}) => ({
 });
 
 // checkout_session.payment.paid: carries the checkout session and the amount collected.
-export const paidEvent = ({ sessionId, invoiceId, amountCentavos, sourceType = 'gcash' }) => ({
+export const paidEvent = ({ sessionId, invoiceId, amountCentavos, sourceType = 'gcash', paymentId = null }) => ({
   data: { attributes: { type: 'checkout_session.payment.paid', livemode: false, data: {
     id: sessionId,
     attributes: {
       metadata: { invoice_id: invoiceId },
-      payments: [{ attributes: { amount: amountCentavos, source: { type: sourceType } } }],
+      payments: [{ ...(paymentId ? { id: paymentId } : {}), attributes: { amount: amountCentavos, source: { type: sourceType } } }],
     },
   } } },
+});
+
+// A refund update from PayMongo: the refund resource (re_...) with its status.
+export const refundEvent = ({ refundId, status, type = 'payment.refund.updated' }) => ({
+  data: { attributes: { type, livemode: false, data: { id: refundId, attributes: { status } } } },
 });

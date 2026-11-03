@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once "../config.php";
+require_once __DIR__ . '/../paymongo_gateway.php';
 
 $payload = file_get_contents('php://input');
 $signature_header = $_SERVER['HTTP_PAYMONGO_SIGNATURE'] ?? '';
@@ -86,6 +87,44 @@ if (!hash_equals($expected_sig, $signature_to_verify)) {
 $event_type = $event['data']['attributes']['type'] ?? '';
 $event_data = $event['data']['attributes']['data'] ?? [];
 
+// Refund progress: PayMongo confirms (or fails) a refund after our API call
+// accepted it. The event may carry the refund itself (re_...) or the payment
+// with its refunds list, depending on the event name, so read both shapes.
+if (stripos($event_type, 'refund') !== false) {
+    $refunds = [];
+    foreach (($event_data['attributes']['refunds'] ?? []) as $r) $refunds[] = $r;
+    if (!$refunds && str_starts_with((string)($event_data['id'] ?? ''), 're_')) $refunds[] = $event_data;
+    foreach ($refunds as $r) {
+        $refund_id = $r['id'] ?? null;
+        $new_status = $r['attributes']['status'] ?? null;
+        if (!$refund_id || !$new_status) continue;
+        $upd = $conn->prepare("UPDATE refund_requests SET gateway_status = ? WHERE gateway_refund_id = ? AND (gateway_status IS NULL OR gateway_status <> ?)");
+        $upd->bind_param("sss", $new_status, $refund_id, $new_status);
+        $upd->execute();
+        $changed = $upd->affected_rows > 0;
+        $upd->close();
+        if (!$changed) continue;
+        $row = $conn->prepare("SELECT id, user_id, amount FROM refund_requests WHERE gateway_refund_id = ? LIMIT 1");
+        $row->bind_param("s", $refund_id);
+        $row->execute();
+        $req = $row->get_result()->fetch_assoc();
+        $row->close();
+        if (!$req) continue;
+        $amt = number_format((float)$req['amount'], 2);
+        log_activity($conn, (int)$req['user_id'], 'billing', 'Refund Gateway Update', "Refund #{$req['id']}: PayMongo $refund_id is $new_status", (int)$req['user_id']);
+        if ($new_status === 'succeeded') {
+            create_notification($conn, (int)$req['user_id'], 'refund_update', 'Refund Completed', "Your refund of ₱$amt has been returned to your payment method.");
+        } elseif ($new_status === 'failed') {
+            notify_admins_queue($conn, 'refund_request', $req['id'], 'Refund Failed at PayMongo',
+                "PayMongo could not complete refund #{$req['id']} (₱$amt, $refund_id). Pay it back another way and note it on the request.");
+        }
+    }
+    http_response_code(200);
+    echo json_encode(["success" => true]);
+    $conn->close();
+    exit;
+}
+
 // Only care about paid or failed
 if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.failed') {
 
@@ -103,6 +142,8 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
     $user_id = $metadata['user_id'] ?? null;
     $session_id = $event_data['id'] ?? null;
     $intent_id = null;
+    $payment_id = $status === 'paid' ? ($event_data['attributes']['payments'][0]['id'] ?? null) : null;
+    $paid_centavos = $status === 'paid' ? ($event_data['attributes']['payments'][0]['attributes']['amount'] ?? null) : null;
 
     // A payment.failed event carries the payment (pay_...), not the checkout
     // session, so comparing its id with checkout_session_id discarded every
@@ -130,12 +171,15 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         // "Advance payments"): then the event covers every month in it, and
         // the checks below apply to the months together — the same session on
         // each, the sum as the amount due, "paid" only once all are.
-        $group_rows = array_values(array_filter(
-            payment_key_invoices($conn, $invoice_id),
-            fn($row) => $row['status'] !== 'cancelled'
-        ));
+        $all_rows = payment_key_invoices($conn, $invoice_id);
+        $group_rows = array_values(array_filter($all_rows, fn($row) => $row['status'] !== 'cancelled'));
 
         if (!$group_rows) {
+            // Cancelled while the tenant was at the checkout: the money was
+            // still collected, so it goes to the admin as a refund to pay back.
+            if ($status === 'paid' && $all_rows) {
+                raise_unapplied_payment($conn, $payment_id, $paid_centavos, $all_rows[0]['user_id'], $invoice_id, "the bill was cancelled before the payment arrived");
+            }
             http_response_code(200);
             echo json_encode(["success" => true, "message" => "Unknown invoice; ignored"]);
             $conn->close();
@@ -166,6 +210,10 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         }
 
         if ($superseded) {
+            // A paid event on an old checkout is real money PayMongo holds.
+            if ($status === 'paid') {
+                raise_unapplied_payment($conn, $payment_id, $paid_centavos, $inv_row['user_id'], $invoice_id, "it came from an older checkout than the one now open");
+            }
             http_response_code(200);
             echo json_encode(["success" => true, "message" => "Event belongs to a superseded checkout session; ignored"]);
             $conn->close();
@@ -175,6 +223,16 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         // Already settled — acknowledge so PayMongo stops retrying, but do
         // not rewrite the row.
         if ($inv_row['status'] === 'paid' && $status === 'paid') {
+            // A different payment on a bill that is already paid is a double
+            // payment; the same payment again is just PayMongo retrying.
+            $stored = $conn->prepare("SELECT paymongo_payment_id FROM invoices WHERE ? IN (id, payment_group) AND paymongo_payment_id IS NOT NULL LIMIT 1");
+            $stored->bind_param("s", $invoice_id);
+            $stored->execute();
+            $stored_payment = $stored->get_result()->fetch_assoc()['paymongo_payment_id'] ?? null;
+            $stored->close();
+            if ($stored_payment && $payment_id && $stored_payment !== $payment_id) {
+                raise_unapplied_payment($conn, $payment_id, $paid_centavos, $inv_row['user_id'], $invoice_id, "the bill was already paid");
+            }
             http_response_code(200);
             echo json_encode(["success" => true, "message" => "Already recorded"]);
             $conn->close();
@@ -189,8 +247,16 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             // invoice as it stands today (audit H9b). This never happened
             // before: a paid event settled the invoice at its current total
             // regardless of what was actually collected at checkout.
-            $paid_centavos = $event_data['attributes']['payments'][0]['attributes']['amount'] ?? null;
             $expected_centavos = (int)round((float)$inv_row['total_amount'] * 100);
+
+            // Keep the payment id on the bill whatever happens next: a refund
+            // through PayMongo needs it.
+            if ($payment_id) {
+                $keep = $conn->prepare("UPDATE invoices SET paymongo_payment_id = ? WHERE ? IN (id, payment_group)");
+                $keep->bind_param("ss", $payment_id, $invoice_id);
+                $keep->execute();
+                $keep->close();
+            }
 
             if ($paid_centavos === null || (int)$paid_centavos !== $expected_centavos) {
                 $mismatch = $conn->prepare("UPDATE invoices SET status = 'pending-verification' WHERE ? IN (id, payment_group) AND status IN " . billing_open_status_sql());
@@ -248,6 +314,7 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
                     "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a') . " — " . $result['message'], $actor ?? 0);
                 notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Online Payment Needs Review',
                     "An online payment for $invoice_id was received but could not be recorded: " . $result['message']);
+                raise_unapplied_payment($conn, $payment_id, $paid_centavos, $actor, $invoice_id, $result['message']);
                 http_response_code(200);
                 echo json_encode(["success" => true, "message" => "Payment recorded but needs manual review: " . $result['message']]);
                 $conn->close();

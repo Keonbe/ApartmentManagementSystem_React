@@ -22,6 +22,10 @@ The integration handles digital payments (GCash, Maya, QR Ph) through PayMongo's
   - Before marking an invoice paid, compares `payments[0].attributes.amount` (centavos) against the invoice's current `total_amount` — a mismatch (e.g. the total changed after checkout because a late fee was added) leaves the invoice `pending-verification` and queues it for manual review instead of trusting the stale total (audit H9b).
   - Settles a matched payment through the same `settle_invoice()` helper the front desk uses, so an online move-in payment activates the room/application/contract just like a desk payment (audit M12).
   - Updates the invoice status to `paid` or `payment-failed` automatically.
+  - Stores the PayMongo payment id (`pay_…`, `invoices.paymongo_payment_id`) on every invoice it settles; a refund needs it.
+  - A paid event AMS cannot apply (bill cancelled while at the checkout, bill already paid by another payment, older checkout than the one open, settle cascade failed) is not dropped: it becomes an `online_payment` refund request and an admin notice, once per payment id.
+  - Refund events update `refund_requests.gateway_status`; a `failed` refund notifies the admin.
+- `update_refund_request.php` (`action: mark_refunded`, `gateway: true`): refunds through `POST /v1/refunds` (`payment_id`, `amount` in centavos, `reason: others`, `notes`, `Idempotency-Key: ams-refund-<id>`) on the payment the money came in on (`refund_source_payment()`); claims the request first, so a second click cannot refund twice, and leaves it Approved if PayMongo refuses. Money that did not come in through PayMongo is paid back by hand (method + reference). Shared cURL/TLS code for both calls is in `backend/paymongo_gateway.php`.
 
 ### Database Schema
 The `invoices` table requires two columns for tracking:
@@ -43,7 +47,7 @@ Because PayMongo needs a public URL to send webhooks to, testing on a local XAMP
 4. Copy the generated Ngrok HTTPS URL.
 5. In the PayMongo Dashboard, go to **Developers > Webhooks** and create a webhook pointing to:
    `https://<YOUR_NGROK_URL>/ApartmentManagementSystem_React/backend/api/paymongo_webhook.php`
-6. Subscribe to `checkout_session.payment.paid` and `payment.failed`. 
+6. Subscribe to `checkout_session.payment.paid`, `payment.failed` and the refund events (`payment.refunded` / `payment.refund.updated`; the webhook accepts any event whose name contains `refund`, so tick every refund event your dashboard lists).
 7. Copy the generated Webhook Secret (`whsk_...`).
 
 ### Application Configuration

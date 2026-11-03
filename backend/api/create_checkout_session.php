@@ -4,6 +4,7 @@ require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
+require_once __DIR__ . '/../paymongo_gateway.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -164,14 +165,7 @@ if ($amount_cents <= 0) {
 }
 
 // 2. Fetch PayMongo Secret Key
-$settings_res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key = 'paymongo_secret_key'");
-$settings = [];
-if ($settings_res) {
-    while ($row = $settings_res->fetch_assoc()) {
-        $settings[$row['setting_key']] = $row['setting_value'];
-    }
-}
-$secret_key = ams_env_setting('paymongo_secret_key') ?? ($settings['paymongo_secret_key'] ?? '');
+$secret_key = paymongo_secret_key($conn);
 
 if (empty($secret_key)) {
     release_checkout_claim($conn, $prev_statuses, $user_id);
@@ -223,69 +217,14 @@ $payload = [
     ]
 ];
 
-// 4. cURL POST to PayMongo
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, "https://api.paymongo.com/v1/checkout_sessions");
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    "Content-Type: application/json",
-    "Accept: application/json",
-    "Authorization: Basic " . base64_encode($secret_key . ":")
-]);
-
-// This request carries the PayMongo secret key, so the gateway's certificate
-// must actually be verified. Verification used to be switched off outright
-// because XAMPP ships without curl.cainfo configured; instead, locate a CA
-// bundle and point cURL at it.
-$ca_bundle = ini_get('curl.cainfo') ?: ini_get('openssl.cafile') ?: '';
-if (!$ca_bundle || !is_readable($ca_bundle)) {
-    foreach (['C:/xampp/apache/bin/curl-ca-bundle.crt', 'C:/xampp/php/extras/ssl/cacert.pem', '/etc/ssl/certs/ca-certificates.crt'] as $candidate) {
-        if (is_readable($candidate)) { $ca_bundle = $candidate; break; }
-    }
-}
-
-if ($ca_bundle && is_readable($ca_bundle)) {
-    curl_setopt($ch, CURLOPT_CAINFO, $ca_bundle);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-} elseif (APP_ENV !== 'production') {
-    // No bundle anywhere on a dev box: keep the sandbox demo working, but say
-    // so loudly rather than silently shipping an unverified TLS connection.
-    error_log("PayMongo: no CA bundle found; TLS peer verification disabled (development only).");
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-} else {
+// 4. POST to PayMongo (paymongo_gateway.php verifies the gateway's certificate)
+$gateway = paymongo_request('POST', '/v1/checkout_sessions', $secret_key, $payload);
+if (!$gateway['ok']) {
     release_checkout_claim($conn, $prev_statuses, $user_id);
-    echo json_encode(["success" => false, "message" => "Payment gateway TLS certificate store is not configured on this server."]);
+    echo json_encode(["success" => false, "message" => $gateway['message']]);
     exit;
 }
-
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curl_error = curl_error($ch);
-curl_close($ch);
-
-if ($http_code !== 200 || $response === false) {
-    error_log("PayMongo Error: " . $response . " (cURL: $curl_error)");
-    $err_msg = "Failed to connect to payment gateway.";
-    if ($response) {
-        $err_data = json_decode($response, true);
-        if (isset($err_data['errors'][0]['detail'])) {
-            $err_msg = "PayMongo: " . $err_data['errors'][0]['detail'];
-        }
-    }
-    release_checkout_claim($conn, $prev_statuses, $user_id);
-    echo json_encode(["success" => false, "message" => $err_msg]);
-    exit;
-}
-
-$response_data = json_decode($response, true);
-if (isset($response_data['errors'])) {
-    release_checkout_claim($conn, $prev_statuses, $user_id);
-    echo json_encode(["success" => false, "message" => "Payment gateway error: " . $response_data['errors'][0]['detail']]);
-    exit;
-}
+$response_data = $gateway['data'];
 
 $checkout_session_id = $response_data['data']['id'];
 $checkout_url = $response_data['data']['attributes']['checkout_url'];

@@ -4,7 +4,7 @@ import Sidebar from '../Components/AdminSidebar';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { RefundForm, RefundTrail, StatusBadge } from '../Components/RefundParts';
-import { TYPE_LABELS, peso, when } from '../utils/refundFormat';
+import { TYPE_LABELS, GATEWAY_LABELS, peso, when } from '../utils/refundFormat';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
@@ -81,9 +81,16 @@ export default function AdminRefunds() {
     }
   };
 
-  const act = (r, action, okText) => call('update_refund_request.php',
-    { id: r.id, action, message: text[r.id] || '', payout_method: payout[r.id]?.method || '', payout_reference: payout[r.id]?.reference || '' },
+  const act = (r, action, okText, extra = {}) => call('update_refund_request.php',
+    { id: r.id, action, message: text[r.id] || '', payout_method: payout[r.id]?.method || '', payout_reference: payout[r.id]?.reference || '', ...extra },
     okText, () => setText((p) => ({ ...p, [r.id]: '' })));
+
+  // Money returns to the payer's own GCash / card / bank through PayMongo.
+  const refundOnline = (r) => {
+    if (window.confirm(`Refund ${peso(r.amount)} to ${r.tenantName} through PayMongo? This sends the money back and cannot be undone.`)) {
+      act(r, 'mark_refunded', 'Refund sent through PayMongo.', { gateway: true });
+    }
+  };
 
   const shown = requests.filter((r) => filter === 'all' || r.status === filter);
   const btn = 'cursor-pointer rounded-control border-0 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50';
@@ -95,7 +102,7 @@ export default function AdminRefunds() {
         <Header title="Refund Requests" />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-5xl space-y-6">
-            <p className="m-0 text-body text-slate-500">Advance rent and overpayments only; the security deposit is not refundable. Approving a request does not move money. Record the payout once it is sent.</p>
+            <p className="m-0 text-body text-slate-500">Advance rent and overpayments only; the security deposit is not refundable. Approving a request does not move money. Money paid online can be sent back through PayMongo from here; anything else is paid by hand and the payout recorded.</p>
 
             {notice && <div role="status" className={`rounded-control border p-3 text-body font-semibold ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>{notice.text}</div>}
 
@@ -144,7 +151,7 @@ export default function AdminRefunds() {
                   </div>
                 </div>
                 <p className="m-0 mt-2 whitespace-pre-wrap text-body text-slate-600">{r.reason}</p>
-                {r.status === 'Refunded' && <p className="m-0 mt-2 text-body font-semibold text-emerald-700">Paid out via {r.payoutMethod} (ref {r.payoutReference}).</p>}
+                {r.status === 'Refunded' && <p className="m-0 mt-2 text-body font-semibold text-emerald-700">Paid out via {r.payoutMethod} (ref {r.payoutReference}).{r.gatewayStatus ? ` ${GATEWAY_LABELS[r.gatewayStatus] || r.gatewayStatus}.` : ''}</p>}
                 <RefundTrail events={r.events} />
 
                 {(r.status === 'Pending Review') && (
@@ -165,8 +172,14 @@ export default function AdminRefunds() {
                 {r.status === 'Info Requested' && (
                   <p className="m-0 mt-3 text-body font-semibold text-sky-700">Waiting for the tenant's reply.</p>
                 )}
+                {r.status === 'Approved' && r.canRefundOnline && r.gatewayStatus !== 'requesting' && (
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button type="button" disabled={busy} onClick={() => refundOnline(r)} className={`${btn} bg-emerald-600 hover:bg-emerald-700`}>Refund {peso(r.amount)} through PayMongo</button>
+                    <span className="text-label text-slate-500">This was paid online, so it goes back to the payer's own account. Or record a payout made by hand:</span>
+                  </div>
+                )}
                 {r.status === 'Approved' && (
-                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <input placeholder="Paid via (e.g. GCash, bank transfer, cash)" maxLength={50} value={payout[r.id]?.method || ''}
                       onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], method: e.target.value } }))} className="rounded-control border border-slate-300 p-2 text-body" />
                     <input placeholder="Payout reference" maxLength={100} value={payout[r.id]?.reference || ''}

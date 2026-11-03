@@ -144,6 +144,7 @@ CREATE TABLE `invoices` (
   -- PayMongo payment intent of that session; payment.failed webhooks are
   -- matched by it (2026_10_checkout_payment_intent.sql).
   `checkout_payment_intent_id` varchar(100) DEFAULT NULL,
+  `paymongo_payment_id` varchar(64) DEFAULT NULL,
   `processing_since` datetime DEFAULT NULL,
   `payment_gateway` varchar(50) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -1284,7 +1285,7 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `rent_application_id` int(11) DEFAULT NULL,
-  `type` enum('advance','overpayment','rejected_application','rejected_charge') NOT NULL,
+  `type` enum('advance','overpayment','rejected_application','rejected_charge','online_payment') NOT NULL,
   `invoice_id` varchar(50) DEFAULT NULL,
   `amount` decimal(10,2) NOT NULL,
   `reason` text NOT NULL,
@@ -1292,6 +1293,9 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   `decision_reason` text DEFAULT NULL,
   `payout_method` varchar(50) DEFAULT NULL,
   `payout_reference` varchar(100) DEFAULT NULL,
+  `paymongo_payment_id` varchar(64) DEFAULT NULL,
+  `gateway_refund_id` varchar(64) DEFAULT NULL,
+  `gateway_status` varchar(20) DEFAULT NULL,
   `raised_by` int(11) DEFAULT NULL,
   `raised_by_role` varchar(10) NOT NULL DEFAULT 'user',
   `decided_by` int(11) DEFAULT NULL,
@@ -1302,6 +1306,7 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   PRIMARY KEY (`id`),
   KEY `idx_refund_user` (`user_id`, `status`),
   KEY `idx_refund_status` (`status`),
+  KEY `idx_refund_gateway` (`gateway_refund_id`),
   CONSTRAINT `fk_refund_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

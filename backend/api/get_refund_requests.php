@@ -11,7 +11,11 @@ $auth = require_user($conn);
 $is_admin = $auth['role'] === 'admin';
 $uid = (int)$auth['id'];
 
-$sql = "SELECT r.*, CONCAT(u.first_name,' ',u.last_name) AS tenant_name, u.email_address AS tenant_email, ra.room_name
+$sql = "SELECT r.*,
+        COALESCE(r.paymongo_payment_id,
+                 (SELECT inv.paymongo_payment_id FROM invoices inv WHERE inv.id = r.invoice_id),
+                 (SELECT ai.paymongo_payment_id FROM advance_credits c JOIN invoices ai ON ai.id = c.advance_invoice_id WHERE c.refund_request_id = r.id LIMIT 1)) AS source_payment_id,
+        CONCAT(u.first_name,' ',u.last_name) AS tenant_name, u.email_address AS tenant_email, ra.room_name
         FROM refund_requests r
         JOIN users u ON u.id = r.user_id
         LEFT JOIN rent_applications ra ON ra.id = r.rent_application_id";
@@ -59,6 +63,9 @@ while ($r = $res->fetch_assoc()) {
         'decisionReason' => $r['decision_reason'],
         'payoutMethod' => $r['payout_method'],
         'payoutReference' => $r['payout_reference'],
+        'canRefundOnline' => !empty($r['source_payment_id']),
+        'gatewayRefundId' => $r['gateway_refund_id'],
+        'gatewayStatus' => $r['gateway_status'],
         'raisedByRole' => $r['raised_by_role'],
         'decidedAt' => $r['decided_at'],
         'refundedAt' => $r['refunded_at'],

@@ -1030,6 +1030,27 @@ VALUES ('INV-TEST-001', 6, 4000.00, 4000.00, '2026-09', 'pending',
 DELETE FROM invoices WHERE id LIKE 'INV-TEST%';
 ```
 
+### 6.5 Online payments and PayMongo refunds
+
+Automated in `tests/api/online_payments.test.js` (webhook events signed locally; the Refunds API call is stubbed in `AMS_TEST_MODE`). A real sandbox round trip needs `sk_test_` + webhook secret + a tunnel (integration guide §2) and was not part of the suite.
+
+| ID | Condition | Expected |
+|---|---|---|
+| M3-60 | Signed `checkout_session.payment.paid` for a rent invoice | `paid`, `amount_paid` = total, method `Card (Sandbox)`, `paymongo_payment_id` stored |
+| M3-61 | Part-paid bill: event for the full total, then for the balance | Total → `pending-verification` (amount mismatch); balance → `paid` |
+| M3-62 | Grouped payment (`ADV-…` key) | Every month `paid`, same payment id on each |
+| M3-63 | Bill cancelled while at the checkout, event arrives (twice) | One `online_payment` refund request (Pending Review), bill stays `cancelled` |
+| M3-64 | Event from an older checkout than the one now open | Ignored as superseded, bill untouched, one `online_payment` request |
+| M3-65 | Second different payment on a paid bill; retry of the first | Second → one request; retry → none |
+| M3-66 | Event for an invoice AMS never had | Ignored, no request |
+| M3-67 | Approved refund on an online-paid invoice, `gateway: true` | `Refunded`, method `PayMongo`, `re_…` id stored, `gateway_status` `pending`; second payout 409 |
+| M3-68 | Same on a desk-paid invoice | 422, stays Approved; manual payout still works |
+| M3-69 | PayMongo declines the refund | 502 with PayMongo's message, stays Approved, `gateway_status` NULL (retryable) |
+| M3-70 | Refund under ₱1 | 422 before any call |
+| M3-71 | `online_payment` request | Refunded from its own `paymongo_payment_id` |
+| M3-72 | `get_refund_requests.php` (admin) | `canRefundOnline` true only when a PayMongo payment exists |
+| M3-73 | `payment.refund.updated` succeeded, retry, then failed | Status follows; repeat changes nothing; failed → one admin alert |
+
 ---
 
 ## 7. Module 4 — Maintenance Request

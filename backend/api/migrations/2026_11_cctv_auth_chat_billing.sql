@@ -1,11 +1,12 @@
 -- ============================================================
 -- 2026_11_cctv_auth_chat_billing.sql
--- One migration for the local 2026-11 workstream, merged from five per-feature
+-- One migration for the local 2026-11 workstream, merged from six per-feature
 -- files that were never pushed (so no deployed database has recorded them):
 --   guest_chat_links   guest inquiry chat links and flags (2026_10_guest_chat_links)
 --   invoiced_amount    amount a request put on its invoice (2026_11_invoiced_amount)
 --   cctv_incident_type / cctv_decision_note / cctv_footage   CCTV request rework
 --   auth_security      email verification and device sign-in codes
+--   paymongo_refunds   PayMongo payment id on invoices, refunds paid out through PayMongo
 -- 2026_11_appearance_settings and 2026_11_contract_end_and_preview stay as their
 -- own files: they are already on origin/main and may be applied on prod.
 --
@@ -170,3 +171,36 @@ CREATE TABLE IF NOT EXISTS `trusted_devices` (
   KEY `idx_trusted_devices_user` (`user_id`),
   CONSTRAINT `fk_trusted_devices_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ===== paymongo_refunds =====
+-- Online refunds through PayMongo.
+--   invoices.paymongo_payment_id          the pay_... id of the online payment that settled the bill
+--   refund_requests.paymongo_payment_id   the payment a refund is taken from when no invoice names it
+--   refund_requests.gateway_refund_id     the re_... id PayMongo returned for the payout
+--   refund_requests.gateway_status        requesting / pending / processing / succeeded / failed
+--   refund_requests.type                  + 'online_payment' (an online payment AMS could not apply)
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'paymongo_payment_id') = 0,
+  'ALTER TABLE `invoices` ADD COLUMN `paymongo_payment_id` varchar(64) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'paymongo_payment_id') = 0,
+  'ALTER TABLE `refund_requests` ADD COLUMN `paymongo_payment_id` varchar(64) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'gateway_refund_id') = 0,
+  'ALTER TABLE `refund_requests` ADD COLUMN `gateway_refund_id` varchar(64) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'gateway_status') = 0,
+  'ALTER TABLE `refund_requests` ADD COLUMN `gateway_status` varchar(20) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'type' AND column_type LIKE '%online_payment%') = 0,
+  'ALTER TABLE `refund_requests` MODIFY COLUMN `type` enum(''advance'',''overpayment'',''rejected_application'',''rejected_charge'',''online_payment'') NOT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- A payment is raised as a refund once.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND index_name = 'idx_refund_gateway') = 0,
+  'ALTER TABLE `refund_requests` ADD KEY `idx_refund_gateway` (`gateway_refund_id`)', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
