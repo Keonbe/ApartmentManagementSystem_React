@@ -8,6 +8,7 @@ import { useLang, t as translate } from '../config/i18n';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import PasswordChecklist from '../Components/form/PasswordChecklist';
+import LegalModal from '../Components/LegalModal';
 import { invalidCls } from '../Components/form/formHelpers';
 import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/registration.responsive.css';
@@ -64,6 +65,7 @@ export default function Registration({ onLoginRedirect }) {
     const [message, setMessage] = useState('');
     const [hasSubmitted, setHasSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [legalDoc, setLegalDoc] = useState(null);
     const { t } = useLang();
     const form = useFieldErrors(VALIDATORS, { idPrefix: 'reg-' });
 
@@ -283,6 +285,17 @@ export default function Registration({ onLoginRedirect }) {
                                 </div>
                             )}
 
+                            <p className="text-[11px] text-slate-500 text-center m-0 leading-relaxed">
+                                {t('reg.agreePrefix')}{' '}
+                                <button type="button" onClick={() => setLegalDoc('terms')} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer text-[11px]">
+                                    {t('reg.termsLink')}
+                                </button>{' '}
+                                {t('reg.and')}{' '}
+                                <button type="button" onClick={() => setLegalDoc('privacy')} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer text-[11px]">
+                                    {t('reg.privacyLink')}
+                                </button>.
+                            </p>
+
                             <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2 disabled:opacity-70">
                                 {isSubmitting ? t('reg.creating') : t('reg.submit')}
                             </button>
@@ -300,6 +313,7 @@ export default function Registration({ onLoginRedirect }) {
 
                 </div>
             </div>
+            {legalDoc && <LegalModal initialDoc={legalDoc} onClose={() => setLegalDoc(null)} />}
         </div>
     );
 }

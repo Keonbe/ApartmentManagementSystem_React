@@ -482,7 +482,7 @@ flowchart LR
 
 ### 4.3 Step-by-Step Workflow
 
-1. **Tenant — register** · `/register` → `registration.php` → row in `users`, role `user`.
+1. **Tenant — register** · `/register` → `registration.php` → row in `users`, role `user`. The page shows "By continuing, you agree to the Terms of Service and Privacy Notice" (`LegalModal`, text in `ams-react/src/config/legalContent.js`, English + Filipino); no consent is stored. That text describes archiving, contract privacy, file access and retention as built: update it when those change.
 2. **Tenant — pick a unit** · `/preview` → `get_rooms.php` → choose a `vacant` unit (use **J** or **N**).
 3. **Tenant — submit application** · `/rent-application` → `rent_application.php`
    → `rent_applications` row, `status='Pending Review'`, `terms_agreed_at` stamped, three document paths written, admin notified.

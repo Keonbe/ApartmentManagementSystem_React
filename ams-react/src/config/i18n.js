@@ -50,6 +50,11 @@ const translations = {
     'reg.submit': 'Register Account',
     'reg.hasAccount': 'Already have an account?',
     'reg.signIn': 'Sign In',
+    'reg.agreePrefix': 'By continuing, you agree to the',
+    'reg.termsLink': 'Terms of Service',
+    'reg.and': 'and',
+    'reg.privacyLink': 'Privacy Notice',
+    'legal.close': 'Close',
     'reg.error': 'Unable to register account. Please try again.',
 
     // --- Home ---
@@ -208,7 +213,7 @@ const translations = {
     'rent.terms2Title': '2. Verification Paperwork Protocols',
     'rent.terms2Body': 'Applicants must submit clear, authentic copies of every document listed under Verification Documents, such as a valid government-issued ID. Management may ask for a document again if it cannot be verified.',
     'rent.terms3Title': '3. Data Privacy Statement',
-    'rent.terms3Body': 'All uploaded file artifacts, text names, contact phone keys, and communication metrics are encrypted and safely stored solely within the Apartment Management System (AMS) data records platform securely.',
+    'rent.terms3Body': 'Your uploaded files, name and contact details are kept on the AMS server and can be opened only by you and Management. See the Privacy Notice shown at registration for details.',
     'rent.acceptAgree': 'Accept & Agree',
     'rent.successMsg': 'Application Submitted Successfully',
 
@@ -1198,6 +1203,11 @@ const translations = {
     'reg.submit': 'Irehistro ang Account',
     'reg.hasAccount': 'May account ka na?',
     'reg.signIn': 'Mag-sign In',
+    'reg.agreePrefix': 'Sa pagpapatuloy, sumasang-ayon ka sa',
+    'reg.termsLink': 'Mga Tuntunin ng Serbisyo',
+    'reg.and': 'at',
+    'reg.privacyLink': 'Paunawa sa Privacy',
+    'legal.close': 'Isara',
     'reg.error': 'Hindi mairehistro ang account. Pakisubukang muli.',
 
     // --- Home ---
@@ -1356,7 +1366,7 @@ const translations = {
     'rent.terms2Title': '2. Mga Protokol sa Beripikasyon',
     'rent.terms2Body': 'Ang mga aplikante ay kinakailangang magsumite ng malinaw at tunay na kopya ng bawat dokumentong nakalista sa Mga Dokumento para sa Beripikasyon, gaya ng valid na government-issued ID. Maaaring hingin muli ng management ang isang dokumento kung hindi ito ma-verify.',
     'rent.terms3Title': '3. Pahayag sa Privacy ng Data',
-    'rent.terms3Body': 'Lahat ng na-upload na mga file, pangalan, numero ng telepono, at iba pang impormasyon ay naka-encrypt at ligtas na nakaimbak sa loob ng Apartment Management System (AMS).',
+    'rent.terms3Body': 'Ang iyong na-upload na mga file, pangalan at contact details ay nakaimbak sa server ng AMS at ikaw at ang Pamunuan lamang ang makakabukas. Tingnan ang Paunawa sa Privacy na makikita sa pagpaparehistro.',
     'rent.acceptAgree': 'Tanggapin at Sumang-ayon',
     'rent.successMsg': 'Matagumpay na Naisumite ang Aplikasyon',
 
