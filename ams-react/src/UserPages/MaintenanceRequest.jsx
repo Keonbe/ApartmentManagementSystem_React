@@ -26,7 +26,6 @@ export default function MaintenanceRequest() {
     const [preferredDate, setPreferredDate] = useState('');
     const [preferredTime, setPreferredTime] = useState('');
     const [description, setDescription] = useState('');
-    const [permissionToEnter, setPermissionToEnter] = useState(false);//checkbox state
     const [uploadedFile, setUploadedFile, previewUrl] = useFilePreview();
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -101,7 +100,6 @@ export default function MaintenanceRequest() {
         formData.append('preferredDate', preferredDate);
         formData.append('preferredTime', preferredTime);
         formData.append('description', cleanDescription);
-        formData.append('permissionToEnter', permissionToEnter ? 1 : 0);
 
         if (uploadedFile) {
             formData.append('uploadedFile', uploadedFile);
@@ -274,23 +272,6 @@ export default function MaintenanceRequest() {
                             )}
                         </div>
                         <FieldError id="maint-uploadedFile" error={form.errors.uploadedFile} className="m-0" />
-                    </div>
-
-                    {/*Home Entry Checkbox Option Area*/}
-                    <div className="md:col-span-2 flex items-center space-x-3 pt-2 select-none">
-                        <input
-                            type="checkbox"
-                            id="permission-enter-checkbox"
-                            checked={permissionToEnter}
-                            onChange={(e) => setPermissionToEnter(e.target.checked)}
-                            className="w-4 h-4 rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer transition-colors"
-                        />
-                        <label
-                            htmlFor="permission-enter-checkbox"
-                            className="text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-800"
-                        >
-                            {t('maintenance.permissionEnter')}
-                        </label>
                     </div>
 
                     {/*Form Actions footer container*/}

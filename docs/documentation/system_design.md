@@ -813,7 +813,7 @@ ALTER TABLE maintenance_requests
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| FR-6.1 | The system shall allow tenants to submit maintenance requests with issue category, urgency level, description, preferred schedule, and permission-to-enter flag. | ✅ |
+| FR-6.1 | The system shall allow tenants to submit maintenance requests with issue category, urgency level, description, preferred schedule. | ✅ |
 | FR-6.2 | The system shall allow tenants to attach photo/document evidence to maintenance requests. | ✅ |
 | FR-6.3 | The system shall allow tenants to cancel pending maintenance requests from the My Requests page. | ✅ |
 | FR-6.4 | The system shall provide admins a Kanban board view (Pending → In Progress → Completed) with list view alternative. | ✅ |

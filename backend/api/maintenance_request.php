@@ -34,7 +34,6 @@ $urgency = MAINTENANCE_DEFAULT_URGENCY;
 $preferred_date = $_POST['preferredDate'] ?? '';
 $preferred_time = strtolower(trim($_POST['preferredTime'] ?? ''));
 $description = trim($_POST['description'] ?? '');
-$permission_to_enter = !empty($_POST['permissionToEnter']) ? 1 : 0;
 
 if (!$category || $preferred_date === '' || $preferred_time === '' || $description === '') {
     http_response_code(422);
@@ -71,8 +70,8 @@ if ($upload_error) {
 }
 
 $room_name = $tenancy['room_name'];
-$stmt = $conn->prepare("INSERT INTO maintenance_requests (user_id, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path, room_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param("isssssiss", $user_id, $category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path, $room_name);
+$stmt = $conn->prepare("INSERT INTO maintenance_requests (user_id, issue_category, urgency, preferred_date, preferred_time, description, attachment_path, room_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("ssssssss", $user_id, $category, $urgency, $preferred_date, $preferred_time, $description, $attachment_path, $room_name);
 
 if (!$stmt->execute()) {
     http_response_code(500);

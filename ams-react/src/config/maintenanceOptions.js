@@ -26,7 +26,7 @@ const NEEDS_TRIAGE_COLOR = 'bg-violet-50 text-violet-700 border-violet-200 borde
 
 export const MAINTENANCE_TRANSITIONS = {
   'Pending': ['In Progress', 'Rejected'],
-  'In Progress': ['Completed', 'Pending'],
+  'In Progress': ['Completed', 'Pending', 'Cancelled'],
   'Completed': ['In Progress'],
   'Rejected': [],
   'Cancelled': [],

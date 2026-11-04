@@ -45,6 +45,24 @@ $stmt->execute();
 $affected = $stmt->affected_rows;
 $stmt->close();
 
+// Repair work already under way can't just vanish: the tenant asks, the admin
+// (who may have a technician or a part on order) cancels or declines.
+if ($affected === 0 && $type === 'Maintenance') {
+    $stmt = $conn->prepare("UPDATE maintenance_requests SET cancel_requested_at = NOW() WHERE id = ? AND user_id = ? AND status = 'In Progress' AND cancel_requested_at IS NULL");
+    $stmt->bind_param("ii", $id, $user_id);
+    $stmt->execute();
+    $asked = $stmt->affected_rows;
+    $stmt->close();
+    if ($asked > 0) {
+        notify_admins_queue($conn, 'maintenance_request', $id, "Tenant asks to cancel maintenance",
+            "The tenant asked to cancel maintenance request #$id while work is in progress. Open it to cancel or decline.");
+        log_activity($conn, $user_id, 'maintenance', "Requested Maintenance Cancellation", "Maintenance Request ID: $id, cancellation requested by tenant");
+        echo json_encode(["success" => true, "requested" => true, "message" => "We told management you want to cancel. They will confirm because work has already started."]);
+        $conn->close();
+        exit;
+    }
+}
+
 if ($affected === 0) {
     http_response_code(409);
     echo json_encode(["success" => false, "message" => "Only your own pending requests can be cancelled."]);

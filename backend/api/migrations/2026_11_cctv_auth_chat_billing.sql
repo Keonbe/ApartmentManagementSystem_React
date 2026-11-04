@@ -7,6 +7,8 @@
 --   cctv_incident_type / cctv_decision_note / cctv_footage   CCTV request rework
 --   auth_security      email verification and device sign-in codes
 --   paymongo_refunds   PayMongo payment id on invoices, refunds paid out through PayMongo
+--   house_rules_filipino   Filipino text for the four starter house rules
+--   maintenance_workflow   scheduled visit, tenant cancel request, tenant reopen reason
 -- 2026_11_appearance_settings and 2026_11_contract_end_and_preview stay as their
 -- own files: they are already on origin/main and may be applied on prod.
 --
@@ -203,6 +205,41 @@ PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 -- A payment is raised as a refund once.
 SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND index_name = 'idx_refund_gateway') = 0,
   'ALTER TABLE `refund_requests` ADD KEY `idx_refund_gateway` (`gateway_refund_id`)', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ===== house_rules_filipino =====
+-- Filipino text for the four starter house rules (quiet hours, smoke-free,
+-- visitors, paying rent on time); the children/pets and parking starters got
+-- theirs in 2026_10_panelist_gaps.sql. A rule is filled only while its Filipino
+-- title is empty, so wording an admin already wrote is kept. Plain UPDATEs: safe to re-run.
+UPDATE `house_rules` SET `title_fil` = 'Igalang ang oras ng katahimikan',
+  `description_fil` = 'Panatilihing mahina ang ingay mula 10:00 PM hanggang 7:00 AM upang makapagpahinga ang lahat ng residente.'
+ WHERE `scope` = 'house' AND `title` = 'Respect quiet hours' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Bawal manigarilyo sa loob ng gusali',
+  `description_fil` = 'Hindi pinapayagan ang paninigarilyo sa loob ng mga kwarto o saanmang saradong karaniwang lugar. Panatilihing malinis ang paligid at agad na iulat ang anumang sira.'
+ WHERE `scope` = 'house' AND `title` = 'Smoke-free indoor areas' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Iparehistro ang iyong mga bisita',
+  `description_fil` = 'Dapat maiparehistro sa management ng apartment ang lahat ng bisita at sundin nila ang mga patakaran sa pagpasok at kaligtasan ng gusali.'
+ WHERE `scope` = 'house' AND `title` = 'Register your visitors' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Magbayad ng upa sa tamang oras',
+  `description_fil` = 'Ang buwanang upa ay dapat bayaran sa napagkasunduang petsa. Makipag-ugnayan agad sa management kung may tanong ka tungkol sa iyong bayad.'
+ WHERE `scope` = 'house' AND `title` = 'Pay rent on time' AND (`title_fil` IS NULL OR `title_fil` = '');
+
+-- ===== maintenance_workflow =====
+-- Visit scheduling (date + morning/afternoon window the admin confirms), a tenant's
+-- request to cancel work already under way, and the reason a tenant gives when a
+-- completed repair was not fixed.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'maintenance_requests' AND column_name = 'scheduled_date') = 0,
+  'ALTER TABLE `maintenance_requests` ADD COLUMN `scheduled_date` date DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'maintenance_requests' AND column_name = 'scheduled_window') = 0,
+  'ALTER TABLE `maintenance_requests` ADD COLUMN `scheduled_window` varchar(20) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'maintenance_requests' AND column_name = 'cancel_requested_at') = 0,
+  'ALTER TABLE `maintenance_requests` ADD COLUMN `cancel_requested_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'maintenance_requests' AND column_name = 'reopen_reason') = 0,
+  'ALTER TABLE `maintenance_requests` ADD COLUMN `reopen_reason` varchar(255) DEFAULT NULL', 'DO 0');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 -- ===== announcement_pinning =====

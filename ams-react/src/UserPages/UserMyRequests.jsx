@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -8,6 +9,10 @@ import InlineAlert from '../Components/InlineAlert';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import '../assets/styles/responsive/user/user-my-requests.responsive.css';
 
+// A request is closed once it has an outcome; everything else is still in play.
+const SECTION = 'm-0 list-none divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-sm';
+const CLOSED = ['Completed', 'Resolved', 'Cancelled', 'Rejected'];
+
 const parseDate = (value) => (value ? new Date(String(value).replace(' ', 'T')) : null);
 
 export default function UserMyRequests() {
@@ -15,6 +20,7 @@ export default function UserMyRequests() {
     const [loading, setLoading] = useState(true);
     // A failed load used to show "no requests found", which was not true.
     const [loadFailed, setLoadFailed] = useState(false);
+    const navigate = useNavigate();
     const { t } = useLang();
 
     const loadRequests = async () => {
@@ -49,14 +55,45 @@ export default function UserMyRequests() {
     const [cancelTarget, setCancelTarget] = useState(null);
     const [cancelling, setCancelling] = useState(false);
     const [actionError, setActionError] = useState('');
+    const [actionNotice, setActionNotice] = useState('');
 
+    // A repair reported as not fixed goes back to In Progress with the tenant's reason.
+    const [reopenTarget, setReopenTarget] = useState(null);
+    const [reopenReason, setReopenReason] = useState('');
+    const [reopening, setReopening] = useState(false);
+
+    const confirmReopen = async () => {
+        if (!reopenTarget || reopening) return;
+        const reason = reopenReason.trim();
+        if (!reason) { setActionError(t('myRequests.reopenPlaceholder')); return; }
+        setReopening(true);
+        setActionError('');
+        try {
+            const response = await api.post('reopen_maintenance_request.php', { id: reopenTarget.id, reason });
+            if (response.data.success) {
+                await fetchRequests();
+            } else {
+                setActionError(response.data.message || t('myRequests.reopenFailed'));
+            }
+        } catch (error) {
+            setActionError(error.response?.data?.message || t('myRequests.reopenFailed'));
+        } finally {
+            setReopening(false);
+            setReopenTarget(null);
+            setReopenReason('');
+        }
+    };
+
+    // A repair already under way is not cancelled outright: the tenant asks, management decides.
     const confirmCancel = async () => {
         if (!cancelTarget || cancelling) return;
         setCancelling(true);
         setActionError('');
+        setActionNotice('');
         try {
             const response = await api.post('cancel_request.php', { id: cancelTarget.id, type: cancelTarget.type });
             if (response.data.success) {
+                if (response.data.requested) setActionNotice(t('myRequests.cancelAsked'));
                 await fetchRequests();
             } else {
                 setActionError(response.data.message || t('myRequests.cancelFailed'));
@@ -68,6 +105,21 @@ export default function UserMyRequests() {
             setCancelTarget(null);
         }
     };
+
+    const money = (value) => Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const visitText = (req) => {
+        const day = parseDate(`${req.scheduled_date} 00:00:00`).toLocaleDateString(dateLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
+        return `${day} (${t(req.scheduled_window === 'afternoon' ? 'myRequests.visitAfternoon' : 'myRequests.visitMorning')})`;
+    };
+
+    const typeLabel = (type) => {
+        const key = `myRequests.type.${String(type).toLowerCase()}`;
+        const translated = t(key);
+        return translated === key ? type : translated;
+    };
+
+    const activeRequests = requests.filter((r) => !CLOSED.includes(r.status));
+    const closedRequests = requests.filter((r) => CLOSED.includes(r.status));
 
     const getTypeIcon = (type) => {
         switch (type) {
@@ -112,50 +164,15 @@ export default function UserMyRequests() {
         }
     };
 
-    return (
-        <div className="my-requests-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-[1000px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
-
-                <div className="border-b border-slate-200 pb-4">
-                    <h1 className="my-requests-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
-                        {t('myRequests.heading')}
-                    </h1>
-                    <p className="my-requests-subtext text-slate-500 text-sm mt-1 m-0">
-                        {t('myRequests.subtext')}
-                    </p>
-                </div>
-
-                <InlineAlert onDismiss={() => setActionError('')}>{actionError}</InlineAlert>
-
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    {loading ? (
-                        <div className="p-8 text-center text-slate-500">{t('myRequests.loading')}</div>
-                    ) : loadFailed && requests.length === 0 ? (
-                        <div className="p-4">
-                            <InlineAlert>
-                                {t('common.loadFailed')}{' '}
-                                <button type="button" onClick={retryLoad} className="ml-1 min-h-[36px] px-3 rounded-lg bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-100">
-                                    {t('common.retry')}
-                                </button>
-                            </InlineAlert>
-                        </div>
-                    ) : requests.length === 0 ? (
-                        <div className="p-12 text-center">
-                            <FontAwesomeIcon icon={faTools} className="text-4xl text-slate-200 mb-4" />
-                            <h3 className="text-lg font-bold text-slate-700 m-0">{t('myRequests.noneFound')}</h3>
-                            <p className="text-sm text-slate-500 mt-2">{t('myRequests.noneFoundDesc')}</p>
-                        </div>
-                    ) : (
-                        <div className="stagger-children divide-y divide-slate-100">
-                            {requests.map((req) => (
-                                <div key={`${req.type}-${req.id}`} className="my-requests-item card-interactive p-4 sm:p-5 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    const renderRow = (req) => (
+                                <li key={`${req.type}-${req.id}`} className="my-requests-item card-interactive p-4 sm:p-5 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center text-lg sm:text-xl shrink-0">
                                             {getTypeIcon(req.type)}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                <span className="text-xs font-bold text-slate-500">{req.type}</span>
+                                                <span className="text-xs font-bold text-slate-700">{typeLabel(req.type)}</span>
                                                 <span className="text-xs text-slate-300">•</span>
                                                 <span className="text-xs font-medium text-slate-500">
                                                     {t('myRequests.submitted')} {formatStamp(req.created_at)}
@@ -174,7 +191,7 @@ export default function UserMyRequests() {
                                                 <p className="text-xs text-slate-600 m-0 mt-1 line-clamp-2">{req.description}</p>
                                             )}
                                             {req.status === 'Rejected' && req.rejection_reason && (
-                                                <p className="text-xs text-red-600 m-0 mt-1">Reason: {req.rejection_reason}</p>
+                                                <p className="text-xs text-red-600 m-0 mt-1">{t('myRequests.reason')} {req.rejection_reason}</p>
                                             )}
                                             {req.status === 'Approved' && req.type === 'CCTV' && req.rejection_reason && (
                                                 <p className="text-xs text-emerald-700 m-0 mt-1">{t('myRequests.footagePickup')} {req.rejection_reason}</p>
@@ -195,6 +212,23 @@ export default function UserMyRequests() {
                                             )}
                                             {req.type === 'CCTV' && !req.footage_kind && req.footage_expires_at && (
                                                 <p className="text-xs text-slate-500 m-0 mt-1">{t('myRequests.footageExpired')}</p>
+                                            )}
+                                            {req.type === 'Maintenance' && (
+                                                <div className="mt-1 space-y-0.5">
+                                                    {req.assigned_to && <p className="text-xs text-slate-600 m-0">{t('myRequests.assignedTo')}: <strong>{req.assigned_to}</strong></p>}
+                                                    {(req.status === 'Pending' || req.status === 'In Progress') && (
+                                                        req.scheduled_date
+                                                            ? <p className="text-xs text-indigo-700 font-semibold m-0">{t('myRequests.visit')}: {visitText(req)}</p>
+                                                            : <p className="text-xs text-slate-500 m-0">{t('myRequests.visitPending')}</p>
+                                                    )}
+                                                    {Number(req.tenant_responsible) === 1 && req.charge_amount !== null && !['Rejected', 'Cancelled'].includes(req.status) && (
+                                                        <p className="text-xs font-semibold text-violet-700 m-0">
+                                                            {t(req.status === 'Completed' ? 'myRequests.charge' : 'myRequests.chargeEstimate', { amount: money(req.charge_amount) })}
+                                                        </p>
+                                                    )}
+                                                    {req.cancel_requested_at && req.status === 'In Progress' && <p className="text-xs text-amber-700 m-0">{t('myRequests.cancelRequested')}</p>}
+                                                    {req.reopen_reason && ['In Progress', 'Pending'].includes(req.status) && <p className="text-xs text-slate-500 m-0">{t('myRequests.reopenReason', { reason: req.reopen_reason })}</p>}
+                                                </div>
                                             )}
                                             {req.total_cost !== null && req.total_cost !== undefined && (
                                                 <p className="text-xs font-bold text-indigo-600 m-0 mt-1">
@@ -218,6 +252,24 @@ export default function UserMyRequests() {
                                     <div className="my-requests-actions flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
                                         {getStatusBadge(req.status)}
 
+                                        {req.type === 'Maintenance' && Number(req.can_reopen) === 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setReopenTarget({ id: req.id, title: req.title })}
+                                                className="px-4 py-2 text-sm font-bold text-amber-800 bg-white border border-amber-300 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                                            >
+                                                {t('myRequests.notFixed')}
+                                            </button>
+                                        )}
+                                        {req.type === 'Maintenance' && req.status === 'In Progress' && !req.cancel_requested_at && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCancelTarget({ id: req.id, type: req.type, title: req.title, underWay: true })}
+                                                className="my-requests-cancel-btn px-4 py-2 text-sm font-bold text-red-700 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                                            >
+                                                {t('myRequests.requestCancel')}
+                                            </button>
+                                        )}
                                         {req.status === 'Pending' && (
                                             <button
                                                 type="button"
@@ -229,17 +281,111 @@ export default function UserMyRequests() {
                                             </button>
                                         )}
                                     </div>
-                                </div>
-                            ))}
+                                </li>
+    );
+
+    return (
+        <div className="my-requests-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
+            <div className="w-full max-w-[1000px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
+
+                <header className="border-b border-slate-200 pb-4">
+                    <h1 className="my-requests-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
+                        {t('myRequests.heading')}
+                    </h1>
+                    <p className="my-requests-subtext text-slate-500 text-sm mt-1 m-0">
+                        {t('myRequests.subtext')}
+                    </p>
+                </header>
+
+
+                <InlineAlert onDismiss={() => setActionError('')}>{actionError}</InlineAlert>
+                {actionNotice && <InlineAlert tone="info" onDismiss={() => setActionNotice('')}>{actionNotice}</InlineAlert>}
+
+                {loading ? (
+                    <p className="m-0 rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-600" role="status">{t('myRequests.loading')}</p>
+                ) : loadFailed && requests.length === 0 ? (
+                    <InlineAlert>
+                        {t('common.loadFailed')}{' '}
+                        <button type="button" onClick={retryLoad} className="ml-1 min-h-[44px] px-3 rounded-lg bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-100">
+                            {t('common.retry')}
+                        </button>
+                    </InlineAlert>
+                ) : requests.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+                        <FontAwesomeIcon icon={faTools} className="mb-4 text-4xl text-slate-300" aria-hidden="true" />
+                        <h2 className="m-0 text-lg font-bold text-slate-800">{t('myRequests.noneFound')}</h2>
+                        <p className="m-0 mt-2 text-sm text-slate-600">{t('myRequests.noneFoundDesc')}</p>
+                        <button type="button" onClick={() => navigate('/services')} className="mt-4 inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border-0 bg-indigo-700 px-5 text-sm font-bold text-white hover:bg-indigo-800">
+                            {t('myRequests.makeRequest')}
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {/* Summary: what is in progress, and the most recent request. */}
+                        <div className="flex flex-col justify-between gap-4 rounded-2xl bg-brand p-5 text-white sm:flex-row sm:items-center sm:p-6" role="status">
+                            <div className="min-w-0">
+                                <p className="m-0 text-3xl font-extrabold tabular-nums">
+                                    {activeRequests.length === 0 ? t('myRequests.activeNone') : activeRequests.length === 1 ? t('myRequests.activeOne') : t('myRequests.activeMany', { count: activeRequests.length })}
+                                </p>
+                                <p className="m-0 mt-2 truncate text-sm text-indigo-100">{t('myRequests.latest', { title: requests[0].title || typeLabel(requests[0].type) })}</p>
+                            </div>
+                            <button type="button" onClick={() => navigate('/services')} className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 self-start rounded-xl border-0 bg-white px-5 text-sm font-bold text-brand hover:bg-indigo-50 sm:self-auto">
+                                {t('myRequests.makeRequest')}
+                            </button>
                         </div>
-                    )}
-                </div>
+
+                        {activeRequests.length > 0 && (
+                            <section aria-labelledby="requests-active">
+                                <h2 id="requests-active" className="m-0 mb-3 text-xl font-bold text-slate-900">{t('myRequests.activeHeading')}</h2>
+                                <ul className={`${SECTION} stagger-children`}>
+                                    {activeRequests.map(renderRow)}
+                                </ul>
+                            </section>
+                        )}
+
+                        {closedRequests.length > 0 && (
+                            <details open={activeRequests.length === 0} className="group">
+                                <summary className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xl font-bold text-slate-900">
+                                    {t('myRequests.closedHeading', { count: closedRequests.length })}
+                                </summary>
+                                <ul className={`${SECTION} mt-3`}>
+                                    {closedRequests.map(renderRow)}
+                                </ul>
+                            </details>
+                        )}
+                    </>
+                )}
 
             </div>
 
+            {reopenTarget && (
+                <ConfirmDialog
+                    title={t('myRequests.reopenTitle')}
+                    message={
+                        <span className="block">
+                            <span className="block mb-2">{t('myRequests.reopenHelp')}</span>
+                            <textarea
+                                rows={3}
+                                maxLength={255}
+                                value={reopenReason}
+                                onChange={(e) => setReopenReason(e.target.value)}
+                                placeholder={t('myRequests.reopenPlaceholder')}
+                                aria-label={t('myRequests.reopenPlaceholder')}
+                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-indigo-500 resize-none"
+                            />
+                        </span>
+                    }
+                    confirmLabel={t('myRequests.reopenSend')}
+                    tone="primary"
+                    busy={reopening}
+                    onConfirm={confirmReopen}
+                    onClose={() => { setReopenTarget(null); setReopenReason(''); }}
+                />
+            )}
+
             {cancelTarget && (
                 <ConfirmDialog
-                    title={t('myRequests.cancelConfirm')}
+                    title={cancelTarget.underWay ? t('myRequests.requestCancelConfirm') : t('myRequests.cancelConfirm')}
                     confirmLabel={t('myRequests.cancel')}
                     busy={cancelling}
                     onConfirm={confirmCancel}

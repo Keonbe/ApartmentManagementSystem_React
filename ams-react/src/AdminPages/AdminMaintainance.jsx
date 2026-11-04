@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
-import { LIMITS, MAX_AMOUNT, TITLE_MIN, checkAmount, checkText } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, TITLE_MIN, checkAmount, checkText, localDateString } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import { clickable } from '../utils/clickable';
@@ -81,7 +81,6 @@ const toViewModel = (r) => ({
   description: r.description || '',
   preferredDate: r.preferredDate,
   preferredTime: r.preferredTime,
-  permissionToEnter: r.permissionToEnter,
   assignedTo: r.assignedTo || '',
   estimatedCost: r.estimatedCost,
   actualCost: r.actualCost,
@@ -93,6 +92,10 @@ const toViewModel = (r) => ({
   startedAt: r.startedAt,
   resolvedAt: r.resolvedAt,
   resolutionHours: r.resolutionHours,
+  scheduledDate: r.scheduledDate || '',
+  scheduledWindow: r.scheduledWindow || '',
+  cancelRequestedAt: r.cancelRequestedAt,
+  reopenReason: r.reopenReason || '',
   attachment: attachmentFor(r.attachmentPath),
 });
 
@@ -146,17 +149,21 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
       </div>
       {/* The code sits by the title so the tags above get the card's full width
           (beside them, two tags no longer fit on one line in a board column). */}
-      <div className="flex items-baseline justify-between gap-2 mb-3">
-        <h4 className="text-body font-bold text-slate-800 m-0 leading-snug min-w-0">{req.title}</h4>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 mb-3">
+        <h4 className="text-body font-bold text-slate-800 m-0 leading-snug min-w-0 wrap-break-word">{req.title}</h4>
         <span className="shrink-0 whitespace-nowrap text-caption text-slate-500 font-mono group-hover:text-indigo-600 transition-colors">{req.code}</span>
       </div>
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between text-caption text-slate-500 gap-2">
-          <span className="flex items-center gap-1.5 truncate"><FontAwesomeIcon icon={faUser} className="text-[10px]" /> {req.tenant} · {req.unit}</span>
+        <div className="flex flex-wrap items-center justify-between text-caption text-slate-500 gap-x-2 gap-y-1">
+          <span className="flex items-center gap-1.5 min-w-0"><FontAwesomeIcon icon={faUser} className="text-[10px] shrink-0" /> <span className="truncate">{req.tenant} · {req.unit}</span></span>
           <span className="flex items-center gap-1 shrink-0"><FontAwesomeIcon icon={faClock} className="text-[10px]" /> {getRelativeTime(req.createdAt)}</span>
         </div>
         <div className="flex justify-between items-center mt-1 border-t border-slate-100 pt-2">
-          {req.assignedTo ? (
+          {req.cancelRequestedAt && req.status === 'In Progress' ? (
+            <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-red-50 text-red-700">Cancel requested</span>
+          ) : req.reopenReason && req.status === 'In Progress' ? (
+            <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-amber-50 text-amber-800">Reported not fixed</span>
+          ) : req.assignedTo ? (
             <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-indigo-50 text-indigo-700">{req.assignedTo}</span>
           ) : (
             <span className="text-caption font-medium text-slate-500 italic">Unassigned</span>
@@ -346,6 +353,12 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
   const [assigneeDraft, setAssigneeDraft] = useState(req.assignedTo || '');
   const [estimateDraft, setEstimateDraft] = useState(req.estimatedCost ?? '');
   const [newNote, setNewNote] = useState('');
+  const [visitDate, setVisitDate] = useState(req.scheduledDate || '');
+  const [visitWindow, setVisitWindow] = useState(req.scheduledWindow || '');
+  const visitDirty = visitDate !== (req.scheduledDate || '') || visitWindow !== (req.scheduledWindow || '');
+  const visitIncomplete = (visitDate === '') !== (visitWindow === '');
+  // The tenant asked for a day and part of the day; one click confirms it.
+  const useTenantSlot = () => { setVisitDate(req.preferredDate || ''); setVisitWindow(req.preferredTime || ''); };
 
   const allowedNext = MAINTENANCE_TRANSITIONS[req.status] || [];
   const isClosed = req.status === 'Rejected' || req.status === 'Cancelled';
@@ -405,8 +418,6 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                     <span className="flex items-center gap-1.5"><FontAwesomeIcon icon={faCalendarAlt} className="text-slate-500" /> Preferred: {req.preferredDate} ({req.preferredTime})</span>
                   </>
                 )}
-                <span className="text-slate-300">•</span>
-                <span>{req.permissionToEnter ? 'Permission to enter granted' : 'Tenant must be present'}</span>
               </div>
               {req.actualCost !== null && req.actualCost !== undefined && req.status === 'Completed' && (
                 <p className="text-body font-bold text-emerald-700 m-0 mt-2">Actual Cost: {formatCurrency(req.actualCost)}</p>
@@ -422,6 +433,21 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
               </div>
             )}
 
+            {req.cancelRequestedAt && req.status === 'In Progress' && (
+              <div className="bg-red-50 border border-red-200 rounded-control p-4 text-body text-red-700 flex items-center justify-between gap-3 flex-wrap">
+                <span><strong>Tenant asked to cancel</strong> ({formatDateTime(req.cancelRequestedAt)}). Work has already started.</span>
+                <span className="flex gap-2">
+                  <button disabled={saving} onClick={() => onMoveTo('Cancelled')} className={btn('secondary', 'md')}>Cancel request</button>
+                  <button disabled={saving} onClick={() => onSaveField({ declineCancel: true })} className={btn('secondary', 'md')}>Keep working</button>
+                </span>
+              </div>
+            )}
+            {req.reopenReason && req.status === 'In Progress' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-control p-4 text-body text-amber-800">
+                <strong>Tenant says it is not fixed:</strong> {req.reopenReason}
+              </div>
+            )}
+
             <div>
               <h4 className="text-label font-medium text-slate-600 mb-2 m-0">Description</h4>
               <div className="bg-slate-50 border border-slate-100 rounded-control p-4 text-body text-slate-700 leading-relaxed">{req.description || 'No description provided.'}</div>
@@ -429,11 +455,11 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
 
             <div className="bg-violet-50 border border-violet-200 rounded-control p-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FontAwesomeIcon icon={faShieldAlt} className="text-violet-600" />
-                  <div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <FontAwesomeIcon icon={faShieldAlt} className="text-violet-600 shrink-0" />
+                  <div className="min-w-0">
                     <p className="text-body font-bold text-slate-800 m-0">Tenant Responsible</p>
-                    <p className="text-caption text-slate-500 m-0 mt-0.5">If enabled, this cost is billed to the tenant (per Terms & Conditions)</p>
+                    <p className="text-caption text-slate-500 m-0 mt-0.5">If enabled, the tenant is notified and the actual cost is billed to their invoice on completion (per Terms & Conditions)</p>
                   </div>
                 </div>
                 <button
@@ -443,7 +469,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                   aria-label="Tenant responsible"
                   disabled={saving || isClosed}
                   onClick={onToggleTenantResponsible}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 border-0 cursor-pointer disabled:opacity-50 ${req.tenantResponsible ? 'bg-violet-600' : 'bg-slate-300'}`}
+                  className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 border-0 cursor-pointer disabled:opacity-50 ${req.tenantResponsible ? 'bg-violet-600' : 'bg-slate-300'}`}
                 >
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-raised transition-transform duration-300 ${req.tenantResponsible ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
@@ -502,6 +528,11 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                 {allowedNext.includes('Rejected') && (
                   <button disabled={saving} onClick={() => onOpenAction('reject')} className="flex items-center gap-2 px-4 py-2 bg-white text-red-600 border border-red-200 text-body font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50">
                     <FontAwesomeIcon icon={faBan} /> Reject
+                  </button>
+                )}
+                {req.status === 'In Progress' && allowedNext.includes('Cancelled') && !req.cancelRequestedAt && (
+                  <button disabled={saving} onClick={() => onMoveTo('Cancelled')} className="flex items-center gap-2 px-4 py-2 bg-white text-red-600 border border-red-200 text-body font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50">
+                    <FontAwesomeIcon icon={faBan} /> Cancel
                   </button>
                 )}
                 {req.status === 'In Progress' && allowedNext.includes('Pending') && (
@@ -568,6 +599,35 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                     className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500" + invalidCls(form.errors.assignedTo)}
                   />
                   <FieldError id="detail-assignedTo" error={form.errors.assignedTo} />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="detail-visitDate" className="block text-label font-medium text-slate-600">Scheduled Visit</label>
+                    {req.preferredDate && (
+                      <button type="button" onClick={useTenantSlot} disabled={saving} className="text-caption font-semibold text-indigo-600 bg-transparent border-0 cursor-pointer p-0 hover:underline">
+                        Use tenant's ({req.preferredTime})
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input id="detail-visitDate" type="date" value={visitDate} disabled={saving} min={localDateString()} onChange={e => setVisitDate(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500" />
+                    <select aria-label="Visit window" value={visitWindow} disabled={saving} onChange={e => setVisitWindow(e.target.value)}
+                      className="px-2 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500 cursor-pointer">
+                      <option value="">Time</option>
+                      <option value="morning">Morning</option>
+                      <option value="afternoon">Afternoon</option>
+                    </select>
+                  </div>
+                  {visitDirty && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button type="button" disabled={saving || visitIncomplete} onClick={() => onSaveField({ scheduledDate: visitDate, scheduledWindow: visitWindow })} className={btn('primary', 'sm')}>
+                        {visitDate ? 'Confirm visit' : 'Clear visit'}
+                      </button>
+                      {visitIncomplete && <span className="text-caption text-red-600">Pick a date and a time.</span>}
+                    </div>
+                  )}
+                  {!visitDirty && req.scheduledDate && <p className="text-caption text-slate-500 m-0 mt-1">The tenant has been told.</p>}
                 </div>
                 <div>
                   <label htmlFor="detail-estimatedCost" className="block text-label font-medium text-slate-600 mb-1">Estimated Cost (₱)</label>
@@ -692,6 +752,11 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
             <FieldError id="action-actualCost" error={form.errors.actualCost} />
             {req.estimatedCost !== null && req.estimatedCost !== undefined && (
               <p className="text-caption text-slate-500 m-0 mt-1">Estimate was {formatCurrency(req.estimatedCost)}.</p>
+            )}
+            {req.tenantResponsible && (
+              <p className="text-caption text-violet-700 bg-violet-50 border border-violet-200 rounded-control p-2 m-0 mt-2">
+                This repair is the tenant's responsibility: the actual cost is added to their invoice and they are notified.
+              </p>
             )}
           </div>
         )}

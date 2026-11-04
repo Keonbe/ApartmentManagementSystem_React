@@ -1065,13 +1065,15 @@ Seed fixtures used below: ticket **#6** (Unit L, Pending, Low), **#7** (Unit H, 
 
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
-| `maintenance_request.php` | POST (multipart) | `require_user` + active lease | `issueType`, `preferredDate`, `preferredTime` (`morning`/`afternoon`), `description`, `permissionToEnter`; file `uploadedFile`. No priority field — any `urgency` sent is ignored | `success`, `id` | `401` · `403` no active lease · `422` bad category, date or file |
+| `maintenance_request.php` | POST (multipart) | `require_user` + active lease | `issueType`, `preferredDate`, `preferredTime` (`morning`/`afternoon`), `description`; file `uploadedFile`. No priority field — any `urgency` sent is ignored | `success`, `id` | `401` · `403` no active lease · `422` bad category, date or file |
 | `get_maintenance_requests.php` | GET | `require_admin` | — | `success`, `requests[]` incl. `acknowledgedAt`, `startedAt`, `resolvedAt`, `resolutionHours` | `401` / `403` |
 | `update_maintenance_status.php` | POST | `require_admin` | `id`, plus any of `status`, `urgency`, `assignedTo`, `estimatedCost`, `actualCost`, `workNotes`, `tenantResponsible`, `rejectionReason` | `success`, `message`, `billing` (null unless a charge was posted/reversed) | `400` nothing to update · `404` · `409` invalid transition or concurrent change · `422` reject without reason, negative cost, or `urgency` not one of the four real priorities. A `Completed` ticket with `tenantResponsible: true` posts its cost onto the tenant's invoice via `post_invoice_charge('maintenance')`; clearing the flag, or reopening out of `Completed`, reverses it (audit H10). |
+| `update_maintenance_status.php` (workflow fields) | POST | `require_admin` | `scheduledDate` + `scheduledWindow` (`morning`/`afternoon`, both or neither; a changed date cannot be in the past), `declineCancel` | as above | `422` bad date/window, or completing a `tenantResponsible` ticket with no actual cost. One tenant notice per save lists the status, the visit, the assignee and the tenant-responsibility change; completion also states the charge and the 7-day *not fixed* window |
 | `sync_maintenance_to_invoice.php` | POST | `require_admin` | `id` | `success`, `invoiceId`, `message` | Retries billing for a `Completed`, tenant-responsible ticket that had no active lease to bill at the time — mirrors `sync_service_to_invoice.php` |
 | `create_maintenance_request_admin.php` | POST (multipart) | `require_admin` | `title`, `unit`, `issueType`, `priority`, `description`; file `photo` | `success`, `id` | `422` unknown unit, bad category or file |
 | `get_my_requests.php` | GET | `require_user` (an admin may pass `userId`) | — | `success`, `requests[]` across maintenance, CCTV, parking and services | `401` |
-| `cancel_request.php` | POST | `require_user` | `id`, `type` (`Maintenance` / `CCTV` / `Parking` / `Service`) | `success` | `409` not your own Pending request · `422` unknown type |
+| `cancel_request.php` | POST | `require_user` | `id`, `type` (`Maintenance` / `CCTV` / `Parking` / `Service`) | `success` (`requested:true` when a Maintenance ticket is In Progress: only `cancel_requested_at` is set and the admin queue is notified) | `409` not your own Pending request (or a second cancel request) · `422` unknown type |
+| `reopen_maintenance_request.php` | POST | `require_user` | `id`, `reason` (≤255) | `success` — Completed → In Progress, `reopen_reason` stored, admin queue notified | `422` no reason · `404` not yours · `409` not Completed, completed more than 7 days ago, already on an invoice, or changed concurrently |
 
 **Vocabulary** — defined once in `backend/config.php` and mirrored for the UI in `ams-react/src/config/maintenanceOptions.js`:
 
@@ -1080,7 +1082,7 @@ Seed fixtures used below: ticket **#6** (Unit L, Pending, Low), **#7** (Unit H, 
 | `MAINTENANCE_CATEGORIES` | Plumbing · Electrical · Structural/Physical · Water Supply · General Maintenance · Others |
 | `MAINTENANCE_URGENCIES` | Low · Medium · High · Urgent — **admin-settable only**, via `update_maintenance_status.php` |
 | `MAINTENANCE_DEFAULT_URGENCY` | `Needs Triage` — the value every tenant-submitted ticket starts with. Not a member of `MAINTENANCE_URGENCIES`, so it can never be selected again once an admin assigns a real priority; `normalize_maintenance_urgency()` rejects it if sent back |
-| `MAINTENANCE_TRANSITIONS` | `Pending → In Progress \| Rejected` · `In Progress → Completed \| Pending` · `Completed → In Progress` (reopen) · `Rejected`, `Cancelled` terminal |
+| `MAINTENANCE_TRANSITIONS` | `Pending → In Progress \| Rejected` · `In Progress → Completed \| Pending \| Cancelled` · `Completed → In Progress` (admin reopen, or the tenant's *Not fixed?* within `MAINTENANCE_REOPEN_DAYS` = 7) · `Rejected`, `Cancelled` terminal |
 
 Legacy spellings are normalised rather than rejected: `appliance` and `pest control` become General Maintenance, `structural` and `carpentry` become Structural/Physical, and `emergency` becomes Urgent.
 
@@ -1097,6 +1099,7 @@ flowchart LR
     P -->|Tenant cancels| C[Cancelled]
     IP -->|Complete + actual cost<br/>resolved_at| D[Completed]
     IP -->|Back to Pending| P
+    IP -->|Admin cancels after tenant asks| C
     D -->|Reopen<br/>resolved_at cleared| IP
 
     classDef open fill:#fff3cd,stroke:#c69500
@@ -1217,6 +1220,10 @@ flowchart LR
 | **M4-18** | Negative | Invalid or sentinel priority rejected | Any ticket | `{"id":<id>,"urgency":"Whenever"}`, then `{"id":<id>,"urgency":"Needs Triage"}` | Both `422 "Invalid priority level."` | An admin cannot manually revert a ticket back to `Needs Triage` |
 | **M4-19** | Happy | Tenant-responsible repair bills the tenant (audit H10) | A `Completed` ticket, `tenant_responsible=0` | `{"id":<id>,"tenantResponsible":true}` | `200`; `billing` message names the invoice; `invoices.maintenance` rises by the ticket's cost; `maintenance_requests.is_invoiced=1` | `SELECT maintenance, total_amount FROM invoices WHERE id='<invoiceId>';` |
 | **M4-20** | Boundary | Charge posts exactly once | Immediately after M4-19 | `sync_maintenance_to_invoice.php` on the same ticket | `success:false` — *"already been billed"* | `maintenance` unchanged |
+| **M4-22** | Happy | Visit scheduled | Pending ticket | `{"id":<id>,"scheduledDate":"<tomorrow>","scheduledWindow":"morning"}` | `200`; tenant notified; My Requests shows the visit and assignee | `422` for a past date, a bad window or only one of the pair (`maintenance_workflow.test.js`) |
+| **M4-23** | Edge | Tenant cancels work under way | Ticket In Progress | `cancel_request.php` as the tenant | `requested:true`, status unchanged; admin cancels (`status: Cancelled`) or `declineCancel` | A second request `409` |
+| **M4-24** | Edge | Not fixed | Ticket Completed < 7 days ago, not invoiced | `reopen_maintenance_request.php` with `reason` | Status In Progress, `resolved_at` NULL | Older, invoiced, or another tenant's `409`/`404` |
+| **M4-25** | Negative | Tenant-billed repair needs a cost | `tenantResponsible` ticket without `actual_cost` | `status: Completed` | `422` | `actualCost: 0` is accepted |
 | **M4-21** | Happy | Reversal on flag-clear or reopen | Ticket billed in M4-19 | `{"id":<id>,"tenantResponsible":false}` | `200`; `maintenance` and `total_amount` reduced back; `is_invoiced=0`, `invoice_id=NULL` | Reversing against a `paid` invoice instead returns the manual-credit message and leaves the row unchanged |
 
 **Restore:**

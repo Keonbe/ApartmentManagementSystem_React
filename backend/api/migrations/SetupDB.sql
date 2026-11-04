@@ -918,6 +918,10 @@ ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `invoice_id` varchar
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `billing_period` varchar(50) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `invoiced_amount` decimal(10,2) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD INDEX IF NOT EXISTS `idx_maint_invoiced` (`is_invoiced`);
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_date` date DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_window` varchar(20) DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `cancel_requested_at` datetime DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `reopen_reason` varchar(255) DEFAULT NULL;
 
 -- Upgrade existing rows to the canonical categories (checklist 4.2) and urgencies, then backfill the timeline.
 UPDATE `maintenance_requests` SET `issue_category` = 'General Maintenance' WHERE LOWER(`issue_category`) IN ('appliance', 'pest control', 'general', 'general maintenance');
@@ -1250,7 +1254,7 @@ WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'minors');
 
 -- ===== rules_filipino =====
 -- Filipino text for the starter house, children/pets and parking rules, only while
--- the admin has not written one (the house rules: 2026_11_house_rules_filipino.sql).
+-- the admin has not written one (the house rules: 2026_11_cctv_auth_chat_billing.sql).
 UPDATE `house_rules` SET `title_fil` = 'Igalang ang oras ng katahimikan',
   `description_fil` = 'Panatilihing mahina ang ingay mula 10:00 PM hanggang 7:00 AM upang makapagpahinga ang lahat ng residente.'
  WHERE `scope` = 'house' AND `title` = 'Respect quiet hours' AND (`title_fil` IS NULL OR `title_fil` = '');

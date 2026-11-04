@@ -67,8 +67,8 @@ $preferred_time = 'morning';
 
 $stmt = $conn->prepare("
     INSERT INTO maintenance_requests
-    (user_id, title, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path, status, room_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 'Pending', ?)
+    (user_id, title, issue_category, urgency, preferred_date, preferred_time, description, attachment_path, status, room_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)
 ");
 $stmt->bind_param("issssssss", $user_id, $title, $category, $urgency, $preferred_date, $preferred_time, $description, $attachment_path, $unit);
 

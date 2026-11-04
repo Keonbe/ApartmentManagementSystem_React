@@ -1749,9 +1749,12 @@ const MAINTENANCE_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 const MAINTENANCE_DEFAULT_URGENCY = 'Needs Triage';
 
 // Rejected and Cancelled are terminal; Completed may be reopened if the fix did not hold.
+// How long after completion a tenant can report a repair as not fixed.
+const MAINTENANCE_REOPEN_DAYS = 7;
+
 const MAINTENANCE_TRANSITIONS = [
     'Pending'     => ['In Progress', 'Rejected'],
-    'In Progress' => ['Completed', 'Pending'],
+    'In Progress' => ['Completed', 'Pending', 'Cancelled'],
     'Completed'   => ['In Progress'],
     'Rejected'    => [],
     'Cancelled'   => [],
