@@ -19,6 +19,9 @@ const NO_HIGHLIGHT = new Set();
 
 const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const adminTheme = useAdminTheme();
+  // True once the admin clicks the colour switch on this page: its icons and
+  // highlight animate only then, not on the first paint of every page.
+  const [themeSwitched, setThemeSwitched] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
@@ -205,11 +208,14 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
           aria-label="Colour mode"
           className="relative grid grid-cols-2 items-center p-0.5 sm:p-1 rounded-full bg-slate-100 ring-1 ring-inset ring-slate-200 shrink-0"
         >
+          {/* Tailwind 4 moves it with the CSS `translate` property, so that is what
+              transitions. The squash has one animation name per side, so changing
+              side restarts it without remounting (which would skip the slide). */}
           <span
             aria-hidden="true"
-            className={`absolute top-0.5 bottom-0.5 left-0.5 sm:top-1 sm:bottom-1 sm:left-1 w-[calc(50%-0.125rem)] sm:w-[calc(50%-0.25rem)] rounded-full shadow-sm transition-[transform,background-color] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none ${
-              adminTheme === 'dark' ? 'translate-x-full bg-indigo-500 shadow-indigo-900/40' : 'translate-x-0 bg-white'
-            }`}
+            className={`absolute top-0.5 bottom-0.5 left-0.5 sm:top-1 sm:bottom-1 sm:left-1 w-[calc(50%-0.125rem)] sm:w-[calc(50%-0.25rem)] rounded-full shadow-sm transition-[translate,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none ${
+              adminTheme === 'dark' ? 'translate-x-full bg-indigo-500 shadow-indigo-500/40' : 'translate-x-0 bg-white'
+            } ${themeSwitched ? `admin-theme-thumb-to-${adminTheme}` : ''}`}
           />
           {[
             { id: 'light', icon: faSun, label: 'Light mode', on: 'text-amber-500' },
@@ -227,13 +233,25 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
                 onClick={(e) => {
                   if (active) return;
                   const from = e.currentTarget;
+                  setThemeSwitched(true);
                   withViewTransition(() => setAdminTheme(m.id), { kind: 'theme', from });
                 }}
-                className={`touch-compact relative z-[1] w-7 h-7 sm:w-9 sm:h-9 rounded-full border-0 bg-transparent cursor-pointer flex items-center justify-center text-label sm:text-body transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                className={`admin-theme-btn admin-theme-btn-${m.id} group touch-compact relative z-[1] w-7 h-7 sm:w-9 sm:h-9 rounded-full border-0 bg-transparent cursor-pointer flex items-center justify-center text-label sm:text-body transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                   active ? m.on : 'text-slate-400 hover:text-slate-700'
                 }`}
               >
-                <FontAwesomeIcon key={`${m.id}-${active}`} icon={m.icon} className={active ? 'ut-pick-pop' : ''} />
+                <FontAwesomeIcon
+                  key={`${m.id}-${active}`}
+                  icon={m.icon}
+                  className={`admin-theme-icon ${active && themeSwitched ? `admin-theme-${m.id}-in` : ''}`}
+                />
+                {/* Two stars beside the moon while dark is on. */}
+                {m.id === 'dark' && active && (
+                  <>
+                    <span aria-hidden="true" className={`admin-theme-star absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-1 h-1 rounded-full bg-white ${themeSwitched ? 'admin-theme-star-in' : ''}`} />
+                    <span aria-hidden="true" className={`admin-theme-star absolute bottom-1.5 left-1 sm:bottom-2 sm:left-1.5 w-0.5 h-0.5 rounded-full bg-white/80 ${themeSwitched ? 'admin-theme-star-in admin-theme-star-late' : ''}`} />
+                  </>
+                )}
               </button>
             );
           })}
