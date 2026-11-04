@@ -9,6 +9,8 @@
 --   paymongo_refunds   PayMongo payment id on invoices, refunds paid out through PayMongo
 --   house_rules_filipino   Filipino text for the four starter house rules
 --   maintenance_workflow   scheduled visit, tenant cancel request, tenant reopen reason
+--   service_workflow       add-on booking visit slot, cancel request, adjusted quantity
+--   service_extras        add-on slot limit, rating, categories table
 -- 2026_11_appearance_settings and 2026_11_contract_end_and_preview stay as their
 -- own files: they are already on origin/main and may be applied on prod.
 --
@@ -247,3 +249,52 @@ PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'announcements' AND column_name = 'is_pinned') = 0,
   'ALTER TABLE `announcements` ADD COLUMN `is_pinned` tinyint(1) NOT NULL DEFAULT 0', 'DO 0');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ===== service_workflow =====
+-- Add-on bookings: the visit the admin confirms (date + morning/afternoon window), a tenant's
+-- request to cancel an approved booking, and the originally booked quantity/total kept when
+-- the admin adjusts the quantity at completion (NULL = never adjusted).
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'scheduled_date') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `scheduled_date` date DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'scheduled_window') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `scheduled_window` varchar(20) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'cancel_requested_at') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `cancel_requested_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'booked_quantity') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `booked_quantity` decimal(10,2) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'booked_total_cost') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `booked_total_cost` decimal(10,2) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ===== service_extras =====
+-- Add-on services: an optional per-slot booking limit on each catalog item, a tenant's rating
+-- of a completed booking, and categories as data (the three starters keep working).
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_catalog' AND column_name = 'max_per_slot') = 0,
+  'ALTER TABLE `service_catalog` ADD COLUMN `max_per_slot` int(11) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'rating') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `rating` tinyint(4) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'rating_comment') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `rating_comment` varchar(255) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'service_requests' AND column_name = 'rated_at') = 0,
+  'ALTER TABLE `service_requests` ADD COLUMN `rated_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+CREATE TABLE IF NOT EXISTS `service_categories` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `category_key` varchar(20) NOT NULL,
+  `label` varchar(60) NOT NULL,
+  `label_fil` varchar(60) DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_service_category_key` (`category_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT IGNORE INTO `service_categories` (`category_key`, `label`, `label_fil`, `sort_order`) VALUES
+('cleaning', 'Cleaning', 'Paglilinis', 1),
+('laundry', 'Laundry', 'Labada', 2),
+('other', 'Other services', 'Iba pang serbisyo', 3);

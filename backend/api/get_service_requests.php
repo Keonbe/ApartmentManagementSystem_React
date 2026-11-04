@@ -55,6 +55,10 @@ $sql = "SELECT sr.id, sr.id AS rawId, sr.user_id AS userId,
                sr.admin_notes AS adminNotes, sr.assigned_to AS assignedTo,
                sr.is_invoiced AS isInvoiced, sr.invoice_id AS invoiceId,
                sr.billing_period AS billingPeriod,
+               sr.rating, sr.rating_comment AS ratingComment, sr.rated_at AS ratedAt,
+               sr.scheduled_date AS scheduledDate, sr.scheduled_window AS scheduledWindow,
+               sr.cancel_requested_at AS cancelRequestedAt,
+               sr.booked_quantity AS bookedQuantity, sr.booked_total_cost AS bookedTotalCost,
                sr.completed_at AS completedAt, sr.created_at AS createdAt
         FROM service_requests sr
         LEFT JOIN users u ON sr.user_id = u.id
@@ -76,6 +80,8 @@ try {
         $row['quantity'] = (float)$row['quantity'];
         $row['totalCost'] = (float)$row['totalCost'];
         $row['isInvoiced'] = (int)$row['isInvoiced'];
+        $row['bookedQuantity'] = $row['bookedQuantity'] === null ? null : (float)$row['bookedQuantity'];
+        $row['bookedTotalCost'] = $row['bookedTotalCost'] === null ? null : (float)$row['bookedTotalCost'];
         $requests[] = $row;
     }
     $stmt->close();

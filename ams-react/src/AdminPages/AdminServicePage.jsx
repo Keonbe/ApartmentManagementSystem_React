@@ -22,13 +22,16 @@ import {
   faPen,
   faTrash,
   faReceipt,
-  faPlay,
   faPalette
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import ServiceCatalogModal from '../Components/ServiceCatalogModal';
+import ServiceBookingModal from '../Components/ServiceBookingModal';
+import ServiceCategoriesModal from '../Components/ServiceCategoriesModal';
+import InlineAlert from '../Components/InlineAlert';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import CctvDetailsModal from '../Components/CctvDetailsModal';
 import { CCTV_DEFAULTS, incidentTypeLabel, loadCctvConfig } from '../config/cctvConfig';
 import ServiceAppearanceModal from '../Components/ServiceAppearanceModal';
@@ -170,23 +173,8 @@ const tenantUtilityServices = [
   },
 ];
 
-// Mirrors SERVICE_TRANSITIONS in backend/config.php.
-const SERVICE_TRANSITIONS = {
-  'Pending': ['Approved', 'Rejected', 'Cancelled'],
-  'Approved': ['In Progress', 'Completed', 'Rejected', 'Cancelled'],
-  'In Progress': ['Completed', 'Cancelled'],
-  'Completed': ['Cancelled'],
-  'Rejected': [],
-  'Cancelled': [],
-};
-const canMove = (from, to) => (SERVICE_TRANSITIONS[from] || []).includes(to);
-
 const CATALOG_CATEGORY_BY_CARD ={ cleaning: 'cleaning', laundry: 'laundry', 'other-services': 'other' };
 
-const CONFIRM_MESSAGES = {
-  Rejected: 'Reject this booking? The tenant will be notified.',
-  Cancelled: 'Cancel this booking? If it was already billed, the charge will be reversed from the tenant invoice.',
-};
 
 const AdminServicePage = () => {
   const navigate = useNavigate();
@@ -199,7 +187,15 @@ const AdminServicePage = () => {
   const [cctvIncidentTypes, setCctvIncidentTypes] = useState(CCTV_DEFAULTS.incidentTypes);
   const [parkingReservations, setParkingReservations] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
+  const [bookingModalId, setBookingModalId] = useState(null);
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('all');
+  const [bookingSearch, setBookingSearch] = useState('');
+  const [bookingNotice, setBookingNotice] = useState('');
+  const [pageError, setPageError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [catalog, setCatalog] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -235,11 +231,12 @@ const AdminServicePage = () => {
       }
 
       //2.FetchCCTV,Parking,ServiceBookingsAndTheServiceCatalog
-      const [cctvRes, parkingRes, serviceRes, catalogRes, cctvConfig] = await Promise.all([
+      const [cctvRes, parkingRes, serviceRes, catalogRes, categoriesRes, cctvConfig] = await Promise.all([
         api.get('get_cctv_requests.php'),
         api.get('get_parking_reservations.php'),
         api.get('get_service_requests.php'),
         api.get('get_service_catalog.php'),
+        api.get('get_service_categories.php'),
         loadCctvConfig(),
       ]);
       setCctvIncidentTypes(cctvConfig.incidentTypes);
@@ -268,6 +265,9 @@ const AdminServicePage = () => {
 
       if (catalogRes.data.success) {
         setCatalog(catalogRes.data.services || []);
+      }
+      if (categoriesRes.data.success) {
+        setCategories(categoriesRes.data.categories || []);
       }
 
       if (parkingRes.data.success) {
@@ -339,11 +339,11 @@ const AdminServicePage = () => {
       if (res.data.success) {
         window.dispatchEvent(new CustomEvent('system-settings-updated', { detail: payload }));
       } else {
-        alert('Failed to save appearance: ' + (res.data.message || 'Unknown error'));
+        setPageError('Failed to save appearance: ' + (res.data.message || 'Unknown error'));
       }
     } catch (err) {
       console.error('Failed to save service appearance:', err);
-      alert(err.response?.data?.message || 'Failed to save appearance. Please try again.');
+      setPageError(err.response?.data?.message || 'Failed to save appearance. Please try again.');
     }
   };
 
@@ -353,7 +353,15 @@ const AdminServicePage = () => {
   const pendingServiceCount = serviceRequests.filter(r => r.status === 'Pending').length;
   // ?status=Pending (from the Dashboard) narrows the bookings list; a note says so and undoes it.
   const [bookingStatus, setBookingStatus] = useUrlFilter('status', 'all', ['all', 'Pending']);
-  const visibleServiceRequests = bookingStatus === 'Pending' ? serviceRequests.filter(r => r.status === 'Pending') : serviceRequests;
+  const categoryLabel = (key) => categories.find(c => c.key === key)?.label || key;
+  const bookingQuery = bookingSearch.trim().toLowerCase();
+  const visibleServiceRequests = serviceRequests.filter(r => {
+    if (bookingStatus === 'Pending' && r.status !== 'Pending') return false;
+    if (bookingStatusFilter === 'attention' ? !(r.status === 'Pending' || r.cancelRequestedAt) : bookingStatusFilter !== 'all' && r.status !== bookingStatusFilter) return false;
+    return !bookingQuery || [r.tenant, r.unit, r.serviceName].some(v => String(v || '').toLowerCase().includes(bookingQuery));
+  });
+  const bookingModalReq = serviceRequests.find(r => r.id === bookingModalId) || null;
+  const cancelRequestCount = serviceRequests.filter(r => r.cancelRequestedAt && ['Approved', 'In Progress'].includes(r.status)).length;
   const activeCatalogCount = catalog.filter(s => s.isActive).length;
   //Completed work whose charge never reached an invoice (e.g. no active lease at the time)
   const unbilledCount = serviceRequests.filter(r => r.status === 'Completed' && !r.isInvoiced).length;
@@ -379,11 +387,11 @@ const AdminServicePage = () => {
       } else {
         //RevertStateOnFailure
         setServices(prev => prev.map(s => s.id === serviceId ? { ...s, isActive: !newActiveState } : s));
-        alert('Failed to update service setting in system configuration.');
+        setPageError('Failed to update service setting in system configuration.');
       }
     } catch (err) {
       setServices(prev => prev.map(s => s.id === serviceId ? { ...s, isActive: !newActiveState } : s));
-      alert(err.response?.data?.message || 'Failed to update service setting. Please try again.');
+      setPageError(err.response?.data?.message || 'Failed to update service setting. Please try again.');
     }
   };
 
@@ -398,12 +406,12 @@ const AdminServicePage = () => {
       const res = await api.post('update_cctv_status.php', { rawId, status: newStatus, note });
       if (!res.data.success) {
         fetchData();
-        alert('Failed to update CCTV status: ' + (res.data.message || 'Unknown error'));
+        setPageError('Failed to update CCTV status: ' + (res.data.message || 'Unknown error'));
       }
     } catch (err) {
       fetchData();
       console.error('CCTV status update failed:', err);
-      alert(apiErrorMessage(err, 'Failed to update CCTV status.'));
+      setPageError(apiErrorMessage(err, 'Failed to update CCTV status.'));
     }
   };
 
@@ -435,11 +443,11 @@ const AdminServicePage = () => {
         setEditingService(null);
         fetchData();
       } else {
-        alert(res.data.message || 'Failed to save service.');
+        setPageError(res.data.message || 'Failed to save service.');
       }
     } catch (err) {
       console.error('Failed to save catalog service:', err);
-      alert(apiErrorMessage(err, 'Failed to save service. Please try again.'));
+      setPageError(apiErrorMessage(err, 'Failed to save service. Please try again.'));
     } finally {
       setSavingService(false);
     }
@@ -457,65 +465,42 @@ const AdminServicePage = () => {
       });
       if (!res.data.success) {
         fetchData();
-        alert(res.data.message || 'Failed to update service.');
+        setPageError(res.data.message || 'Failed to update service.');
       }
     } catch (err) {
       fetchData();
       console.error('Catalog toggle failed:', err);
-      alert(apiErrorMessage(err, 'Failed to update service.'));
+      setPageError(apiErrorMessage(err, 'Failed to update service.'));
     }
   };
 
   const handleDeleteService = async (service) => {
-    if (!window.confirm(`Remove "${service.name}" from the catalog?`)) return;
+    setDeleteTarget(null);
     try {
       const res = await api.post('manage_service_catalog.php', { action: 'delete', id: service.id });
       //ASoftDeleteStillReportsSuccess,WithAnExplanation
-      if (res.data.message) alert(res.data.message);
+      if (res.data.message) setPageError(res.data.message);
       fetchData();
     } catch (err) {
       console.error('Failed to delete catalog service:', err);
-      alert(apiErrorMessage(err, 'Failed to remove service. Please try again.'));
+      setPageError(apiErrorMessage(err, 'Failed to remove service. Please try again.'));
     }
   };
 
   //=== ServiceBookingLifecycle ===
-  const handleServiceStatus = async (request, newStatus) => {
-    if (CONFIRM_MESSAGES[newStatus] && !window.confirm(CONFIRM_MESSAGES[newStatus])) return;
-    // Rejecting or cancelling a booking that was already approved needs a reason
-    // (a charge the tenant already paid becomes a refund request).
-    let reason;
-    if (['Rejected', 'Cancelled'].includes(newStatus) && request.status !== 'Pending') {
-      reason = (window.prompt('Reason for ' + (newStatus === 'Rejected' ? 'rejecting' : 'cancelling') + ' this booking (required):') || '').trim();
-      if (!reason) return;
-    }
-    try {
-      const res = await api.post('update_service_status.php', {
-        rawId: request.rawId || request.id,
-        status: newStatus,
-        ...(reason ? { adminNotes: reason } : {}),
-      });
-      if (!res.data.success) {
-        alert(res.data.message || 'Failed to update booking status.');
-      } else if (res.data.warning) {
-        //TheStatusChangeStuckButTheChargeCouldNotBePosted
-        alert(`Marked ${newStatus}, but the charge was not billed: ${res.data.warning}`);
-      } else if (res.data.billed && res.data.invoiceId) {
-        alert(`Marked ${newStatus}. ₱${Number(request.totalCost || 0).toLocaleString()} was added to invoice ${res.data.invoiceId}.`);
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update booking status.');
-    } finally {
-      fetchData();
-    }
+  // The booking modal does the work; this refreshes the list and shows what billing did.
+  const handleBookingSaved = ({ message, keepOpen } = {}) => {
+    if (!keepOpen) setBookingModalId(null);
+    setBookingNotice(message || '');
+    fetchData();
   };
 
   const handlePostCharge = async (request) => {
     try {
       const res = await api.post('sync_service_to_invoice.php', { rawId: request.rawId || request.id });
-      alert(res.data.message || (res.data.success ? 'Charge posted.' : 'Failed to post the charge.'));
+      setBookingNotice(res.data.message || (res.data.success ? 'Charge posted.' : 'Failed to post the charge.'));
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to post the charge. Please try again.');
+      setBookingNotice(apiErrorMessage(err, 'Failed to post the charge. Please try again.'));
     } finally {
       fetchData();
     }
@@ -552,6 +537,8 @@ const AdminServicePage = () => {
                 </div>
               </div>
             </section>
+
+            <InlineAlert onDismiss={() => setPageError('')}>{pageError}</InlineAlert>
 
             {/*ErrorBanner*/}
             {error && (
@@ -619,13 +606,18 @@ const AdminServicePage = () => {
                     must also be enabled above before these appear in the tenant portal.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className={btn('primary', 'md', 'self-start')}
-                >
-                  <FontAwesomeIcon icon={faPlus} /> Add Service
-                </button>
+                <div className="flex flex-wrap gap-2 self-start">
+                  <button type="button" onClick={() => setCategoriesOpen(true)} className={btn('secondary', 'md')}>
+                    Categories
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className={btn('primary', 'md')}
+                  >
+                    <FontAwesomeIcon icon={faPlus} /> Add Service
+                  </button>
+                </div>
               </div>
 
               <div className="p-4">
@@ -654,7 +646,10 @@ const AdminServicePage = () => {
                                 <p className="max-w-md truncate text-caption text-slate-500 m-0 mt-0.5" title={item.description}>{item.description}</p>
                               </td>
                               <td className="px-4 py-3">
-                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-slate-100 text-slate-600 capitalize">{item.category}</span>
+                                <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-slate-100 text-slate-600">{categoryLabel(item.category)}</span>
+                                {item.ratingCount > 0 && (
+                                  <span className="mt-1 block text-caption text-amber-700" title={`${item.ratingCount} rating(s)`}>★ {Number(item.avgRating).toFixed(1)} ({item.ratingCount})</span>
+                                )}
                               </td>
                               <td className="px-4 py-3 font-semibold text-indigo-600">
                                 ₱{Number(item.price || 0).toLocaleString()}
@@ -665,7 +660,10 @@ const AdminServicePage = () => {
                                   ? <span className="text-slate-500 italic">Single visit</span>
                                   : `${item.minQuantity} – ${item.maxQuantity ?? '∞'}`}
                               </td>
-                              <td className="px-4 py-3 text-slate-600">{item.leadTimeDays} day(s)</td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {item.leadTimeDays} day(s)
+                                {item.maxPerSlot ? <span className="block text-caption text-slate-500">max {item.maxPerSlot} per slot</span> : null}
+                              </td>
                               <td className="px-4 py-3 text-center">
                                 <button
                                   type="button"
@@ -684,7 +682,7 @@ const AdminServicePage = () => {
                                   <button type="button" onClick={() => openEditModal(item)} className="rounded-control p-1.5 text-indigo-600 transition-colors hover:bg-indigo-50 border-0 cursor-pointer" title="Edit">
                                     <FontAwesomeIcon icon={faPen} />
                                   </button>
-                                  <button type="button" onClick={() => handleDeleteService(item)} className="rounded-control p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Remove">
+                                  <button type="button" onClick={() => setDeleteTarget(item)} className="rounded-control p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Remove">
                                     <FontAwesomeIcon icon={faTrash} />
                                   </button>
                                 </div>
@@ -777,17 +775,41 @@ const AdminServicePage = () => {
                             </p>
                           </div>
                         )}
+                        <InlineAlert tone="info" onDismiss={() => setBookingNotice('')} className="mb-4">{bookingNotice}</InlineAlert>
+                        {cancelRequestCount > 0 && (
+                          <div className="mb-4 flex items-center gap-3 rounded-card border border-red-200 bg-red-50 px-4 py-3">
+                            <p className="m-0 text-label text-red-800">{cancelRequestCount} tenant(s) asked to cancel an approved booking. Open it to cancel or keep it.</p>
+                            <button type="button" onClick={() => setBookingStatusFilter('attention')} className="cursor-pointer border-0 bg-transparent p-0 text-label font-semibold text-red-800 underline">Show</button>
+                          </div>
+                        )}
+                        <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+                          <input
+                            type="search"
+                            aria-label="Search bookings"
+                            value={bookingSearch}
+                            onChange={e => setBookingSearch(e.target.value)}
+                            placeholder="Search tenant, unit or service"
+                            className="min-h-[40px] flex-1 rounded-control border border-slate-200 bg-white px-3 text-body outline-none focus:border-indigo-500"
+                          />
+                          <select
+                            aria-label="Filter by status"
+                            value={bookingStatusFilter}
+                            onChange={e => setBookingStatusFilter(e.target.value)}
+                            className="min-h-[40px] cursor-pointer rounded-control border border-slate-200 bg-white px-3 text-body outline-none focus:border-indigo-500"
+                          >
+                            <option value="all">All statuses</option>
+                            <option value="attention">Needs attention</option>
+                            {['Pending', 'Approved', 'In Progress', 'Completed', 'Rejected', 'Cancelled'].map(st => <option key={st} value={st}>{st}</option>)}
+                          </select>
+                        </div>
                         <div className="overflow-x-auto">
-                          <table className="w-full min-w-[1040px] text-left text-body">
+                          <table className="w-full min-w-[760px] text-left text-body">
                             <thead className={THEAD}>
                               <tr>
                                 <th className={TH}>Tenant</th>
-                                <th className={TH}>Unit</th>
                                 <th className={TH}>Service</th>
-                                <th className={TH}>Qty</th>
                                 <th className={TH}>Total</th>
-                                <th className={TH}>Scheduled</th>
-                                <th className={`${TH} text-center`}>Ref</th>
+                                <th className={TH}>Visit</th>
                                 <th className={`${TH} text-center`}>Billing</th>
                                 <th className={`${TH} text-center`}>Status</th>
                                 <th className={`${TH} text-right`}>Actions</th>
@@ -797,34 +819,32 @@ const AdminServicePage = () => {
                               {visibleServiceRequests.length > 0 ? (
                                 visibleServiceRequests.map(req => (
                                   <tr key={req.id} className="transition-colors hover:bg-slate-50">
-                                    <td className="px-4 py-3 font-medium text-slate-800">{req.tenant || 'Unknown'}</td>
-                                    <td className="px-4 py-3 text-slate-600">{req.unit}</td>
+                                    <td className="px-4 py-3 font-medium text-slate-800">
+                                      {req.tenant || 'Unknown'}
+                                      <br />
+                                      <span className="text-caption font-normal text-slate-500">Unit {req.unit}</span>
+                                    </td>
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.serviceName}
                                       <br />
-                                      <span className="text-label text-slate-600 capitalize">{req.category}</span>
-                                    </td>
-                                    <td className="px-4 py-3 text-slate-600">
-                                      {req.pricingUnit === 'session' ? '—' : `${req.quantity} ${req.pricingUnit}`}
+                                      <span className="text-caption text-slate-500 capitalize">
+                                        {categoryLabel(req.category)}{req.pricingUnit !== 'session' && ` · ${Number(req.quantity)} ${req.pricingUnit}`}
+                                      </span>
                                     </td>
                                     <td className="px-4 py-3 font-semibold text-indigo-600">₱{Number(req.totalCost || 0).toLocaleString()}</td>
                                     <td className="px-4 py-3 text-slate-600">
-                                      {req.preferredDate}
-                                      <br />
-                                      <span className="text-caption text-slate-500">{req.preferredTimeSlot}</span>
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                      {req.attachmentPath ? (
-                                        <a
-                                          href={fileUrl(req.attachmentPath)}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="mx-auto flex items-center justify-center gap-1 text-label text-blue-600 hover:underline no-underline"
-                                        >
-                                          <FontAwesomeIcon icon={faEye} /> View
-                                        </a>
+                                      {req.scheduledDate ? (
+                                        <>
+                                          {req.scheduledDate}
+                                          <br />
+                                          <span className="text-caption text-slate-500 capitalize">{req.scheduledWindow}</span>
+                                        </>
                                       ) : (
-                                        <span className="text-label text-slate-500 italic">—</span>
+                                        <>
+                                          <span className="text-slate-500">{req.preferredDate}</span>
+                                          <br />
+                                          <span className="text-caption text-slate-500">asked: {req.preferredTimeSlot}</span>
+                                        </>
                                       )}
                                     </td>
                                     <td className="px-4 py-3 text-center">
@@ -856,44 +876,20 @@ const AdminServicePage = () => {
                                       }`}>
                                         {req.status}
                                       </span>
+                                      {req.cancelRequestedAt && ['Approved', 'In Progress'].includes(req.status) && (
+                                        <span className="mt-1 block text-caption font-semibold text-red-700">Cancel requested</span>
+                                      )}
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                      <div className="flex justify-end gap-2">
-                                        {canMove(req.status, 'Approved') && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'Approved')} className="rounded-control p-1.5 text-emerald-700 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
-                                            <FontAwesomeIcon icon={faCheck} />
-                                          </button>
-                                        )}
-                                        {canMove(req.status, 'In Progress') && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'In Progress')} className="rounded-control p-1.5 text-indigo-600 transition-colors hover:bg-indigo-50 border-0 cursor-pointer" title="Start work">
-                                            <FontAwesomeIcon icon={faPlay} />
-                                          </button>
-                                        )}
-                                        {req.status === 'In Progress' && canMove(req.status, 'Completed') && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'Completed')} className="rounded-control p-1.5 text-emerald-700 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Mark completed and bill">
-                                            <FontAwesomeIcon icon={faCheck} />
-                                          </button>
-                                        )}
-                                        {canMove(req.status, 'Rejected') && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'Rejected')} className="rounded-control p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reject">
-                                            <FontAwesomeIcon icon={faTimes} />
-                                          </button>
-                                        )}
-                                        {req.status !== 'Pending' && canMove(req.status, 'Cancelled') && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'Cancelled')} className="rounded-control p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title={req.status === 'Completed' ? 'Reverse charge and cancel' : 'Cancel booking'}>
-                                            <FontAwesomeIcon icon={faTrash} />
-                                          </button>
-                                        )}
-                                        {(SERVICE_TRANSITIONS[req.status] || []).length === 0 && (
-                                          <span className="text-label font-medium italic text-slate-500">Closed</span>
-                                        )}
-                                      </div>
+                                      <button type="button" onClick={() => setBookingModalId(req.id)} className={btn(req.status === 'Pending' || req.cancelRequestedAt ? 'primary' : 'secondary', 'sm')}>
+                                        {['Rejected', 'Cancelled'].includes(req.status) ? 'View' : 'Manage'}
+                                      </button>
                                     </td>
                                   </tr>
                                 ))
                               ) : (
                                 <tr>
-                                  <td colSpan="10" className="px-4 py-8 text-center italic text-slate-500">No service bookings found.</td>
+                                  <td colSpan="7" className="px-4 py-8 text-center italic text-slate-500">No service bookings found.</td>
                                 </tr>
                               )}
                             </tbody>
@@ -1078,9 +1074,28 @@ const AdminServicePage = () => {
         ) : null;
       })()}
 
+      {bookingModalReq && (
+        <ServiceBookingModal key={bookingModalReq.id} req={bookingModalReq} onClose={() => setBookingModalId(null)} onSaved={handleBookingSaved} />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`Remove "${deleteTarget.name}" from the catalog?`}
+          message="A service that already has bookings is turned off instead of deleted."
+          confirmLabel="Remove"
+          onConfirm={() => handleDeleteService(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
       {/*ServiceCatalogCreateEditModal*/}
+      {categoriesOpen && (
+        <ServiceCategoriesModal categories={categories} onClose={() => setCategoriesOpen(false)} onChanged={loadData} />
+      )}
+
       <ServiceCatalogModal
         key={`catalog-modal-${modalSession}`}
+        categories={categories}
         isOpen={modalOpen}
         service={editingService}
         saving={savingService}

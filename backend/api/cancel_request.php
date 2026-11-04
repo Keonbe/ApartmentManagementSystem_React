@@ -63,6 +63,40 @@ if ($affected === 0 && $type === 'Maintenance') {
     }
 }
 
+// An approved booking: free to cancel until SERVICE_FREE_CANCEL_HOURS before the confirmed
+// visit; after that (and once work has started) the tenant asks and the admin decides.
+if ($affected === 0 && $type === 'Service') {
+    $stmt = $conn->prepare("SELECT status, scheduled_date, scheduled_window, cancel_requested_at, is_invoiced, service_name FROM service_requests WHERE id = ? AND user_id = ?");
+    $stmt->bind_param("ii", $id, $user_id);
+    $stmt->execute();
+    $booking = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($booking && !(int)$booking['is_invoiced']) {
+        if ($booking['status'] === 'Approved' && service_cancel_is_free('Approved', $booking['scheduled_date'], $booking['scheduled_window'])) {
+            $stmt = $conn->prepare("UPDATE service_requests SET status = 'Cancelled', cancel_requested_at = NULL WHERE id = ? AND user_id = ? AND status = 'Approved'");
+            $stmt->bind_param("ii", $id, $user_id);
+            $stmt->execute();
+            $affected = $stmt->affected_rows;
+            $stmt->close();
+        } elseif (in_array($booking['status'], ['Approved', 'In Progress'], true) && $booking['cancel_requested_at'] === null) {
+            $stmt = $conn->prepare("UPDATE service_requests SET cancel_requested_at = NOW() WHERE id = ? AND user_id = ? AND status = ? AND cancel_requested_at IS NULL");
+            $stmt->bind_param("iis", $id, $user_id, $booking['status']);
+            $stmt->execute();
+            $asked = $stmt->affected_rows;
+            $stmt->close();
+            if ($asked > 0) {
+                notify_admins_queue($conn, 'service_request', $id, "Tenant asks to cancel a booking",
+                    "The tenant asked to cancel service booking #$id (\"{$booking['service_name']}\"). Open it to cancel or decline.");
+                log_activity($conn, $user_id, 'service', "Requested Service Cancellation", "Service Request ID: $id, cancellation requested by tenant");
+                echo json_encode(["success" => true, "requested" => true, "message" => "We told management you want to cancel. They will confirm because the visit is close or already started."]);
+                $conn->close();
+                exit;
+            }
+        }
+    }
+}
+
 if ($affected === 0) {
     http_response_code(409);
     echo json_encode(["success" => false, "message" => "Only your own pending requests can be cancelled."]);
@@ -79,6 +113,17 @@ $queue_types = [
     'Service' => 'service_request',
 ];
 resolve_admin_queue($conn, $queue_types[$type], $id);
+
+if ($type === 'Service') {
+    $stmt = $conn->prepare("SELECT service_name FROM service_requests WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $cancelled = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $service_label = $cancelled['service_name'] ?? 'service';
+    create_notification($conn, $user_id, 'service_status', "Service Booking Cancelled", "Your \"$service_label\" booking has been cancelled.");
+    notify_admins_info($conn, 'info', "Service booking cancelled", "A tenant cancelled service booking #$id (\"$service_label\").");
+}
 
 log_activity($conn, $user_id, $type === 'Maintenance' ? 'maintenance' : 'service', "Cancelled $type Request", "$type Request ID: $id cancelled by tenant");
 

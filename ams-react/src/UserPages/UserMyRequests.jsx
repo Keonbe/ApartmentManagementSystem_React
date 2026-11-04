@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -85,6 +85,34 @@ export default function UserMyRequests() {
     };
 
     // A repair already under way is not cancelled outright: the tenant asks, management decides.
+    // Rating a completed add-on service (once, 1 to 5 stars and an optional comment).
+    const [rateTarget, setRateTarget] = useState(null);
+    const [stars, setStars] = useState(0);
+    const [rateComment, setRateComment] = useState('');
+    const [rating, setRating] = useState(false);
+    const closeRate = () => { setRateTarget(null); setStars(0); setRateComment(''); };
+    const confirmRate = async () => {
+        if (!rateTarget || rating) return;
+        if (stars < 1) { setActionError(t('myRequests.rateTitle')); return; }
+        setRating(true);
+        setActionError('');
+        setActionNotice('');
+        try {
+            const response = await api.post('rate_service_request.php', { id: rateTarget.id, rating: stars, comment: rateComment.trim() });
+            if (response.data.success) {
+                setActionNotice(t('myRequests.rateThanks'));
+                await fetchRequests();
+            } else {
+                setActionError(response.data.message || t('myRequests.rateFailed'));
+            }
+        } catch (error) {
+            setActionError(error.response?.data?.message || t('myRequests.rateFailed'));
+        } finally {
+            setRating(false);
+            closeRate();
+        }
+    };
+
     const confirmCancel = async () => {
         if (!cancelTarget || cancelling) return;
         setCancelling(true);
@@ -121,6 +149,8 @@ export default function UserMyRequests() {
     const activeRequests = requests.filter((r) => !CLOSED.includes(r.status));
     const closedRequests = requests.filter((r) => CLOSED.includes(r.status));
 
+    const serviceUnit = (unit) => t(unit === 'kg' ? 'serviceBooking.unitKg' : unit === 'hour' ? 'serviceBooking.unitHour' : unit === 'item' ? 'serviceBooking.unitItem' : 'serviceBooking.unitSession');
+
     const getTypeIcon = (type) => {
         switch (type) {
             case 'Maintenance': return <FontAwesomeIcon icon={faTools} className="text-amber-500" />;
@@ -144,8 +174,12 @@ export default function UserMyRequests() {
         return `${d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' })} ${t('myRequests.at')} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     };
 
-    const getStatusBadge = (status) => {
+    const getStatusBadge = (status, type) => {
         const label = statusLabel(status);
+        // An approved booking is accepted, not done: it must not look like Completed.
+        if (type === 'Service' && status === 'Approved') {
+            return <span className="px-2.5 py-1 text-xs font-bold bg-sky-100 text-sky-700 rounded-full flex items-center gap-1"><FontAwesomeIcon icon={faCheckCircle} /> {t('myRequests.confirmed')}</span>;
+        }
         switch (status) {
             case 'Pending':
                 return <span className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-700 rounded-full flex items-center gap-1"><FontAwesomeIcon icon={faClock} /> {label}</span>;
@@ -190,7 +224,7 @@ export default function UserMyRequests() {
                                             {req.description && (
                                                 <p className="text-xs text-slate-600 m-0 mt-1 line-clamp-2">{req.description}</p>
                                             )}
-                                            {req.status === 'Rejected' && req.rejection_reason && (
+                                            {(req.status === 'Rejected' || (req.status === 'Cancelled' && req.type === 'Service')) && req.rejection_reason && (
                                                 <p className="text-xs text-red-600 m-0 mt-1">{t('myRequests.reason')} {req.rejection_reason}</p>
                                             )}
                                             {req.status === 'Approved' && req.type === 'CCTV' && req.rejection_reason && (
@@ -230,6 +264,25 @@ export default function UserMyRequests() {
                                                     {req.reopen_reason && ['In Progress', 'Pending'].includes(req.status) && <p className="text-xs text-slate-500 m-0">{t('myRequests.reopenReason', { reason: req.reopen_reason })}</p>}
                                                 </div>
                                             )}
+                                            {req.type === 'Service' && (
+                                                <div className="mt-1 space-y-0.5">
+                                                    {req.pricing_unit && req.pricing_unit !== 'session' && Number(req.quantity) > 0 && (
+                                                        <p className="text-xs text-slate-600 m-0">{Number(req.quantity)} {serviceUnit(req.pricing_unit)}</p>
+                                                    )}
+                                                    {req.assigned_to && <p className="text-xs text-slate-600 m-0">{t('myRequests.assignedTo')}: <strong>{req.assigned_to}</strong></p>}
+                                                    {['Pending', 'Approved', 'In Progress'].includes(req.status) && (
+                                                        req.scheduled_date
+                                                            ? <p className="text-xs text-indigo-700 font-semibold m-0">{t('myRequests.visit')}: {visitText(req)}</p>
+                                                            : <p className="text-xs text-slate-500 m-0">{t('myRequests.svcAwaiting')}</p>
+                                                    )}
+                                                    {req.admin_note && <p className="text-xs text-slate-600 m-0">{t('myRequests.svcNote', { note: req.admin_note })}</p>}
+                                                    {req.booked_total_cost !== null && req.booked_total_cost !== undefined && Number(req.booked_total_cost) !== Number(req.total_cost) && (
+                                                        <p className="text-xs font-semibold text-violet-700 m-0">{t('myRequests.svcPriceChanged', { final: money(req.total_cost), booked: money(req.booked_total_cost) })}</p>
+                                                    )}
+                                                    {req.cancel_requested_at && ['Approved', 'In Progress'].includes(req.status) && <p className="text-xs text-amber-700 m-0">{t('myRequests.cancelRequested')}</p>}
+                                                    {req.rating && <p className="text-xs text-amber-700 m-0" aria-label={t('myRequests.yourRating', { stars: req.rating })}>{'★'.repeat(Number(req.rating))}{'☆'.repeat(5 - Number(req.rating))}</p>}
+                                                </div>
+                                            )}
                                             {req.total_cost !== null && req.total_cost !== undefined && (
                                                 <p className="text-xs font-bold text-indigo-600 m-0 mt-1">
                                                     {t('myRequests.serviceCost')}: ₱{Number(req.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -250,7 +303,7 @@ export default function UserMyRequests() {
                                         </div>
                                     </div>
                                     <div className="my-requests-actions flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
-                                        {getStatusBadge(req.status)}
+                                        {getStatusBadge(req.status, req.type)}
 
                                         {req.type === 'Maintenance' && Number(req.can_reopen) === 1 && (
                                             <button
@@ -269,6 +322,33 @@ export default function UserMyRequests() {
                                             >
                                                 {t('myRequests.requestCancel')}
                                             </button>
+                                        )}
+                                        {req.type === 'Service' && ['Approved', 'In Progress'].includes(req.status) && !req.cancel_requested_at && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCancelTarget({ id: req.id, type: req.type, title: req.title, askOnly: Number(req.can_cancel_free) !== 1 })}
+                                                aria-label={`${t('myRequests.cancel')}: ${req.title || req.type}`}
+                                                className="my-requests-cancel-btn px-4 py-2 text-sm font-bold text-red-700 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                                            >
+                                                {Number(req.can_cancel_free) === 1 ? t('myRequests.cancel') : t('myRequests.requestCancel')}
+                                            </button>
+                                        )}
+                                        {req.type === 'Service' && Number(req.can_rate) === 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setRateTarget({ id: req.id, title: req.title })}
+                                                className="px-4 py-2 text-sm font-bold text-amber-800 bg-white border border-amber-300 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
+                                            >
+                                                {t('myRequests.rate')}
+                                            </button>
+                                        )}
+                                        {req.type === 'Service' && req.service_id && ['Completed', 'Cancelled'].includes(req.status) && (
+                                            <Link
+                                                to={`/service-booking?serviceId=${req.service_id}`}
+                                                className="px-4 py-2 text-sm font-bold text-indigo-700 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors no-underline min-h-[44px] flex items-center justify-center"
+                                            >
+                                                {t('myRequests.bookAgain')}
+                                            </Link>
                                         )}
                                         {req.status === 'Pending' && (
                                             <button
@@ -358,6 +438,46 @@ export default function UserMyRequests() {
 
             </div>
 
+            {rateTarget && (
+                <ConfirmDialog
+                    title={t('myRequests.rateTitle')}
+                    message={
+                        <span className="block">
+                            <span className="block mb-2">{t('myRequests.rateHelp')}</span>
+                            <span className="mb-3 flex gap-1" role="radiogroup" aria-label={t('myRequests.rateTitle')}>
+                                {[1, 2, 3, 4, 5].map(n => (
+                                    <button
+                                        key={n}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={stars === n}
+                                        aria-label={`${n}`}
+                                        onClick={() => setStars(n)}
+                                        className={`min-h-[44px] min-w-[44px] cursor-pointer rounded-lg border bg-white text-2xl ${n <= stars ? 'border-amber-300 text-amber-500' : 'border-slate-200 text-slate-300'}`}
+                                    >
+                                        ★
+                                    </button>
+                                ))}
+                            </span>
+                            <textarea
+                                rows={3}
+                                maxLength={255}
+                                value={rateComment}
+                                onChange={(e) => setRateComment(e.target.value)}
+                                placeholder={t('myRequests.ratePlaceholder')}
+                                aria-label={t('myRequests.ratePlaceholder')}
+                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:border-indigo-500 resize-none"
+                            />
+                        </span>
+                    }
+                    confirmLabel={t('myRequests.rateSend')}
+                    tone="primary"
+                    busy={rating}
+                    onConfirm={confirmRate}
+                    onClose={closeRate}
+                />
+            )}
+
             {reopenTarget && (
                 <ConfirmDialog
                     title={t('myRequests.reopenTitle')}
@@ -385,7 +505,7 @@ export default function UserMyRequests() {
 
             {cancelTarget && (
                 <ConfirmDialog
-                    title={cancelTarget.underWay ? t('myRequests.requestCancelConfirm') : t('myRequests.cancelConfirm')}
+                    title={cancelTarget.askOnly ? t('myRequests.requestCancelService') : cancelTarget.underWay ? t('myRequests.requestCancelConfirm') : t('myRequests.cancelConfirm')}
                     confirmLabel={t('myRequests.cancel')}
                     busy={cancelling}
                     onConfirm={confirmCancel}

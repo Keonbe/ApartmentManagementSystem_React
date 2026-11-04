@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faHourglassHalf, faConciergeBell, faBroom, faTshirt, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import { categoryName, categoryOrder } from '../utils/serviceCategories';
 import InlineAlert from '../Components/InlineAlert';
 import { isServiceSwitchOn } from '../config/settingsSchema';
 import '../assets/styles/responsive/user/services.responsive.css';
@@ -14,10 +15,11 @@ const iconFor = (name) => CATALOG_ICONS[name] || faConciergeBell;
 
 export default function ServiceCatalog() {
     const navigate = useNavigate();
-    const { t } = useLang();
+    const { t, lang } = useLang();
 
     const [settings, setSettings] = useState(null);
     const [catalog, setCatalog] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     // A failed load used to show "no services available", which is not true.
     const [loadFailed, setLoadFailed] = useState(false);
@@ -28,10 +30,12 @@ export default function ServiceCatalog() {
         const loadCatalog = async () => {
             setLoadFailed(false);
             try {
-                const [settingsRes, catalogRes] = await Promise.all([
+                const [settingsRes, catalogRes, categoriesRes] = await Promise.all([
                     api.get('/get_system_settings.php'),
                     api.get('/get_service_catalog.php?active=1'),
+                    api.get('/get_service_categories.php').catch(() => ({ data: {} })),
                 ]);
+                setCategories(categoriesRes.data?.categories || []);
 
                 if (settingsRes.data.success && settingsRes.data.settings) {
                     setSettings(settingsRes.data.settings);
@@ -60,6 +64,18 @@ export default function ServiceCatalog() {
         if (!settings) return false;
         return isServiceSwitchOn(settings[key]);
     });
+
+    const unitText = (unit) => t(unit === 'kg' ? 'serviceBooking.unitKg' : unit === 'hour' ? 'serviceBooking.unitHour' : unit === 'item' ? 'serviceBooking.unitItem' : 'serviceBooking.unitSession');
+    const rangeText = (row) => {
+        if (row.pricingUnit === 'session') return '';
+        const min = Number(row.minQuantity);
+        return row.maxQuantity != null
+            ? t('serviceCatalog.range', { min, max: Number(row.maxQuantity), unit: unitText(row.pricingUnit) })
+            : t('serviceCatalog.minOnly', { min, unit: unitText(row.pricingUnit) });
+    };
+    const groups = categoryOrder(categories, visibleCatalog.map(r => r.category))
+        .map(cat => ({ cat, rows: visibleCatalog.filter(r => r.category === cat) }))
+        .filter(g => g.rows.length > 0);
 
     if (loading) {
         return (
@@ -112,8 +128,12 @@ export default function ServiceCatalog() {
                         <p className="text-sm text-slate-500 mt-2 mb-0">{t('serviceCatalog.emptyDesc')}</p>
                     </div>
                 ) : (
+                    <div className="space-y-8 w-full">
+                    {groups.map(({ cat, rows }) => (
+                    <section key={cat} aria-labelledby={`catalog-group-${cat}`} className="space-y-3">
+                    <h2 id={`catalog-group-${cat}`} className="text-sm font-bold uppercase tracking-wide text-slate-500 m-0">{categoryName(categories, cat, lang)}</h2>
                     <div className="stagger-children grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 w-full">
-                        {visibleCatalog.map(row => (
+                        {rows.map(row => (
                             <div
                                 key={row.id}
                                 className="services-card card-interactive relative bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col sm:flex-row items-center sm:items-stretch space-y-4 sm:space-y-0 sm:space-x-6 hover:shadow-md hover:border-slate-200/80 transition-all duration-200 group"
@@ -139,7 +159,10 @@ export default function ServiceCatalog() {
                                         </p>
                                         <p className="text-xs font-bold text-indigo-600 m-0 pt-1">
                                             ₱{row.price.toLocaleString()}
-                                            <span className="ml-1 font-medium text-slate-500">/ {row.pricingUnit}</span>
+                                            <span className="ml-1 font-medium text-slate-500">/ {unitText(row.pricingUnit)}</span>
+                                        </p>
+                                        <p className="text-xs text-slate-500 m-0">
+                                            {[rangeText(row), t('serviceCatalog.lead', { days: row.leadTimeDays })].filter(Boolean).join(' · ')}
                                         </p>
                                     </div>
 
@@ -155,6 +178,9 @@ export default function ServiceCatalog() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                    </section>
+                    ))}
                     </div>
                 )}
 

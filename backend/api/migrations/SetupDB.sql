@@ -922,6 +922,28 @@ ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_date` dat
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_window` varchar(20) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `cancel_requested_at` datetime DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `reopen_reason` varchar(255) DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `scheduled_date` date DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `scheduled_window` varchar(20) DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `cancel_requested_at` datetime DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `booked_quantity` decimal(10,2) DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `booked_total_cost` decimal(10,2) DEFAULT NULL;
+ALTER TABLE `service_catalog` ADD COLUMN IF NOT EXISTS `max_per_slot` int(11) DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `rating` tinyint(4) DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `rating_comment` varchar(255) DEFAULT NULL;
+ALTER TABLE `service_requests` ADD COLUMN IF NOT EXISTS `rated_at` datetime DEFAULT NULL;
+CREATE TABLE IF NOT EXISTS `service_categories` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `category_key` varchar(20) NOT NULL,
+  `label` varchar(60) NOT NULL,
+  `label_fil` varchar(60) DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_service_category_key` (`category_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT IGNORE INTO `service_categories` (`category_key`, `label`, `label_fil`, `sort_order`) VALUES
+('cleaning', 'Cleaning', 'Paglilinis', 1),
+('laundry', 'Laundry', 'Labada', 2),
+('other', 'Other services', 'Iba pang serbisyo', 3);
 
 -- Upgrade existing rows to the canonical categories (checklist 4.2) and urgencies, then backfill the timeline.
 UPDATE `maintenance_requests` SET `issue_category` = 'General Maintenance' WHERE LOWER(`issue_category`) IN ('appliance', 'pest control', 'general', 'general maintenance');

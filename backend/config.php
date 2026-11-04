@@ -1760,6 +1760,48 @@ const MAINTENANCE_TRANSITIONS = [
     'Cancelled'   => [],
 ];
 
+// Add-on bookings: the two visit windows (start hour in Manila time), how far ahead a
+// tenant may book, and how long before a confirmed visit a tenant can still cancel
+// on their own. Later than that, cancelling is a request the admin decides.
+const SERVICE_SLOT_START_HOUR = ['morning' => 8, 'afternoon' => 13];
+const SERVICE_MAX_ADVANCE_DAYS = 60;
+const SERVICE_FREE_CANCEL_HOURS = 24;
+// How long after completion a tenant can rate a service, and the categories that cannot be removed.
+const SERVICE_RATING_DAYS = 14;
+const SERVICE_BUILTIN_CATEGORIES = ['cleaning', 'laundry', 'other'];
+
+// Open bookings of one service in one time slot: the confirmed slot when the admin set
+// one, else what the tenant asked for.
+function service_slot_taken($conn, $service_id, $date, $window) {
+    $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM service_requests
+                            WHERE service_id = ? AND status IN ('Pending', 'Approved', 'In Progress')
+                              AND COALESCE(scheduled_date, preferred_date) = ?
+                              AND COALESCE(scheduled_window, preferred_time_slot) = ?");
+    $stmt->bind_param("iss", $service_id, $date, $window);
+    $stmt->execute();
+    $count = (int)$stmt->get_result()->fetch_assoc()['c'];
+    $stmt->close();
+    return $count;
+}
+
+// When the visit starts, or null when the slot is not a known window.
+function service_visit_start($date, $window) {
+    if (!$date || !isset(SERVICE_SLOT_START_HOUR[$window])) return null;
+    $start = DateTime::createFromFormat('Y-m-d H:i', $date . ' ' . sprintf('%02d:00', SERVICE_SLOT_START_HOUR[$window]), new DateTimeZone('Asia/Manila'));
+    return $start ?: null;
+}
+
+// Free cancellation: the booking is Pending, or Approved with a confirmed visit that is
+// still more than SERVICE_FREE_CANCEL_HOURS away.
+function service_cancel_is_free($status, $date, $window) {
+    if ($status === 'Pending') return true;
+    if ($status !== 'Approved') return false;
+    $start = service_visit_start($date, $window);
+    if (!$start) return false;
+    $cutoff = (clone $start)->modify('-' . SERVICE_FREE_CANCEL_HOURS . ' hours');
+    return new DateTime('now', new DateTimeZone('Asia/Manila')) < $cutoff;
+}
+
 // A cancelled or rejected booking can never reach Completed, so it can never be billed.
 const SERVICE_TRANSITIONS = [
     'Pending'     => ['Approved', 'Rejected', 'Cancelled'],

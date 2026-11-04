@@ -9,12 +9,6 @@ import { blockNonIntegerKeys, blockNonNumericKeys, invalidCls } from './form/for
 import Modal from './admin/Modal';
 import { btn } from './admin/ui/styles';
 
-const CATEGORIES = [
-    { value: 'cleaning', label: 'Cleaning' },
-    { value: 'laundry', label: 'Laundry' },
-    { value: 'other', label: 'Other' },
-];
-
 const PRICING_UNITS = [
     { value: 'session', label: 'per session' },
     { value: 'kg', label: 'per kilogram' },
@@ -45,6 +39,7 @@ const EMPTY = {
     minQuantity: 1,
     maxQuantity: '',
     leadTimeDays: 1,
+    maxPerSlot: '',
     icon: 'faBroom',
     isActive: true,
     sortOrder: 0,
@@ -61,6 +56,7 @@ const seedFrom = (service) => service
         minQuantity: service.minQuantity,
         maxQuantity: service.maxQuantity ?? '',
         leadTimeDays: service.leadTimeDays,
+        maxPerSlot: service.maxPerSlot ?? '',
         icon: service.icon || DEFAULT_ICON[service.category] || 'faConciergeBell',
         isActive: !!service.isActive,
         sortOrder: service.sortOrder ?? 0,
@@ -68,7 +64,8 @@ const seedFrom = (service) => service
     : EMPTY;
 
 const VALIDATORS = {
-    category: (v) => (CATEGORIES.some(c => c.value === v) ? '' : 'Choose a category.'),
+    category: (v) => (v ? '' : 'Choose a category.'),
+    maxPerSlot: (v) => (v === '' || v == null ? '' : checkIntRange(v, 1, 100, 'Bookings per time slot')),
     icon: (v) => (ICON_CHOICES.some(i => i.value === v) ? '' : 'Choose an icon.'),
     name: (v) => checkText(v, { label: 'Service name', min: TITLE_MIN, max: LIMITS.serviceName }),
     description: (v) => checkText(v, { label: 'Description', max: LIMITS.notes, required: false }),
@@ -87,8 +84,12 @@ const VALIDATORS = {
 
 // The parent passes a `key` that changes per edit target, so the component
 // remounts with a fresh seed instead of syncing props into state via an effect.
-export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, saving }) {
-    const [form, setForm] = useState(() => seedFrom(service));
+export default function ServiceCatalogModal({ isOpen, service, categories = [], onClose, onSave, saving }) {
+    const [form, setForm] = useState(() => {
+        const seed = seedFrom(service);
+        // A new service starts in the first category.
+        return service || !categories[0] ? seed : { ...seed, category: categories[0].key, icon: DEFAULT_ICON[categories[0].key] || 'faConciergeBell' };
+    });
     const fields = useFieldErrors(VALIDATORS, { idPrefix: 'catalog-' });
 
     if (!isOpen) return null;
@@ -137,6 +138,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
             minQuantity: Number(clean.minQuantity),
             maxQuantity: clean.maxQuantity === '' ? null : Number(clean.maxQuantity),
             leadTimeDays: Number(clean.leadTimeDays),
+            maxPerSlot: clean.maxPerSlot === '' ? null : Number(clean.maxPerSlot),
             sortOrder: Number(clean.sortOrder),
         });
     };
@@ -175,7 +177,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                     <div>
                         <label htmlFor="catalog-category" className={labelClass}>Category</label>
                         <select {...bind('category')} className={cls('category')}>
-                            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            {categories.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                         </select>
                         {error('category')}
                     </div>
@@ -286,6 +288,23 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         />
                         {error('leadTimeDays')}
                         <p className="m-0 mt-1 text-caption text-slate-400">Earliest date a tenant may book.</p>
+                    </div>
+
+                    <div>
+                        <label htmlFor="catalog-maxPerSlot" className={labelClass}>Bookings per time slot</label>
+                        <input
+                            type="number"
+                            {...bind('maxPerSlot')}
+                            inputMode="numeric"
+                            min="1"
+                            max="100"
+                            step="1"
+                            onKeyDown={blockNonIntegerKeys}
+                            placeholder="No limit"
+                            className={cls('maxPerSlot')}
+                        />
+                        {error('maxPerSlot')}
+                        <p className="m-0 mt-1 text-caption text-slate-400">How many tenants can book the same morning or afternoon. Empty = unlimited.</p>
                     </div>
 
                     <div>

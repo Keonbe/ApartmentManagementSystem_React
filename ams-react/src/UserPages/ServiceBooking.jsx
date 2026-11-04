@@ -5,6 +5,7 @@ import { faCloudUploadAlt, faUndo, faHourglassHalf, faBroom, faTshirt, faConcier
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import { categoryName, categoryOrder } from '../utils/serviceCategories';
 import { LIMITS, addDays, checkAmount, checkDate, checkIntRange, checkText } from '../utils/validation';
 import InlineAlert from '../Components/InlineAlert';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
@@ -19,7 +20,7 @@ const TIME_SLOTS = ['morning', 'afternoon'];
 // A service with no maximum still gets a sane one.
 const QUANTITY_FALLBACK_MAX = 1000;
 // How many days of dates the picker offers (from today, or from the lead time).
-const BOOKING_WINDOW_DAYS = 14;
+const BOOKING_WINDOW_DAYS = 60; // service_request.php allows the same (SERVICE_MAX_ADVANCE_DAYS)
 import '../assets/styles/responsive/user/service-booking.responsive.css';
 
 //MapsTheCatalogIconColumnOntoRealFontAwesomeIcons
@@ -32,10 +33,13 @@ const iconFor = (name) => ICONS[name] || faConciergeBell;
 
 export default function ServiceBooking() {
     const navigate = useNavigate();
-    const { t } = useLang();
+    const { t, lang } = useLang();
     const [searchParams] = useSearchParams();
 
     const [catalog, setCatalog] = useState([]);
+    const [categories, setCategories] = useState([]);
+    // Which time slots of the chosen day are full: { key: 'serviceId|date', slots }.
+    const [slotInfo, setSlotInfo] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState(null);
@@ -61,10 +65,12 @@ export default function ServiceBooking() {
         const loadCatalog = async () => {
             setLoadError('');
             try {
-                const [res, settingsRes] = await Promise.all([
+                const [res, settingsRes, categoriesRes] = await Promise.all([
                     api.get('get_service_catalog.php?active=1'),
                     api.get('get_system_settings.php').catch(() => ({ data: {} })),
+                    api.get('get_service_categories.php').catch(() => ({ data: {} })),
                 ]);
+                setCategories(categoriesRes.data?.categories || []);
                 const settings = settingsRes.data?.settings || {};
                 //ADisabledCategoryIsRefusedByService_request.php,SoNeverOfferIt
                 const categoryEnabled = (category) => {
@@ -105,7 +111,7 @@ export default function ServiceBooking() {
     // min used to land after its max).
     const leadDays = Math.max(0, Number(selected?.leadTimeDays) || 0);
     const minDateString = addDays(leadDays);
-    const maxDateString = addDays(Math.max(BOOKING_WINDOW_DAYS, leadDays + BOOKING_WINDOW_DAYS - 1));
+    const maxDateString = addDays(Math.max(BOOKING_WINDOW_DAYS, leadDays));
 
     //SessionPricedServicesAreAlwaysASingleVisit-NoQuantityInput
     const isQuantified = selected && selected.pricingUnit !== 'session';
@@ -114,17 +120,30 @@ export default function ServiceBooking() {
     const quantityMin = Number(selected?.minQuantity ?? 1);
     const quantityMax = selected?.maxQuantity != null ? Number(selected.maxQuantity) : QUANTITY_FALLBACK_MAX;
 
+    // A service can cap bookings per slot: ask which slots of the chosen day are taken.
+    useEffect(() => {
+        if (!selected || !preferredDate) return undefined;
+        let cancelled = false;
+        const key = `${selected.id}|${preferredDate}`;
+        api.get('get_service_availability.php', { params: { serviceId: selected.id, date: preferredDate } })
+            .then(res => { if (!cancelled && res.data?.success) setSlotInfo({ key, slots: res.data.slots }); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [selected, preferredDate]);
+    const slots = selected && preferredDate && slotInfo?.key === `${selected.id}|${preferredDate}` ? slotInfo.slots : null;
+    const slotFull = (slot) => Boolean(slots?.[slot]?.full);
+
     // Keys match service_request.php's form fields.
     const form = useFieldErrors({
         serviceId: () => (selected ? '' : t('serviceBooking.selectServiceFirst')),
         quantity: (v) => {
             if (!isQuantified) return '';
-            if (wholeQuantity) return checkIntRange(v === '' ? NaN : v, quantityMin, quantityMax, 'Quantity');
-            return checkAmount(v, { min: quantityMin, max: quantityMax, label: 'Quantity' });
+            if (wholeQuantity) return checkIntRange(v === '' ? NaN : v, quantityMin, quantityMax, t('serviceBooking.quantity'));
+            return checkAmount(v, { min: quantityMin, max: quantityMax, label: t('serviceBooking.quantity') });
         },
         preferredDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: t('common.preferredDate') }),
-        preferredTimeSlot: (v) => (TIME_SLOTS.includes(v) ? '' : t('serviceBooking.selectTime')),
-        notes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
+        preferredTimeSlot: (v) => (!TIME_SLOTS.includes(v) ? t('serviceBooking.selectTime') : slotFull(v) ? t('serviceBooking.slotFull') : ''),
+        notes: (v) => checkText(v, { label: t('serviceBooking.notes'), max: LIMITS.notes, required: false }),
         uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.service) : ''),
     }, { idPrefix: 'service-' });
     const values = { serviceId, quantity, preferredDate, preferredTimeSlot, notes, uploadedFile };
@@ -252,12 +271,20 @@ export default function ServiceBooking() {
                                 required
                             >
                                 <option value="" disabled hidden>{t('serviceBooking.selectServicePlaceholder')}</option>
-                                {catalog.map(s => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name} — ₱{Number(s.price || 0).toLocaleString()} / {unitLabel(s.pricingUnit)}
-                                    </option>
-                                ))}
+                                {categoryOrder(categories, catalog.map(s => s.category)).map(cat => {
+                                    const rows = catalog.filter(s => s.category === cat);
+                                    return rows.length === 0 ? null : (
+                                        <optgroup key={cat} label={categoryName(categories, cat, lang)}>
+                                            {rows.map(s => (
+                                                <option key={s.id} value={s.id}>
+                                                    {s.name} — ₱{Number(s.price || 0).toLocaleString()} / {unitLabel(s.pricingUnit)}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    );
+                                })}
                             </select>
+                            {!loading && serviceId && !selected && <p className="text-xs font-medium text-amber-700 m-0">{t('serviceBooking.unavailableLink')}</p>}
                             <FieldError id="service-serviceId" error={form.errors.serviceId} className="m-0" />
                         </div>
 
@@ -347,8 +374,8 @@ export default function ServiceBooking() {
                                 required
                             >
                                 <option value="" disabled hidden>{t('serviceBooking.selectTime')}</option>
-                                <option value="morning">{t('serviceBooking.morning')}</option>
-                                <option value="afternoon">{t('serviceBooking.afternoon')}</option>
+                                <option value="morning" disabled={slotFull('morning')}>{t('serviceBooking.morning')}{slotFull('morning') ? ` (${t('serviceBooking.slotFull')})` : ''}</option>
+                                <option value="afternoon" disabled={slotFull('afternoon')}>{t('serviceBooking.afternoon')}{slotFull('afternoon') ? ` (${t('serviceBooking.slotFull')})` : ''}</option>
                             </select>
                             <FieldError id="service-preferredTimeSlot" error={form.errors.preferredTimeSlot} className="m-0" />
                         </div>

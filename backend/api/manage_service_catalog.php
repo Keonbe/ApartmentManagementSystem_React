@@ -16,7 +16,10 @@ $admin_id = require_admin($conn);
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
 $action = $input['action'] ?? '';
 
-$ALLOWED_CATEGORIES = ['cleaning', 'laundry', 'other'];
+// Categories are data (service_categories), managed from the admin Services page.
+$ALLOWED_CATEGORIES = [];
+$cat_res = $conn->query("SELECT category_key FROM service_categories ORDER BY sort_order, id");
+while ($cat_res && ($cat_row = $cat_res->fetch_assoc())) $ALLOWED_CATEGORIES[] = $cat_row['category_key'];
 $ALLOWED_UNITS = ['session', 'kg', 'hour', 'item'];
 
 //SharedValidationForCreateAndUpdate
@@ -30,6 +33,7 @@ function validate_payload($input, $ALLOWED_CATEGORIES, $ALLOWED_UNITS) {
     $min = $input['minQuantity'] ?? 1;
     $max = $input['maxQuantity'] ?? null;
     $lead = $input['leadTimeDays'] ?? 1;
+    $per_slot = $input['maxPerSlot'] ?? null;
 
     if (!in_array($category, $ALLOWED_CATEGORIES, true)) $errors[] = "Category must be one of: " . implode(', ', $ALLOWED_CATEGORIES) . ".";
     if ($name === '') $errors[] = "Service name is required.";
@@ -38,6 +42,7 @@ function validate_payload($input, $ALLOWED_CATEGORIES, $ALLOWED_UNITS) {
     if (!is_numeric($min) || (float)$min <= 0) $errors[] = "Minimum quantity must be greater than zero.";
     if ($max !== null && $max !== '' && (!is_numeric($max) || (float)$max < (float)$min)) $errors[] = "Maximum quantity cannot be less than the minimum.";
     if (!is_numeric($lead) || (int)$lead < 0) $errors[] = "Lead time must be zero or more days.";
+    if ($per_slot !== null && $per_slot !== '' && (!ctype_digit((string)$per_slot) || (int)$per_slot < 1 || (int)$per_slot > 100)) $errors[] = "Bookings per time slot must be a whole number from 1 to 100, or left empty for no limit.";
 
     return $errors;
 }
@@ -64,9 +69,10 @@ try {
             $icon = $input['icon'] ?? null;
             $is_active = !empty($input['isActive']) ? 1 : 0;
             $sort_order = (int)($input['sortOrder'] ?? 0);
+            $per_slot = ($input['maxPerSlot'] ?? null) === null || $input['maxPerSlot'] === '' ? null : (int)$input['maxPerSlot'];
 
-            $stmt = $conn->prepare("INSERT INTO service_catalog (category, name, description, price, pricing_unit, min_quantity, max_quantity, lead_time_days, icon, is_active, sort_order, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssdsddisiii", $category, $name, $description, $price, $unit, $min, $max, $lead, $icon, $is_active, $sort_order, $admin_id);
+            $stmt = $conn->prepare("INSERT INTO service_catalog (category, name, description, price, pricing_unit, min_quantity, max_quantity, lead_time_days, icon, is_active, sort_order, max_per_slot, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssdsddisiiii", $category, $name, $description, $price, $unit, $min, $max, $lead, $icon, $is_active, $sort_order, $per_slot, $admin_id);
 
             if (!$stmt->execute()) {
                 //TheUniqueKeyOnCategory+NameIsTheLikelyCulprit
@@ -110,9 +116,10 @@ try {
             $icon = $input['icon'] ?? null;
             $is_active = !empty($input['isActive']) ? 1 : 0;
             $sort_order = (int)($input['sortOrder'] ?? 0);
+            $per_slot = ($input['maxPerSlot'] ?? null) === null || $input['maxPerSlot'] === '' ? null : (int)$input['maxPerSlot'];
 
-            $stmt = $conn->prepare("UPDATE service_catalog SET category = ?, name = ?, description = ?, price = ?, pricing_unit = ?, min_quantity = ?, max_quantity = ?, lead_time_days = ?, icon = ?, is_active = ?, sort_order = ? WHERE id = ?");
-            $stmt->bind_param("sssdsddisiii", $category, $name, $description, $price, $unit, $min, $max, $lead, $icon, $is_active, $sort_order, $id);
+            $stmt = $conn->prepare("UPDATE service_catalog SET category = ?, name = ?, description = ?, price = ?, pricing_unit = ?, min_quantity = ?, max_quantity = ?, lead_time_days = ?, icon = ?, is_active = ?, sort_order = ?, max_per_slot = ? WHERE id = ?");
+            $stmt->bind_param("sssdsddisiiii", $category, $name, $description, $price, $unit, $min, $max, $lead, $icon, $is_active, $sort_order, $per_slot, $id);
 
             if (!$stmt->execute()) {
                 $msg = $conn->errno === 1062
@@ -137,6 +144,17 @@ try {
             }
             $is_active = !empty($input['isActive']) ? 1 : 0;
 
+            $stmt = $conn->prepare("SELECT id FROM service_catalog WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $exists = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$exists) {
+                http_response_code(404);
+                echo json_encode(["success" => false, "message" => "That service no longer exists."]);
+                exit;
+            }
+
             $stmt = $conn->prepare("UPDATE service_catalog SET is_active = ? WHERE id = ?");
             $stmt->bind_param("ii", $is_active, $id);
             $stmt->execute();
@@ -152,6 +170,17 @@ try {
             $id = (int)($input['id'] ?? $input['rawId'] ?? 0);
             if (!$id) {
                 echo json_encode(["success" => false, "message" => "Service ID is required."]);
+                exit;
+            }
+
+            $stmt = $conn->prepare("SELECT id FROM service_catalog WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $exists = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$exists) {
+                http_response_code(404);
+                echo json_encode(["success" => false, "message" => "That service no longer exists."]);
                 exit;
             }
 

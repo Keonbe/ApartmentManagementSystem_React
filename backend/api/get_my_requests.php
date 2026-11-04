@@ -22,16 +22,23 @@ $query = "(SELECT id, 'Maintenance' AS type, COALESCE(title, issue_category) AS 
                   assigned_to, scheduled_date, scheduled_window,
                   CASE WHEN tenant_responsible = 1 THEN COALESCE(actual_cost, estimated_cost) END AS charge_amount,
                   tenant_responsible, cancel_requested_at, reopen_reason,
-                  (status = 'Completed' AND is_invoiced = 0 AND (resolved_at IS NULL OR resolved_at >= NOW() - INTERVAL " . MAINTENANCE_REOPEN_DAYS . " DAY)) AS can_reopen
+                  (status = 'Completed' AND is_invoiced = 0 AND (resolved_at IS NULL OR resolved_at >= NOW() - INTERVAL " . MAINTENANCE_REOPEN_DAYS . " DAY)) AS can_reopen,
+                  NULL AS quantity, NULL AS pricing_unit, NULL AS booked_total_cost, NULL AS admin_note, NULL AS service_id,
+                  NULL AS rating, NULL AS rating_comment
            FROM maintenance_requests WHERE user_id = ?)
           UNION ALL
           (SELECT id, 'CCTV', location_details, status, created_at, NULL, NULL, reason_request, NULL, decision_note,
                   CASE WHEN footage_path IS NOT NULL THEN 'file' WHEN footage_url IS NOT NULL THEN 'link' ELSE NULL END, footage_path, footage_expires_at,
-                  (footage_expires_at IS NOT NULL AND footage_expires_at <= NOW()), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL FROM cctv_requests WHERE user_id = ?)
+                  (footage_expires_at IS NOT NULL AND footage_expires_at <= NOW()), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL FROM cctv_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'Parking', vehicle_type, status, created_at, NULL, document_path, vehicle_model, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL FROM parking_reservations WHERE user_id = ?)
+          (SELECT id, 'Parking', vehicle_type, status, created_at, NULL, document_path, vehicle_model, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL FROM parking_reservations WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'Service', service_name, status, created_at, completed_at, attachment_path, notes, total_cost, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL FROM service_requests WHERE user_id = ?)
+          (SELECT id, 'Service', service_name, status, created_at, completed_at, attachment_path, notes, total_cost,
+                  CASE WHEN status IN ('Rejected', 'Cancelled') THEN admin_notes END, NULL, NULL, NULL, NULL,
+                  assigned_to, scheduled_date, scheduled_window, NULL, NULL, cancel_requested_at, NULL, NULL,
+                  quantity, pricing_unit, booked_total_cost, CASE WHEN status NOT IN ('Rejected', 'Cancelled') THEN admin_notes END, service_id,
+                  rating, rating_comment
+           FROM service_requests WHERE user_id = ?)
           ORDER BY created_at DESC";
 
 $stmt = $conn->prepare($query);
@@ -41,6 +48,11 @@ $res = $stmt->get_result();
 
 $requests = [];
 while ($row = $res->fetch_assoc()) {
+    if ($row['type'] === 'Service') {
+        $row['can_cancel_free'] = (int)service_cancel_is_free($row['status'], $row['scheduled_date'], $row['scheduled_window']);
+        $row['can_rate'] = (int)($row['status'] === 'Completed' && $row['rating'] === null
+            && (!$row['resolved_at'] || strtotime($row['resolved_at']) >= strtotime('-' . SERVICE_RATING_DAYS . ' days')));
+    }
     $requests[] = $row;
 }
 $stmt->close();
