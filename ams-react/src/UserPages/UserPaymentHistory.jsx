@@ -15,14 +15,14 @@ import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 // Badge per invoice status. Anything awaiting management or the gateway is
 // shown as such rather than as "Unpaid", and only a payable bill gets Pay Now.
 const STATUS_BADGES = {
-    'pending-verification': { label: 'Verifying', cls: 'bg-sky-100 text-sky-800' },
-    scheduled: { label: 'Scheduled', cls: 'bg-sky-100 text-sky-800' },
-    processing: { label: 'Processing', cls: 'bg-sky-100 text-sky-800' },
-    'payment-failed': { label: 'Payment failed', cls: 'bg-rose-100 text-rose-700' },
-    overdue: { label: 'Overdue', cls: 'bg-rose-100 text-rose-700' },
-    cancelled: { label: 'Cancelled', cls: 'bg-slate-100 text-slate-600' },
+    'pending-verification': { key: 'pending-verification', cls: 'bg-sky-100 text-sky-800' },
+    scheduled: { key: 'scheduled', cls: 'bg-sky-100 text-sky-800' },
+    processing: { key: 'processing', cls: 'bg-sky-100 text-sky-800' },
+    'payment-failed': { key: 'payment-failed', cls: 'bg-rose-100 text-rose-700' },
+    overdue: { key: 'overdue', cls: 'bg-rose-100 text-rose-700' },
+    cancelled: { key: 'cancelled', cls: 'bg-slate-100 text-slate-700' },
 };
-const UNPAID_BADGE = { label: 'Unpaid', cls: 'bg-amber-100 text-amber-800' };
+const UNPAID_BADGE = { key: 'unpaid', cls: 'bg-amber-100 text-amber-800' };
 
 const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
@@ -40,6 +40,7 @@ export default function UserPaymentHistory() {
     // Opened directly when arriving from a "Payment confirmed" notice.
     const [receiptInvoiceId, setReceiptInvoiceId] = useState(location.state?.receiptId || null);
     const [notice, setNotice] = useState(null);
+    const [view, setView] = useState('all');
     const receiptRef = useRef(null);
 
     const handleTransitions = (events) => {
@@ -194,6 +195,7 @@ export default function UserPaymentHistory() {
         const paid = inv.status === 'paid';
         const open = isOpen(inv);
         const badge = STATUS_BADGES[inv.status] || UNPAID_BADGE;
+        const badgeLabel = t(`paymentHistory.status.${badge.key}`);
         const range = inv.period_start && inv.period_end ? formatPeriodRange(inv.period_start, inv.period_end) : '';
         const amount = open ? owedOf(inv) : parseFloat(inv.total_amount) || 0;
         const partPaid = open && (parseFloat(inv.amount_paid) || 0) > 0;
@@ -206,23 +208,23 @@ export default function UserPaymentHistory() {
                         {range && <>{range}, </>}{invoiceLabel(inv)}
                     </p>
                     {open && isPastDue(inv) && (
-                        <p className="m-0 mt-1 text-sm font-semibold text-rose-700">Overdue by {daysPastDue(inv)} day{daysPastDue(inv) === 1 ? '' : 's'}</p>
+                        <p className="m-0 mt-1 text-sm font-semibold text-rose-700">{daysPastDue(inv) === 1 ? t('paymentHistory.overdueOne') : t('paymentHistory.overdueMany', { count: daysPastDue(inv) })}</p>
                     )}
                     {paid && inv.paid_from_advance && (
-                        <p className="m-0 mt-1 text-sm font-semibold text-emerald-700">Paid from advance payment {inv.payment_reference}</p>
+                        <p className="m-0 mt-1 text-sm font-semibold text-emerald-700">{t('paymentHistory.paidFromAdvance', { ref: inv.payment_reference })}</p>
                     )}
                     {charges && <p className="m-0 mt-1 text-sm text-slate-500">{charges}</p>}
                 </div>
                 <div className="payment-history-actions flex flex-wrap items-center gap-3 sm:justify-end shrink-0">
                     <div className="sm:text-right min-w-0 flex-[1_1_8rem]">
                         <p className={`m-0 font-bold text-slate-900 tabular-nums ${nested ? 'text-sm' : 'text-base'}`}>{formatCurrency(amount)}</p>
-                        {partPaid && <p className="m-0 text-xs text-slate-500 tabular-nums">of {formatCurrency(inv.total_amount)}</p>}
+                        {partPaid && <p className="m-0 text-xs text-slate-600 tabular-nums">{t('paymentHistory.ofTotal', { amount: formatCurrency(inv.total_amount) })}</p>}
                         {paid && inv.paid_at && <p className="m-0 text-sm text-emerald-700">{t('paymentHistory.paidOn')} {shortDay(inv.paid_at)}</p>}
                     </div>
-                    {open && <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${badge.cls}`}>{badge.label}</span>}
+                    {open && <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${badge.cls}`}>{badgeLabel}</span>}
                     {open && PAYABLE_STATUSES.includes(inv.status) && (
                         <button type="button" onClick={() => navigate('/pay-bills')} className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold border-0 cursor-pointer transition-colors">
-                            Pay now <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+                            {t('paymentHistory.payNow')} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
                         </button>
                     )}
                     {paid && (
@@ -272,34 +274,50 @@ export default function UserPaymentHistory() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-brand text-white p-5 sm:p-6">
                             <div>
                                 <p className="m-0 text-sm text-indigo-100">
-                                    {payable.length > 0 ? `To pay across ${payable.length} bill${payable.length === 1 ? '' : 's'}` : 'Nothing to pay right now'}
+                                    {payable.length === 0 ? t('paymentHistory.nothingToPay') : payable.length === 1 ? t('paymentHistory.toPayOne') : t('paymentHistory.toPayMany', { count: payable.length })}
                                 </p>
                                 <p className="m-0 mt-1 text-3xl font-extrabold tabular-nums">{formatCurrency(toPayTotal)}</p>
                                 {lastPaid && (
                                     <p className="m-0 mt-2 text-sm text-indigo-100">
-                                        Last payment: {formatCurrency(lastPaid.total_amount)} on {shortDay(lastPaid.paid_at)}
+                                        {t('paymentHistory.lastPayment', { amount: formatCurrency(lastPaid.total_amount), date: shortDay(lastPaid.paid_at) })}
                                     </p>
                                 )}
                             </div>
                             {payable.length > 0 && (
                                 <button type="button" onClick={() => navigate('/pay-bills')} className="self-start sm:self-auto inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl bg-white text-brand text-sm font-bold border-0 cursor-pointer hover:bg-indigo-50">
-                                    Go to Pay Bills <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+                                    {t('paymentHistory.goToPayBills')} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
                                 </button>
                             )}
                         </div>
 
-                        {openBills.length > 0 && (
+                        {openBills.length > 0 && paidEntries.length > 0 && (
+                            <div role="group" aria-label={t('paymentHistory.filterLabel')} className="flex flex-wrap gap-2">
+                                {[['all', 'filterAll'], ['topay', 'filterToPay'], ['paid', 'filterPaid']].map(([key, label]) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        aria-pressed={view === key}
+                                        onClick={() => setView(key)}
+                                        className={`min-h-[44px] cursor-pointer rounded-full border px-4 text-sm font-semibold transition-colors ${view === key ? 'border-indigo-700 bg-indigo-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
+                                    >
+                                        {t(`paymentHistory.${label}`)}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {openBills.length > 0 && view !== 'paid' && (
                             <section aria-labelledby="history-to-pay">
-                                <h2 id="history-to-pay" className="m-0 mb-3 text-xl font-bold text-slate-900">To pay</h2>
+                                <h2 id="history-to-pay" className="m-0 mb-3 text-xl font-bold text-slate-900">{t('paymentHistory.toPay')}</h2>
                                 <ul className={`${SECTION} list-none m-0 divide-y divide-slate-100`}>
                                     {openBills.map((inv) => billRow(inv))}
                                 </ul>
                             </section>
                         )}
 
-                        {paidEntries.length > 0 && (
+                        {paidEntries.length > 0 && view !== 'topay' && (
                             <section aria-labelledby="history-paid">
-                                <h2 id="history-paid" className="m-0 mb-3 text-xl font-bold text-slate-900">Paid</h2>
+                                <h2 id="history-paid" className="m-0 mb-3 text-xl font-bold text-slate-900">{t('paymentHistory.paidHeading')}</h2>
                                 <div className="flex flex-col gap-5">
                                     {years.map((year) => (
                                         <div key={year}>
@@ -309,7 +327,7 @@ export default function UserPaymentHistory() {
                                                     <li key={entry.key} className="payment-history-item py-4">
                                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                             <div className="min-w-0">
-                                                                <p className="m-0 text-base font-bold text-slate-900">Combined payment, {entry.group.bills.length} bills</p>
+                                                                <p className="m-0 text-base font-bold text-slate-900">{t('paymentHistory.combinedPayment', { count: entry.group.bills.length })}</p>
                                                                 <p className="m-0 mt-0.5 text-sm text-slate-500">
                                                                     {entry.group.bills.map((b) => b.billing_period).join(', ')}, {entry.group.key}
                                                                 </p>
@@ -322,7 +340,7 @@ export default function UserPaymentHistory() {
                                                                     {entry.group.bills[0].paid_at && <p className="m-0 text-sm text-emerald-700">{t('paymentHistory.paidOn')} {shortDay(entry.group.bills[0].paid_at)}</p>}
                                                                 </div>
                                                                 <button type="button" onClick={() => setReceiptInvoiceId(entry.key)} className={RECEIPT_BTN}>
-                                                                    <FontAwesomeIcon icon={faDownload} aria-hidden="true" /> Combined receipt
+                                                                    <FontAwesomeIcon icon={faDownload} aria-hidden="true" /> {t('paymentHistory.combinedReceipt')}
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -339,10 +357,10 @@ export default function UserPaymentHistory() {
                             </section>
                         )}
 
-                        {otherBills.length > 0 && (
+                        {otherBills.length > 0 && view === 'all' && (
                             <details className="group">
                                 <summary className="inline-flex items-center gap-2 min-h-[44px] cursor-pointer text-base font-bold text-slate-700 hover:text-slate-900">
-                                    Cancelled bills ({otherBills.length})
+                                    {t('paymentHistory.cancelledBills', { count: otherBills.length })}
                                 </summary>
                                 <ul className={`${SECTION} list-none m-0 mt-2 divide-y divide-slate-100`}>
                                     {otherBills.map((inv) => (
@@ -350,7 +368,7 @@ export default function UserPaymentHistory() {
                                             <span className="text-slate-700">{inv.billing_period || invoiceLabel(inv)} <span className="text-slate-500">({invoiceLabel(inv)})</span></span>
                                             <span className="flex items-center gap-3">
                                                 <span className="font-semibold text-slate-600 tabular-nums line-through decoration-slate-400">{formatCurrency(inv.total_amount)}</span>
-                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${(STATUS_BADGES[inv.status] || STATUS_BADGES.cancelled).cls}`}>{(STATUS_BADGES[inv.status] || STATUS_BADGES.cancelled).label}</span>
+                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${(STATUS_BADGES[inv.status] || STATUS_BADGES.cancelled).cls}`}>{t(`paymentHistory.status.${(STATUS_BADGES[inv.status] || STATUS_BADGES.cancelled).key}`)}</span>
                                             </span>
                                         </li>
                                     ))}

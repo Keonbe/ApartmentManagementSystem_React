@@ -22,11 +22,11 @@ if ($public) {
     // The attachment is returned only to someone who can open it: a recipient
     // (the same file sits on their notification) or an admin. A link to anyone
     // else would just be a 403.
-    $stmt = $conn->prepare("SELECT a.id, a.tag, a.title, a.body, a.created_at,
+    $stmt = $conn->prepare("SELECT a.id, a.tag, a.title, a.body, a.created_at, a.is_pinned,
                                    CASE WHEN a.attachment_path IS NOT NULL AND (
                                             ? = 1 OR EXISTS (SELECT 1 FROM notifications n WHERE n.user_id = ? AND n.attachment_path = a.attachment_path)
                                         ) THEN a.attachment_path END AS attachment_path
-                            FROM announcements a WHERE a.status = 'sent' ORDER BY a.created_at DESC");
+                            FROM announcements a WHERE a.status = 'sent' ORDER BY a.is_pinned DESC, a.created_at DESC");
     $viewer_is_admin = $viewer['role'] === 'admin' ? 1 : 0;
     $stmt->bind_param("ii", $viewer_is_admin, $viewer_id);
     $stmt->execute();

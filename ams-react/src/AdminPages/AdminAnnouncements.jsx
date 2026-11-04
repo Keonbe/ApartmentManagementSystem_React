@@ -3,7 +3,7 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faSave, faMobileAlt, faEnvelope, faDesktop, faCalendarAlt, faUsers, faPaperPlane, faSpinner, faLock, faExclamationTriangle, faPaperclip, faFilePdf,
+  faSave, faMobileAlt, faEnvelope, faDesktop, faCalendarAlt, faUsers, faPaperPlane, faSpinner, faLock, faExclamationTriangle, faPaperclip, faFilePdf, faThumbtack,
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
@@ -136,6 +136,7 @@ const AdminAnnouncements = () => {
       if (response.data.success) {
         setAnnouncements(response.data.announcements.map(ann => ({
           ...ann,
+          is_pinned: Number(ann.is_pinned) === 1,
           status: statusConfig[ann.status] ? ann.status : 'sent',
           // Older rows stored "Email"; the API may also hand back a JSON string.
           channels: (Array.isArray(ann.channels) ? ann.channels : (() => {
@@ -262,6 +263,20 @@ const AdminAnnouncements = () => {
       setNotice({ ok: !!res.data.success, text: res.data.message || 'Done.' });
     } catch (err) {
       setNotice({ ok: false, text: apiErrorMessage(err, 'Could not send the announcement.') });
+    } finally {
+      setSending(null);
+      fetchAnnouncements();
+    }
+  };
+  // Pin or unpin a sent announcement (the tenants' feed lists pinned ones first).
+  const togglePin = async (item) => {
+    if (sending) return;
+    setSending(`pin-${item.id}`);
+    try {
+      const res = await api.post('pin_announcement.php', { id: item.id, pinned: !item.is_pinned });
+      setNotice({ ok: !!res.data.success, text: res.data.message || 'Done.' });
+    } catch (err) {
+      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not change the pin.') });
     } finally {
       setSending(null);
       fetchAnnouncements();
@@ -545,6 +560,7 @@ const AdminAnnouncements = () => {
                       <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex ${item.tagStyle}`}>{item.tag}</span>
                       <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex ${statusConfig[item.status].color}`}>{statusConfig[item.status].label}</span>
                       <span className="text-body font-semibold text-slate-800">{item.title}</span>
+                      {item.is_pinned && <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-caption font-semibold text-indigo-700"><FontAwesomeIcon icon={faThumbtack} /> Pinned</span>}
                     </div>
                     <p className="text-label text-slate-500 leading-relaxed m-0 mb-3">{item.body}</p>
                     {item.attachment_path && (
@@ -569,6 +585,12 @@ const AdminAnnouncements = () => {
                           Back to draft
                         </button>
                       </div>
+                    )}
+                    {item.status === 'sent' && (
+                      <button type="button" onClick={() => togglePin(item)} disabled={!!sending} aria-pressed={item.is_pinned}
+                        className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-slate-100 text-slate-700 text-caption font-semibold border-0 cursor-pointer hover:bg-slate-200 disabled:opacity-50">
+                        <FontAwesomeIcon icon={faThumbtack} /> {item.is_pinned ? 'Unpin' : 'Pin to top'}
+                      </button>
                     )}
                     {item.status === 'draft' && (
                       <button type="button" onClick={() => openDraft(item)} disabled={!!sending || form.draftId === item.id}

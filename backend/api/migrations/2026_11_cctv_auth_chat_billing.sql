@@ -204,3 +204,9 @@ PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND index_name = 'idx_refund_gateway') = 0,
   'ALTER TABLE `refund_requests` ADD KEY `idx_refund_gateway` (`gateway_refund_id`)', 'DO 0');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- ===== announcement_pinning =====
+-- An admin can pin a few sent announcements to the top of the tenants' feed.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'announcements' AND column_name = 'is_pinned') = 0,
+  'ALTER TABLE `announcements` ADD COLUMN `is_pinned` tinyint(1) NOT NULL DEFAULT 0', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;

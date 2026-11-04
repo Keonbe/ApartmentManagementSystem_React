@@ -1229,7 +1229,8 @@ All endpoints return JSON with this shape on error:
 | 61 | [get_available_parking_slots.php](../../backend/api/get_available_parking_slots.php) | GET | Parking | User | Available slots |
 | 62 | [update_parking_status.php](../../backend/api/update_parking_status.php) | POST | Parking | Admin | Approve/reject parking |
 | 63 | [create_announcement.php](../../backend/api/create_announcement.php) | POST | Comms | Admin | Broadcast announcement |
-| 64 | [get_announcements.php](../../backend/api/get_announcements.php) | GET | Comms | User | List announcements |
+| 64 | [get_announcements.php](../../backend/api/get_announcements.php) | GET | Comms | User | List announcements (pinned first, `is_pinned`) |
+| 64a | [pin_announcement.php](../../backend/api/pin_announcement.php) | POST | Comms | Admin | Pin or unpin a sent announcement (max 3) |
 | 65 | [create_notification.php](../../backend/api/create_notification.php) | POST | Comms | Admin | Create notification |
 | 66 | [get_notifications.php](../../backend/api/get_notifications.php) | GET | Comms | User | My notifications |
 | 67 | [mark_notification_read.php](../../backend/api/mark_notification_read.php) | POST | Comms | User | Mark as read |
