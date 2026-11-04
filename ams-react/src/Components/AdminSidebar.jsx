@@ -105,13 +105,17 @@ const writeStore = (key, value) => {
   }
 };
 
-// Row geometry: nav px-3 + row px-3 put a w-6 icon's centre 36px from the
-// left, the middle of the 72px rail, so icons never move when it widens.
-const rowBase = 'admin-sidebar-nav-link btn-interactive w-full flex items-center gap-3 h-10 px-3 rounded-lg text-sm no-underline transition-colors border-0 cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
+// Row geometry, in Tailwind spacing units (the admin shell scales them). Wide:
+// nav px-3 + row px-3 + half a w-6 icon box put the icon 9 units from the left.
+// Rail (w-18): a centred w-12 square with only the icon, centre also 9 units,
+// so the icons stay put when the hover rail widens.
+const rowBase = (narrow) => `admin-sidebar-nav-link flex items-center rounded-lg text-sm no-underline transition-colors border-0 cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+  narrow ? 'w-12 h-11 mx-auto justify-center p-0 text-[17px]' : 'w-full h-10 gap-3 px-3'
+}`;
 const iconBox = 'w-6 shrink-0 flex items-center justify-center';
-const fade = (narrow) => `whitespace-nowrap overflow-hidden transition-opacity duration-200 ${narrow ? 'opacity-0' : 'opacity-100 delay-75'}`;
+const label = 'whitespace-nowrap overflow-hidden';
 
-// narrow: the 72px rail (labels hidden, groups closed). flyouts: rail groups open
+// narrow: the w-18 rail (labels hidden, groups closed). flyouts: rail groups open
 // a flyout (collapsed mode); in hover mode the whole rail widens instead.
 function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
   const { groups, activeGroupId, openGroups, toggleGroup, isItemActive, flyout, setFlyout, openFlyout, closeFlyoutSoon, mode, setMode, handleClose } = nav;
@@ -147,20 +151,21 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-3 min-h-0 admin-sidebar-nav-scroll" aria-label="Admin">
+      {/* The rail hides its scrollbar: a scrollbar gutter would push the icons off centre. */}
+      <nav className={`flex-1 overflow-y-auto overflow-x-hidden py-4 min-h-0 admin-sidebar-nav-scroll ${narrow ? 'px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-3'}`} aria-label="Admin">
         <NavLink
           to={DASHBOARD.to}
           onClick={mobile ? handleClose : undefined}
           aria-current={dashActive ? 'page' : undefined}
           aria-label={narrow ? DASHBOARD.label : undefined}
-          className={`${rowBase} ${dashActive ? 'bg-indigo-600 text-white font-semibold shadow-card' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+          className={`${rowBase(narrow)} ${dashActive ? 'bg-indigo-600 text-white font-semibold shadow-card' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
           {...flyoutHandlers('dashboard')}
         >
           <span className={iconBox}><FontAwesomeIcon icon={DASHBOARD.icon} /></span>
-          <span className={fade(narrow)}>{DASHBOARD.label}</span>
+          {!narrow && <span className={label}>{DASHBOARD.label}</span>}
         </NavLink>
 
-        <div className="my-3 border-t border-slate-800" aria-hidden="true" />
+        <div className={`my-3 border-t border-slate-800 ${narrow ? 'mx-4' : ''}`} aria-hidden="true" />
 
         <ul className="m-0 p-0 list-none space-y-1">
           {groups.map((g) => {
@@ -176,7 +181,7 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
                   aria-controls={flyouts ? undefined : listId}
                   aria-haspopup={flyouts ? 'menu' : undefined}
                   aria-label={narrow ? g.title : undefined}
-                  className={`${rowBase} font-semibold ${
+                  className={`${rowBase(narrow)} font-semibold ${
                     narrow && containsActive
                       ? 'bg-indigo-600/90 text-white'
                       : containsActive
@@ -186,9 +191,9 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
                   {...flyoutHandlers(g.id)}
                 >
                   <span className={iconBox}><FontAwesomeIcon icon={g.icon} /></span>
-                  <span className={`flex-1 ${fade(narrow)}`}>{g.title}</span>
                   {!narrow && (
                     <>
+                      <span className={`flex-1 ${label}`}>{g.title}</span>
                       {containsActive && !open && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" aria-hidden="true" />}
                       <FontAwesomeIcon icon={faChevronDown} className={`text-[10px] shrink-0 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`} aria-hidden="true" />
                     </>
@@ -231,10 +236,28 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
       </nav>
 
       {/* Sidebar mode (desktop only) */}
-      {!mobile && (
-        <div className={`shrink-0 border-t border-slate-800 p-3 ${narrow ? 'flex flex-col items-center gap-1' : ''}`}>
-          {!narrow && <p className="m-0 mb-2 px-1 text-caption font-medium text-slate-500">Sidebar</p>}
-          <div className={narrow ? 'flex flex-col gap-1' : 'grid grid-cols-3 gap-1 rounded-lg bg-slate-800/70 p-1'} role="radiogroup" aria-label="Sidebar behaviour">
+      {/* The rail shows one button (the current mode) that opens the choices with
+          their names; three bare icons stacked there read as unrelated links. */}
+      {!mobile && narrow && (
+        <div className="shrink-0 border-t border-slate-800 py-3">
+          <button
+            type="button"
+            onClick={(e) => (flyout?.id === 'mode' ? setFlyout(null) : openFlyout('mode', e.currentTarget))}
+            aria-haspopup="menu"
+            aria-expanded={flyout?.id === 'mode'}
+            aria-label={`Sidebar: ${MODES.find((m) => m.id === mode)?.label}. Change`}
+            title="Sidebar behaviour"
+            className={`${rowBase(true)} text-slate-400 hover:bg-slate-800 hover:text-white bg-transparent text-sm`}
+            {...flyoutHandlers('mode')}
+          >
+            <FontAwesomeIcon icon={MODES.find((m) => m.id === mode)?.icon || faAnglesLeft} />
+          </button>
+        </div>
+      )}
+      {!mobile && !narrow && (
+        <div className="shrink-0 border-t border-slate-800 p-3">
+          <p className="m-0 mb-2 px-1 text-caption font-medium text-slate-500">Sidebar</p>
+          <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-800/70 p-1" role="radiogroup" aria-label="Sidebar behaviour">
             {MODES.map((m) => (
               <button
                 key={m.id}
@@ -244,7 +267,7 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
                 onClick={() => setMode(m.id)}
                 title={m.label}
                 aria-label={m.label}
-                className={`touch-compact h-8 ${narrow ? 'w-10' : 'w-full'} rounded-md border-0 cursor-pointer text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                className={`touch-compact h-8 w-full rounded-md border-0 cursor-pointer text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                   mode === m.id ? 'bg-indigo-600 text-white' : 'bg-transparent text-slate-400 hover:bg-slate-700 hover:text-white'
                 }`}
               >
@@ -422,7 +445,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     main.focus();
   };
 
-  const flyoutGroup = flyout && flyout.id !== 'dashboard' ? groups.find((g) => g.id === flyout.id) : null;
+  const flyoutGroup = flyout ? groups.find((g) => g.id === flyout.id) || null : null;
   const panelBase = 'bg-slate-900 text-slate-300 flex flex-col h-full text-left select-none';
 
   return (
@@ -437,23 +460,23 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
 
       {/* Desktop sidebar */}
       {mode === 'hover' ? (
-        // The 72px slot stays in the layout; the panel widens over the page.
-        <aside className="hidden lg:block relative w-[72px] shrink-0 h-full print:hidden" aria-label="Admin navigation">
+        // The w-18 slot stays in the layout; the panel widens over the page.
+        <aside className="hidden lg:block relative w-18 shrink-0 h-full print:hidden" aria-label="Admin navigation">
           <div
-            className={`${panelBase} absolute inset-y-0 left-0 z-50 overflow-hidden border-r border-slate-800 transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none ${hovered ? 'w-64 shadow-2xl shadow-slate-950/40' : 'w-[72px]'}`}
+            className={`${panelBase} absolute inset-y-0 left-0 z-50 overflow-hidden border-r border-slate-800 transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none ${hovered ? 'w-64 shadow-2xl shadow-slate-950/40' : 'w-18'}`}
             onMouseEnter={() => setHoverSoon(true, 120)}
             onMouseLeave={() => setHoverSoon(false, 250)}
             onFocusCapture={() => setHoverSoon(true, 0)}
             onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setHoverSoon(false, 0); }}
           >
-            <div className={`${hovered ? 'w-64' : 'w-[72px]'} h-full flex flex-col`}>
+            <div className={`${hovered ? 'w-64' : 'w-18'} h-full flex flex-col`}>
               <SidebarNav narrow={!hovered} nav={nav} />
             </div>
           </div>
         </aside>
       ) : (
         <aside
-          className={`${panelBase} hidden lg:flex shrink-0 border-r border-slate-800 print:hidden ${mode === 'collapsed' ? 'w-[72px]' : 'w-64'}`}
+          className={`${panelBase} hidden lg:flex shrink-0 border-r border-slate-800 print:hidden ${mode === 'collapsed' ? 'w-18' : 'w-64'}`}
           aria-label="Admin navigation"
         >
           <SidebarNav narrow={mode === 'collapsed'} flyouts={mode === 'collapsed'} nav={nav} />
@@ -463,14 +486,36 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {/* Collapsed rail flyout */}
       {flyout && mode === 'collapsed' && (
         <div
-          className="hidden lg:block fixed z-[60] left-[80px] min-w-48 max-w-64 rounded-lg bg-slate-900 border border-slate-700 shadow-2xl shadow-slate-950/50 py-1.5 text-left modal-card-anim print:hidden"
+          className="hidden lg:block fixed z-[60] left-20 min-w-48 max-w-64 rounded-lg bg-slate-900 border border-slate-700 shadow-2xl shadow-slate-950/50 py-1.5 text-left modal-card-anim print:hidden"
           style={flyout.top !== null ? { top: flyout.top } : { bottom: flyout.bottom }}
           onMouseEnter={() => clearTimeout(flyoutTimer.current)}
           onMouseLeave={closeFlyoutSoon}
-          role={flyoutGroup ? 'menu' : 'tooltip'}
-          aria-label={flyoutGroup ? flyoutGroup.title : DASHBOARD.label}
+          role={flyoutGroup || flyout.id === 'mode' ? 'menu' : 'tooltip'}
+          aria-label={flyoutGroup ? flyoutGroup.title : flyout.id === 'mode' ? 'Sidebar behaviour' : DASHBOARD.label}
         >
-          {flyoutGroup ? (
+          {flyout.id === 'mode' ? (
+            <>
+              <p className="m-0 px-3 pt-1 pb-1.5 text-caption font-semibold text-slate-400">Sidebar</p>
+              <ul className="m-0 p-0 list-none">
+                {MODES.map((m) => (
+                  <li key={m.id} className="px-1.5">
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={mode === m.id}
+                      onClick={() => setMode(m.id)}
+                      className={`w-full flex items-center gap-2.5 h-9 px-2.5 rounded-md text-sm border-0 cursor-pointer text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                        mode === m.id ? 'bg-indigo-600 text-white font-semibold' : 'bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <span className="w-4 shrink-0 flex items-center justify-center text-xs"><FontAwesomeIcon icon={m.icon} /></span>
+                      <span className="whitespace-nowrap">{m.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : flyoutGroup ? (
             <>
               <p className="m-0 px-3 pt-1 pb-1.5 text-caption font-semibold text-slate-400">{flyoutGroup.title}</p>
               <ul className="m-0 p-0 list-none">
