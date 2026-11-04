@@ -111,7 +111,8 @@ try {
                 'roomCondition' => $room['room_condition'] ?? 'Good',
                 'furnishingStatus' => $room['furnishing_status'] ?? 'Unfurnished',
                 'images' => $images,
-                'availableFrom' => $upcoming[$room['id']] ?? null,
+                'availableDate' => $room['available_date'],
+                'availableFrom' => $room['available_date'] ?? $upcoming[$room['id']] ?? null,
             ];
         }
 
@@ -189,6 +190,7 @@ try {
             'leaseEnd' => $room['lease_end'],
             'lastTenant' => $room['last_tenant'],
             'maintenanceFlag' => (bool) $room['maintenance_flag'],
+            'availableDate' => $room['available_date'],
             'occupants' => (int) ($room['occupants'] ?? 0),
             'roomCondition' => $room['room_condition'] ?? 'Good',
             'furnishingStatus' => $room['furnishing_status'] ?? 'Unfurnished',
