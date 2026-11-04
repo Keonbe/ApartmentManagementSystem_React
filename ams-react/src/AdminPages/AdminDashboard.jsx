@@ -188,18 +188,25 @@ const AdminDashboard = () => {
               />
             </section>
 
-            {/* Money over time, and what needs doing (first on phones) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Money over time, and what needs doing (first on phones). On desktop the
+                side card is taken out of the flow (absolute) so the main card alone sets
+                the row height and the side card scrolls inside that height. */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 min-w-0">
                 <IncomePanel initialData={incomeData} initialRange={range} loading={loading} />
               </div>
-              <div className="order-first lg:order-none min-w-0">
-                <AttentionList attention={attention} loading={loading} onRetry={fetchDashboardData} />
+              <div className="order-first lg:order-none min-w-0 lg:relative lg:min-h-[26rem]">
+                <AttentionList
+                  attention={attention}
+                  loading={loading}
+                  onRetry={fetchDashboardData}
+                  className="h-[28rem] lg:h-auto lg:absolute lg:inset-0"
+                />
               </div>
             </div>
 
-            {/* Units and recent activity, newest tenants */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Units and recent activity, newest tenants (same height rule as above) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <section aria-labelledby="ops-title" className={`lg:col-span-2 ${PANEL} flex flex-col min-w-0`}>
                 <div className={PANEL_HEADER}>
                   <h2 id="ops-title" className={PANEL_TITLE}>Building</h2>
@@ -305,12 +312,13 @@ const AdminDashboard = () => {
                 </div>
               </section>
 
-              <section aria-labelledby="new-tenants-title" className={`${PANEL} flex flex-col min-w-0`}>
+              <div className="min-w-0 lg:relative lg:min-h-[16rem]">
+              <section aria-labelledby="new-tenants-title" className={`${PANEL} flex flex-col min-w-0 overflow-hidden lg:absolute lg:inset-0`}>
                 <div className={PANEL_HEADER}>
                   <h2 id="new-tenants-title" className={PANEL_TITLE}>Newest tenants</h2>
                   <button type="button" onClick={() => navigate('/admin-tenants')} className={btn('link')}>View all</button>
                 </div>
-                <div className="p-3">
+                <div className="p-3 flex-1 min-h-0 overflow-y-auto">
                   {loading ? (
                     <SkeletonList rows={3} label="Loading newest tenants…" />
                   ) : newTenants.length === 0 ? (
@@ -333,6 +341,7 @@ const AdminDashboard = () => {
                   )}
                 </div>
               </section>
+              </div>
             </div>
             </>)}
           </div>
