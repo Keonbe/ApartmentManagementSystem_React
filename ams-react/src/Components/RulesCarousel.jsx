@@ -6,10 +6,16 @@ const AUTO_MS = 4000;
 const prefersReducedMotion = () =>
     typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+// A phone has no pointer to hover with, so nothing would ever pause the strip
+// while someone reads a chip: there it moves only when swiped.
+const hasHover = () =>
+    typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover)').matches;
+
 // The apartment rules on the Preview page as one line of chips that pages
-// through on its own (every AUTO_MS), with ← → buttons. It pauses while the
-// pointer or keyboard focus is on it, never moves for "reduce motion", and can
-// be swiped on touch screens. A page always starts on a whole chip.
+// through on its own (every AUTO_MS) on screens with a pointer, with ← →
+// buttons. It pauses while the pointer or keyboard focus is on it, never moves
+// for "reduce motion", and can be swiped on touch screens. A page always starts
+// on a whole chip.
 export default function RulesCarousel({ rules, getTitle, onPick, onViewAll, t }) {
     const trackRef = useRef(null);
     const [paused, setPaused] = useState(false);
@@ -44,6 +50,8 @@ export default function RulesCarousel({ rules, getTitle, onPick, onViewAll, t })
         }
     }, []);
 
+    // The chips' text (so their widths) changes with the language, not only with the rules.
+    const titles = rules.map(getTitle).join('\u0001');
     useEffect(() => {
         update();
         const el = trackRef.current;
@@ -51,12 +59,12 @@ export default function RulesCarousel({ rules, getTitle, onPick, onViewAll, t })
         const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
         observer?.observe(el);
         return () => observer?.disconnect();
-    }, [rules, update]);
+    }, [titles, update]);
 
     // Auto-advance only when there is more than one page.
     const overflowing = canPrev || canNext;
     useEffect(() => {
-        if (paused || !overflowing || prefersReducedMotion()) return undefined;
+        if (paused || !overflowing || prefersReducedMotion() || !hasHover()) return undefined;
         const timer = setInterval(() => page(1), AUTO_MS);
         return () => clearInterval(timer);
     }, [paused, overflowing, page]);
@@ -94,7 +102,7 @@ export default function RulesCarousel({ rules, getTitle, onPick, onViewAll, t })
                 <ul
                     ref={trackRef}
                     onScroll={update}
-                    className="relative m-0 flex min-w-[8rem] flex-1 list-none flex-nowrap items-center gap-2 overflow-x-auto p-0 no-scrollbar"
+                    className="relative m-0 flex min-w-[8rem] flex-1 list-none flex-nowrap items-center gap-2 overflow-x-auto p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     style={{ maskImage: fade, WebkitMaskImage: fade }}
                 >
                     {rules.map((rule) => (

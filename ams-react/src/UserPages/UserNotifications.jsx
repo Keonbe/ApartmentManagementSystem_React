@@ -276,7 +276,7 @@ export default function UserNotifications() {
               </div>
             </div>
 
-            <div role="tablist" aria-label={t('notifications.filter')} className="user-notif-tabs-bar flex gap-2 p-1 bg-slate-200/50 rounded-xl overflow-x-auto select-none no-scrollbar">
+            <div role="tablist" aria-label={t('notifications.filter')} className="user-notif-tabs-bar flex gap-2 p-1 bg-slate-200/50 rounded-xl overflow-x-auto select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {filterTabs.map(tab => (
                 <button
                   key={tab.key}
