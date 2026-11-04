@@ -33,6 +33,13 @@ describe('house rules scope=all', () => {
     expect(body.rules.every((r) => r.scope === 'parking')).toBe(true);
   });
 
+  it('every starter rule has Filipino text, so Filipino mode never mixes in English', async () => {
+    const { body } = await rules({ scope: 'all' });
+    const missing = body.rules.filter((r) => !r.title_fil?.trim() || !r.description_fil?.trim()).map((r) => r.title);
+    expect(missing).toEqual([]);
+    expect(body.rules.filter((r) => r.scope === 'house').length).toBeGreaterThanOrEqual(4);
+  });
+
   it('an unknown scope is refused', async () => {
     const { status } = await rules({ scope: 'bogus' });
     expect(status).toBe(422);

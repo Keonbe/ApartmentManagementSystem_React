@@ -1248,8 +1248,20 @@ SELECT * FROM (
 WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'minors');
 
 -- ===== rules_filipino =====
--- Filipino text for the starter children/pets and parking rules, only while the
--- admin has not written one.
+-- Filipino text for the starter house, children/pets and parking rules, only while
+-- the admin has not written one (the house rules: 2026_11_house_rules_filipino.sql).
+UPDATE `house_rules` SET `title_fil` = 'Igalang ang oras ng katahimikan',
+  `description_fil` = 'Panatilihing mahina ang ingay mula 10:00 PM hanggang 7:00 AM upang makapagpahinga ang lahat ng residente.'
+ WHERE `scope` = 'house' AND `title` = 'Respect quiet hours' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Bawal manigarilyo sa loob ng gusali',
+  `description_fil` = 'Hindi pinapayagan ang paninigarilyo sa loob ng mga kwarto o saanmang saradong karaniwang lugar. Panatilihing malinis ang paligid at agad na iulat ang anumang sira.'
+ WHERE `scope` = 'house' AND `title` = 'Smoke-free indoor areas' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Iparehistro ang iyong mga bisita',
+  `description_fil` = 'Dapat maiparehistro sa management ng apartment ang lahat ng bisita at sundin nila ang mga patakaran sa pagpasok at kaligtasan ng gusali.'
+ WHERE `scope` = 'house' AND `title` = 'Register your visitors' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Magbayad ng upa sa tamang oras',
+  `description_fil` = 'Ang buwanang upa ay dapat bayaran sa napagkasunduang petsa. Makipag-ugnayan agad sa management kung may tanong ka tungkol sa iyong bayad.'
+ WHERE `scope` = 'house' AND `title` = 'Pay rent on time' AND (`title_fil` IS NULL OR `title_fil` = '');
 UPDATE `house_rules` SET `title_fil` = 'Bawal ang sanggol at maliliit na bata sa ikatlong palapag',
   `description_fil` = 'Hindi maaaring tumira sa mga unit sa ikatlong palapag ang mga batang wala pang 5 taong gulang dahil sa hagdan. Dapat ideklara ang edad ng bawat miyembro ng sambahayan.'
  WHERE `scope` = 'minors' AND `title` = 'No babies or small children on the 3rd floor' AND (`title_fil` IS NULL OR `title_fil` = '');
