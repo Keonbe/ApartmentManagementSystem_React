@@ -11,7 +11,7 @@ const release = (token, invoice_id) => api('release_checkout_session.php', { tok
 const statusOf = async (id) => (await one('SELECT status FROM invoices WHERE id = ?', [id])).status;
 
 beforeAll(async () => {
-  [maria, jose] = await Promise.all([loginAs('maria'), login('jose.reyes@gmail.com', 'tenant123')]);
+  [maria, jose] = await Promise.all([loginAs('maria'), login('jose.reyes@demo.example', 'tenant123')]);
   // Jose's September bill (seeded overdue, due 2026-09-01) is mid-checkout.
   await q("UPDATE invoices SET status = 'processing', processing_since = NOW() WHERE id = 'INV-202609-3'");
 });

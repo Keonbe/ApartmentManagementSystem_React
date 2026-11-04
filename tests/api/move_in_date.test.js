@@ -11,8 +11,8 @@ const day = async (offset) => (await one(`SELECT DATE_FORMAT(CURDATE() + INTERVA
 let gloria, liza;
 beforeAll(async () => {
   [gloria, liza] = await Promise.all([
-    login('gloria.tan@gmail.com', 'tenant123'),   // user 8, app 6
-    login('liza.navarro@gmail.com', 'tenant123'), // user 17, app 15 Cancelled: may apply again
+    login('gloria.tan@demo.example', 'tenant123'),   // user 8, app 6
+    login('liza.navarro@demo.example', 'tenant123'), // user 17, app 15 Cancelled: may apply again
   ]);
   await q("UPDATE rent_applications SET status = 'Action Required', rejection_reason = 'Pick another date' WHERE id = 6");
 });
@@ -115,7 +115,7 @@ describe('rent_application.php preferred move-in date', () => {
   const apply = (extra) => {
     const form = new FormData();
     const fields = {
-      firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@gmail.com',
+      firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@demo.example',
       gender: 'Female', occupants: '1', monthsOfRent: '6', roomName: 'J', monthlyRent: '3500', agreeTerms: 'true',
       previousAddress: 'Blk 4 Lot 2, Brgy. Biga, Silang, Cavite', ...extra,
     };

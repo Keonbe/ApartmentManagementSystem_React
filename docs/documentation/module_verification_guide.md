@@ -162,21 +162,21 @@ If a start script reports "could not be started" but the port is already listeni
 
 | User id | Email | Room | App id | Scenario this fixture exists for |
 |---|---|---|---|---|
-| 2 | `maria.santos@gmail.com` | A | 1 | Clean baseline — every invoice paid |
-| 3 | `jose.reyes@gmail.com` | B | 2 | Two overdue invoices (Sep + Oct 2026) |
-| 5 | `rosa.delacruz@gmail.com` | C | 3 | Rent term extended mid-year (`lease_renewals` row) |
-| 6 | `ben.flores@gmail.com` | D | 4 | Three overdue invoices (Aug–Oct 2026); contract `eviction-pending` |
-| 7 | `lita.ramos@gmail.com` | E | 5 | `Approved`, move-in invoice paid, move-in scheduled for 2026-10-05, room `reserved`, contract `draft` — the Confirm Move-In fixture |
-| 8 | `gloria.tan@gmail.com` | — (wants N) | 6 | **`Pending Review`** — the approval-gate fixture |
-| 9 | `dante.abad@gmail.com` | F | 7 | Parking assigned (Apr 2026 – Mar 2027) + one invoiced service booking |
-| 10 | `pedro.cruz@gmail.com` | G | 8 | Completed maintenance request |
-| 11 | `carlo.villanueva@gmail.com` | H | 9 | Paid-up; parking assigned (Jun – Nov 2026); has a converted inquiry |
-| 12 | `ana.bautista@gmail.com` | K | 10 | Completed maintenance request; term ends 2026-10-15 (rent-end reminder) |
-| 13 | `mark.santiago@gmail.com` | L | 11 | Paid up; **`pending-move-out`**, notice filed for 2026-10-20 (admin queue row `move_out_request:11`) |
-| 14 | `grace.mendoza@gmail.com` | M | 12 | Approved CCTV request; Jan-2026 deposit invoice |
-| 15 | `paolo.garcia@gmail.com` | — (was J) | 13 | Moved out 2026-09-01: application `archived` (`pre_archive_status` `moved-out`), contract `LC-0012` `expired`, deposit `Applied to Rent`; Jan–Aug invoices paid |
-| 16 | `ramon.aquino@gmail.com` | — (wanted J) | 14 | `Rejected`, with a reason |
-| 17 | `liza.navarro@gmail.com` | — (wanted J) | 15 | `Cancelled` by the applicant (`cancelled_at` set) |
+| 2 | `maria.santos@demo.example` | A | 1 | Clean baseline — every invoice paid |
+| 3 | `jose.reyes@demo.example` | B | 2 | Two overdue invoices (Sep + Oct 2026) |
+| 5 | `rosa.delacruz@demo.example` | C | 3 | Rent term extended mid-year (`lease_renewals` row) |
+| 6 | `ben.flores@demo.example` | D | 4 | Three overdue invoices (Aug–Oct 2026); contract `eviction-pending` |
+| 7 | `lita.ramos@demo.example` | E | 5 | `Approved`, move-in invoice paid, move-in scheduled for 2026-10-05, room `reserved`, contract `draft` — the Confirm Move-In fixture |
+| 8 | `gloria.tan@demo.example` | — (wants N) | 6 | **`Pending Review`** — the approval-gate fixture |
+| 9 | `dante.abad@demo.example` | F | 7 | Parking assigned (Apr 2026 – Mar 2027) + one invoiced service booking |
+| 10 | `pedro.cruz@demo.example` | G | 8 | Completed maintenance request |
+| 11 | `carlo.villanueva@demo.example` | H | 9 | Paid-up; parking assigned (Jun – Nov 2026); has a converted inquiry |
+| 12 | `ana.bautista@demo.example` | K | 10 | Completed maintenance request; term ends 2026-10-15 (rent-end reminder) |
+| 13 | `mark.santiago@demo.example` | L | 11 | Paid up; **`pending-move-out`**, notice filed for 2026-10-20 (admin queue row `move_out_request:11`) |
+| 14 | `grace.mendoza@demo.example` | M | 12 | Approved CCTV request; Jan-2026 deposit invoice |
+| 15 | `paolo.garcia@demo.example` | — (was J) | 13 | Moved out 2026-09-01: application `archived` (`pre_archive_status` `moved-out`), contract `LC-0012` `expired`, deposit `Applied to Rent`; Jan–Aug invoices paid |
+| 16 | `ramon.aquino@demo.example` | — (wanted J) | 14 | `Rejected`, with a reason |
+| 17 | `liza.navarro@demo.example` | — (wanted J) | 15 | `Cancelled` by the applicant (`cancelled_at` set) |
 
 **Rooms:** A–D, F–H and K–M are `occupied`; E is `reserved` for Lita. `I` is `vacant` but held by an **active reservation** (expires 2026-10-10). `J` (last tenant Paolo), `N` and `P` are free — use these when a test needs an assignable unit. `P` is an extra 3F unit at ₱4,000 that mirrors prod; it is not in `SetupDB.sql`, and `seed_reset.sql` removes it.
 
@@ -317,7 +317,7 @@ ADM=$(curl -s -X POST $BASE/login.php -H "Content-Type: application/json" \
   | grep -oP '"sessionToken":"\K[^"]+')
 
 TEN=$(curl -s -X POST $BASE/login.php -H "Content-Type: application/json" \
-  -d '{"email_address":"maria.santos@gmail.com","password":"tenant123"}' \
+  -d '{"email_address":"maria.santos@demo.example","password":"tenant123"}' \
   | grep -oP '"sessionToken":"\K[^"]+')
 
 curl -s -H "Authorization: Bearer $ADM" "$BASE/get_invoices.php" | head -c 200
@@ -524,7 +524,7 @@ INSERT INTO rent_applications
   (user_id, first_name, last_name, contact_no, email, gender, previous_address, occupants,
    months_of_rent, room_name, monthly_rent, status, terms_agreed_at)
 VALUES
-  (8, 'Gloria', 'Tan', '+639171234567', 'gloria.tan@gmail.com', 'Female', 'Brgy. Biga, Silang, Cavite', 1,
+  (8, 'Gloria', 'Tan', '+639171234567', 'gloria.tan@demo.example', 'Female', 'Brgy. Biga, Silang, Cavite', 1,
    6, 'J', 4000, 'Pending Review', NOW());
 SET @app = LAST_INSERT_ID();   -- use this as <APP_ID>
 
@@ -2199,7 +2199,7 @@ Fixtures: notification **#2** belongs to Jose (user 3); contract **LC-0004** bel
 | **M11-25** | Sec | Archive ends sessions and hides status from guessers | Mark's token | Archive Mark; use his token; sign in with a wrong password; with the right one; restore | `200`; `401`; *"Invalid email or password"*; *"…archived…"*; `200` | — |
 | **M11-26** | Happy | Apostrophes are stored as typed | Admin token | `update` user 13 with `last_name` `O'Brien` | `200` | `SELECT last_name FROM users WHERE id=13;` → `O'Brien`, not `O\'Brien` |
 | **M11-27** | Happy | The browser signs out on a revoked session (UI) | Tenant signed in in one browser | In another browser, reset that tenant's password from `/admin-users`; in the first, navigate | Redirected to `/login?expired=1` showing *"Your session has ended…"*; storage cleared | Manual check |
-| **M11-28** | Negative | Reset to a password that fails the policy | A fresh reset token for Maria | `reset_password.php` with `new_password: "tenant123"` | `{"success":false,"message":"Password needs one uppercase letter, one symbol."}`; the token still works. (The same-as-current check still applies to a password that passes the policy.) | `SELECT COUNT(*) FROM password_resets WHERE email='maria.santos@gmail.com';` → 1 |
+| **M11-28** | Negative | Reset to a password that fails the policy | A fresh reset token for Maria | `reset_password.php` with `new_password: "tenant123"` | `{"success":false,"message":"Password needs one uppercase letter, one symbol."}`; the token still works. (The same-as-current check still applies to a password that passes the policy.) | `SELECT COUNT(*) FROM password_resets WHERE email='maria.santos@demo.example';` → 1 |
 | **M11-29** | Negative | Admin reset to the current password | Admin token | `manage_users.php {"action":"reset_password","user_id":2,"new_password":"tenant123"}` | `422 "Password needs one uppercase letter, one symbol."` (the policy runs before the same-password check) | — |
 | **M11-30** | Sec | Reset requests are throttled | `password_reset_requests` empty | `forgot_password.php` four times for one email (registered or not) | 1–3 → `200` with the generic message; 4th → `429 "Too many password reset requests…"` | `DELETE FROM password_reset_requests;` afterwards |
 | **M11-31** | Happy | Reset link is valid right after it is issued | `password_resets` empty | `forgot_password.php` for Maria, then `reset_password.php` with the `dev_token` and a new password | `200 "Password successfully reset"` (use a new password that passes the policy, e.g. `Passw0rd!`) | Restore the password from `zz_users` (see Restore) |
@@ -2889,7 +2889,7 @@ Also: `expire_contracts.php` and `expire_reservations.php` mutate rows with **no
 
 ### 18.4 Household roster, waitlist and room preview (added Sept 2026)
 
-Built from the 2026-09-16 decisions (`docs/todo.md`). These tests will move into their module sections at the next audit of Modules 1, 2 and 8. Use Jose (`jose.reyes@gmail.com`, application 2, Unit B, 2 occupants) as the tenant, and take a `mysqldump` first — the archive test ends his tenancy.
+Built from the 2026-09-16 decisions (`docs/todo.md`). These tests will move into their module sections at the next audit of Modules 1, 2 and 8. Use Jose (`jose.reyes@demo.example`, application 2, Unit B, 2 occupants) as the tenant, and take a `mysqldump` first — the archive test ends his tenancy.
 
 | ID | Type | Scenario | Precondition | Action | Expected | Verify |
 |---|---|---|---|---|---|---|
@@ -2925,7 +2925,7 @@ BASE=http://localhost:8080/ApartmentManagementSystem_React/backend/api
 ADM=$(curl -s -X POST $BASE/login.php -H "Content-Type: application/json" \
   -d '{"email_address":"admin@gmail.com","password":"admin123"}' | grep -oP '"sessionToken":"\K[^"]+')
 TEN=$(curl -s -X POST $BASE/login.php -H "Content-Type: application/json" \
-  -d '{"email_address":"maria.santos@gmail.com","password":"tenant123"}' | grep -oP '"sessionToken":"\K[^"]+')
+  -d '{"email_address":"maria.santos@demo.example","password":"tenant123"}' | grep -oP '"sessionToken":"\K[^"]+')
 
 # Authenticated GET / POST
 curl -s -H "Authorization: Bearer $ADM" "$BASE/get_invoices.php"

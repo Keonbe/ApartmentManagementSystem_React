@@ -14,6 +14,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, Router 7) → plain PHP 8.0 end
 - PHP lint: `/c/xampp/php/php.exe -l <file>`. Lint files, not a pipe (stdin truncates large files and reports a false parse error).
 - Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `APP_TIMEZONE`, `ALLOWED_ORIGINS`). CORS in `backend/cors.php` via `config.php` (four chat endpoints still send their own `*` first, see security_audit §6e). Deploy: `docs/deployment/dual-deployment-environment-plan.md`; check `php backend/cron/check_environment.php`.
 - DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seeds/seed_mock_data.sql`. `SetupDB.sql` hardcodes `USE ams_db`: for a scratch DB `sed` the name first or it wipes dev. Never run `seed_mock_data.sql` on prod (use local gitignored `seed_prod_demo.sql`).
+- Seed/test emails are `@demo.example` only, never real addresses. `DEVICE_OTP_BYPASS_DOMAINS=demo.example` (in `config.env.php`, set by the test harness) makes those accounts skip the device OTP outside production. Admin stays `admin@gmail.com` until the real owner account replaces it.
 - Live checks: curl with a Bearer token; recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`; login body key is `email_address`).
 
 ## Backend conventions (`backend/config.php`)

@@ -26,11 +26,11 @@ SET @admin_id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1);
 DROP TEMPORARY TABLE IF EXISTS seed_users;
 CREATE TEMPORARY TABLE seed_users (id INT PRIMARY KEY)
   SELECT id FROM users WHERE role = 'user' AND email_address IN (
-    'maria.santos@gmail.com', 'jose.reyes@gmail.com', 'rosa.delacruz@gmail.com',
-    'ben.flores@gmail.com', 'lita.ramos@gmail.com', 'gloria.tan@gmail.com',
-    'dante.abad@gmail.com', 'pedro.cruz@gmail.com', 'carlo.villanueva@gmail.com',
-    'ana.bautista@gmail.com', 'mark.santiago@gmail.com', 'grace.mendoza@gmail.com',
-    'paolo.garcia@gmail.com', 'ramon.aquino@gmail.com', 'liza.navarro@gmail.com'
+    'maria.santos@demo.example', 'jose.reyes@demo.example', 'rosa.delacruz@demo.example',
+    'ben.flores@demo.example', 'lita.ramos@demo.example', 'gloria.tan@demo.example',
+    'dante.abad@demo.example', 'pedro.cruz@demo.example', 'carlo.villanueva@demo.example',
+    'ana.bautista@demo.example', 'mark.santiago@demo.example', 'grace.mendoza@demo.example',
+    'paolo.garcia@demo.example', 'ramon.aquino@demo.example', 'liza.navarro@demo.example'
   );
 
 -- Their applications and contracts, resolved before anything is deleted.
@@ -67,11 +67,11 @@ DELETE vl FROM visitor_logs vl JOIN seed_users su ON su.id = vl.user_id;
 
 -- 4. Inquiries, holds and the waitlist (Katrina and Noel are walk-ins without accounts)
 DELETE FROM unit_reservations
-  WHERE email = 'katrina.v@gmail.com' OR user_id IN (SELECT id FROM seed_users);
+  WHERE email = 'katrina.v@demo.example' OR user_id IN (SELECT id FROM seed_users);
 DELETE FROM unit_waitlist
   WHERE user_id IN (SELECT id FROM seed_users);
 DELETE FROM inquiries
-  WHERE email IN ('katrina.v@gmail.com', 'noel.ramirez@gmail.com')
+  WHERE email IN ('katrina.v@demo.example', 'noel.ramirez@demo.example')
      OR user_id IN (SELECT id FROM seed_users);
 
 -- 5. Notifications: the tenants' own, plus the admin queue rows the seed adds

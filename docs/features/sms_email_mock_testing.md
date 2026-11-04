@@ -59,7 +59,7 @@ This is the part worth understanding, because it is what Phase 2 will call. `dis
 # Use a real seeded tenant. (Not $UID — bash reserves that one and the
 # assignment fails silently, leaving you dispatching to a user that isn't there.)
 TENANT=$(/c/xampp/mysql/bin/mysql.exe -u root ams_db -N -e \
-  "SELECT id FROM users WHERE email_address='maria.santos@gmail.com'")
+  "SELECT id FROM users WHERE email_address='maria.santos@demo.example'")
 
 /c/xampp/php/php.exe -r "
   require 'backend/config.php';

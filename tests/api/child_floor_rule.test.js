@@ -19,7 +19,7 @@ const decide = (notificationId, action = 'approve') =>
 beforeAll(async () => {
   admin = await loginAs('admin');
   maria = await loginAs('maria'); // room A, 1F
-  ana = await login('ana.bautista@gmail.com', 'tenant123'); // user 12, room K, 3F
+  ana = await login('ana.bautista@demo.example', 'tenant123'); // user 12, room K, 3F
 });
 
 describe('defaults', () => {

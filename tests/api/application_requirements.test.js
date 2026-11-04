@@ -32,7 +32,7 @@ const activeCount = async () => (await one('SELECT COUNT(*) AS c FROM applicatio
 function applicationForm({ docs = {}, previousAddress = 'Blk 4 Lot 2, Brgy. Biga, Silang, Cavite', appId, extra = {} } = {}) {
   const form = new FormData();
   const fields = {
-    firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@gmail.com',
+    firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@demo.example',
     gender: 'Female', occupants: '1', monthsOfRent: '6', roomName: 'J', monthlyRent: '3500', agreeTerms: 'true',
     preferredMoveInDate: '', isAsap: '1', ...extra,
   };
@@ -48,8 +48,8 @@ const appCount = async (userId) => (await one('SELECT COUNT(*) AS c FROM rent_ap
 beforeAll(async () => {
   [admin, tenant, liza, ramon] = await Promise.all([
     loginAs('admin'), loginAs('maria'),
-    login('liza.navarro@gmail.com', 'tenant123'), // user 17, app 15 Cancelled: may apply again
-    login('ramon.aquino@gmail.com', 'tenant123'), // user 16, app 14 Rejected: may resubmit
+    login('liza.navarro@demo.example', 'tenant123'), // user 17, app 15 Cancelled: may apply again
+    login('ramon.aquino@demo.example', 'tenant123'), // user 16, app 14 Rejected: may resubmit
   ]);
   uploadsBefore = new Set(listUploads());
 });
@@ -232,7 +232,7 @@ describe('resubmission keeps the files already on the application', () => {
       (14, ?, 'Valid ID (front)', '../uploads/applications/old-front.png'),
       (14, ?, 'Valid ID (back)', '../uploads/applications/old-back.png'),
       (14, ?, 'Barangay clearance', '../uploads/applications/old-brgy.png')`, [FRONT, BACK, barangayId]);
-    const res = await submit(ramon, { appId: 14, docs: { [FRONT]: PNG }, extra: { firstName: 'Ramon', lastName: 'Aquino', email: 'ramon.aquino@gmail.com', gender: 'Male', contactNo: '+639171234514' } });
+    const res = await submit(ramon, { appId: 14, docs: { [FRONT]: PNG }, extra: { firstName: 'Ramon', lastName: 'Aquino', email: 'ramon.aquino@demo.example', gender: 'Male', contactNo: '+639171234514' } });
     expect(res.status).toBe(200);
     expect((await one('SELECT status FROM rent_applications WHERE id = 14')).status).toBe('Pending Review');
     const docs = Object.fromEntries((await q('SELECT requirement_id, file_path FROM application_documents WHERE rent_application_id = 14')).map((d) => [d.requirement_id, d.file_path]));

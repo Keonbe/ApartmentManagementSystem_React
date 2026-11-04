@@ -56,6 +56,16 @@ function ams_env_setting($setting_key) {
     return ams_env($key);
 }
 
+// Test-only: accounts on a fake domain listed in DEVICE_OTP_BYPASS_DOMAINS
+// (e.g. demo.example, the seed data's domain) skip the emailed device code.
+// Never true in production, whatever the variable says.
+function ams_skips_device_otp($email) {
+    if (APP_ENV === 'production') return false;
+    $domains = array_filter(array_map('trim', explode(',', strtolower((string) ams_env_setting('DEVICE_OTP_BYPASS_DOMAINS')))));
+    $at = strrpos((string) $email, '@');
+    return $at !== false && in_array(strtolower(substr($email, $at + 1)), $domains, true);
+}
+
 require_once __DIR__ . '/cors.php';
 
 // Error reporting & resource limits (D-1, D-6)

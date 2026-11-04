@@ -389,7 +389,7 @@ describe('applying for an upcoming unit', () => {
   const apply = (room, extra = {}) => {
     const form = new FormData();
     const fields = {
-      firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@gmail.com',
+      firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@demo.example',
       gender: 'Female', occupants: '1', monthsOfRent: '6', roomName: room, monthlyRent: '4000', agreeTerms: 'true',
       previousAddress: 'Blk 4 Lot 2, Brgy. Biga, Silang, Cavite', preferredMoveInDate: '', isAsap: '1', ...extra,
     };
@@ -400,7 +400,7 @@ describe('applying for an upcoming unit', () => {
   const lizaApp = () => one("SELECT id, status, DATE_FORMAT(preferred_move_in_date, '%Y-%m-%d') AS d FROM rent_applications WHERE user_id = 17 ORDER BY id DESC LIMIT 1");
 
   beforeAll(async () => {
-    liza = (await api('login.php', { json: { email_address: 'liza.navarro@gmail.com', password: 'tenant123' } })).body.sessionToken;
+    liza = (await api('login.php', { json: { email_address: 'liza.navarro@demo.example', password: 'tenant123' } })).body.sessionToken;
     uploadsBefore = new Set(listUploads());
     await setSetting('extension_deadline_days', '14');
     await setSetting('upcoming_rooms_enabled', '1');

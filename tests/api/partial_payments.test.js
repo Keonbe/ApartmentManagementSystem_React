@@ -257,7 +257,7 @@ describe('move-in invoice paid in parts (Lita, app 5)', () => {
     await q('DELETE FROM payment_transactions WHERE invoice_id = ?', [id]);
     await q("UPDATE lease_contracts SET deposit_status = 'Pending' WHERE rent_application_id = 5");
     await q('UPDATE rent_applications SET move_in_date = NULL, move_in_notified_at = NULL WHERE id = 5');
-    lita = await login('lita.ramos@gmail.com', 'tenant123');
+    lita = await login('lita.ramos@demo.example', 'tenant123');
   });
 
   it('a part does not pass the move-in gate', async () => {

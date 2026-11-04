@@ -41,6 +41,7 @@ Files run one at a time against the one shared scratch database. Tests inside a 
 
 - **`ams_db` is never touched.** `backend/config.php` and `backend/cors.php` skip `config.env.php` when `AMS_TEST_MODE=1` (its constants would otherwise pin the dev database), and `config.php` answers 500 unless `DB_NAME` ends in `_test`. Apache and production never set `AMS_TEST_MODE`.
 - The test config itself refuses a database name that does not end in `_test`.
+- **Seed data uses `@demo.example` only** (fake domain, never a real mailbox). The test server sets `DEVICE_OTP_BYPASS_DOMAINS=demo.example`, so those accounts skip the device sign-in code; `ams_skips_device_otp()` in `config.php` is always false in production.
 - Nothing is sent: `notifications_sms_enabled` / `notifications_email_enabled` are set to `0` in `ams_test`, and the run aborts if `sms_provider` / `email_driver` is not `log`.
 - Announcement tests upload real files to `backend/uploads/notifications/` (gitignored); the file deletes whatever it added.
 

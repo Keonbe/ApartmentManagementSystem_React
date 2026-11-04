@@ -56,10 +56,10 @@ export async function login(email, password) {
 
 export const ACCOUNTS = {
   admin: ['admin@gmail.com', 'admin123'],
-  maria: ['maria.santos@gmail.com', 'tenant123'], // user 2, room A, app 1, paid up
-  jose: ['jose.reyes@gmail.com', 'tenant123'], // user 3, room B, overdue invoices
-  rosa: ['rosa.delacruz@gmail.com', 'tenant123'], // user 5, room C, app 3
-  mark: ['mark.santiago@gmail.com', 'tenant123'], // user 13, room L, pending-move-out
+  maria: ['maria.santos@demo.example', 'tenant123'], // user 2, room A, app 1, paid up
+  jose: ['jose.reyes@demo.example', 'tenant123'], // user 3, room B, overdue invoices
+  rosa: ['rosa.delacruz@demo.example', 'tenant123'], // user 5, room C, app 3
+  mark: ['mark.santiago@demo.example', 'tenant123'], // user 13, room L, pending-move-out
 };
 
 export const loginAs = (who) => login(...ACCOUNTS[who]);

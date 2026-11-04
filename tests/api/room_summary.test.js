@@ -30,7 +30,7 @@ describe('my_room.php summary', () => {
 
   it("is the caller's own: another user's id or email is ignored", async () => {
     expect((await summary(newcomer, { userId: 2 })).body.status).toBeNull();
-    expect((await summary(newcomer, { email: 'maria.santos@gmail.com' })).body.status).toBeNull();
+    expect((await summary(newcomer, { email: 'maria.santos@demo.example' })).body.status).toBeNull();
   });
 
   it('needs a session', async () => {

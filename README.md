@@ -219,10 +219,10 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
 | Role | Email Address | Password | Portal URL |
 |---|---|---|---|
 | **Administrator** | `admin@gmail.com` | `admin123` | `/login` → `/admin-dashboard` |
-| **Tenant** (active rent) | `maria.santos@gmail.com` | `tenant123` | `/login` → `/my-room` |
-| **Applicant** (application pending review) | `gloria.tan@gmail.com` | `tenant123` | `/login` → `/track-application` |
+| **Tenant** (active rent) | `maria.santos@demo.example` | `tenant123` | `/login` → `/my-room` |
+| **Applicant** (application pending review) | `gloria.tan@demo.example` | `tenant123` | `/login` → `/track-application` |
 
-`seed_mock_data.sql` seeds more tenants (`jose.reyes@gmail.com`, `pedro.cruz@gmail.com`, `rosa.delacruz@gmail.com`, …); all use `tenant123`.
+`seed_mock_data.sql` seeds more tenants (`jose.reyes@demo.example`, `pedro.cruz@demo.example`, `rosa.delacruz@demo.example`, …); all use `tenant123`.
 
 > ⚠️ These logins are demo data only. Never run the seed on a deployed system, and **change the admin password before any real deployment.**
 

@@ -15,12 +15,12 @@ describe('login', () => {
     expect(admin.body).toMatchObject({ valid: true, role: 'admin' });
     expect(admin.body.sessionToken).toMatch(/^[0-9a-f]{64}$/);
 
-    const tenant = await api('login.php', { json: { email_address: 'maria.santos@gmail.com', password: 'tenant123' } });
+    const tenant = await api('login.php', { json: { email_address: 'maria.santos@demo.example', password: 'tenant123' } });
     expect(tenant.body).toMatchObject({ valid: true, role: 'user' });
   });
 
   it('a wrong password is refused and counted as a failure', async () => {
-    const res = await api('login.php', { json: { email_address: 'maria.santos@gmail.com', password: 'wrong' } });
+    const res = await api('login.php', { json: { email_address: 'maria.santos@demo.example', password: 'wrong' } });
     expect(res.body).toMatchObject({ valid: false, message: 'Invalid email or password' });
     expect(res.body.sessionToken).toBeUndefined();
     const row = await one('SELECT COUNT(*) AS c FROM login_attempts');
@@ -63,10 +63,10 @@ describe('session gates', () => {
   });
 
   it('an archived account cannot log in', async () => {
-    const token = await login('jose.reyes@gmail.com', 'tenant123');
+    const token = await login('jose.reyes@demo.example', 'tenant123');
     expect(token).toBeTruthy();
     await q('UPDATE users SET is_archived = 1 WHERE id = 3');
-    const res = await api('login.php', { json: { email_address: 'jose.reyes@gmail.com', password: 'tenant123' } });
+    const res = await api('login.php', { json: { email_address: 'jose.reyes@demo.example', password: 'tenant123' } });
     expect(res.body).toMatchObject({ valid: false });
     // ...and the session issued before the archive stops working too.
     expect((await api('get_visitors.php', { token })).status).toBe(401);

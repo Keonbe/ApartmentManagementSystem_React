@@ -57,21 +57,21 @@ SET @admin_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1);
 -- password: tenant123
 -- ============================================================
 INSERT IGNORE INTO `users` (`id`, `first_name`, `middle_name`, `last_name`, `contact_no`, `gender`, `email_address`, `password`, `role`) VALUES
-(2,  'Maria',  'L.', 'Santos',      '+63 9171234501', 'Female', 'maria.santos@gmail.com',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(3,  'Jose',   'M.', 'Reyes',       '+63 9171234502', 'Male',   'jose.reyes@gmail.com',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(5,  'Rosa',   'D.', 'Dela Cruz',   '+63 9171234504', 'Female', 'rosa.delacruz@gmail.com',    '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(6,  'Ben',    'C.', 'Flores',      '+63 9171234505', 'Male',   'ben.flores@gmail.com',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(7,  'Lita',   'R.', 'Ramos',       '+63 9171234506', 'Female', 'lita.ramos@gmail.com',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(8,  'Gloria', 'T.', 'Tan',         '+63 9171234508', 'Female', 'gloria.tan@gmail.com',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(9,  'Dante',  'A.', 'Abad',        '+63 9171234507', 'Male',   'dante.abad@gmail.com',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(10, 'Pedro',  'B.', 'Cruz',        '+63 9171234503', 'Male',   'pedro.cruz@gmail.com',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(11, 'Carlo',  'P.', 'Villanueva',  '+63 9171234509', 'Male',   'carlo.villanueva@gmail.com', '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(12, 'Ana',    'S.', 'Bautista',    '+63 9171234510', 'Female', 'ana.bautista@gmail.com',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(13, 'Mark',   'D.', 'Santiago',    '+63 9171234511', 'Male',   'mark.santiago@gmail.com',    '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(14, 'Grace',  'M.', 'Mendoza',     '+63 9171234512', 'Female', 'grace.mendoza@gmail.com',    '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(15, 'Paolo',  'V.', 'Garcia',      '+63 9171234513', 'Male',   'paolo.garcia@gmail.com',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(16, 'Ramon',  'L.', 'Aquino',      '+63 9171234514', 'Male',   'ramon.aquino@gmail.com',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
-(17, 'Liza',   'C.', 'Navarro',     '+63 9171234515', 'Female', 'liza.navarro@gmail.com',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user');
+(2,  'Maria',  'L.', 'Santos',      '+63 9171234501', 'Female', 'maria.santos@demo.example',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(3,  'Jose',   'M.', 'Reyes',       '+63 9171234502', 'Male',   'jose.reyes@demo.example',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(5,  'Rosa',   'D.', 'Dela Cruz',   '+63 9171234504', 'Female', 'rosa.delacruz@demo.example',    '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(6,  'Ben',    'C.', 'Flores',      '+63 9171234505', 'Male',   'ben.flores@demo.example',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(7,  'Lita',   'R.', 'Ramos',       '+63 9171234506', 'Female', 'lita.ramos@demo.example',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(8,  'Gloria', 'T.', 'Tan',         '+63 9171234508', 'Female', 'gloria.tan@demo.example',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(9,  'Dante',  'A.', 'Abad',        '+63 9171234507', 'Male',   'dante.abad@demo.example',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(10, 'Pedro',  'B.', 'Cruz',        '+63 9171234503', 'Male',   'pedro.cruz@demo.example',       '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(11, 'Carlo',  'P.', 'Villanueva',  '+63 9171234509', 'Male',   'carlo.villanueva@demo.example', '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(12, 'Ana',    'S.', 'Bautista',    '+63 9171234510', 'Female', 'ana.bautista@demo.example',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(13, 'Mark',   'D.', 'Santiago',    '+63 9171234511', 'Male',   'mark.santiago@demo.example',    '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(14, 'Grace',  'M.', 'Mendoza',     '+63 9171234512', 'Female', 'grace.mendoza@demo.example',    '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(15, 'Paolo',  'V.', 'Garcia',      '+63 9171234513', 'Male',   'paolo.garcia@demo.example',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(16, 'Ramon',  'L.', 'Aquino',      '+63 9171234514', 'Male',   'ramon.aquino@demo.example',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user'),
+(17, 'Liza',   'C.', 'Navarro',     '+63 9171234515', 'Female', 'liza.navarro@demo.example',     '$2y$10$Wugs2.WmaaPIBSTUdQvnhOn4u96FyPIYjkEfQdKsXx.ioFYgwHSCy', 'user');
 
 -- Seeded accounts sign in straight away (login.php refuses an unverified email).
 UPDATE `users` SET `email_verified_at` = COALESCE(`email_verified_at`, CURRENT_TIMESTAMP) WHERE `email_verified_at` IS NULL;
@@ -84,21 +84,21 @@ UPDATE `users` SET `email_verified_at` = COALESCE(`email_verified_at`, CURRENT_T
 -- ============================================================
 INSERT IGNORE INTO `rent_applications`
   (`id`, `user_id`, `first_name`, `middle_name`, `last_name`, `contact_no`, `email`, `gender`, `occupants`, `months_of_rent`, `room_name`, `monthly_rent`, `status`, `rejection_reason`, `created_at`) VALUES
-(1,  2,  'Maria',  'L.', 'Santos',     '+63 9171234501', 'maria.santos@gmail.com',     'Female', 1, 12, 'A', 4000.00, 'active', NULL, '2025-10-27 08:30:00'),
-(2,  3,  'Jose',   'M.', 'Reyes',      '+63 9171234502', 'jose.reyes@gmail.com',       'Male',   2, 24, 'B', 4000.00, 'active', NULL, '2025-09-25 09:00:00'),
-(3,  5,  'Rosa',   'D.', 'Dela Cruz',  '+63 9171234504', 'rosa.delacruz@gmail.com',    'Female', 1,  6, 'C', 4000.00, 'active', NULL, '2025-08-27 11:00:00'),
-(4,  6,  'Ben',    'C.', 'Flores',     '+63 9171234505', 'ben.flores@gmail.com',       'Male',   2, 12, 'D', 4000.00, 'active', NULL, '2025-10-27 08:00:00'),
-(5,  7,  'Lita',   'R.', 'Ramos',      '+63 9171234506', 'lita.ramos@gmail.com',       'Female', 1, 12, 'E', 4000.00, 'Approved', NULL, '2026-09-18 09:30:00'),
-(6,  8,  'Gloria', 'T.', 'Tan',        '+63 9171234508', 'gloria.tan@gmail.com',       'Female', 1,  6, 'N', 3500.00, 'Pending Review', NULL, '2026-09-28 09:00:00'),
-(7,  9,  'Dante',  'A.', 'Abad',       '+63 9171234507', 'dante.abad@gmail.com',       'Male',   1, 24, 'F', 4000.00, 'active', NULL, '2025-10-10 07:45:00'),
-(8,  10, 'Pedro',  'B.', 'Cruz',       '+63 9171234503', 'pedro.cruz@gmail.com',       'Male',   1, 24, 'G', 4000.00, 'active', NULL, '2025-09-26 10:15:00'),
-(9,  11, 'Carlo',  'P.', 'Villanueva', '+63 9171234509', 'carlo.villanueva@gmail.com', 'Male',   1, 12, 'H', 4000.00, 'active', NULL, '2025-11-25 09:00:00'),
-(10, 12, 'Ana',    'S.', 'Bautista',   '+63 9171234510', 'ana.bautista@gmail.com',     'Female', 1, 12, 'K', 3500.00, 'active', NULL, '2025-10-10 10:00:00'),
-(11, 13, 'Mark',   'D.', 'Santiago',   '+63 9171234511', 'mark.santiago@gmail.com',    'Male',   1, 24, 'L', 3500.00, 'active', NULL, '2025-09-15 08:30:00'),
-(12, 14, 'Grace',  'M.', 'Mendoza',    '+63 9171234512', 'grace.mendoza@gmail.com',    'Female', 1, 12, 'M', 3500.00, 'active', NULL, '2025-12-28 09:00:00'),
-(13, 15, 'Paolo',  'V.', 'Garcia',     '+63 9171234513', 'paolo.garcia@gmail.com',     'Male',   1, 12, 'J', 3500.00, 'archived', NULL, '2025-08-25 10:00:00'),
-(14, 16, 'Ramon',  'L.', 'Aquino',     '+63 9171234514', 'ramon.aquino@gmail.com',     'Male',   2, 12, 'J', 3500.00, 'Rejected', 'Valid ID has expired. Please apply again with a current one.', '2026-09-08 14:00:00'),
-(15, 17, 'Liza',   'C.', 'Navarro',    '+63 9171234515', 'liza.navarro@gmail.com',     'Female', 1,  6, 'J', 3500.00, 'Cancelled', 'Change of mind', '2026-09-20 16:00:00');
+(1,  2,  'Maria',  'L.', 'Santos',     '+63 9171234501', 'maria.santos@demo.example',     'Female', 1, 12, 'A', 4000.00, 'active', NULL, '2025-10-27 08:30:00'),
+(2,  3,  'Jose',   'M.', 'Reyes',      '+63 9171234502', 'jose.reyes@demo.example',       'Male',   2, 24, 'B', 4000.00, 'active', NULL, '2025-09-25 09:00:00'),
+(3,  5,  'Rosa',   'D.', 'Dela Cruz',  '+63 9171234504', 'rosa.delacruz@demo.example',    'Female', 1,  6, 'C', 4000.00, 'active', NULL, '2025-08-27 11:00:00'),
+(4,  6,  'Ben',    'C.', 'Flores',     '+63 9171234505', 'ben.flores@demo.example',       'Male',   2, 12, 'D', 4000.00, 'active', NULL, '2025-10-27 08:00:00'),
+(5,  7,  'Lita',   'R.', 'Ramos',      '+63 9171234506', 'lita.ramos@demo.example',       'Female', 1, 12, 'E', 4000.00, 'Approved', NULL, '2026-09-18 09:30:00'),
+(6,  8,  'Gloria', 'T.', 'Tan',        '+63 9171234508', 'gloria.tan@demo.example',       'Female', 1,  6, 'N', 3500.00, 'Pending Review', NULL, '2026-09-28 09:00:00'),
+(7,  9,  'Dante',  'A.', 'Abad',       '+63 9171234507', 'dante.abad@demo.example',       'Male',   1, 24, 'F', 4000.00, 'active', NULL, '2025-10-10 07:45:00'),
+(8,  10, 'Pedro',  'B.', 'Cruz',       '+63 9171234503', 'pedro.cruz@demo.example',       'Male',   1, 24, 'G', 4000.00, 'active', NULL, '2025-09-26 10:15:00'),
+(9,  11, 'Carlo',  'P.', 'Villanueva', '+63 9171234509', 'carlo.villanueva@demo.example', 'Male',   1, 12, 'H', 4000.00, 'active', NULL, '2025-11-25 09:00:00'),
+(10, 12, 'Ana',    'S.', 'Bautista',   '+63 9171234510', 'ana.bautista@demo.example',     'Female', 1, 12, 'K', 3500.00, 'active', NULL, '2025-10-10 10:00:00'),
+(11, 13, 'Mark',   'D.', 'Santiago',   '+63 9171234511', 'mark.santiago@demo.example',    'Male',   1, 24, 'L', 3500.00, 'active', NULL, '2025-09-15 08:30:00'),
+(12, 14, 'Grace',  'M.', 'Mendoza',    '+63 9171234512', 'grace.mendoza@demo.example',    'Female', 1, 12, 'M', 3500.00, 'active', NULL, '2025-12-28 09:00:00'),
+(13, 15, 'Paolo',  'V.', 'Garcia',     '+63 9171234513', 'paolo.garcia@demo.example',     'Male',   1, 12, 'J', 3500.00, 'archived', NULL, '2025-08-25 10:00:00'),
+(14, 16, 'Ramon',  'L.', 'Aquino',     '+63 9171234514', 'ramon.aquino@demo.example',     'Male',   2, 12, 'J', 3500.00, 'Rejected', 'Valid ID has expired. Please apply again with a current one.', '2026-09-08 14:00:00'),
+(15, 17, 'Liza',   'C.', 'Navarro',    '+63 9171234515', 'liza.navarro@demo.example',     'Female', 1,  6, 'J', 3500.00, 'Cancelled', 'Change of mind', '2026-09-20 16:00:00');
 
 -- Paolo moved out at the end of his term (update_tenant_status.php
 -- 'moved-out', then archive_tenant.php), as prod's archived tenancies look.
@@ -423,12 +423,12 @@ INSERT IGNORE INTO `visitor_logs` (`user_id`, `room_name`, `visitor_name`, `cont
 -- Room I is held (Active); Room J is genuinely open (no inquiry/hold).
 -- ============================================================
 INSERT IGNORE INTO `inquiries` (`id`, `user_id`, `full_name`, `email`, `contact_no`, `room_name`, `occupants`, `preferred_move_in`, `message`, `source`, `status`, `viewing_date`, `handled_by`, `created_at`) VALUES
-(1, NULL, 'Katrina Villareal', 'katrina.v@gmail.com', '+63 9201234567', 'I', 1, '2026-10-15', 'Interested in a 3F unit, likes that it is quieter at the top.', 'web', 'Reserved', '2026-09-26 14:00:00', @admin_id, '2026-09-24 10:00:00'),
-(2, NULL, 'Noel Ramirez',      'noel.ramirez@gmail.com', '+63 9201234568', 'J', 1, '2026-10-20', 'Asking about monthly rate and deposit terms for 3F.', 'web', 'Contacted', NULL, @admin_id, '2026-09-29 11:00:00'),
-(3, 11,   'Carlo Villanueva',  'carlo.villanueva@gmail.com', '+63 9171234509', 'H', 1, '2025-12-01', 'Inquired before applying; later converted to a full application.', 'walk-in', 'Converted', '2025-11-20 10:00:00', @admin_id, '2025-11-18 09:00:00');
+(1, NULL, 'Katrina Villareal', 'katrina.v@demo.example', '+63 9201234567', 'I', 1, '2026-10-15', 'Interested in a 3F unit, likes that it is quieter at the top.', 'web', 'Reserved', '2026-09-26 14:00:00', @admin_id, '2026-09-24 10:00:00'),
+(2, NULL, 'Noel Ramirez',      'noel.ramirez@demo.example', '+63 9201234568', 'J', 1, '2026-10-20', 'Asking about monthly rate and deposit terms for 3F.', 'web', 'Contacted', NULL, @admin_id, '2026-09-29 11:00:00'),
+(3, 11,   'Carlo Villanueva',  'carlo.villanueva@demo.example', '+63 9171234509', 'H', 1, '2025-12-01', 'Inquired before applying; later converted to a full application.', 'walk-in', 'Converted', '2025-11-20 10:00:00', @admin_id, '2025-11-18 09:00:00');
 
 INSERT IGNORE INTO `unit_reservations` (`inquiry_id`, `user_id`, `room_name`, `reserved_for_name`, `contact_no`, `email`, `hold_expires_at`, `reservation_fee`, `status`, `notes`, `created_by`, `created_at`) VALUES
-(1, NULL, 'I', 'Katrina Villareal', '+63 9201234567', 'katrina.v@gmail.com', '2026-10-10', 500.00, 'Active', 'Held after in-person viewing, awaiting application submission.', @admin_id, '2026-09-26 14:30:00');
+(1, NULL, 'I', 'Katrina Villareal', '+63 9201234567', 'katrina.v@demo.example', '2026-10-10', 500.00, 'Active', 'Held after in-person viewing, awaiting application submission.', @admin_id, '2026-09-26 14:30:00');
 
 -- ============================================================
 -- 12. ANNOUNCEMENTS + NOTIFICATIONS
@@ -528,26 +528,26 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- All mock tenant passwords: tenant123
 --
 -- SCRIPTED test accounts (each built for a specific admin-feature test):
---   maria.santos@gmail.com   Room A  - clean baseline, fully paid, no issues
---   jose.reyes@gmail.com     Room B  - Sep+Oct overdue -> eviction banner / overdueInfo
---   rosa.delacruz@gmail.com  Room C  - rent term extended mid-year -> lease_renewals audit trail
---   ben.flores@gmail.com     Room D  - eviction-pending, Aug-Oct overdue -> Flag/Clear Eviction UI
---   lita.ramos@gmail.com     Room E  - Approved, move-in paid + scheduled Oct 5, room reserved,
+--   maria.santos@demo.example   Room A  - clean baseline, fully paid, no issues
+--   jose.reyes@demo.example     Room B  - Sep+Oct overdue -> eviction banner / overdueInfo
+--   rosa.delacruz@demo.example  Room C  - rent term extended mid-year -> lease_renewals audit trail
+--   ben.flores@demo.example     Room D  - eviction-pending, Aug-Oct overdue -> Flag/Clear Eviction UI
+--   lita.ramos@demo.example     Room E  - Approved, move-in paid + scheduled Oct 5, room reserved,
 --                                      contract Draft -> Confirm Move-In (tenant stays on Track Application)
---   gloria.tan@gmail.com     No room - Pending Review application (targets Room N) -> /track-application
---   ana.bautista@gmail.com   Room K  (3F) - term ends 2026-10-15 -> rent-end reminder / expiry
+--   gloria.tan@demo.example     No room - Pending Review application (targets Room N) -> /track-application
+--   ana.bautista@demo.example   Room K  (3F) - term ends 2026-10-15 -> rent-end reminder / expiry
 --
 -- BULK / background accounts:
---   dante.abad@gmail.com        Room F  - parking (Assigned, Apr 2026 - Mar 2027) + 1 invoiced service booking
---   pedro.cruz@gmail.com        Room G  - 1 completed maintenance request + Pending parking request
---   carlo.villanueva@gmail.com  Room H  - parking (Assigned, Jun - Nov 2026)
---   mark.santiago@gmail.com     Room L  (3F) - paid up; move-out notice for 2026-10-20 (pending-move-out)
---   grace.mendoza@gmail.com     Room M  (3F) - has an approved CCTV request
+--   dante.abad@demo.example        Room F  - parking (Assigned, Apr 2026 - Mar 2027) + 1 invoiced service booking
+--   pedro.cruz@demo.example        Room G  - 1 completed maintenance request + Pending parking request
+--   carlo.villanueva@demo.example  Room H  - parking (Assigned, Jun - Nov 2026)
+--   mark.santiago@demo.example     Room L  (3F) - paid up; move-out notice for 2026-10-20 (pending-move-out)
+--   grace.mendoza@demo.example     Room M  (3F) - has an approved CCTV request
 --
 -- PAST / DECIDED (no current room):
---   paolo.garcia@gmail.com   ex-Room J - moved out 2026-09-01, archived, contract expired
---   ramon.aquino@gmail.com   Rejected application (room J, expired valid ID)
---   liza.navarro@gmail.com   Cancelled application (room J, "Change of mind")
+--   paolo.garcia@demo.example   ex-Room J - moved out 2026-09-01, archived, contract expired
+--   ramon.aquino@demo.example   Rejected application (room J, expired valid ID)
+--   liza.navarro@demo.example   Cancelled application (room J, "Change of mind")
 --
 -- VACANT:
 --   Room I - held via an Active unit_reservations hold until 2026-10-10 (Katrina Villareal)

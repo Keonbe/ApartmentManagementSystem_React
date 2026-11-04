@@ -53,6 +53,7 @@ export default async function setup() {
       DB_PASS: DB.password,
       DB_NAME: DB.database,
       APP_ENV: 'development',
+      DEVICE_OTP_BYPASS_DOMAINS: 'demo.example',
       PAYMONGO_WEBHOOK_SECRET: WEBHOOK_SECRET,
     },
     stdio: ['ignore', 'ignore', 'pipe'],

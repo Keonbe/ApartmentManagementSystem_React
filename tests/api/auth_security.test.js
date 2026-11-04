@@ -82,6 +82,15 @@ describe('device sign-in code', () => {
     expect(again.body.valid).toBe(false);
   });
 
+  it('a demo.example tenant skips the code outside production; other domains do not', async () => {
+    const demo = 'dina.demo@demo.example';
+    await q(`INSERT INTO users (id, first_name, last_name, contact_no, gender, email_address, password, role, email_verified_at)
+             VALUES (93, 'Dina', 'Demo', '+63 9171234593', 'Female', ?, ?, 'user', NOW())`, [demo, HASH]);
+    const res = await loginAs(demo);
+    expect(res.body.sessionToken).toBeTruthy();
+    expect((await loginAs(VERIFIED)).body.status).toBe('device_verification_required');
+  });
+
   it('an administrator skips the code', async () => {
     const res = await api('login.php', { headers: { Cookie: '' }, json: { email_address: 'admin@gmail.com', password: 'admin123' } });
     expect(res.body.sessionToken).toBeTruthy();

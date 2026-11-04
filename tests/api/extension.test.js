@@ -91,7 +91,7 @@ describe('minimum and validation (Rosa, 2 months left)', () => {
 describe('blocked tenancies', () => {
   it('KB-C02 nothing fits (12 months left): not allowed, max 0', async () => {
     await setRentEnd(9, 'H', 12);
-    const carlo = await login('carlo.villanueva@gmail.com', 'tenant123');
+    const carlo = await login('carlo.villanueva@demo.example', 'tenant123');
     const ext = await myExtension(carlo);
     expect(ext).toMatchObject({ allowed: false, maxMonths: 0 });
     expect(ext.reason).toMatch(/Rent can only be extended up to 12 month\(s\) ahead/);
