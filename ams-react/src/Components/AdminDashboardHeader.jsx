@@ -197,16 +197,47 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
 
       <div className="flex items-center gap-3 sm:gap-6 relative shrink-0">
 
-        {/* Light / dark (admin side only; config/adminTheme.js) */}
-        <button
-          type="button"
-          onClick={(e) => { const next = adminTheme === 'dark' ? 'light' : 'dark'; const from = e.currentTarget; withViewTransition(() => setAdminTheme(next), { kind: 'theme', from }); }}
-          aria-label={adminTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          title={adminTheme === 'dark' ? 'Light mode' : 'Dark mode'}
-          className="btn-interactive w-10 h-10 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors bg-transparent border-0 cursor-pointer flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        {/* Light / dark (admin side only; config/adminTheme.js). A two-way switch:
+            the highlight slides to the active side (white in light, indigo in dark),
+            so the current mode reads at a glance, not just the one a click would pick. */}
+        <div
+          role="radiogroup"
+          aria-label="Colour mode"
+          className="relative grid grid-cols-2 items-center p-0.5 sm:p-1 rounded-full bg-slate-100 ring-1 ring-inset ring-slate-200 shrink-0"
         >
-          <FontAwesomeIcon key={adminTheme} icon={adminTheme === 'dark' ? faSun : faMoon} className="text-lg ut-pick-pop" />
-        </button>
+          <span
+            aria-hidden="true"
+            className={`absolute top-0.5 bottom-0.5 left-0.5 sm:top-1 sm:bottom-1 sm:left-1 w-[calc(50%-0.125rem)] sm:w-[calc(50%-0.25rem)] rounded-full shadow-sm transition-[transform,background-color] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none ${
+              adminTheme === 'dark' ? 'translate-x-full bg-indigo-500 shadow-indigo-900/40' : 'translate-x-0 bg-white'
+            }`}
+          />
+          {[
+            { id: 'light', icon: faSun, label: 'Light mode', on: 'text-amber-500' },
+            { id: 'dark', icon: faMoon, label: 'Dark mode', on: 'text-white' },
+          ].map((m) => {
+            const active = adminTheme === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-label={m.label}
+                title={m.label}
+                onClick={(e) => {
+                  if (active) return;
+                  const from = e.currentTarget;
+                  withViewTransition(() => setAdminTheme(m.id), { kind: 'theme', from });
+                }}
+                className={`touch-compact relative z-[1] w-7 h-7 sm:w-9 sm:h-9 rounded-full border-0 bg-transparent cursor-pointer flex items-center justify-center text-label sm:text-body transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  active ? m.on : 'text-slate-400 hover:text-slate-700'
+                }`}
+              >
+                <FontAwesomeIcon key={`${m.id}-${active}`} icon={m.icon} className={active ? 'ut-pick-pop' : ''} />
+              </button>
+            );
+          })}
+        </div>
 
         {/* Notifications */}
         <div className="relative">
