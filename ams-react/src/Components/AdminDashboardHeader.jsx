@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid-svg-icons';
+import { faBell, faSignOutAlt, faUserCog, faBars, faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import {
@@ -10,12 +10,15 @@ import {
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
 import { clickable } from '../utils/clickable';
 import AdminNotificationModal from './AdminNotificationModal';
+import { useAdminTheme, setAdminTheme } from '../config/adminTheme';
+import { withViewTransition } from '../utils/viewTransition';
 import '../assets/styles/responsive/admin/admin-header.responsive.css';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
 const NO_HIGHLIGHT = new Set();
 
 const Header = ({ title = "Dashboard", onToggleSidebar }) => {
+  const adminTheme = useAdminTheme();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
@@ -193,6 +196,17 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
       </div>
 
       <div className="flex items-center gap-3 sm:gap-6 relative shrink-0">
+
+        {/* Light / dark (admin side only; config/adminTheme.js) */}
+        <button
+          type="button"
+          onClick={(e) => { const next = adminTheme === 'dark' ? 'light' : 'dark'; const from = e.currentTarget; withViewTransition(() => setAdminTheme(next), { kind: 'theme', from }); }}
+          aria-label={adminTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={adminTheme === 'dark' ? 'Light mode' : 'Dark mode'}
+          className="btn-interactive w-10 h-10 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors bg-transparent border-0 cursor-pointer flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        >
+          <FontAwesomeIcon key={adminTheme} icon={adminTheme === 'dark' ? faSun : faMoon} className="text-lg ut-pick-pop" />
+        </button>
 
         {/* Notifications */}
         <div className="relative">

@@ -10,6 +10,7 @@ import {
   faChevronDown, faThumbtack, faArrowPointer, faAnglesLeft,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { useApplyAdminTheme } from '../config/adminTheme';
 import '@fontsource-variable/ibm-plex-sans';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
 // Phone rules for every admin page (.admin-shell): every page renders this sidebar.
@@ -282,6 +283,7 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
 }
 
 const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
+  useApplyAdminTheme();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [settings, setSettings] = useState({});
   const location = useLocation();
@@ -446,7 +448,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   };
 
   const flyoutGroup = flyout ? groups.find((g) => g.id === flyout.id) || null : null;
-  const panelBase = 'bg-slate-900 text-slate-300 flex flex-col h-full text-left select-none';
+  const panelBase = 'admin-native bg-slate-900 text-slate-300 flex flex-col h-full text-left select-none';
 
   return (
     <>
@@ -486,7 +488,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {/* Collapsed rail flyout */}
       {flyout && mode === 'collapsed' && (
         <div
-          className="hidden lg:block fixed z-[60] left-20 min-w-48 max-w-64 rounded-lg bg-slate-900 border border-slate-700 shadow-2xl shadow-slate-950/50 py-1.5 text-left modal-card-anim print:hidden"
+          className="admin-native hidden lg:block fixed z-[60] left-20 min-w-48 max-w-64 rounded-lg bg-slate-900 border border-slate-700 shadow-2xl shadow-slate-950/50 py-1.5 text-left modal-card-anim print:hidden"
           style={flyout.top !== null ? { top: flyout.top } : { bottom: flyout.bottom }}
           onMouseEnter={() => clearTimeout(flyoutTimer.current)}
           onMouseLeave={closeFlyoutSoon}

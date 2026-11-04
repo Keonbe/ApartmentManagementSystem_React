@@ -347,7 +347,7 @@ export default function IncomePanel({ initialData, initialRange, loading: parent
                           aria-pressed={isSel}
                           aria-label={`${d.full_label}: collected ${peso(d.collected)}, still owed ${peso(d.pending)}`}
                         >
-                          <div className={`absolute bottom-full mb-2 ${tipAlign(i)} z-30 w-40 rounded-control bg-slate-900 text-white text-caption p-2.5 shadow-raised pointer-events-none transition-opacity ${isSel ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          <div className={`absolute bottom-full mb-2 ${tipAlign(i)} z-30 w-40 admin-native rounded-control bg-slate-900 text-white text-caption p-2.5 shadow-raised pointer-events-none transition-opacity ${isSel ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                             <p className="m-0 mb-1.5 pb-1 border-b border-slate-700 font-bold text-slate-100">{d.full_label}</p>
                             <p className="m-0 flex justify-between"><span className="text-slate-400">Collected</span><span className="font-bold text-emerald-400">{peso(d.collected)}</span></p>
                             <p className="m-0 flex justify-between"><span className="text-slate-400">Still owed</span><span className="font-bold text-amber-300">{peso(d.pending)}</span></p>
@@ -396,7 +396,7 @@ export default function IncomePanel({ initialData, initialRange, loading: parent
                             aria-label={`${d.full_label}: collected ${peso(d.collected)}, still owed ${peso(d.pending)}`}
                             className={`touch-compact block rounded-full bg-white border-2 border-emerald-600 cursor-pointer p-0 transition-transform hover:scale-150 ${count > 31 ? 'w-2 h-2' : 'w-3 h-3'} ${isSel ? 'scale-150 ring-2 ring-indigo-400' : ''}`}
                           />
-                          <div className={`absolute bottom-full mb-2 ${tipAlign(i)} w-36 rounded-control bg-slate-900 text-white text-caption p-2 shadow-raised pointer-events-none transition-opacity ${isSel ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          <div className={`absolute bottom-full mb-2 ${tipAlign(i)} w-36 admin-native rounded-control bg-slate-900 text-white text-caption p-2 shadow-raised pointer-events-none transition-opacity ${isSel ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                             <p className="m-0 mb-1 font-bold">{d.full_label}</p>
                             <p className="m-0 flex justify-between"><span className="text-slate-400">Collected</span><span className="font-bold text-emerald-400">{pesoShort(d.collected)}</span></p>
                             <p className="m-0 flex justify-between"><span className="text-slate-400">Still owed</span><span className="font-bold text-amber-300">{pesoShort(d.pending)}</span></p>

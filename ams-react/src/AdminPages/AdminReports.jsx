@@ -1368,7 +1368,7 @@ const AdminReports = () => {
                           return (
                             <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
                               {/* Tooltip */}
-                              <div className="hidden sm:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-caption p-2 rounded-control shadow-raised opacity-0 group-hover:opacity-100 transition-all z-50 w-32 pointer-events-none">
+                              <div className="hidden sm:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 admin-native bg-slate-800 text-white text-caption p-2 rounded-control shadow-raised opacity-0 group-hover:opacity-100 transition-all z-50 w-32 pointer-events-none">
                                 <p className="font-bold text-slate-300 border-b border-slate-600 pb-0.5 mb-1 text-center">{p.label}</p>
                                 <div className="flex justify-between"><span className="text-indigo-300">Rent:</span><span>{formatCurrency(p.rent)}</span></div>
                                 <div className="flex justify-between"><span className="text-amber-300">Elec:</span><span>{formatCurrency(p.electric)}</span></div>
@@ -1508,7 +1508,7 @@ const AdminReports = () => {
                       {trendPoints.map((p, idx) => (
                         <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
                           {/* Tooltip */}
-                          <div className="hidden sm:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-caption p-2 rounded-control shadow-raised opacity-0 group-hover:opacity-100 transition-all z-50 w-24 pointer-events-none">
+                          <div className="hidden sm:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 admin-native bg-slate-800 text-white text-caption p-2 rounded-control shadow-raised opacity-0 group-hover:opacity-100 transition-all z-50 w-24 pointer-events-none">
                             <p className="font-bold text-slate-300 border-b border-slate-600 pb-0.5 mb-1 text-center">{p.label}</p>
                             <div className="flex justify-between"><span className="text-slate-400">Rev:</span><span className="font-bold text-emerald-400">{formatCurrency(p.revenue)}</span></div>
                             <div className="flex justify-between"><span className="text-slate-400">Exp:</span><span className="font-bold text-red-400">{formatCurrency(p.expenses)}</span></div>

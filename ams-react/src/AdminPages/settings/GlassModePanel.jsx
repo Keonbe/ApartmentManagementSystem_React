@@ -38,7 +38,7 @@ export default function GlassModePanel({ settings, updateSetting, savedBgImage =
         description="The photo behind tenant pages in the Glass theme. The Home page always uses it."
       >
         {/* Live preview: the same layers tenants get, with a sample glass card. */}
-        <div className="relative h-64 sm:h-72 rounded-card overflow-hidden border border-slate-200 bg-slate-900">
+        <div className="admin-native relative h-64 sm:h-72 rounded-card overflow-hidden border border-slate-200 bg-slate-900">
           <GlassLayers
             glassBgImage={settings.glassBgImage}
             glassOverlayOpacity={settings.glassOverlayOpacity}
