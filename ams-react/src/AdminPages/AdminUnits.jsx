@@ -7,13 +7,12 @@ import {
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
   faHistory, faLayerGroup, faSync, faWrench,
   faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive, faSpinner,
-  faThLarge, faMap, faCheck
+  faCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
 import { publicAssetUrl } from '../api/fileUrl';
 import DepositOutcome from '../Components/DepositOutcome';
-import FloorPlanView from '../Components/admin/FloorPlanView';
 import SetUnderMaintenanceModal from '../Components/admin/SetUnderMaintenanceModal';
 import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, checkIntRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
 
@@ -101,9 +100,6 @@ const AdminUnits = () => {
   const [unitActionError, setUnitActionError] = useState('');
   const [unitToRemove, setUnitToRemove] = useState(null);
   const [removeModalError, setRemoveModalError] = useState('');
-
-  // View Mode: 'grid' or 'floorplan'
-  const [viewMode, setViewMode] = useState('grid');
 
   // Under Maintenance Modal State
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
@@ -487,37 +483,6 @@ const AdminUnits = () => {
                   className="flex-1 bg-transparent text-body text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
                 />
               </div>
-
-              {/* View Switcher: Grid View vs Architectural Floor Plan */}
-              <div className="inline-flex rounded-control border border-slate-200 bg-white p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer border-0 ${
-                    viewMode === 'grid'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                  title="Traditional grid view of all units"
-                >
-                  <FontAwesomeIcon icon={faThLarge} className="text-xs" />
-                  <span>Grid View</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('floorplan')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer border-0 ${
-                    viewMode === 'floorplan'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                  title="Interactive architectural floor plan view"
-                >
-                  <FontAwesomeIcon icon={faMap} className="text-xs" />
-                  <span>Floor Plan View</span>
-                </button>
-              </div>
-
               <button
                 onClick={() => { setRentTyped(false); setUnitForm({ ...emptyUnitForm, rent: floorRates[emptyUnitForm.floor] ? String(floorRates[emptyUnitForm.floor]) : '' }); setShowAddModal(true); }}
                 className={btn('primary', 'md')}
@@ -539,141 +504,129 @@ const AdminUnits = () => {
               </div>
             )}
 
-            {viewMode === 'floorplan' ? (
-              <FloorPlanView
-                units={units}
-                onSelectUnit={(unit) => { setSelectedUnit(unit); setShowDetailModal(true); setLeaseError(''); }}
-                onSetMaintenance={openSetMaintenance}
-                onCompleteMaintenance={handleCompleteMaintenance}
-                onAssignTenant={(unit) => openAssignTenant(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal)}
+            {/* Filter pills carry the counts; occupancy, the one figure they do not show, sits beside them. */}
+            <div className="flex flex-wrap items-center gap-3">
+              <FilterTabs
+                label="Filter units by status"
+                value={activeFilter}
+                onChange={setActiveFilter}
+                options={filters.map(f => ({ value: f.key, label: f.label, count: unitsState.isReady ? f.count : null }))}
               />
-            ) : (
-              <>
-                {/* Filter pills carry the counts; occupancy, the one figure they do not show, sits beside them. */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <FilterTabs
-                    label="Filter units by status"
-                    value={activeFilter}
-                    onChange={setActiveFilter}
-                    options={filters.map(f => ({ value: f.key, label: f.label, count: unitsState.isReady ? f.count : null }))}
-                  />
-                  {unitsState.isReady && <span className="ml-auto text-label font-semibold text-slate-600">
-                    {counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupied
-                  </span>}
-                </div>
+              {unitsState.isReady && <span className="ml-auto text-label font-semibold text-slate-600">
+                {counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupied
+              </span>}
+            </div>
 
-                {/* Units Grid */}
-                {unitsState.isLoading && <SkeletonCards count={10} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4" label="Loading units…" />}
-                {unitsState.isError && <div className="bg-white border border-slate-200 rounded-card shadow-card"><LoadError title="Couldn't load units" onRetry={() => { unitsState.retry(); fetchRooms(); }} /></div>}
-                {unitsState.isReady && displayed.length === 0 && <div className="bg-white border border-slate-200 rounded-card shadow-card"><EmptyState title="No units here" message={units.length ? 'No unit matches this filter.' : 'Add the first unit with Add Unit.'} /></div>}
-                {unitsState.isReady && <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4">
-                  {displayed.map(unit => {
-                    const remaining = daysRemaining(unit.leaseEnd);
-                    return (
-                      <div
-                        key={unit.id}
-                        className={`card-interactive bg-white border rounded-card p-4 transition-all hover:shadow-raised hover:-translate-y-0.5 group relative ${
-                          unit.status === 'vacant' && !unit.maintenanceFlag ? 'border-amber-300' : unit.maintenanceFlag ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200'
-                        }`}
-                      >
-                        {unit.maintenanceFlag && (
-                          <div className="absolute top-2 right-2">
-                            <FontAwesomeIcon icon={faWrench} className="text-amber-500 text-xs animate-pulse" title="Under maintenance" />
+            {/* Units Grid */}
+            {unitsState.isLoading && <SkeletonCards count={10} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4" label="Loading units…" />}
+            {unitsState.isError && <div className="bg-white border border-slate-200 rounded-card shadow-card"><LoadError title="Couldn't load units" onRetry={() => { unitsState.retry(); fetchRooms(); }} /></div>}
+            {unitsState.isReady && displayed.length === 0 && <div className="bg-white border border-slate-200 rounded-card shadow-card"><EmptyState title="No units here" message={units.length ? 'No unit matches this filter.' : 'Add the first unit with Add Unit.'} /></div>}
+            {unitsState.isReady && <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4">
+              {displayed.map(unit => {
+                const remaining = daysRemaining(unit.leaseEnd);
+                return (
+                  <div
+                    key={unit.id}
+                    className={`card-interactive bg-white border rounded-card p-4 transition-all hover:shadow-raised hover:-translate-y-0.5 group relative ${
+                      unit.status === 'vacant' && !unit.maintenanceFlag ? 'border-amber-300' : unit.maintenanceFlag ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200'
+                    }`}
+                  >
+                    {unit.maintenanceFlag && (
+                      <div className="absolute top-2 right-2">
+                        <FontAwesomeIcon icon={faWrench} className="text-amber-500 text-xs animate-pulse" title="Under maintenance" />
+                      </div>
+                    )}
+
+                    <div className="text-section font-bold text-slate-800">{unit.id}</div>
+                    <div className="text-caption text-slate-500 mb-2">{unit.type} · {unit.floor}</div>
+                    <div className="mb-2">{getStatusBadge(unit)}</div>
+
+                    {unit.status === 'occupied' ? (
+                      <>
+                        <div className="text-caption text-slate-500 mt-2">{unit.tenant}</div>
+                        <div className="text-label font-bold text-indigo-600 mt-1">{formatCurrency(unit.rent)}/mo</div>
+                        {remaining !== null && (
+                          <div className={`text-caption font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
+                            <FontAwesomeIcon icon={faClock} className="text-[9px]" />
+                            {remaining > 0 ? `${remaining} days left` : 'Rent expired'}
                           </div>
                         )}
-
-                        <div className="text-section font-bold text-slate-800">{unit.id}</div>
-                        <div className="text-caption text-slate-500 mb-2">{unit.type} · {unit.floor}</div>
-                        <div className="mb-2">{getStatusBadge(unit)}</div>
-
-                        {unit.status === 'occupied' ? (
-                          <>
-                            <div className="text-caption text-slate-500 mt-2">{unit.tenant}</div>
-                            <div className="text-label font-bold text-indigo-600 mt-1">{formatCurrency(unit.rent)}/mo</div>
-                            {remaining !== null && (
-                              <div className={`text-caption font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
-                                <FontAwesomeIcon icon={faClock} className="text-[9px]" />
-                                {remaining > 0 ? `${remaining} days left` : 'Rent expired'}
-                              </div>
-                            )}
-                          </>
-                        ) : unit.maintenanceFlag ? (
-                          <>
-                            <div className="text-caption text-amber-800 font-semibold mt-2">Coming Soon</div>
-                            <div className="text-caption text-slate-500">
-                              Est. Ready: <span className="font-semibold text-amber-700">{unit.availableDate ? new Date(unit.availableDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}</span>
-                            </div>
-                            <div className="text-label font-bold text-slate-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
-                            {unit.lastTenant && <div className="text-caption text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-caption text-emerald-700 font-semibold mt-2">Available now</div>
-                            <div className="text-label font-bold text-emerald-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
-                            {unit.lastTenant && <div className="text-caption text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
-                          </>
-                        )}
-
-                        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
-                          <button
-                            onClick={() => { setSelectedUnit(unit); setShowDetailModal(true); setLeaseError(''); }}
-                            className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
-                          >
-                            <FontAwesomeIcon icon={faEye} className="text-[9px]" /> Details
-                          </button>
-                          
-                          {unit.status === 'vacant' && !unit.maintenanceFlag && (
-                            <button
-                              onClick={() => openAssignTenant(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal)}
-                              className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
-                            >
-                              <FontAwesomeIcon icon={faUserPlus} className="text-[9px]" /> Assign
-                            </button>
-                          )}
-
-                          {unit.status === 'vacant' && !unit.maintenanceFlag && !unit.tenant && (
-                            <button
-                              type="button"
-                              onClick={() => openSetMaintenance(unit)}
-                              title={`Schedule maintenance for Unit ${unit.id}`}
-                              className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
-                            >
-                              <FontAwesomeIcon icon={faWrench} className="text-[9px]" /> Maintain
-                            </button>
-                          )}
-
-                          {unit.maintenanceFlag && (
-                            <button
-                              type="button"
-                              disabled={completingMaintenanceId === unit.id}
-                              onClick={() => handleCompleteMaintenance(unit)}
-                              title={`Mark maintenance for Unit ${unit.id} as finished`}
-                              className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50"
-                            >
-                              <FontAwesomeIcon icon={completingMaintenanceId === unit.id ? faSpinner : faCheck} className={`text-[9px] ${completingMaintenanceId === unit.id ? 'animate-spin' : ''}`} />
-                              {completingMaintenanceId === unit.id ? 'Saving…' : 'Complete'}
-                            </button>
-                          )}
-
-                          {unit.status === 'vacant' && !unit.tenant && (
-                            <button
-                              type="button"
-                              disabled={removingUnitId !== null}
-                              onClick={() => promptRemoveUnit(unit)}
-                              title={`Remove Unit ${unit.id} from active listings`}
-                              className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-control px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <FontAwesomeIcon icon={faBoxArchive} className="text-[9px]" />
-                              {removingUnitId === unit.id ? 'Removing…' : 'Remove'}
-                            </button>
-                          )}
+                      </>
+                    ) : unit.maintenanceFlag ? (
+                      <>
+                        <div className="text-caption text-amber-800 font-semibold mt-2">Coming Soon</div>
+                        <div className="text-caption text-slate-500">
+                          Est. Ready: <span className="font-semibold text-amber-700">{unit.availableDate ? new Date(unit.availableDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}</span>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>}
-              </>
-            )}
+                        <div className="text-label font-bold text-slate-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
+                        {unit.lastTenant && <div className="text-caption text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-caption text-emerald-700 font-semibold mt-2">Available now</div>
+                        <div className="text-label font-bold text-emerald-700 mt-1">{formatCurrency(unit.rent)}/mo</div>
+                        {unit.lastTenant && <div className="text-caption text-slate-500 mt-1">Last: {unit.lastTenant}</div>}
+                      </>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+                      <button
+                        onClick={() => { setSelectedUnit(unit); setShowDetailModal(true); setLeaseError(''); }}
+                        className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
+                      >
+                        <FontAwesomeIcon icon={faEye} className="text-[9px]" /> Details
+                      </button>
+                      
+                      {unit.status === 'vacant' && !unit.maintenanceFlag && (
+                        <button
+                          onClick={() => openAssignTenant(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal)}
+                          className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
+                        >
+                          <FontAwesomeIcon icon={faUserPlus} className="text-[9px]" /> Assign
+                        </button>
+                      )}
+
+                      {unit.status === 'vacant' && !unit.maintenanceFlag && !unit.tenant && (
+                        <button
+                          type="button"
+                          onClick={() => openSetMaintenance(unit)}
+                          title={`Schedule maintenance for Unit ${unit.id}`}
+                          className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer"
+                        >
+                          <FontAwesomeIcon icon={faWrench} className="text-[9px]" /> Maintain
+                        </button>
+                      )}
+
+                      {unit.maintenanceFlag && (
+                        <button
+                          type="button"
+                          disabled={completingMaintenanceId === unit.id}
+                          onClick={() => handleCompleteMaintenance(unit)}
+                          title={`Mark maintenance for Unit ${unit.id} as finished`}
+                          className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-control py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50"
+                        >
+                          <FontAwesomeIcon icon={completingMaintenanceId === unit.id ? faSpinner : faCheck} className={`text-[9px] ${completingMaintenanceId === unit.id ? 'animate-spin' : ''}`} />
+                          {completingMaintenanceId === unit.id ? 'Saving…' : 'Complete'}
+                        </button>
+                      )}
+
+                      {unit.status === 'vacant' && !unit.tenant && (
+                        <button
+                          type="button"
+                          disabled={removingUnitId !== null}
+                          onClick={() => promptRemoveUnit(unit)}
+                          title={`Remove Unit ${unit.id} from active listings`}
+                          className="flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 text-caption font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-control px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <FontAwesomeIcon icon={faBoxArchive} className="text-[9px]" />
+                          {removingUnitId === unit.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>}
 
           </div>
         </div>
