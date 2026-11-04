@@ -1470,7 +1470,7 @@ Completing or cancelling a booking also marks its admin intake notification `Res
 
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
-| `dashboard_stats.php` | GET | `require_admin` | — | `success`, `stats` (`total_revenue`, `pending_dues`, `overdue_dues`, `overdue_count`, `collection_rate`, …), `income_data[]` (6 months), `pending_actions`, `attention` (per-line counts for the Dashboard "Needs your attention" list, `incomplete` when a group could not be counted), `rooms_summary`, `activity_logs` | `401` no token · `403` tenant |
+| `dashboard_stats.php` | GET | `require_admin` | optional `from` + `to` (`YYYY-MM-DD`, at most 3 years; default the last 6 calendar months to today) · `section=income` = the chart only | `success`, `stats` (`total_revenue`, `pending_dues`, `overdue_dues`, `overdue_count`, `collection_rate`, …), `income_data[]` (per day up to 62 days, else per month: `key`, `label`, `full_label`, `collected`, `pending`, `billed`, `count`), `range` (`from`, `to`, `granularity`, totals, `avg_per_month`, `collection_rate` or `null` when nothing was billed), `pending_actions`, `attention` (per-line counts for the Dashboard "Needs your attention" list, `incomplete` when a group could not be counted), `rooms_summary`, `activity_logs` | `401` no token · `403` tenant · `422` bad, reversed, half-given or over-3-year period |
 | `get_report_data.php` | GET | `require_admin` | `timeframe` = `monthly` / `quarterly` / `yearly`, `month`, `quarter`, `year` | `success`, `data` incl. `incomeStatement`, `revenueStreams[]`, `diversification`, `unitIncome[]`, `trendPoints[]`, `outstandingBalances[]`, `paymentRecords[]`, `tenantList[]`, `maintAvgResolutionHours` | `401` · `403` |
 | `get_utilities_report_data.php` | GET | `require_admin` | same as above | see [§10.1](#101-api-contract) | `401` · `403` |
 
@@ -1577,6 +1577,8 @@ Expected values marked *audit DB* came from the database this audit ran against,
 | **M8F-15** | Edge | A 0-day rent-end reminder is 0, not the 30-day default | `lease_end_reminder_days = 0` | `GET dashboard_stats.php` | `attention.contracts_ending_days` = 0 | Restore the setting |
 | **M8F-16** | Fail | One failing count does not take the dashboard down | A table behind one group renamed | `GET dashboard_stats.php` | `200`, `success: true`, `stats` present, `attention.incomplete: true`, that group's keys absent | Rename the table back (`tests/api/dashboard_attention.test.js`) |
 | **M8F-17** | Fail | A failed dashboard request never reads as ₱0 or "All caught up" | Admin UI | Block `dashboard_stats.php`, open `/admin-dashboard` | One "Couldn't load the dashboard" error with Try again; Try again restores the page | — |
+| **M8F-18** | Happy | Income chart for a chosen period | Admin UI | Dashboard → Income → "A specific month…" → a past month | Bars per day for that month; Collected / Still owed / Bills issued / Collection rate cover only its bills; clicking a bar shows that day | `tests/api/dashboard_range.test.js` |
+| **M8F-19** | Neg | A bad period is refused | Admin token | `GET dashboard_stats.php?section=income&from=2026-03-31&to=2026-03-01` | `422`, the message names the problem | — |
 
 **Restore:**
 

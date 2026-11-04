@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~4 min, 630 tests (41 files)
+npm test           # ~4 min, 732 tests (49 files)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -84,6 +84,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `appearance_settings.test.js` | 45 | Glass theme backdrop: shipped defaults readable by guests (numbers as numbers); overlay 0-95, blur 0-20, tint `#rrggbb` (stored lower-case) with bad values → 422; `glass_bg_image` only accepts an uploaded `site_assets/glass_bg_*` file (traversal, other folders, URLs, markup, a missing file → 422, nothing saved), but an unchanged stored path never blocks other settings; tenant refused. `upload_glass_background.php`: tenant 403, no session 401, no file / non-image named `.png` / under 640 px → 422; a real image gets a generated name and is not live until saved; saving another or resetting keeps the previous one in the recent list (newest first, live flagged); only the last 6 are kept and the live one is never pruned. `get_glass_backgrounds.php` / `delete_glass_background.php`: tenant 403, no session 401; removing the live photo → 409, a non-upload path → 422, a missing upload → 404, another photo is deleted. `home_content` (Home page text): defaults all shown and empty; show switches and text saved, tidied to one line, unknown items dropped, markup kept as plain text; an unchanged form changes nothing; over-length text (60/80/80/400), non-boolean or missing `show`, non-string text, non-object → 422, nothing saved; a garbled stored value reads as the defaults; tenant refused |
 | `extension.test.js` | 20 | Extension range (min shrinks to what fits), request, pending/overdue/move-out blocks, `extensionRange` for admin only, admin Extend Rent and `lease_renewals` |
 | `visitors.test.js` | 6 | Pre-registrations dated by expected arrival, `checked_in` vs `overstayed` at the 24 h boundary, tenant scoping, SQL-injection search |
+| `dashboard_range.test.js` | 7 | Dashboard income period (`dashboard_stats.php ?from=&to=`, `?section=income`): default six calendar months per month ending today; up to 62 days per day with only that period's bills (cancelled left out) and no other dashboard blocks; longer per month with every month present and the average per month; nothing billed gives `collection_rate: null`; a one-day period; bad / reversed / half-given / over-three-year periods → 422; admin only |
 | `dashboard_attention.test.js` | 7 | Dashboard `attention` counts (`dashboard_stats.php`): admin only, existing stats kept, proofs / overdue bills / overdue tenants move by one while an advance-rent invoice adds nothing, pending CCTV only, seeded move-out request, one failing count (table renamed) leaves a 200 with `attention.incomplete` and the other groups, a 0-day rent-end reminder reads as 0 not 30 |
 | `webhook.test.js` | 15 | Signature and replay window, `payment.failed` matched by intent, superseded events, replay, old invoices without an intent |
 | `payments.test.js` | 5 | Paid event settles once, replay, session mismatch, failed-after-paid, amount mismatch → `pending-verification` |

@@ -13,14 +13,128 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $admin_id = require_admin($conn);
 
+// Income chart period: ?from=YYYY-MM-DD&to=YYYY-MM-DD (both or neither; default
+// the last six calendar months up to today). Up to 62 days is shown per day,
+// longer per month; at most three years. ?section=income answers with the chart
+// alone, so changing the period does not recount the whole dashboard.
+$dash_date = function ($value) {
+    $d = DateTime::createFromFormat('!Y-m-d', (string)$value);
+    return ($d && $d->format('Y-m-d') === $value) ? $d : null;
+};
+$range_from = $_GET['from'] ?? null;
+$range_to = $_GET['to'] ?? null;
+if ($range_from === null && $range_to === null) {
+    $from_dt = new DateTime('first day of -5 month');
+    $from_dt->setTime(0, 0);
+    $to_dt = new DateTime('today');
+} else {
+    $from_dt = $dash_date($range_from);
+    $to_dt = $dash_date($range_to);
+    $range_error = null;
+    if (!$from_dt || !$to_dt) $range_error = 'Choose a start and an end date (YYYY-MM-DD).';
+    elseif ($from_dt > $to_dt) $range_error = 'The start date must be on or before the end date.';
+    elseif ($from_dt->diff($to_dt)->days > 1096) $range_error = 'Choose a period of three years or less.';
+    if ($range_error !== null) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => $range_error, 'errors' => ['from' => $range_error]]);
+        exit();
+    }
+}
+
+// Invoices issued in the period, per day or month: collected (paid in full, or
+// the part paid so far), still owed (open bills' balance) and billed.
+function dashboard_income($conn, DateTime $from, DateTime $to, $advanceMonthsFilter) {
+    $byDay = $from->diff($to)->days < 62;
+    $multiYear = $from->format('Y') !== $to->format('Y');
+    $buckets = [];
+    $cursor = clone $from;
+    if (!$byDay) $cursor->modify('first day of this month');
+    while ($cursor <= $to) {
+        $key = $cursor->format($byDay ? 'Y-m-d' : 'Y-m');
+        $buckets[$key] = [
+            'key' => $key,
+            'label' => $byDay ? $cursor->format('j') : $cursor->format($multiYear ? "M 'y" : 'M'),
+            'full_label' => $cursor->format($byDay ? 'M j, Y' : 'F Y'),
+            'collected' => 0.0,
+            'pending' => 0.0,
+            'billed' => 0.0,
+            'count' => 0,
+        ];
+        $cursor->modify($byDay ? '+1 day' : '+1 month');
+    }
+
+    $fmt = $byDay ? '%Y-%m-%d' : '%Y-%m';
+    $fromStr = $from->format('Y-m-d');
+    $toStr = $to->format('Y-m-d');
+    $stmt = $conn->prepare("
+        SELECT
+            DATE_FORMAT(created_at, '$fmt') AS b_key,
+            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE amount_paid END) AS collected_val,
+            SUM(CASE WHEN LOWER(status) IN " . billing_open_status_sql() . " THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - amount_paid ELSE 0 END) AS pending_val,
+            SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) AS billed_val,
+            COUNT(*) AS total_cnt
+        FROM invoices
+        WHERE created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
+          AND LOWER(status) <> 'cancelled' $advanceMonthsFilter
+        GROUP BY b_key
+    ");
+    $stmt->bind_param('ss', $fromStr, $toStr);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $totals = ['collected' => 0.0, 'pending' => 0.0, 'billed' => 0.0, 'count' => 0];
+    while ($row = $res->fetch_assoc()) {
+        $k = $row['b_key'];
+        if (!isset($buckets[$k])) continue;
+        $buckets[$k]['collected'] = round((float)$row['collected_val'], 2);
+        $buckets[$k]['pending'] = round((float)$row['pending_val'], 2);
+        $buckets[$k]['billed'] = round((float)$row['billed_val'], 2);
+        $buckets[$k]['count'] = (int)$row['total_cnt'];
+        foreach (['collected', 'pending', 'billed'] as $f) $totals[$f] += $buckets[$k][$f];
+        $totals['count'] += $buckets[$k]['count'];
+    }
+    $stmt->close();
+
+    // Calendar months the period touches (a 10-day period is one month).
+    $months = ((int)$to->format('Y') - (int)$from->format('Y')) * 12 + (int)$to->format('n') - (int)$from->format('n') + 1;
+    return [
+        'income_data' => array_values($buckets),
+        'range' => [
+            'from' => $fromStr,
+            'to' => $toStr,
+            'granularity' => $byDay ? 'day' : 'month',
+            'collected' => round($totals['collected'], 2),
+            'pending' => round($totals['pending'], 2),
+            'billed' => round($totals['billed'], 2),
+            'count' => $totals['count'],
+            'months' => $months,
+            'avg_per_month' => round($totals['collected'] / max(1, $months), 2),
+            // null: nothing billed in the period (not "0% collected").
+            'collection_rate' => $totals['billed'] > 0 ? (int)round($totals['collected'] / $totals['billed'] * 100) : null,
+        ],
+    ];
+}
+
 // Older installations may not yet have the advance-payment migration. Apply
 // the exclusion only when the column exists; otherwise treat all invoices as
 // standard invoices so dashboard statistics remain available.
 $advanceMonthsFilter = '';
 $advanceMonthsColumn = $conn->query("SHOW COLUMNS FROM invoices LIKE 'advance_months'");
+$income_only = ($_GET['section'] ?? '') === 'income';
 if ($advanceMonthsColumn && $advanceMonthsColumn->num_rows > 0) {
     $advanceMonthsFilter = ' AND advance_months IS NULL';
-    promote_overdue_invoices($conn);
+    if (!$income_only) promote_overdue_invoices($conn);
+}
+
+if ($income_only) {
+    try {
+        echo json_encode(['success' => true] + dashboard_income($conn, $from_dt, $to_dt, $advanceMonthsFilter));
+    } catch (Throwable $e) {
+        error_log('[dashboard_stats income] ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => public_error_message($e)]);
+    }
+    $conn->close();
+    exit();
 }
 $roomsArchiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
 $activeRoomsFilter = ($roomsArchiveColumn && $roomsArchiveColumn->num_rows > 0) ? ' WHERE archived_at IS NULL' : '';
@@ -189,53 +303,12 @@ try {
     }
     $stmt->close();
 
-    // 7. Rolling 6-Month Income Data
-    $months = [];
-    for ($i = 5; $i >= 0; $i--) {
-        $time = strtotime("first day of -$i month");
-        $key = date('Y-m', $time);
-        $months[$key] = [
-            'key' => $key,
-            'month' => date('M', $time),
-            'full_month' => date('M Y', $time),
-            'collected' => 0.0,
-            'pending' => 0.0,
-            'billed' => 0.0,
-            'count' => 0,
-        ];
-    }
-
-    $stmt = $conn->prepare("
-        SELECT 
-            DATE_FORMAT(created_at, '%Y-%m') as m_key, 
-            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE amount_paid END) as collected_val,
-            SUM(CASE WHEN LOWER(status) IN " . billing_open_status_sql() . " THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - amount_paid ELSE 0 END) as pending_val,
-            SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as billed_val,
-            COUNT(*) as total_cnt
-        FROM invoices 
-        WHERE created_at >= DATE_SUB(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 5 MONTH)
-          AND LOWER(status) <> 'cancelled' $advanceMonthsFilter
-        GROUP BY m_key
-        ORDER BY m_key ASC
-    ");
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $total6mCollected = 0;
-    while ($row = $res->fetch_assoc()) {
-        $k = $row['m_key'];
-        if (isset($months[$k])) {
-            $months[$k]['collected'] = (float)$row['collected_val'];
-            $months[$k]['pending'] = (float)$row['pending_val'];
-            $months[$k]['billed'] = (float)$row['billed_val'];
-            $months[$k]['count'] = (int)$row['total_cnt'];
-            $total6mCollected += (float)$row['collected_val'];
-        }
-    }
-    $stmt->close();
-
-    $response['income_data'] = array_values($months);
-    $response['stats']['total_6m_collected'] = $total6mCollected;
-    $response['stats']['avg_monthly_income'] = round($total6mCollected / 6);
+    // 7. Income per day or month for the chosen period (dashboard_income() above).
+    $income = dashboard_income($conn, $from_dt, $to_dt, $advanceMonthsFilter);
+    $response['income_data'] = $income['income_data'];
+    $response['range'] = $income['range'];
+    $response['stats']['total_6m_collected'] = $income['range']['collected'];
+    $response['stats']['avg_monthly_income'] = round($income['range']['avg_per_month']);
 
     // 8. Newest Approved Tenants
     $stmt = $conn->prepare("
