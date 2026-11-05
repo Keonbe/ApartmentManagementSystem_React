@@ -81,6 +81,13 @@ body {
   overflow-x: clip;
 }
 
+/* No elastic "bounce" past the top/bottom of the page (Chromium/Edge/Safari
+   otherwise show an empty band above the header and below the footer). */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 /* FIXED CONTAINER:
    We updated this from a rigid 1126px width block to safely scale across 100% 
    of the viewer screen real estate.
