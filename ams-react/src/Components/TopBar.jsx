@@ -6,7 +6,7 @@ import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
-    faBell, faFileContract, faHistory, faMoneyBillTransfer,
+    faBell, faFileContract,
     faHome, faCompass, faConciergeBell, faBed, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import {
@@ -30,7 +30,7 @@ const MENU_EXIT_MS = 160;
 // Pages reached from the Services page: the Services link stays marked on them.
 const SERVICE_PATHS = [
     '/services', '/pay-bills', '/parking-reservation', '/cctv-request', '/service-catalog', '/service-booking',
-    '/maintenance-request', '/visitor-management', '/user-utilities', '/my-requests', '/announcements', '/payment-history',
+    '/maintenance-request', '/visitor-management', '/user-utilities', '/my-requests', '/announcements',
 ];
 
 // Where the desktop link pill last sat. TopBar remounts when the route's
@@ -438,7 +438,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         isLoggedIn && !hasRentedRoom && hasApplication && link('/track-application', t('nav.trackApp'), faFileContract),
         isLoggedIn && hasRentedRoom && link('/my-room', t('nav.myRoom'), faBed),
         isLoggedIn && hasRentedRoom && link('/services', t('nav.services'), faConciergeBell, SERVICE_PATHS),
-        isTenant && link('/my-refunds', t('topbar.myRefunds'), faMoneyBillTransfer),
+        // Payment History and My Refunds live in the account area (Profile Settings side menu).
     ].filter(Boolean);
     // Phones list the rooms page for tenants too, last.
     const mobileLinks = hasRentedRoom ? [...navLinks, previewLink] : navLinks;
@@ -571,19 +571,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         <FontAwesomeIcon icon={faCog} className="text-slate-500 text-xs" />
                                         <span>{t('topbar.profileSettings')}</span>
                                     </button>
-                                    {hasRentedRoom && (
-                                        <button onClick={() => { setIsDropdownOpen(false); navigate('/payment-history'); }} className={menuItemClass}>
-                                            <FontAwesomeIcon icon={faHistory} className="text-slate-500 text-xs" />
-                                            <span>{t('topbar.paymentHistory')}</span>
-                                        </button>
-                                    )}
-                                    {/* Tenants have My Refunds on the bar. */}
-                                    {!isTenant && (
-                                        <button onClick={() => { setIsDropdownOpen(false); navigate('/my-refunds'); }} className={menuItemClass}>
-                                            <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-slate-500 text-xs" />
-                                            <span>{t('topbar.myRefunds')}</span>
-                                        </button>
-                                    )}
+                                    {/* Payment History and My Refunds are in the Profile Settings side menu. */}
                                     <div className="border-t border-slate-100 my-1"></div>
                                     {showThemePicker && (
                                         <>
@@ -747,25 +735,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         <FontAwesomeIcon icon={faBell} className="text-xs" />
                                         <span>Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
                                     </button>
-                                    {/* Tenants have My Refunds in the links above. */}
-                                    {!isTenant && (
-                                        <button
-                                            onClick={() => { setIsMobileMenuOpen(false); navigate('/my-refunds'); }}
-                                            className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
-                                        >
-                                            <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-xs" />
-                                            <span>{t('topbar.myRefunds')}</span>
-                                        </button>
-                                    )}
-                                    {hasRentedRoom && (
-                                        <button
-                                            onClick={() => { setIsMobileMenuOpen(false); navigate('/payment-history'); }}
-                                            className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
-                                        >
-                                            <FontAwesomeIcon icon={faHistory} className="text-xs" />
-                                            <span>{t('topbar.paymentHistory')}</span>
-                                        </button>
-                                    )}
+                                    {/* Payment History and My Refunds are in the Profile Settings side menu. */}
                                 </div>
 
                                 <button

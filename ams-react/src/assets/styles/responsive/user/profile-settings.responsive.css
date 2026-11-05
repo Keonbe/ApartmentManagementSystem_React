@@ -1,29 +1,14 @@
 /* =====================================================
    PROFILE SETTINGS PAGE — profile-settings.responsive.css
    Domain: user
-   Base: Tailwind utilities in ProfileSettings.jsx
+   Base: Tailwind utilities in ProfileSettings.jsx. Page width and padding
+   come from AccountLayout (assets/styles/account.css); the cards pad
+   themselves (the identity card's banner runs edge to edge).
    ===================================================== */
 
 @media (max-width: 768px) {
-  .profile-settings-root {
-    padding: 1.5rem 1rem !important;
-  }
-
-  .profile-settings-header {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 1.25rem !important;
-  }
-
   .profile-settings-card {
-    padding: 1.5rem 1.25rem !important;
     border-radius: 1.5rem !important;
-  }
-
-  /* 3-column personal details grids → 1 column on phones */
-  .profile-details-grid {
-    grid-template-columns: 1fr !important;
-    gap: 1rem !important;
   }
 
   /* Prevent iOS auto-zoom on input focus */
@@ -32,28 +17,6 @@
   .profile-settings-card input[type="tel"],
   .profile-settings-card select {
     font-size: 16px !important;
-    min-height: 48px !important;
-  }
-
-  /* Photo upload/snapshot options */
-  .profile-avatar-options {
-    grid-template-columns: 1fr !important;
-    gap: 0.75rem !important;
-  }
-
-  .profile-avatar-options > div,
-  .profile-avatar-options > button {
-    min-height: 90px !important;
-  }
-
-  /* Action buttons (Documents & Password) */
-  .profile-actions-grid {
-    grid-template-columns: 1fr !important;
-    gap: 0.75rem !important;
-  }
-
-  .profile-actions-grid button {
-    padding: 1rem !important;
     min-height: 48px !important;
   }
 
@@ -66,11 +29,12 @@
 }
 
 @media (max-width: 480px) {
-  .profile-settings-root {
-    padding: 1.25rem 0.75rem !important;
-  }
-
   .profile-settings-header h1 {
     font-size: 1.75rem !important;
+  }
+
+  /* Upload / camera tiles stack in the photo dialog */
+  .profile-avatar-options {
+    grid-template-columns: 1fr !important;
   }
 }

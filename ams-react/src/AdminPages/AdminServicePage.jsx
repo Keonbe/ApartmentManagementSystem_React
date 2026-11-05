@@ -162,15 +162,8 @@ const tenantUtilityServices = [
     isLocked: true,
     isActive: true,
   },
-  {
-    id: 'payment-history',
-    title: 'Payment History',
-    description: 'Ledger and official receipt download center for past monthly rental settlements.',
-    price: 'Always',
-    unit: 'enabled',
-    isLocked: true,
-    isActive: true,
-  },
+  // Payment History is no longer a Services card (it is in the tenant's account
+  // side menu), so it has no appearance to customise here.
 ];
 
 const CATALOG_CATEGORY_BY_CARD ={ cleaning: 'cleaning', laundry: 'laundry', 'other-services': 'other' };

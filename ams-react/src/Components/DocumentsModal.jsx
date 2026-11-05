@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { apiErrorMessage } from '../utils/apiError';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEye, faFileImage, faFilePdf } from '@fortawesome/free-solid-svg-icons';
+import DocumentPreviewModal from './DocumentPreviewModal';
 
 // The documents on the signed-in tenant's latest application
 // (Settings → Application Requirements decides which ones are asked for).
@@ -9,6 +12,8 @@ export default function DocumentsModal({ isOpen, onClose }) {
     const [data, setData] = useState({ documents: [], missing: [], verifiedAt: null });
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    // The document open in the viewer: { url, title, isImage }.
+    const [preview, setPreview] = useState(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -41,8 +46,9 @@ export default function DocumentsModal({ isOpen, onClose }) {
     if (!isOpen) return null;
 
     return (
+        <>
         <div
-            onClick={onClose}
+            onClick={() => { if (!preview) onClose(); }}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in modal-overlay-anim"
         >
             <div
@@ -80,22 +86,29 @@ export default function DocumentsModal({ isOpen, onClose }) {
                                 <p className="m-0 text-sm text-slate-500">No documents on file.</p>
                             )}
                             <div className="divide-y divide-slate-100">
-                                {data.documents.map((doc) => (
-                                    <div key={doc.id} className="py-3.5 flex items-center justify-between first:pt-0 last:pb-0">
-                                        <div className="min-w-0 pr-4">
-                                            <p className="m-0 text-sm font-bold text-slate-800 truncate">{doc.label}</p>
-                                            <p className="m-0 text-xs text-slate-400 mt-0.5 truncate">Uploaded {String(doc.uploaded_at || '').slice(0, 10)}</p>
+                                {data.documents.map((doc) => {
+                                    const isImg = /\.(png|jpe?g|webp|gif)$/i.test(doc.file_path || '');
+                                    return (
+                                        <div key={doc.id} className="py-3.5 flex items-center gap-3 first:pt-0 last:pb-0">
+                                            <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isImg ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                <FontAwesomeIcon icon={isImg ? faFileImage : faFilePdf} aria-hidden="true" />
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="m-0 text-sm font-bold text-slate-800 truncate">{doc.label}</p>
+                                                <p className="m-0 text-xs text-slate-400 mt-0.5 truncate">Uploaded {String(doc.uploaded_at || '').slice(0, 10)}</p>
+                                            </div>
+                                            {/* Opens in the viewer below, not a new tab. */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreview({ url: fileUrl(doc.file_path), title: doc.label, isImage: isImg })}
+                                                className="inline-flex items-center gap-1.5 min-h-[40px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3.5 rounded-xl transition-colors border-0 cursor-pointer shrink-0"
+                                            >
+                                                <FontAwesomeIcon icon={faEye} aria-hidden="true" />
+                                                View
+                                            </button>
                                         </div>
-                                        <a
-                                            href={fileUrl(doc.file_path)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold px-4 py-2 rounded-xl transition-colors no-underline shrink-0"
-                                        >
-                                            View Document
-                                        </a>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {!data.verifiedAt && data.missing.map((label) => (
                                     <div key={`missing-${label}`} className="py-3.5 flex items-center justify-between first:pt-0 last:pb-0">
                                         <p className="m-0 text-sm font-bold text-slate-400 truncate">{label}</p>
@@ -108,5 +121,14 @@ export default function DocumentsModal({ isOpen, onClose }) {
                 </div>
             </div>
         </div>
+        <DocumentPreviewModal
+            isOpen={!!preview}
+            onClose={() => setPreview(null)}
+            fileUrl={preview?.url}
+            title={preview?.title}
+            isImage={preview?.isImage}
+            z={70}
+        />
+        </>
     );
 }
