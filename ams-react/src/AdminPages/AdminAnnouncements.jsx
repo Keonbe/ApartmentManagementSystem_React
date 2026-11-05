@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -57,6 +57,9 @@ const AdminAnnouncements = () => {
   // loading | error | ready for the history list (a failed refresh keeps it).
   const historyState = useLoadState();
   const [tenants, setTenants] = useState([]);
+  const [unitQuery, setUnitQuery] = useState('');
+  const [unitMenuOpen, setUnitMenuOpen] = useState(false);
+  const unitPickerRef = useRef(null);
   // Settings → Notifications → Cost per SMS, for the estimate next to the recipient count.
   const [smsUnitCost, setSmsUnitCost] = useState(0.5);
   useEffect(() => {
@@ -165,6 +168,22 @@ const AdminAnnouncements = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; the loaders only call stable useLoadState callbacks
   }, []);
 
+  useEffect(() => {
+    if (!unitMenuOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!unitPickerRef.current?.contains(event.target)) setUnitMenuOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setUnitMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [unitMenuOpen]);
+
   // Units and tenant names come from get_rooms.php's admin-only occupancy history.
   const units = useMemo(() => {
     const namesByUnit = {};
@@ -175,8 +194,14 @@ const AdminAnnouncements = () => {
     });
     return Object.keys(namesByUnit)
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-      .map(name => ({ name, tenantNames: namesByUnit[name] }));
+      .map(name => ({ name, tenantNames: namesByUnit[name], count: namesByUnit[name].length }));
   }, [tenants]);
+
+  const selectedUnit = units.find(u => u.name === form.unit);
+  const selectedUnitLabel = selectedUnit ? `Unit ${selectedUnit.name} — ${selectedUnit.tenantNames.join(', ')}` : '';
+  const filteredUnits = units.filter(u =>
+    `Unit ${u.name} ${u.tenantNames.join(' ')}`.toLocaleLowerCase().includes(unitQuery.trim().toLocaleLowerCase())
+  );
 
   const specific = form.sendTo === 'Specific unit';
   const recipientCount = specific
@@ -382,12 +407,64 @@ const AdminAnnouncements = () => {
                 {specific && (
                   <div>
                     <label htmlFor="announce-unit" className={LABEL}>Unit</label>
-                    <select {...fields.fieldA11y('unit')} value={form.unit} onChange={e => setField('unit', e.target.value)} className={INPUT + invalidCls(fields.errors.unit)}>
-                      <option value="" disabled>{units.length ? 'Choose a unit…' : 'No occupied units'}</option>
-                      {units.map(u => (
-                        <option key={u.name} value={u.name}>Unit {u.name} — {u.tenantNames.join(', ')}</option>
-                      ))}
-                    </select>
+                    <div ref={unitPickerRef} className="relative">
+                      <div className={`flex items-center rounded-control border bg-white text-slate-900 transition-colors focus-within:ring-2 focus-within:ring-indigo-500 ${fields.errors.unit ? 'border-red-500' : 'border-slate-300 focus-within:border-indigo-500'}`}>
+                        <input
+                          id="announce-unit"
+                          name="unit"
+                          type="text"
+                          role="combobox"
+                          aria-autocomplete="list"
+                          aria-expanded={unitMenuOpen}
+                          aria-controls="announce-unit-options"
+                          aria-invalid={!!fields.errors.unit}
+                          aria-describedby={fields.errors.unit ? 'announce-unit-error' : undefined}
+                          autoComplete="off"
+                          placeholder={units.length ? 'Search or choose a unit…' : 'No occupied units'}
+                          value={unitMenuOpen ? unitQuery : selectedUnitLabel}
+                          onFocus={() => { setUnitQuery(''); setUnitMenuOpen(true); }}
+                          onClick={() => { if (!unitMenuOpen) { setUnitQuery(''); setUnitMenuOpen(true); } }}
+                          onChange={event => { setUnitQuery(event.target.value); setUnitMenuOpen(true); }}
+                          onKeyDown={event => {
+                            if (event.key === 'ArrowDown') { event.preventDefault(); setUnitMenuOpen(true); }
+                          }}
+                          className="min-w-0 flex-1 rounded-control bg-transparent px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
+                        />
+                        {form.unit && (
+                          <button type="button" aria-label="Clear selected unit" onClick={() => {
+                            setField('unit', '');
+                            setUnitQuery('');
+                            setUnitMenuOpen(true);
+                          }} className="mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      {unitMenuOpen && (
+                        <div id="announce-unit-options" role="listbox" aria-label="Units" className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto overscroll-contain rounded-control border border-slate-200 bg-white py-1 text-slate-800 shadow-lg [scrollbar-width:thin] [scrollbar-color:#94a3b8_transparent]">
+                          {filteredUnits.length ? filteredUnits.map(u => {
+                            const label = `Unit ${u.name} — ${u.tenantNames.join(', ')}`;
+                            const selected = form.unit === u.name;
+                            return (
+                              <button key={u.name} type="button" role="option" aria-selected={selected}
+                                onClick={() => {
+                                  setField('unit', u.name);
+                                  setUnitQuery('');
+                                  setUnitMenuOpen(false);
+                                }}
+                                className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-100 ${selected ? 'bg-indigo-50 font-medium text-indigo-600' : 'text-slate-800'}`}>
+                                <span>{label}</span>
+                                {selected && <span className="text-indigo-600" aria-hidden="true">✓</span>}
+                              </button>
+                            );
+                          }) : (
+                            <p className="m-0 px-3 py-2 text-sm text-slate-500">
+                              {units.length ? `No units found matching '${unitQuery}'` : 'No occupied units available'}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <FieldError id="announce-unit" error={fields.errors.unit} />
                   </div>
                 )}

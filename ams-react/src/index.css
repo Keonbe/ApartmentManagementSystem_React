@@ -3,6 +3,25 @@
 @import "./assets/styles/animations.user.css";
 @import "./assets/styles/themes.user.css";
 
+/* Keep KPI surfaces in sync with the admin theme instead of relying on a
+   generic `.dark` selector (admin dark mode is keyed by html.admin-dark). */
+.admin-stat-card {
+  background-color: #fff;
+  color: #0f172a;
+  border-color: #e2e8f0;
+}
+
+html.admin-dark .admin-stat-card {
+  background-color: #1a2035;
+  color: #fff;
+  border-color: #2a3353;
+}
+
+html.admin-dark .admin-stat-card .dark\:text-emerald-400 { color: #34d399; }
+html.admin-dark .admin-stat-card .dark\:text-rose-400 { color: #fb7185; }
+html.admin-dark .admin-stat-card .dark\:text-blue-400 { color: #60a5fa; }
+html.admin-dark .admin-stat-card .dark\:text-orange-400 { color: #fb923c; }
+
 /* Admin design tokens (Tailwind utilities: text-label, rounded-card, shadow-card…).
    Sizes are px, not rem, because the root font is 18px on desktop and rem-based
    sizes would come out ~12% larger than intended. Shared components in

@@ -144,9 +144,10 @@ const AdminDashboard = () => {
 
             {/* Key figures right now. Applications and urgent repairs are lines in
                 "Needs your attention", so they get no card of their own here. */}
-            <section aria-label="Key figures" className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+            <section aria-label="Key figures" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <StatCard
                 icon={faPesoSign}
+                showIconBadge={false}
                 title="Collected this month"
                 value={peso(stats.total_revenue)}
                 color="emerald"
@@ -157,6 +158,7 @@ const AdminDashboard = () => {
               />
               <StatCard
                 icon={faFileInvoiceDollar}
+                showIconBadge={false}
                 title="Still owed"
                 value={peso(stats.pending_dues)}
                 color={owedTone}
@@ -167,6 +169,7 @@ const AdminDashboard = () => {
               />
               <StatCard
                 icon={faBuildingUser}
+                showIconBadge={false}
                 title="Occupancy"
                 value={`${stats.occupancy_rate ?? 0}%`}
                 color="blue"
@@ -178,6 +181,7 @@ const AdminDashboard = () => {
               />
               <StatCard
                 icon={faScrewdriverWrench}
+                showIconBadge={false}
                 title="Open maintenance"
                 value={stats.open_maintenance ?? 0}
                 color={stats.urgent_maintenance > 0 ? 'red' : 'violet'}

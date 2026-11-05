@@ -12,6 +12,7 @@ import { clickable } from '../utils/clickable';
 import AdminNotificationModal from './AdminNotificationModal';
 import { useAdminTheme, setAdminTheme } from '../config/adminTheme';
 import { withViewTransition } from '../utils/viewTransition';
+import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import '../assets/styles/responsive/admin/admin-header.responsive.css';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
@@ -29,6 +30,27 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const avatarRef = useRef(null);
 
   const [notifications, setNotifications] = useState([]);
+  const [adminEmail, setAdminEmail] = useState(() => {
+    try {
+      const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+      return user.email_address || user.email || 'admin@gmail.com';
+    } catch {
+      return 'admin@gmail.com';
+    }
+  });
+
+  useEffect(() => {
+    const refreshAdminEmail = () => {
+      try {
+        const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+        setAdminEmail(user.email_address || user.email || 'admin@gmail.com');
+      } catch {
+        setAdminEmail('admin@gmail.com');
+      }
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, refreshAdminEmail);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, refreshAdminEmail);
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -344,7 +366,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
             <div className="admin-header-profile-dropdown animate-scale-in absolute right-0 mt-3 w-56 bg-white rounded-card shadow-raised border border-slate-200 py-2 z-50 transform origin-top-right transition-all">
               <div className="px-4 py-3 border-b border-slate-100 mb-2">
                 <p className="text-body font-semibold text-slate-800 m-0">Admin Dashboard</p>
-                <p className="text-label text-slate-500 m-0 mt-0.5 truncate">admin@system.com</p>
+                <p className="text-label text-slate-500 m-0 mt-0.5 truncate">{adminEmail}</p>
               </div>
               <button
                 className="btn-interactive w-full text-left px-4 py-2.5 text-body text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-3 bg-transparent border-none cursor-pointer"
