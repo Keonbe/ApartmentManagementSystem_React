@@ -23,6 +23,11 @@
     border-radius: 1.25rem !important;
   }
 
+  /* The bill card pads its own sections (tinted summary, lines, total) */
+  .pay-bills-bill {
+    border-radius: 1.25rem !important;
+  }
+
   .pay-bills-method-option {
     min-height: 48px !important;
     padding: 0.75rem 1rem !important;
