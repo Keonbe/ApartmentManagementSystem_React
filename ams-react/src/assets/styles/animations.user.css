@@ -207,6 +207,11 @@
   animation: shimmerSkeleton 1.4s linear infinite;
 }
 
+/* On the dark user themes a 45% white sweep flashes; a faint one reads as the same shimmer. */
+.ut-root:is(.ut-dark, .ut-glass) .skeleton-shimmer::after {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+}
+
 /* Horizontal scroll container for wide tables */
 .table-scroll-x {
   overflow-x: auto;

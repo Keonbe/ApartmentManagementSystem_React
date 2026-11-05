@@ -39,12 +39,12 @@ export default function RoomKeyTag({ room, type, floor, monthlyRent, rentUntil, 
 
       <dl className="m-0 mt-5 space-y-2 border-t border-slate-300 pt-4 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-slate-600">Monthly rent</dt>
+          <dt className="text-slate-600 shrink-0">Monthly rent</dt>
           <dd className="m-0 font-bold text-slate-900 tabular-nums">{monthlyRent}</dd>
         </div>
         {rentUntil && (
           <div className="flex justify-between gap-3">
-            <dt className="text-slate-600">Rent until</dt>
+            <dt className="text-slate-600 shrink-0">Rent until</dt>
             <dd className="m-0 font-bold text-slate-900 tabular-nums">{rentUntil}</dd>
           </div>
         )}
