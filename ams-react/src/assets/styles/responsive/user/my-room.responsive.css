@@ -19,6 +19,15 @@
 .my-room-enter > *:nth-child(5) { animation-delay: 200ms; }
 .my-room-enter > *:nth-child(n + 6) { animation-delay: 250ms; }
 
+/* The rent period bar fills in from the left once, after the cards arrive. */
+.my-room-grow {
+  animation: myRoomGrow 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s backwards;
+}
+@keyframes myRoomGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
 @media (max-width: 768px) {
   .my-room-root {
     padding: 1.5rem 1rem !important;

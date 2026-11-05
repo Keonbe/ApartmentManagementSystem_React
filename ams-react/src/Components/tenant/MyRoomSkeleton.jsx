@@ -82,13 +82,26 @@ export default function MyRoomSkeleton() {
               <Bone className="h-4 w-28" />
               <BillSkeleton />
             </div>
+            <div aria-hidden="true" className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-3">
+              <Bone className="h-4 w-32" />
+              <Bone className="h-2.5 w-full rounded-full" />
+              <Bone className="h-4 w-full" />
+            </div>
             <div aria-hidden="true" className="grid grid-cols-2 gap-2">
               {[0, 1, 2, 3].map((i) => <Bone key={i} className="h-[52px] rounded-xl" />)}
             </div>
           </div>
         </div>
 
-        <HouseholdSkeleton />
+        <div className="flex flex-col gap-4">
+          <HouseholdSkeleton />
+          <div aria-hidden="true" className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4">
+            <Bone className="h-6 w-32" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              {[0, 1, 2, 3].map((i) => <Bone key={i} className="h-4 w-full" />)}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

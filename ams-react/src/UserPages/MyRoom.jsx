@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faBookOpen, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
 import HouseRulesModal from '../Components/HouseRulesModal';
 import RoomKeyTag from '../Components/tenant/RoomKeyTag';
 import Disclosure from '../Components/tenant/Disclosure';
 import ImportantInfo from '../Components/tenant/ImportantInfo';
+import HouseRulesCard from '../Components/tenant/HouseRulesCard';
+import RentTermCard from '../Components/tenant/RentTermCard';
 import MyRoomSkeleton, { BillSkeleton, HouseholdSkeleton } from '../Components/tenant/MyRoomSkeleton';
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
@@ -76,6 +78,7 @@ export default function MyRoom() {
     const [occupants, setOccupants] = useState(2);
     const [expectedEnd, setExpectedEnd] = useState('');
     const [daysUntilExpiration, setDaysUntilExpiration] = useState(null);
+    const [term, setTerm] = useState(null); // { start, elapsedPct } for RentTermCard
     const [moveOutDaysLeft, setMoveOutDaysLeft] = useState(null);
     const [showMoveOutModal, setShowMoveOutModal] = useState(false);
     const [moveOutDate, setMoveOutDate] = useState('');
@@ -114,6 +117,13 @@ export default function MyRoom() {
                 });
 
                 setDaysUntilExpiration(Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                // Rent period card: start date and how much of the period has passed.
+                const startDate = data.lease_start ? new Date(data.lease_start) : creationDate;
+                const span = endDate.getTime() - startDate.getTime();
+                setTerm({
+                    start: startDate.toISOString().slice(0, 10),
+                    elapsedPct: span > 0 ? Math.min(100, Math.max(0, ((Date.now() - startDate.getTime()) / span) * 100)) : 100,
+                });
                 // Days until a requested move-out (shown under "Ending your rent").
                 setMoveOutDaysLeft(data.requested_move_out_date
                     ? Math.ceil((new Date(`${String(data.requested_move_out_date).slice(0, 10)}T00:00:00`).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -403,18 +413,8 @@ export default function MyRoom() {
         });
     }
     if (household?.hasLease && !movedOut) {
-        const named = 1 + household.members.filter((m) => m.status === 'Active').length;
         const queued = household.members.filter((m) => m.status === 'Pending').length;
         const removals = household.members.filter((m) => m.removalRequested).length;
-        const unnamed = household.occupants - named - queued;
-        if (unnamed > 0) {
-            importantItems.push({
-                key: 'unnamed', tone: 'action', icon: faUsers,
-                title: `${unnamed} occupant${unnamed === 1 ? ' is' : 's are'} not named yet`,
-                text: `Your room is registered for ${household.occupants}, but only ${named} ${named === 1 ? 'is' : 'are'} named. Add everyone who lives with you. It doesn't change your rent.`,
-                action: named + queued < household.maxOccupants ? { label: 'Add a member', onClick: () => setAddMemberOpen(true) } : undefined,
-            });
-        }
         if (queued + removals > 0) {
             const parts = [queued && `${queued} addition${queued === 1 ? '' : 's'}`, removals && `${removals} removal${removals === 1 ? '' : 's'}`].filter(Boolean);
             importantItems.push({
@@ -424,21 +424,6 @@ export default function MyRoom() {
             });
         }
     }
-    if (!movedOut) {
-        const rules = [
-            'Pets are not allowed.',
-            household?.minAge ? `Children under ${household.minAge} cannot live in the apartment.` : '',
-            household?.childFloorRule ? `Children under ${household.childFloorRule.belowAge} cannot live on the ${household.childFloorRule.floorLabel} (stairs).` : '',
-            surchargePerPerson > 0 ? `Each person above 4 adds ₱${surchargePerPerson.toLocaleString()} a month.` : '',
-        ].filter(Boolean);
-        importantItems.push({
-            key: 'rules', tone: 'info', icon: faBookOpen,
-            title: 'House rules',
-            text: rules.join(' '),
-            action: { label: 'View all rules', onClick: () => setRulesOpen(true) },
-        });
-    }
-
 
     return (
         <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-8 sm:py-10 px-4 md:px-12">
@@ -457,7 +442,7 @@ export default function MyRoom() {
                 <ImportantInfo items={importantItems} />
 
                 {/* The key tag, and what the tenant checks most beside it. */}
-                <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-6 items-start">
+                <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-6 items-stretch">
                     <RoomKeyTag
                         room={roomDetails.name}
                         type={roomDetails.type}
@@ -500,7 +485,17 @@ export default function MyRoom() {
                             )}
                         </section>
 
-                        <nav aria-label="Room shortcuts" className="grid grid-cols-2 gap-2">
+                        {term && !movedOut && (
+                            <RentTermCard
+                                start={fmtDay(term.start)}
+                                end={fmtDay(expectedEnd)}
+                                elapsedPct={term.elapsedPct}
+                                daysLeft={daysUntilExpiration}
+                                onExtend={!movingOut && !extensionBlocked ? openExtend : undefined}
+                            />
+                        )}
+
+                        <nav aria-label="Room shortcuts" className="grid grid-cols-2 gap-2 mt-auto">
                             {quickLinks.map((link) => (
                                 <button
                                     key={link.to}
@@ -519,15 +514,21 @@ export default function MyRoom() {
                     </div>
                 </div>
 
-                {household === null && !householdError ? <HouseholdSkeleton /> : (
-                    <HouseholdPanel
-                        data={household}
-                        error={householdError}
-                        onChanged={loadHousehold}
-                        addOpen={addMemberOpen}
-                        onAddOpenChange={setAddMemberOpen}
-                    />
-                )}
+                {/* The household, with the rules on who may live in the room right under it. */}
+                <div className="flex flex-col gap-4">
+                    {household === null && !householdError ? <HouseholdSkeleton /> : (
+                        <HouseholdPanel
+                            data={household}
+                            error={householdError}
+                            onChanged={loadHousehold}
+                            addOpen={addMemberOpen}
+                            onAddOpenChange={setAddMemberOpen}
+                            monthlyRent={roomDetails.monthlyRent}
+                            surchargePerPerson={surchargePerPerson}
+                        />
+                    )}
+                    {!movedOut && household?.hasLease !== false && <HouseRulesCard data={household} onViewAll={() => setRulesOpen(true)} />}
+                </div>
 
                 {!movedOut && (
                     <section aria-labelledby="manage-rent-heading">

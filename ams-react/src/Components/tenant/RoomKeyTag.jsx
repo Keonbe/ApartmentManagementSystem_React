@@ -27,15 +27,18 @@ export default function RoomKeyTag({ room, type, floor, monthlyRent, rentUntil, 
   return (
     <section
       aria-labelledby="room-key-tag-name"
-      className="ut-native relative w-full rounded-t-[72px] rounded-b-3xl bg-slate-100 text-slate-900 px-6 pt-14 pb-6 shadow-2xl shadow-slate-900/30 ring-1 ring-slate-900/5"
+      className="ut-native relative w-full h-full flex flex-col rounded-t-[72px] rounded-b-3xl bg-slate-100 text-slate-900 px-6 pt-14 pb-6 shadow-2xl shadow-slate-900/30 ring-1 ring-slate-900/5"
     >
       {/* The punched hole the key ring goes through. */}
       <span aria-hidden="true" className="absolute left-1/2 top-5 h-5 w-5 -translate-x-1/2 rounded-full bg-slate-950 ring-4 ring-slate-300" />
 
+      {/* Takes the spare height when the cards beside the tag are taller, so the name stays centred. */}
+      <div className="flex-1 flex flex-col justify-center">
       <h2 id="room-key-tag-name" className={`m-0 text-center font-black leading-none tracking-tight text-brand tabular-nums break-words ${nameSize}`}>
         <span className="sr-only">Room </span>{name}
       </h2>
       {details && <p className="m-0 mt-3 text-center text-sm font-semibold text-slate-700">{details}</p>}
+      </div>
 
       <dl className="m-0 mt-5 space-y-2 border-t border-slate-300 pt-4 text-sm">
         <div className="flex justify-between gap-3">
@@ -51,7 +54,7 @@ export default function RoomKeyTag({ room, type, floor, monthlyRent, rentUntil, 
       </dl>
 
       {statusLabel && (
-        <p className={`m-0 mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${TONE[statusTone] || TONE.neutral}`}>
+        <p className={`m-0 mt-4 self-start inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${TONE[statusTone] || TONE.neutral}`}>
           <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />
           {statusLabel}
         </p>

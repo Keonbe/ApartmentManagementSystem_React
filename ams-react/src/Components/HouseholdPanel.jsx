@@ -21,7 +21,7 @@ const initials = (name) => String(name || '?').trim().split(/\s+/).filter(Boolea
 // dialog (`addOpen`, lifted so Important info can open it too). Adding or
 // removing someone is a request that management approves. To replace someone,
 // request the removal and the addition.
-export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddOpenChange }) {
+export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddOpenChange, monthlyRent = 0, surchargePerPerson = 0 }) {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -123,6 +123,13 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
   // One segment per allowed occupant: named, awaiting approval, free.
   const seats = Array.from({ length: data.maxOccupants }, (_, i) => (i < named ? 'named' : i < named + queued ? 'queued' : 'free'));
   const SEAT = { named: 'bg-indigo-600', queued: 'bg-amber-400', free: 'bg-slate-200' };
+  // What approving one more person does to the rent, as process_tenant_request.php
+  // counts it: a named person fills a place already paid for; past that, the
+  // count rises and every person above 4 adds the surcharge (apply_occupant_count()).
+  const countAfter = Math.max(data.occupants, named + queued + 1);
+  const extraPeople = Math.max(0, countAfter - 4) - Math.max(0, data.occupants - 4);
+  const rentRise = extraPeople * surchargePerPerson;
+  const peso = (n) => `₱${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <section aria-labelledby="household-heading" className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 text-left flex flex-col gap-5">
@@ -302,11 +309,21 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
                     inputClassName={`w-full min-h-[44px] px-3 rounded-r-xl bg-white border border-slate-200 text-slate-900 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border font-normal${invalidCls(fields.errors.contactNo)}`}
                   />
                 </label>
-                <p className="sm:col-span-2 m-0 rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600">
-                  {data.minAge ? `Children under ${data.minAge} are not allowed. ` : ''}
-                  {data.childFloorRule ? `Children under ${data.childFloorRule.belowAge} cannot live on the ${data.childFloorRule.floorLabel} (stairs). ` : ''}
-                  Pets are not allowed. A new person above 4 occupants adds the monthly surcharge.
-                </p>
+                {/* Rent preview for this request, with the real numbers. */}
+                <div className={`sm:col-span-2 rounded-xl border p-3 text-sm ${rentRise > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <p className={`m-0 font-bold ${rentRise > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                    {rentRise > 0 ? `Your rent goes up by ${peso(rentRise)} a month` : 'Your rent stays the same'}
+                  </p>
+                  <p className="m-0 mt-1 text-slate-700">
+                    {rentRise > 0
+                      ? `This makes ${countAfter} occupants. Up to 4 are included in your rent, and each person above 4 adds ${peso(surchargePerPerson)}. Once management approves, your rent becomes ${peso(monthlyRent + rentRise)} a month on the bills issued after that.`
+                      : countAfter === data.occupants
+                        ? `Your room is already registered for ${data.occupants} people, so naming them fills a place you pay for.`
+                        : surchargePerPerson > 0
+                          ? `This makes ${countAfter} occupants. Up to 4 people are included in your rent.`
+                          : 'There is no extra charge per person.'}
+                  </p>
+                </div>
                 {notice?.inDialog && (
                   <p role="alert" className="sm:col-span-2 m-0 text-sm font-semibold text-rose-700">{notice.text}</p>
                 )}
