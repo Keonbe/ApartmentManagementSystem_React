@@ -398,7 +398,8 @@ const ChatWidget = () => {
                     ref={launcherRef}
                     type="button"
                     onClick={() => setIsChatOpen(true)}
-                    className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-all transform hover:scale-110 cursor-pointer border-0"
+                    // chat-fab: on tenant pages themes.user.css paints it the TopBar's brand colour.
+                    className="chat-fab w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-all transform hover:scale-110 cursor-pointer border-0"
                     aria-label={totalUnreadCount > 0 ? t('chat.openUnread', { n: totalUnreadCount }) : t('chat.open')}
                 >
                     <FontAwesomeIcon icon={faComment} className="text-2xl" />
@@ -415,7 +416,7 @@ const ChatWidget = () => {
                     role="dialog"
                     aria-label={t('chat.label')}
                     tabIndex={-1}
-                    className="outline-none w-[min(24rem,calc(100vw-1rem))] h-[min(500px,calc(100dvh-1rem))] min-h-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 sm:h-[500px]"
+                    className="chat-window outline-none w-[min(24rem,calc(100vw-1rem))] h-[min(500px,calc(100dvh-1rem))] min-h-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 sm:h-[500px]"
                 >
                     {/* Header */}
                     <div className="bg-indigo-600 p-4 text-white flex justify-between items-center shrink-0">

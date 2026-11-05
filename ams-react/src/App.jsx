@@ -4,6 +4,7 @@ import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
 import { GUEST_CHAT_OPENED_EVENT } from './config/appEvents';
 import ChatWidget from './Components/ChatWidget';
+import BackToTop from './Components/BackToTop';
 
 // Components
 import TopBar from './Components/TopBar';
@@ -164,6 +165,7 @@ function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
           &copy; 2026 Apartment Management System. All Rights Reserved.
         </p>
       </footer>
+      <BackToTop />
     </UserThemeScope>
   );
 }
