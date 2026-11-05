@@ -6,6 +6,22 @@
    themselves (the identity card's banner runs edge to edge).
    ===================================================== */
 
+/* Save bar (only while something is unsaved): sticks above the chat and
+   back-to-top buttons (bottom-right, up to 80px tall) while the form scrolls. */
+.profile-save-bar {
+  bottom: 5.5rem;
+  animation: profile-save-bar-in 0.2s ease-out both;
+}
+
+@keyframes profile-save-bar-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-save-bar { animation: none; }
+}
+
 @media (max-width: 768px) {
   .profile-settings-card {
     border-radius: 1.5rem !important;

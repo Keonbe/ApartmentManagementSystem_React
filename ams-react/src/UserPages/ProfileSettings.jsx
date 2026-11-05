@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo, faPen, faUser, faAddressCard, faChevronRight, faTimes, faTrashAlt } from '@fortawesome/free-solid-svg-icons';
+import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo, faPen, faUser, faAddressCard, faChevronRight, faTimes, faTrashAlt, faLock } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../Components/admin/Modal';
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
@@ -33,6 +33,34 @@ const VALIDATORS = {
     gender: (v) => (GENDERS.includes(v) ? '' : translate('profile.errGender')),
 };
 
+// A card's title row: icon, title and a one-line hint, above a divider.
+function SectionHeader({ icon, title, hint }) {
+    return (
+        <div className="flex items-center gap-3 px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100">
+            <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <FontAwesomeIcon icon={icon} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+                <h3 className="m-0 text-base font-bold text-slate-900">{title}</h3>
+                {hint && <p className="m-0 mt-0.5 text-xs sm:text-sm text-slate-500">{hint}</p>}
+            </div>
+        </div>
+    );
+}
+
+// Label (with an "Optional" tag when given), the control, and its error.
+function FormField({ id, label, optional, error, className = '', children }) {
+    return (
+        <div className={`flex flex-col gap-1.5 min-w-0 ${className}`}>
+            <label htmlFor={id} className="flex items-baseline justify-between gap-2 text-sm font-bold text-slate-700">
+                <span>{label}</span>
+                {optional && <span className="text-xs font-medium text-slate-400">{optional}</span>}
+            </label>
+            {children}
+            <FieldError id={id} error={error} className="m-0" />
+        </div>
+    );
+}
 
 export default function ProfileSettings() {
     const { t } = useLang();
@@ -60,6 +88,15 @@ export default function ProfileSettings() {
     const [showPassModal, setShowPassModal] = useState(false);
     // The "Change photo" dialog, opened by clicking the avatar.
     const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+    // The values as last loaded or saved: the Save bar shows only when the form differs.
+    const [saved, setSaved] = useState(() => ({
+        firstName: loggedInUser.first_name || '',
+        middleName: loggedInUser.middle_name || '',
+        lastName: loggedInUser.last_name || '',
+        suffix: loggedInUser.suffix || '',
+        gender: loggedInUser.gender || '',
+        phone: toPhLocal10(loggedInUser.contact_no),
+    }));
 
     // Camera Snapshot Simulation States
     const [isCameraActive, setIsCameraActive] = useState(false);
@@ -88,14 +125,21 @@ export default function ProfileSettings() {
                 const res = await api.get(`/profile.php?email=${encodeURIComponent(loggedInUser.email_address)}`);
                 if (res.data.success && res.data.data) {
                     const data = res.data.data;
-                    setFirstName(data.first_name || '');
-                    setMiddleName(data.middle_name || '');
-                    setLastName(data.last_name || '');
-                    setSuffix(data.suffix || '');
-                    setGender(data.gender || '');
-                    if (data.contact_no) {
-                        setPhoneRawNumber(toPhLocal10(data.contact_no));
-                    }
+                    const loaded = {
+                        firstName: data.first_name || '',
+                        middleName: data.middle_name || '',
+                        lastName: data.last_name || '',
+                        suffix: data.suffix || '',
+                        gender: data.gender || '',
+                        phone: data.contact_no ? toPhLocal10(data.contact_no) : toPhLocal10(loggedInUser.contact_no),
+                    };
+                    setFirstName(loaded.firstName);
+                    setMiddleName(loaded.middleName);
+                    setLastName(loaded.lastName);
+                    setSuffix(loaded.suffix);
+                    setGender(loaded.gender);
+                    setPhoneRawNumber(loaded.phone);
+                    setSaved(loaded);
                     if (data.avatar_url) {
                         // Ensure the URL is properly formatted for the browser
                         const avatarPath = data.avatar_url.startsWith('/') ? data.avatar_url : '/' + data.avatar_url;
@@ -212,6 +256,26 @@ export default function ProfileSettings() {
         form.clearError('contactNo');
     };
 
+    // Unsaved edits (a field differs from the last load / save, or a new photo is waiting).
+    const isDirty = !!selectedFile
+        || firstName !== saved.firstName || middleName !== saved.middleName
+        || lastName !== saved.lastName || suffix !== saved.suffix
+        || gender !== saved.gender || phoneRawNumber !== saved.phone;
+
+    const discardChanges = () => {
+        setFirstName(saved.firstName);
+        setMiddleName(saved.middleName);
+        setLastName(saved.lastName);
+        setSuffix(saved.suffix);
+        setGender(saved.gender);
+        setPhoneRawNumber(saved.phone);
+        setTempAvatar(null);
+        setSelectedFile(null);
+        setSaveError('');
+        setAvatarError('');
+        ['firstName', 'middleName', 'lastName', 'suffix', 'gender', 'contactNo'].forEach((n) => form.clearError(n));
+    };
+
 
     // Update your handleFormSubmit function with this complete flow
     const handleFormSubmit = async (e) => {
@@ -295,6 +359,11 @@ export default function ProfileSettings() {
                 setTempAvatar(null);
                 setSelectedFile(null);
                 setAvatarImgFailed(false);
+                // The new baseline: the Save bar hides until the next edit.
+                setSaved({
+                    firstName: clean.firstName, middleName: clean.middleName, lastName: clean.lastName,
+                    suffix: clean.suffix, gender, phone: phoneRawNumber,
+                });
                 // TopBar re-reads the user and avatar (was a full page reload).
                 window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
                 setNotice({ message: t('profile.savedTitle'), subtext: t('profile.savedBody') });
@@ -397,14 +466,11 @@ export default function ProfileSettings() {
                 </section>
 
                 <form className="space-y-6" onSubmit={handleFormSubmit} noValidate>
-                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm p-5 sm:p-8 space-y-5">
-                        <h3 className="flex items-center gap-2.5 text-base font-bold m-0 text-slate-900">
-                            <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm"><FontAwesomeIcon icon={faUser} aria-hidden="true" /></span>
-                            {t('profile.personalDetails')}
-                        </h3>
-                        <div className="profile-details-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                            <div className="flex flex-col space-y-1.5">
-                                <label htmlFor="profile-firstName" className="text-sm font-bold text-slate-700">{t('profile.firstName')}</label>
+                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <SectionHeader icon={faUser} title={t('profile.personalDetails')} hint={t('profile.personalHint')} />
+                        {/* 12 columns on large screens: first | middle, then last | suffix | gender */}
+                        <div className="profile-details-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-x-5 gap-y-5 p-5 sm:p-8">
+                            <FormField id="profile-firstName" label={t('profile.firstName')} error={form.errors.firstName} className="lg:col-span-6">
                                 <input
                                     type="text"
                                     {...form.fieldA11y('firstName')}
@@ -416,10 +482,8 @@ export default function ProfileSettings() {
                                     className={INPUT_CLS + invalidCls(form.errors.firstName)}
                                     required
                                 />
-                                <FieldError id="profile-firstName" error={form.errors.firstName} className="m-0" />
-                            </div>
-                            <div className="flex flex-col space-y-1.5">
-                                <label htmlFor="profile-middleName" className="text-sm font-bold text-slate-700">{t('reg.middleName') || 'Middle Name'}</label>
+                            </FormField>
+                            <FormField id="profile-middleName" label={t('reg.middleName') || 'Middle Name'} optional={t('profile.optional')} error={form.errors.middleName} className="lg:col-span-6">
                                 <input
                                     type="text"
                                     {...form.fieldA11y('middleName')}
@@ -430,10 +494,8 @@ export default function ProfileSettings() {
                                     onBlur={blur('middleName')}
                                     className={INPUT_CLS + invalidCls(form.errors.middleName)}
                                 />
-                                <FieldError id="profile-middleName" error={form.errors.middleName} className="m-0" />
-                            </div>
-                            <div className="flex flex-col space-y-1.5">
-                                <label htmlFor="profile-lastName" className="text-sm font-bold text-slate-700">{t('profile.lastName')}</label>
+                            </FormField>
+                            <FormField id="profile-lastName" label={t('profile.lastName')} error={form.errors.lastName} className="lg:col-span-6">
                                 <input
                                     type="text"
                                     {...form.fieldA11y('lastName')}
@@ -445,49 +507,40 @@ export default function ProfileSettings() {
                                     className={INPUT_CLS + invalidCls(form.errors.lastName)}
                                     required
                                 />
-                                <FieldError id="profile-lastName" error={form.errors.lastName} className="m-0" />
-                            </div>
-                            <div className="flex flex-col space-y-1.5">
-                                <label htmlFor="profile-suffix" className="text-sm font-bold text-slate-700">{t('profile.suffix')}</label>
+                            </FormField>
+                            <FormField id="profile-suffix" label={t('profile.suffix')} optional={t('profile.optional')} error={form.errors.suffix} className="lg:col-span-3">
                                 <input
                                     type="text"
                                     {...form.fieldA11y('suffix')}
                                     autoComplete="honorific-suffix"
                                     value={suffix}
                                     maxLength={LIMITS.suffix}
+                                    placeholder={t('profile.suffixPlaceholder')}
                                     onChange={change('suffix')}
                                     onBlur={blur('suffix')}
                                     className={INPUT_CLS + invalidCls(form.errors.suffix)}
                                 />
-                                <FieldError id="profile-suffix" error={form.errors.suffix} className="m-0" />
-                            </div>
-                        </div>
-                        <div className="profile-details-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                            <div className="flex flex-col space-y-1.5">
-                                <label htmlFor="profile-gender" className="text-sm font-bold text-slate-700">{t('profile.gender')}</label>
+                            </FormField>
+                            <FormField id="profile-gender" label={t('profile.gender')} error={form.errors.gender} className="lg:col-span-3">
                                 <select
                                     {...form.fieldA11y('gender')}
                                     value={gender}
                                     onChange={change('gender')}
                                     onBlur={() => form.validateField('gender', values)}
-                                    className={INPUT_CLS + invalidCls(form.errors.gender)}
+                                    className={INPUT_CLS + ' cursor-pointer' + invalidCls(form.errors.gender)}
                                     required
                                 >
                                     <option value="" disabled hidden>{t('profile.selectGender')}</option>
                                     {GENDERS.map((g) => <option key={g} value={g}>{t(`profile.gender${g}`)}</option>)}
                                 </select>
-                                <FieldError id="profile-gender" error={form.errors.gender} className="m-0" />
-                            </div>
+                            </FormField>
                         </div>
                     </section>
 
-                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm p-5 sm:p-8 space-y-5">
-                        <h3 className="flex items-center gap-2.5 text-base font-bold m-0 text-slate-900">
-                            <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm"><FontAwesomeIcon icon={faAddressCard} aria-hidden="true" /></span>
-                            {t('profile.contactDetails')}
-                        </h3>
-                        <div className="profile-details-grid grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex flex-col space-y-1.5">
+                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <SectionHeader icon={faAddressCard} title={t('profile.contactDetails')} hint={t('profile.contactHint')} />
+                        <div className="profile-details-grid grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-5 p-5 sm:p-8">
+                            <div className="flex flex-col gap-1.5 min-w-0">
                                 <label htmlFor="profile-contactNo" className="text-sm font-bold text-slate-700">{t('profile.contactNumber')}</label>
                                 <PhoneInput
                                     id="profile-contactNo"
@@ -499,21 +552,22 @@ export default function ProfileSettings() {
                                     required
                                 />
                             </div>
-                            <div className="flex flex-col space-y-1.5">
+                            {/* The sign-in email is shown, not edited. */}
+                            <div className="flex flex-col gap-1.5 min-w-0">
                                 <label htmlFor="profile-email" className="text-sm font-bold text-slate-700">{t('profile.email')}</label>
-                                <input
-                                    type="email"
-                                    {...form.fieldA11y('email')}
-                                    inputMode="email"
-                                    autoComplete="email"
-                                    value={email}
-                                    maxLength={LIMITS.userEmail}
-                                    onChange={change('email')}
-                                    onBlur={blur('email')}
-                                    className={INPUT_CLS + invalidCls(form.errors.email)}
-                                    required
-                                />
-                                <FieldError id="profile-email" error={form.errors.email} className="m-0" />
+                                <div className="relative">
+                                    <input
+                                        id="profile-email"
+                                        type="email"
+                                        value={email}
+                                        readOnly
+                                        aria-readonly="true"
+                                        aria-describedby="profile-email-hint"
+                                        className={`${INPUT_CLS} pr-10 bg-slate-100 text-slate-500 cursor-not-allowed focus:ring-0 shadow-none`}
+                                    />
+                                    <FontAwesomeIcon icon={faLock} aria-hidden="true" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" />
+                                </div>
+                                <p id="profile-email-hint" className="m-0 text-xs text-slate-500">{t('profile.emailLocked')}</p>
                             </div>
                         </div>
                     </section>
@@ -551,16 +605,34 @@ export default function ProfileSettings() {
                         </div>
                     )}
 
-                    <div className="profile-save-bar flex justify-end">
-                        <button
-                            type="submit"
-                            disabled={isSaving}
-                            className="profile-save-btn btn-interactive w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                            <FontAwesomeIcon icon={faSave} aria-hidden="true" />
-                            <span>{isSaving ? 'Saving…' : t('profile.saveProfile')}</span>
-                        </button>
-                    </div>
+                    {/* Only while something is unsaved. Sticks near the bottom of the screen
+                        (above the chat / back-to-top buttons) until the form ends. */}
+                    {(isDirty || isSaving) && (
+                        <div role="region" aria-label={t('profile.unsavedChanges')} className="profile-save-bar sticky z-20 rounded-2xl border border-indigo-200 bg-white shadow-lg px-4 py-3 sm:px-5 flex flex-col sm:flex-row sm:items-center gap-3">
+                            <p className="m-0 flex-1 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                                {t('profile.unsavedChanges')}
+                            </p>
+                            <div className="flex gap-2 sm:shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={discardChanges}
+                                    disabled={isSaving}
+                                    className="flex-1 sm:flex-none min-h-[44px] px-5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                    {t('profile.discard')}
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSaving}
+                                    className="profile-save-btn flex-1 sm:flex-none min-h-[44px] px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold border-0 cursor-pointer shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    <FontAwesomeIcon icon={faSave} aria-hidden="true" />
+                                    <span>{isSaving ? 'Saving…' : t('profile.saveProfile')}</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </form>
             </div>
 
