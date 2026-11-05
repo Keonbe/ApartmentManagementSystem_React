@@ -438,6 +438,8 @@ CREATE TABLE `users` (
   `login_otp` varchar(6) DEFAULT NULL,
   `login_otp_expires_at` datetime DEFAULT NULL,
   `login_otp_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  -- 'default' follows the login_otp_enabled setting; 'on' / 'off' override it for this account.
+  `login_otp_mode` enum('default','on','off') NOT NULL DEFAULT 'default',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email_address` (`email_address`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -1562,6 +1564,8 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 -- log | smtp. The email mirror of sms_provider's 'log' dry-run driver: renders
 -- and records the message without opening a socket.
 ('email_driver', 'log'),
+-- '1' = a tenant on a new device gets an emailed sign-in code (users.login_otp_mode can override per account).
+('login_otp_enabled', '1'),
 ('sms_provider', 'log'),
 ('sms_api_key', ''),
 ('sms_sender_name', 'AMS'),
