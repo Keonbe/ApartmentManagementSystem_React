@@ -85,10 +85,15 @@
 
 /* ---------- Floating buttons: chat launcher + back to top ---------- */
 /* Same brand colour as the TopBar (the admin side's chat stays indigo: no .ut-root). */
+/* Soft brand-tinted shadow plus a faint light rim: a heavy dark shadow made the
+   small circle read darker than the full-width bar, though the colour is the same. */
 .ut-root .chat-fab,
 .ut-root .back-to-top {
   background-color: var(--color-brand);
-  box-shadow: 0 10px 24px -8px rgb(15 23 42 / 0.45);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 0 0 1px rgb(255 255 255 / 0.06),
+    0 8px 20px -10px rgb(59 66 118 / 0.55);
 }
 
 .ut-root .chat-fab:hover,
