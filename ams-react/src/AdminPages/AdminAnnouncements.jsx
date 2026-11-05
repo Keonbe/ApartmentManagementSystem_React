@@ -165,13 +165,17 @@ const AdminAnnouncements = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; the loaders only call stable useLoadState callbacks
   }, []);
 
-  // Units that have a current tenant, with how many tenants each.
+  // Units and tenant names come from get_rooms.php's admin-only occupancy history.
   const units = useMemo(() => {
-    const counts = {};
-    tenants.forEach(t => { if (t.unit) counts[t.unit] = (counts[t.unit] || 0) + 1; });
-    return Object.keys(counts)
+    const namesByUnit = {};
+    tenants.forEach(t => {
+      if (!t.unit) return;
+      const name = String(t.name || '').trim();
+      if (name) (namesByUnit[t.unit] ||= []).push(name);
+    });
+    return Object.keys(namesByUnit)
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-      .map(name => ({ name, count: counts[name] }));
+      .map(name => ({ name, tenantNames: namesByUnit[name] }));
   }, [tenants]);
 
   const specific = form.sendTo === 'Specific unit';
@@ -381,7 +385,7 @@ const AdminAnnouncements = () => {
                     <select {...fields.fieldA11y('unit')} value={form.unit} onChange={e => setField('unit', e.target.value)} className={INPUT + invalidCls(fields.errors.unit)}>
                       <option value="" disabled>{units.length ? 'Choose a unit…' : 'No occupied units'}</option>
                       {units.map(u => (
-                        <option key={u.name} value={u.name}>Unit {u.name} ({u.count} tenant{u.count === 1 ? '' : 's'})</option>
+                        <option key={u.name} value={u.name}>Unit {u.name} — {u.tenantNames.join(', ')}</option>
                       ))}
                     </select>
                     <FieldError id="announce-unit" error={fields.errors.unit} />
