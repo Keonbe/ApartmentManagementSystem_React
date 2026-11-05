@@ -230,11 +230,11 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
                 aria-checked={active}
                 aria-label={m.label}
                 title={m.label}
-                onClick={(e) => {
+                onClick={() => {
                   if (active) return;
-                  const from = e.currentTarget;
                   setThemeSwitched(true);
-                  withViewTransition(() => setAdminTheme(m.id), { kind: 'theme', from });
+                  // A quick cross-fade, not the tenant side's circle reveal.
+                  withViewTransition(() => setAdminTheme(m.id), { kind: 'fade' });
                 }}
                 className={`admin-theme-btn admin-theme-btn-${m.id} group touch-compact relative z-[1] w-7 h-7 sm:w-9 sm:h-9 rounded-full border-0 bg-transparent cursor-pointer flex items-center justify-center text-label sm:text-body transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                   active ? m.on : 'text-slate-400 hover:text-slate-700'

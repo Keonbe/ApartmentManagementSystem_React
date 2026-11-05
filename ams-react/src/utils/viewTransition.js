@@ -4,7 +4,9 @@ import { flushSync } from 'react-dom';
 // View Transition, so it animates instead of snapping:
 //   kind 'theme' – the new look spreads in a circle from the switch that was
 //                  pressed (pass that button as `from`);
-//   kind 'lang'  – the text cross-fades.
+//   kind 'lang'  – the text cross-fades;
+//   kind 'fade'  – a short plain cross-fade (the admin side's light / dark
+//                  switch: a work tool, so no reveal effect).
 // The styles are in assets/styles/themes.user.css (::view-transition-*).
 // Browsers without the API, and reduced motion, just apply the change.
 export function withViewTransition(update, { kind, from } = {}) {

@@ -181,6 +181,12 @@ html[data-vt='lang']::view-transition-new(root) {
   animation: utLangIn 0.34s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
 }
 
+html[data-vt='fade']::view-transition-old(root),
+html[data-vt='fade']::view-transition-new(root) {
+  animation-duration: 0.2s;
+  animation-timing-function: ease-out;
+}
+
 @keyframes utLangOut {
   to { opacity: 0; filter: blur(3px); }
 }
