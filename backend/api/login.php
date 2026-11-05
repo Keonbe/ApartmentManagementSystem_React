@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "../config.php";
+require_once __DIR__ . '/services/login_otp_policy.php';
 
 // Moves a guest chat thread into `messages` for $userId. The guest's messages
 // become the user's, the admin's replies stay the admin's, and reply links,
@@ -129,7 +130,7 @@ if (empty($user['email_verified_at'])) {
 // A valid trusted-device cookie skips OTP; only its SHA-256 digest is persisted.
 $deviceToken = (string)($_COOKIE['ams_trusted_device'] ?? '');
 $isAdmin = ($user['role'] === 'admin');
-$trusted = $isAdmin || ams_skips_device_otp($user['email_address']); // Admins and non-production demo accounts bypass device OTP.
+$trusted = $isAdmin || ams_skips_device_otp($user['email_address']) || !login_needs_device_code($conn, (int)$user['id']); // Admins, non-production demo accounts and accounts with codes switched off skip device OTP.
 if (!$isAdmin && preg_match('/^[a-f0-9]{64}$/i', $deviceToken)) {
     $hash = hash('sha256', $deviceToken);
     $device = $conn->prepare('SELECT id FROM trusted_devices WHERE user_id = ? AND device_token = ? LIMIT 1');
