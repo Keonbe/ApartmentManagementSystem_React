@@ -17,6 +17,7 @@ A full-featured Apartment Management System for tenant self-service and day-to-d
 
 System documentation lives in [docs/](docs/). The first two entries are the authoritative status sources; when a document disagrees with the code, the code wins.
 
+- **For AI assistants & contributors:** [AGENTS.md](AGENTS.md) is the shared guide for Claude, Codex, Gemini and Copilot (conventions, commit workflow, and which doc to update for which change). [SPRINT.md](SPRINT.md) tracks tasks and progress per commit.
 - **Status & verification:**
   - [Panelist Feature Checklist](docs/features/panelist_feature_checklist.md) — Scope and completion status of every panel requirement.
   - [Module Verification Guide](docs/documentation/module_verification_guide.md) — Audited modules: API contracts, workflows, and test cases.
