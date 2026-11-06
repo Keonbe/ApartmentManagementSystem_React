@@ -30,6 +30,34 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $input = json_decode(file_get_contents("php://input"), true);
 if (!is_array($input)) $input = [];
+
+// POST {action: "remind_all"}: one reminder to everyone on both lists. The same
+// once-a-day rule applies per item (send_followup_nudge), so people reminded in
+// the last day, and lapsed payments (nothing to remind), are skipped and counted.
+// A named lock keeps two admins pressing it at once from double-sending.
+if (($input['action'] ?? '') === 'remind_all') {
+    $lock = $conn->query("SELECT GET_LOCK('ams_followup_remind_all', 10) AS got")->fetch_assoc();
+    if (!(int)($lock['got'] ?? 0)) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "Reminders are already being sent. Try again in a moment."]);
+        exit;
+    }
+    $sent = 0;
+    $skipped = 0;
+    foreach (array_merge(followup_overdue_tenants($conn), followup_missing_documents($conn)) as $item) {
+        if ($item['kind'] !== 'lapsed' && send_followup_nudge($conn, $item)) $sent++;
+        else $skipped++;
+    }
+    $conn->query("SELECT RELEASE_LOCK('ams_followup_remind_all')");
+    if ($sent > 0) log_activity($conn, $admin_id, 'billing', 'Sent Follow-Up Reminders', "Remind all: $sent sent, $skipped skipped");
+    $message = $sent === 0
+        ? "No reminders sent: everyone on the list was reminded in the last day, or has nothing to remind."
+        : "Sent $sent reminder" . ($sent === 1 ? '' : 's') . ($skipped ? ". Skipped $skipped (reminded in the last day, or nothing to remind)." : '.');
+    echo json_encode(["success" => true, "sent" => $sent, "skipped" => $skipped, "message" => $message]);
+    $conn->close();
+    exit;
+}
+
 $errors = array_filter([
     'kind' => v_enum($input['kind'] ?? '', 'Reminder type', ['payment', 'document']),
     'id' => v_id($input['id'] ?? null, 'Tenant or application'),

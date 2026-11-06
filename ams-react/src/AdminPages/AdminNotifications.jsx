@@ -9,7 +9,7 @@ import {
   faBell, faSearch, faTimes, faCheckDouble, faArchive, faClock, faMoneyBillWave,
   faWrench, faExclamationTriangle, faToggleOn, faToggleOff, faCog, faCheck,
   faUsers, faCalendarPlus, faCheckCircle, faTimesCircle, faFileContract, faCar, faVideo,
-  faArrowRight, faConciergeBell, faInfoCircle, faPlay
+  faArrowRight, faConciergeBell, faInfoCircle, faPlay, faXmark
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
@@ -25,6 +25,7 @@ import { btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import LoadError from '../Components/admin/ui/LoadError';
+import Modal from '../Components/admin/Modal';
 
 // update_system_settings.php: 0–30 days before due; every 1–30 days when overdue.
 const REMINDER_VALIDATORS = {
@@ -285,9 +286,9 @@ const AdminNotifications = () => {
               </div>
             )}
 
-            <div className="flex flex-col lg:flex-row gap-6">
+            <div>
 
-              <div className="flex-1 min-w-0 space-y-4">
+              <div className="min-w-0 space-y-4">
                 {/* Toolbar */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-control px-3 py-2 shadow-card focus-within:border-indigo-500 transition-all flex-1 max-w-sm">
@@ -301,8 +302,14 @@ const AdminNotifications = () => {
                     <button onClick={handleArchiveAll} disabled={archivingAll} className="flex items-center gap-1.5 px-3 py-2 text-label font-semibold text-red-600 bg-white border border-slate-200 rounded-control hover:bg-red-50 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-wait">
                       <FontAwesomeIcon icon={faArchive} /> Clear Processed
                     </button>
-                    <button onClick={() => setShowSettings(!showSettings)} className={`lg:hidden flex items-center gap-1.5 px-3 py-2 text-label font-semibold rounded-control cursor-pointer transition-colors border ${showSettings ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}>
-                      <FontAwesomeIcon icon={faCog} /> Settings
+                    <button
+                      type="button"
+                      onClick={() => setShowSettings(true)}
+                      aria-label="Reminder automation settings"
+                      title="Reminder automation"
+                      className="flex h-9 w-9 items-center justify-center rounded-control border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-indigo-600 cursor-pointer transition-colors"
+                    >
+                      <FontAwesomeIcon icon={faCog} />
                     </button>
                   </div>
                 </div>
@@ -419,10 +426,29 @@ const AdminNotifications = () => {
                 </div>
               </div>
 
-              {/* Settings Panel */}
-              <div className={`w-full lg:w-80 shrink-0 ${showSettings ? 'block' : 'hidden lg:block'}`}>
-                <div className="bg-white rounded-card border border-slate-200 shadow-card p-6 space-y-6 sticky top-6">
-                  <h3 className="text-body font-bold text-slate-800 flex items-center gap-2"><FontAwesomeIcon icon={faCog} className="text-slate-500" /> Reminder Automation</h3>
+
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {showSettings && (
+        <Modal
+          labelledBy="reminder-settings-title"
+          onClose={() => setShowSettings(false)}
+          busy={savingSettings || runningSweep}
+          className="bg-white rounded-dialog shadow-dialog w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[90vh]"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <h2 id="reminder-settings-title" className="m-0 flex items-center gap-2 text-title font-semibold text-slate-900">
+              <FontAwesomeIcon icon={faCog} className="text-slate-500" /> Reminder Automation
+            </h2>
+            <button type="button" onClick={() => setShowSettings(false)} disabled={savingSettings || runningSweep} aria-label="Close"
+              className="flex h-9 w-9 items-center justify-center rounded-full border-0 bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-900 cursor-pointer disabled:opacity-50">
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-6">
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -481,13 +507,9 @@ const AdminNotifications = () => {
                       These automatic reminders go out in-app and by email, not by SMS. To text a tenant, use Send Due Reminder on the Payments page.
                     </p>
                   </div>
-                </div>
-              </div>
-
-            </div>
           </div>
-        </div>
-      </main>
+        </Modal>
+      )}
 
       {selectedNotification && (
         <AdminNotificationModal
