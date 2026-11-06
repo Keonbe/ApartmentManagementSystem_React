@@ -32,6 +32,11 @@ if (!$user_id || $title === '' || $message === '') {
     exit;
 }
 // A queue type would make the message look like a request awaiting a decision.
+if (mb_strlen($message) > 5000) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "The message must be 5000 characters or fewer."]);
+    exit;
+}
 if (mb_strlen($title) > 255 || !preg_match('/^[a-z_]{1,50}$/', $type) || in_array($type, ADMIN_QUEUE_NOTIFICATION_TYPES, true)) {
     http_response_code(422);
     echo json_encode(["success" => false, "message" => "Invalid title or notification type."]);

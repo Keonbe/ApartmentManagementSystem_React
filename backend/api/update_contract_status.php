@@ -67,7 +67,8 @@ if ($action === 'edit') {
 
     $start_dt = DateTime::createFromFormat('Y-m-d', $lease_start);
     $end_dt = DateTime::createFromFormat('Y-m-d', $lease_end);
-    if (!$start_dt || !$end_dt) {
+    // createFromFormat rolls 2026-02-30 over to 2026-03-02, so compare the round trip.
+    if (!$start_dt || !$end_dt || $start_dt->format('Y-m-d') !== $lease_start || $end_dt->format('Y-m-d') !== $lease_end) {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "Dates must be in YYYY-MM-DD format."]);
         exit;

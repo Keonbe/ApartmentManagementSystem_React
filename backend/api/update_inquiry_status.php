@@ -53,6 +53,15 @@ if (!$inquiry) {
 }
 
 $viewing_date  = ($viewing_date === '') ? null : $viewing_date;
+// A free-text or impossible viewing time used to be stored as 0000-00-00 00:00:00.
+if ($viewing_date !== null) {
+    $viewing_date = real_date($viewing_date, true) ?? real_date($viewing_date);
+    if ($viewing_date === null) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Viewing schedule must be a valid date and time."]);
+        exit;
+    }
+}
 $closed_reason = ($closed_reason === '') ? null : $closed_reason;
 $admin_notes   = ($admin_notes === '') ? null : $admin_notes;
 $admin_id_int  = (int)$admin_id;

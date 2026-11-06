@@ -62,7 +62,7 @@ if ($contact_no === '')                                 $errors[] = "Contact num
 elseif (($contact_no = normalize_ph_mobile($contact_no) ?? '') === '') $errors[] = "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).";
 if (mb_strlen($room_name) > 50)                         $errors[] = "Invalid unit selection.";
 if ($occupants !== null && ($occupants < 1 || $occupants > 20)) $errors[] = "Occupants must be between 1 and 20.";
-if ($move_in !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $move_in)) $errors[] = "Invalid preferred move-in date.";
+if ($move_in !== '' && real_date($move_in) === null)    $errors[] = "Invalid preferred move-in date.";
 
 if (!empty($errors)) {
     echo json_encode(["success" => false, "message" => implode(' ', $errors)]);

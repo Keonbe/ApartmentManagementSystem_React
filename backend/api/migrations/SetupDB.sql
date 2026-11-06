@@ -381,6 +381,7 @@ CREATE TABLE `rooms` (
   `lease_end` date DEFAULT NULL,
   `last_tenant` varchar(100) DEFAULT NULL,
   `maintenance_flag` tinyint(1) NOT NULL DEFAULT 0,
+  `available_date` date DEFAULT NULL,
   `occupants` int(11) NOT NULL DEFAULT 0,
   `room_condition` varchar(100) DEFAULT 'Good',
   `furnishing_status` varchar(50) DEFAULT 'Unfurnished',

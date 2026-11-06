@@ -95,6 +95,19 @@ if (!isset($doc_columns[$doc_type])) {
     exit;
 }
 
+// A tenant's contract was already resolved through its owner above; an admin names any id, so check it exists.
+// Without this an admin "upload" to a mistyped id reported success, saved nothing and left the file on disk.
+$exists_stmt = $conn->prepare("SELECT 1 FROM lease_contracts WHERE id = ?");
+$exists_stmt->bind_param("s", $contract_id);
+$exists_stmt->execute();
+$contract_exists = $exists_stmt->get_result()->num_rows > 0;
+$exists_stmt->close();
+if (!$contract_exists) {
+    http_response_code(404);
+    echo json_encode(["success" => false, "message" => "Contract not found."]);
+    exit;
+}
+
 $column_name = $doc_columns[$doc_type];
 $is_signature = $doc_type === 'tenantSignature' || $doc_type === 'ownerSignature';
 // Management's own documents: a tenant may neither upload nor remove them.

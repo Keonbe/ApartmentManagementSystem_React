@@ -75,6 +75,12 @@ if (!$input) {
     exit;
 }
 
+// A JSON array or object here would be a TypeError (HTTP 500) in trim() / password_verify().
+if (!is_string($input["email_address"] ?? '') || !is_string($input["password"] ?? '')) {
+    http_response_code(422);
+    echo json_encode(["message" => "Email and password must be text.", "valid" => false]);
+    exit;
+}
 $email = trim($input["email_address"] ?? '');
 $password = $input["password"] ?? '';
 

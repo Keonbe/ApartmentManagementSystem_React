@@ -86,11 +86,15 @@ if (APP_ENV === 'production') {
 if (PHP_SAPI !== 'cli') {
     set_exception_handler(function ($e) {
         error_log('[AMS] ' . ($_SERVER['SCRIPT_NAME'] ?? 'cli') . ': ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+        // A TypeError here is almost always request data of the wrong shape (a JSON array or
+        // object where a string was expected, caught by trim() and friends): the caller's
+        // mistake, so 400 rather than a server error. It is logged above either way.
+        $bad_input = $e instanceof TypeError;
         if (!headers_sent()) {
-            http_response_code(500);
+            http_response_code($bad_input ? 400 : 500);
             header('Content-Type: application/json');
         }
-        echo json_encode(["success" => false, "message" => "Server error. Please try again."]);
+        echo json_encode(["success" => false, "message" => $bad_input ? "Invalid request data." : "Server error. Please try again."]);
     });
 }
 
@@ -3328,6 +3332,20 @@ function v_date($value, $label, $required = true, $format = 'Y-m-d') {
     $s = trim((string)$value);
     $d = DateTime::createFromFormat('!' . $format, $s);
     return ($d && $d->format($format) === $s) ? '' : "$label is not a valid date.";
+}
+
+// A date that exists on the calendar, as 'Y-m-d' (or a 'Y-m-d' date plus a time, for $with_time). Returns the
+// normalised 'Y-m-d' / 'Y-m-d H:i:s' string, or null for anything else: free text ("tomorrow"), a rolled-over
+// day (2026-11-31 would become 12-01 in PHP) or a loose format.
+function real_date($value, $with_time = false) {
+    if (!is_string($value)) return null;
+    $s = trim($value);
+    $formats = $with_time ? ['Y-m-d\TH:i', 'Y-m-d H:i', 'Y-m-d\TH:i:s', 'Y-m-d H:i:s'] : ['Y-m-d'];
+    foreach ($formats as $format) {
+        $d = DateTime::createFromFormat('!' . $format, $s);
+        if ($d && $d->format($format) === $s) return $d->format($with_time ? 'Y-m-d H:i:s' : 'Y-m-d');
+    }
+    return null;
 }
 
 function v_enum($value, $label, array $allowed, $required = true) {

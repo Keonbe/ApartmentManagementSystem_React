@@ -53,6 +53,8 @@ if (empty($move_out_date)) {
 
 try {
     $today = new DateTime(date('Y-m-d'));
+    // new DateTime() takes "tomorrow" and rolls 2026-11-31 over to December 1; only a real YYYY-MM-DD passes.
+    if (real_date($move_out_date) === null) throw new Exception("Invalid date format.");
     $selected_date = new DateTime($move_out_date);
     $interval = $today->diff($selected_date);
     $days_diff = (int)$interval->format('%r%a');

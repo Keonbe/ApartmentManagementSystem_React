@@ -37,11 +37,39 @@ if (!$sender_id || !$receiver_id || ($message === '' && !$attachment)) {
 
 if ($sender_id === $receiver_id) {
     http_response_code(400);
-    echo json_encode(["success" => false, "message" => "Cannot send a message to نفسك"]);
+    echo json_encode(["success" => false, "message" => "Cannot send a message to yourself"]);
     exit;
 }
 
 try {
+    // Check both people and the reply target before anything is written to disk,
+    // so a refused message never leaves an orphaned attachment behind.
+    $userCheck = $conn->prepare("SELECT id FROM users WHERE id IN (?, ?)");
+    if (!$userCheck) {
+        throw new Exception('Prepare failed: ' . $conn->error);
+    }
+    $userCheck->bind_param('ii', $sender_id, $receiver_id);
+    $userCheck->execute();
+    $userResult = $userCheck->get_result();
+
+    if ($userResult->num_rows < 2) {
+        http_response_code(404);
+        echo json_encode(["success" => false, "message" => "User not found"]);
+        exit;
+    }
+
+    if ($reply_to_id) {
+        $replyCheck = $conn->prepare("SELECT id FROM messages WHERE id = ? AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))");
+        $replyCheck->bind_param('iiiii', $reply_to_id, $sender_id, $receiver_id, $receiver_id, $sender_id);
+        $replyCheck->execute();
+        if ($replyCheck->get_result()->num_rows === 0) {
+            http_response_code(400);
+            echo json_encode(["success" => false, "message" => "Reply target not found in this conversation"]);
+            exit;
+        }
+        $replyCheck->close();
+    }
+
     $attachmentPath = null;
     if ($attachment) {
         $finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -72,32 +100,6 @@ try {
             throw new Exception('Unable to save attachment');
         }
         $attachmentPath = 'uploads/messages/' . $filename;
-    }
-
-    $userCheck = $conn->prepare("SELECT id FROM users WHERE id IN (?, ?)");
-    if (!$userCheck) {
-        throw new Exception('Prepare failed: ' . $conn->error);
-    }
-    $userCheck->bind_param('ii', $sender_id, $receiver_id);
-    $userCheck->execute();
-    $userResult = $userCheck->get_result();
-
-    if ($userResult->num_rows < 2) {
-        http_response_code(404);
-        echo json_encode(["success" => false, "message" => "User not found"]);
-        exit;
-    }
-
-    if ($reply_to_id) {
-        $replyCheck = $conn->prepare("SELECT id FROM messages WHERE id = ? AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))");
-        $replyCheck->bind_param('iiiii', $reply_to_id, $sender_id, $receiver_id, $receiver_id, $sender_id);
-        $replyCheck->execute();
-        if ($replyCheck->get_result()->num_rows === 0) {
-            http_response_code(400);
-            echo json_encode(["success" => false, "message" => "Reply target not found in this conversation"]);
-            exit;
-        }
-        $replyCheck->close();
     }
 
     $stmt = $conn->prepare("INSERT INTO messages (sender_id, receiver_id, message, attachment_path, reply_to_id) VALUES (?, ?, ?, ?, ?)");

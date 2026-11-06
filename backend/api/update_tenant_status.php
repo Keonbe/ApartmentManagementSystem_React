@@ -155,6 +155,9 @@ if ($id > 0 && !empty($status)) {
                 throw new Exception("Move-out date is required.");
             }
             $today = new DateTime(date('Y-m-d'));
+            if (real_date($requested_move_out_date) === null) {
+                throw new Exception("Move-out date must be a valid date (YYYY-MM-DD).");
+            }
             $selected_date = new DateTime($requested_move_out_date);
             $days_diff = (int)$today->diff($selected_date)->format('%r%a');
 
