@@ -14,11 +14,11 @@ $isAdmin = $auth && $auth['role'] === 'admin';
 try {
     if ($isAdmin) {
         if (!$threadId) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Missing thread_id']); exit; }
-        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_verified_at FROM inquiries WHERE id = ? AND thread_type = 'guest'");
+        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_verified_at, guest_chat_ended_at FROM inquiries WHERE id = ? AND thread_type = 'guest'");
         $find->bind_param('i', $threadId);
     } else {
         if (strlen($token) !== 64 || !ctype_xdigit($token)) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'Invalid guest token']); exit; }
-        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest FROM inquiries WHERE guest_token = ? AND thread_type = 'guest'");
+        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_chat_ended_at FROM inquiries WHERE guest_token = ? AND thread_type = 'guest'");
         $find->bind_param('s', $token);
     }
     $find->execute(); $thread = $find->get_result()->fetch_assoc(); $find->close();
@@ -29,6 +29,22 @@ try {
     // guest answers it with action=resolution_answer (resolved / not_yet). The
     // widget offers "End chat on this device" only after a resolved answer.
     $action = (string)($body['action'] ?? '');
+    // An ended chat (action=end_chat, 2026_11_guest_chat_end.sql) stays readable
+    // on the guest's device, but nobody can send, ask or answer in it any more.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($thread['guest_chat_ended_at'])) {
+        http_response_code(409); echo json_encode(['success'=>false,'message'=>'This chat has ended.']); exit;
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'end_chat') {
+        if ($isAdmin) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Only the guest can end the chat.']); exit; }
+        // Only after the guest said their question is resolved (the latest question decides).
+        $last = $conn->prepare("SELECT resolution_answer FROM guest_messages WHERE inquiry_id = ? AND kind = 'resolution_check' ORDER BY id DESC LIMIT 1");
+        $last->bind_param('i', $thread['id']); $last->execute(); $lastCheck = $last->get_result()->fetch_assoc(); $last->close();
+        if (($lastCheck['resolution_answer'] ?? null) !== 'resolved') { http_response_code(409); echo json_encode(['success'=>false,'message'=>'The chat can be ended once your question is resolved.']); exit; }
+        $end = $conn->prepare('UPDATE inquiries SET guest_chat_ended_at = NOW() WHERE id = ? AND guest_chat_ended_at IS NULL');
+        $end->bind_param('i', $thread['id']); $end->execute(); $end->close();
+        log_activity($conn, null, 'inquiry', 'Guest Ended Chat', "Inquiry ID: {$thread['id']}", 0);
+        echo json_encode(['success'=>true]); exit;
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== '') {
         if ($action === 'resolution_check') {
             if (!$isAdmin) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Only the admin can ask this.']); exit; }
@@ -185,6 +201,7 @@ try {
     // said so (they may then end the chat on their device); awaiting = not answered yet.
     $thread['resolved'] = false;
     $thread['awaiting_answer'] = false;
+    $thread['ended'] = !empty($thread['guest_chat_ended_at']);
     for ($i = count($messages) - 1; $i >= 0; $i--) {
         if (($messages[$i]['kind'] ?? 'text') !== 'resolution_check') continue;
         $thread['resolved'] = ($messages[$i]['resolution_answer'] ?? null) === 'resolved';

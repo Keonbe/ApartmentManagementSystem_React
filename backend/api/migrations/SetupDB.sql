@@ -569,6 +569,7 @@ CREATE TABLE IF NOT EXISTS `inquiries` (
   `unit_of_interest` varchar(50) DEFAULT NULL,
   `guest_reply_emailed_at` datetime DEFAULT NULL,
   `guest_verified_at` datetime DEFAULT NULL,
+  `guest_chat_ended_at` datetime DEFAULT NULL,
   `matched_thread_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_inquiries_guest_token` (`guest_token`),

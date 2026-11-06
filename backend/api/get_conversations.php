@@ -80,7 +80,12 @@ try {
                     WHERE sender_id = u.id
                       AND receiver_id = ?
                       AND is_read = 0
-                ) AS unread_count
+                ) AS unread_count,
+                u.role AS other_user_role,
+                EXISTS (
+                    SELECT 1 FROM rent_applications ra
+                    WHERE ra.user_id = u.id AND LOWER(ra.status) IN ('active', 'pending-move-out', 'approved')
+                ) AS is_active_tenant
               FROM users u
               WHERE u.id != ?
                 AND (? = '' OR CONCAT(u.first_name, ' ', u.last_name) LIKE ? OR u.email_address LIKE ? OR EXISTS (
@@ -121,6 +126,11 @@ try {
             'last_message_sender_id' => isset($row['last_message_sender_id']) ? (int) $row['last_message_sender_id'] : null,
             'last_message_time' => $row['last_message_time'],
             'unread_count' => (int) ($row['unread_count'] ?? 0),
+            'is_active_tenant' => (bool) $row['is_active_tenant'],
+            // Messages → Archived: someone not renting now (an applicant, a past
+            // tenant) with no message for 6 months. Active tenants and admins never are.
+            'archived' => !$row['is_active_tenant'] && $row['other_user_role'] !== 'admin'
+                && $row['last_message_time'] !== null && strtotime($row['last_message_time']) < strtotime('-6 months'),
         ];
     }
 

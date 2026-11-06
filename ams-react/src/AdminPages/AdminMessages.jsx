@@ -125,6 +125,12 @@ const AdminMessages = () => {
   const guestResolved = lastCheck?.resolution_answer === 'resolved';
   const adminHasReplied = guestMessages.some((m) => m.sender_role === 'admin' && (m.kind || 'text') === 'text');
   const [asking, setAsking] = useState(false);
+  // The open guest thread's messages and whether the guest ended it (guest_chat.php GET).
+  const [guestEnded, setGuestEnded] = useState(false);
+  const applyGuestResponse = (response) => {
+    setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin'));
+    setGuestEnded(Boolean(response.data?.thread?.ended));
+  };
 
   // An open guest thread is read again every 3 s while the tab is visible (as
   // in ChatWidget), so the guest's new messages and answers show without reopening it.
@@ -136,7 +142,7 @@ const AdminMessages = () => {
       if (document.visibilityState !== 'visible') return;
       try {
         const response = await api.get('guest_chat.php', { params: { thread_id: openGuestThreadId } });
-        if (!cancelled && response.data?.success) setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+        if (!cancelled && response.data?.success) applyGuestResponse(response);
       } catch { /* the next tick tries again */ }
     }, 3000);
     return () => { cancelled = true; window.clearInterval(timer); };
@@ -209,19 +215,26 @@ const AdminMessages = () => {
       ...conversations.map((thread) => ({ ...thread, thread_type: 'registered' })),
       ...guestThreads,
     ];
+    const current = all.filter((conversation) => !conversation.archived);
     return {
-      all: all.length,
-      registered: all.filter((conversation) => !isGuestConversation(conversation)).length,
-      guest: all.filter(isGuestConversation).length,
+      all: current.length,
+      registered: current.filter((conversation) => !isGuestConversation(conversation)).length,
+      guest: current.filter(isGuestConversation).length,
+      archived: all.length - current.length,
     };
   }, [conversations, guestThreads]);
 
   const listReady = conversationsStatus === 'ready' && guestStatus === 'ready';
   const listFailed = conversationsStatus === 'error' || guestStatus === 'error';
+  // A search looks through everything, archived chats included.
   const visibleConversations = filteredConversations.filter((conversation) => (
-    conversationFilter === 'all'
-    || (conversationFilter === 'guest' && isGuestConversation(conversation))
-    || (conversationFilter === 'registered' && !isGuestConversation(conversation))
+    search.trim() ? true
+      : conversationFilter === 'archived' ? conversation.archived
+      : !conversation.archived && (
+        conversationFilter === 'all'
+        || (conversationFilter === 'guest' && isGuestConversation(conversation))
+        || (conversationFilter === 'registered' && !isGuestConversation(conversation))
+      )
   ));
 
   const activeMessageMatches = useMemo(() => {
@@ -280,11 +293,12 @@ const AdminMessages = () => {
   const selectConversation = async (conversation) => {
     if (conversation.thread_type === 'guest') {
       selectedConversationIdRef.current = `guest:${conversation.thread_id}`;
+      setGuestEnded(Boolean(conversation.ended_at));
       setReplyingTo(null);
       setActiveChat(conversation);
       try {
         const response = await api.get('guest_chat.php', { params: { thread_id: conversation.thread_id } });
-        setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+        applyGuestResponse(response);
         setGuestThreads((rows) => rows.map((row) => row.thread_id === conversation.thread_id ? { ...row, guest_messages: response.data.messages || [] } : row));
       } catch (error) { console.error('Unable to load guest messages', error); }
       return;
@@ -339,7 +353,7 @@ const AdminMessages = () => {
     try {
       await api.post('guest_chat.php', { thread_id: activeChat.thread_id, action: 'resolution_check' });
       const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
-      setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+      applyGuestResponse(response);
     } catch (error) {
       setSendError(apiErrorMessage(error, 'The question was not sent. Please try again.'));
     } finally {
@@ -362,7 +376,7 @@ const AdminMessages = () => {
         if (attachment) form.append('attachment', attachment);
         await api.post('guest_chat.php', form, { headers: { 'Content-Type': 'multipart/form-data' } });
         const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
-        setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+        applyGuestResponse(response);
         setDraft('');
         setAttachment(null);
         setReplyingTo(null);
@@ -406,11 +420,12 @@ const AdminMessages = () => {
                   <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
                   <input maxLength={LIMITS.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tenants or messages" className="w-full bg-transparent outline-none border-0 text-body text-slate-800" />
                 </label>
-                <div className="flex items-center gap-1.5 mt-3" role="group" aria-label="Filter conversations">
+                <div className="flex flex-wrap items-center gap-1.5 mt-3" role="group" aria-label="Filter conversations">
                   {[
                     ['all', `All (${conversationCounts.all})`],
                     ['registered', `Registered (${conversationCounts.registered})`],
                     ['guest', `Guest (${conversationCounts.guest})`],
+                    ['archived', `Archived (${conversationCounts.archived})`],
                   ].map(([filter, label]) => (
                     <button key={filter} type="button" onClick={() => setConversationFilter(filter)} aria-pressed={conversationFilter === filter}
                       className={`text-label font-medium px-3 py-1.5 rounded-full transition ${conversationFilter === filter ? 'bg-indigo-600 text-white shadow-card' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -431,7 +446,7 @@ const AdminMessages = () => {
                 ) : !search && visibleConversations.length === 0 && listFailed ? (
                   <LoadError title="Couldn't load conversations" onRetry={retryConversations} />
                 ) : visibleConversations.length === 0 ? (
-                  <div className="p-8 text-center text-body text-slate-500">{search ? 'No matching conversations.' : 'No tenant conversations yet.'}</div>
+                  <div className="p-8 text-center text-body text-slate-500">{search ? 'No matching conversations.' : conversationFilter === 'archived' ? 'No archived chats. Resolved or ended inquiries, and people not renting who have been quiet for 6 months, show here.' : 'No tenant conversations yet.'}</div>
                 ) : visibleConversations.map((conversation) => {
                   const convKey = conversation.thread_type === 'guest' ? `guest_${conversation.thread_id}` : `user_${conversation.other_user_id}`;
                   const selectedKey = activeChat?.thread_type === 'guest' ? `guest_${activeChat.thread_id}` : activeChat ? `user_${activeChat.other_user_id}` : null;
@@ -445,6 +460,11 @@ const AdminMessages = () => {
                           <span className="flex min-w-0 items-center overflow-hidden font-semibold text-body text-slate-900">
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
+                            {conversation.archived && (
+                              <span className="ml-1.5 shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                {conversation.archive_reason === 'ended' ? 'Ended' : conversation.archive_reason === 'resolved' ? 'Resolved' : 'Inactive'}
+                              </span>
+                            )}
                             {isGuestConversation(conversation) && !conversation.guest_verified_at && (
                               <span className="ml-1.5 shrink-0 text-amber-700 font-semibold text-xs" title="The guest has not yet opened this chat from a link sent to their email, so the email is not proven to be theirs.">
                                 Email not verified
@@ -473,12 +493,12 @@ const AdminMessages = () => {
                     <div className="min-w-0"><h3 className="m-0 text-body font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
                     {activeChat.thread_type === 'guest' && (
                       <div className="ml-auto flex shrink-0 items-center gap-2">
-                        {(checkPending || guestResolved) && (
-                          <span className={`hidden sm:inline-flex rounded-full px-2.5 py-1 text-caption font-semibold ${guestResolved ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                            {guestResolved ? 'Resolved' : 'Waiting for answer'}
+                        {(checkPending || guestResolved || guestEnded) && (
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-caption font-semibold ${guestEnded ? 'bg-slate-100 text-slate-600' : guestResolved ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                            {guestEnded ? 'Chat ended' : guestResolved ? 'Resolved' : 'Waiting for answer'}
                           </span>
                         )}
-                        <button
+                        {!guestResolved && !guestEnded && <button
                           type="button"
                           onClick={askIfResolved}
                           disabled={asking || !adminHasReplied || checkPending}
@@ -486,7 +506,7 @@ const AdminMessages = () => {
                           className="min-h-[36px] rounded-full border border-indigo-200 bg-indigo-50 px-3 text-label font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           {tEn('chat.resolution.ask')}
-                        </button>
+                        </button>}
                       </div>
                     )}
                     {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-control border border-slate-200 bg-white px-2 py-1.5 text-label text-slate-600" aria-live="polite">
@@ -587,6 +607,11 @@ const AdminMessages = () => {
                       );
                     })}
                   </div>
+                  {activeChat.thread_type === 'guest' && guestEnded ? (
+                    <p className="m-0 shrink-0 border-t border-slate-100 bg-white p-4 text-center text-body text-slate-500">
+                      {tEn('chat.endedNoticeAdmin')}
+                    </p>
+                  ) : <>
                   {replyingTo && <div className="mx-3 mt-3 flex shrink-0 items-center justify-between rounded-control border-0 bg-white px-3 py-2 text-label text-slate-700"><div className="min-w-0"><strong>Replying to {activeChat.thread_type === 'guest' ? (String(replyingTo.sender_id) === 'guest' ? (activeChat.guest_name || 'Guest') : 'Admin User') : (String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name)}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                   {attachment && <div className="flex items-center justify-start p-2">
                     <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
@@ -611,6 +636,7 @@ const AdminMessages = () => {
                   <div className="px-3 md:px-4 pb-2">
                     <FieldError id="admin-reply" error={sendError} />
                   </div>
+                  </>}
                 </>
               ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-8"><div className="w-16 h-16 rounded-card bg-indigo-50 text-indigo-500 flex items-center justify-center text-page mb-4"><FontAwesomeIcon icon={faComments} /></div><h3 className="text-title font-bold text-slate-800 m-0">Select a conversation</h3><p className="text-body text-slate-500 mt-2">Choose a tenant from the list to view and reply to messages.</p></div>}
             </section>

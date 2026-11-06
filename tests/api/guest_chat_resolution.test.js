@@ -108,3 +108,74 @@ describe('answering', () => {
     expect((await guestView(t)).body.thread).toMatchObject({ resolved: false, awaiting_answer: true });
   });
 });
+
+describe('ending the chat', () => {
+  const end = (t) => api('guest_chat.php', { headers: { 'X-Guest-Token': t.token }, json: { action: 'end_chat' } });
+  const guestSend = (t, message) => api('guest_chat.php', { headers: { 'X-Guest-Token': t.token }, json: { message } });
+
+  it('is refused until the guest answered Problem resolved', async () => {
+    const t = await addGuestThread([['guest', 'Q'], ['admin', 'A']]);
+    expect((await end(t)).status).toBe(409);
+    const check = (await ask(t.id)).body.message;
+    await answer(t, check.id, 'not_yet');
+    expect((await end(t)).status).toBe(409);
+    expect((await guestView(t)).body.thread.ended).toBe(false);
+  });
+
+  it('keeps the chat readable but closes it to new messages from both sides', async () => {
+    const t = await addGuestThread([['guest', 'Q'], ['admin', 'A']]);
+    await answer(t, (await ask(t.id)).body.message.id, 'resolved');
+    expect((await end(t)).status).toBe(200);
+    const view = await guestView(t);
+    expect(view.status).toBe(200);
+    expect(view.body.thread.ended).toBe(true);
+    expect(view.body.messages.length).toBe(3);
+    expect((await guestSend(t, 'one more thing')).status).toBe(409);
+    const adminReply = await api('guest_chat.php', { token: admin, json: { thread_id: t.id, message: 'still there?' } });
+    expect(adminReply.status).toBe(409);
+    expect((await ask(t.id)).status).toBe(409);
+    expect((await end(t)).status).toBe(409);
+    expect((await one('SELECT COUNT(*) AS c FROM guest_messages WHERE inquiry_id = ?', [t.id])).c).toBe(3);
+  });
+
+  it('an admin cannot end it for the guest', async () => {
+    const t = await addGuestThread([['guest', 'Q'], ['admin', 'A']]);
+    expect((await api('guest_chat.php', { token: admin, json: { thread_id: t.id, action: 'end_chat' } })).status).toBe(403);
+  });
+});
+
+describe('archived conversations (Messages → Archived)', () => {
+  it('guest threads: ended, resolved without a later guest message, or quiet for 6 months', async () => {
+    const ended = await addGuestThread([['guest', 'Q'], ['admin', 'A']]);
+    await answer(ended, (await ask(ended.id)).body.message.id, 'resolved');
+    await api('guest_chat.php', { headers: { 'X-Guest-Token': ended.token }, json: { action: 'end_chat' } });
+    const resolved = await addGuestThread([['guest', 'Q'], ['admin', 'A']]);
+    await answer(resolved, (await ask(resolved.id)).body.message.id, 'resolved');
+    const reopened = await addGuestThread([['guest', 'Q'], ['admin', 'A']]);
+    await answer(reopened, (await ask(reopened.id)).body.message.id, 'resolved');
+    await api('guest_chat.php', { headers: { 'X-Guest-Token': reopened.token }, json: { message: 'Actually, one more question' } });
+    const quiet = await addGuestThread([['guest', 'Old question']]);
+    await q('UPDATE guest_messages SET created_at = DATE_SUB(NOW(), INTERVAL 7 MONTH) WHERE inquiry_id = ?', [quiet.id]);
+    const open = await addGuestThread([['guest', 'New question']]);
+
+    const rows = (await api('get_guest_conversations.php', { token: admin })).body.conversations;
+    const byId = (id) => rows.find((r) => String(r.thread_id) === String(id));
+    expect(byId(ended.id)).toMatchObject({ archived: true, archive_reason: 'ended' });
+    expect(byId(resolved.id)).toMatchObject({ archived: true, archive_reason: 'resolved' });
+    expect(byId(reopened.id)).toMatchObject({ archived: false });
+    expect(byId(quiet.id)).toMatchObject({ archived: true, archive_reason: 'inactive' });
+    expect(byId(open.id)).toMatchObject({ archived: false });
+  });
+
+  it('registered chats: a non-tenant quiet for 6 months is archived, an active tenant never is', async () => {
+    const maria = (await one("SELECT id FROM users WHERE email_address = 'maria.santos@demo.example'")).id;
+    const past = (await one("SELECT u.id FROM users u WHERE u.role <> 'admin' AND NOT EXISTS (SELECT 1 FROM rent_applications ra WHERE ra.user_id = u.id AND LOWER(ra.status) IN ('active', 'pending-move-out', 'approved')) LIMIT 1")).id;
+    for (const id of [maria, past]) {
+      await q("INSERT INTO messages (sender_id, receiver_id, message, created_at, is_read) VALUES (?, ?, 'old message', DATE_SUB(NOW(), INTERVAL 7 MONTH), 1)", [id, adminId]);
+      await q('UPDATE messages SET created_at = DATE_SUB(NOW(), INTERVAL 7 MONTH) WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)', [id, adminId, adminId, id]);
+    }
+    const rows = (await api('get_conversations.php', { token: admin })).body.conversations;
+    expect(rows.find((r) => r.other_user_id === maria)).toMatchObject({ is_active_tenant: true, archived: false });
+    expect(rows.find((r) => r.other_user_id === past)).toMatchObject({ is_active_tenant: false, archived: true });
+  });
+});

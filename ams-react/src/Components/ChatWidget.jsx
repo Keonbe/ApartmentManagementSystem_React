@@ -78,15 +78,23 @@ const ChatWidget = () => {
         };
     }, [setIsChatOpen]);
 
-    // Shared or public computer: the guest removes the key from this browser.
-    // The conversation stays on the server; an emailed link opens it again.
-    const endGuestChat = () => {
+    // A guest thread's messages and whether it has ended (guest_chat.php GET).
+    const [guestEnded, setGuestEnded] = useState(false);
+    const applyGuestResponse = (response, role = 'guest') => {
+        setGuestMessages(normalizeGuestMessages(response.data?.messages || [], role));
+        setGuestEnded(Boolean(response.data?.thread?.ended));
+    };
+
+    // Offered once the guest answers "Problem resolved". The chat is closed on
+    // the server (action=end_chat): it stays readable on this device, but no
+    // more messages, files or answers can be sent in it.
+    const endGuestChat = async () => {
         if (!window.confirm(t('chat.endGuestConfirm'))) return;
-        for (const key of Object.keys(localStorage)) if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
-        setGuestToken(null);
-        setGuestMessages([]);
-        setIsChatOpen(false);
-        window.dispatchEvent(new Event('guest-chat-invalidated'));
+        try {
+            await api.post('guest_chat.php', { action: 'end_chat' }, { headers: { 'X-Guest-Token': guestToken } });
+            applyGuestResponse(await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } }));
+            setSendError('');
+        } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
     };
 
     // All three pickers (file, camera, video) go through the same check as send_message.php.
@@ -216,7 +224,7 @@ const ChatWidget = () => {
         const load = async () => {
             try {
                 const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
-                if (response.data?.success) setGuestMessages(normalizeGuestMessages(response.data.messages || []));
+                if (response.data?.success) applyGuestResponse(response);
             } catch (error) {
                 if ([401, 403, 404].includes(error.response?.status)) {
                     for (const key of Object.keys(localStorage)) if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
@@ -262,7 +270,7 @@ const ChatWidget = () => {
         setIsChatOpen(true);
         navigate(location.pathname, { replace: true });
         api.get('guest_chat.php', { params: { thread_id: requested.thread_id } })
-            .then((response) => setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin')))
+            .then((response) => applyGuestResponse(response, 'admin'))
             .catch((error) => console.error('Unable to load guest chat history', error));
     }, [guestThreads, location.pathname, location.search, navigate, setActiveChat, setIsChatOpen, userRole]);
 
@@ -272,7 +280,7 @@ const ChatWidget = () => {
         const loadGuestHistory = async () => {
             try {
                 const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
-                if (!cancelled && response.data?.success) setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+                if (!cancelled && response.data?.success) applyGuestResponse(response, 'admin');
             } catch (error) {
                 console.error('Unable to load guest chat history', error);
             }
@@ -288,7 +296,7 @@ const ChatWidget = () => {
         try {
             await api.post('guest_chat.php', { action: 'resolution_answer', message_id: messageId, answer }, { headers: { 'X-Guest-Token': guestToken } });
             const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
-            setGuestMessages(normalizeGuestMessages(response.data.messages || []));
+            applyGuestResponse(response);
             setSendError('');
         } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
         finally { setResolutionBusy(false); }
@@ -300,7 +308,7 @@ const ChatWidget = () => {
         try {
             await api.post('guest_chat.php', { thread_id: activeChat.thread_id, action: 'resolution_check' });
             const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
-            setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin'));
+            applyGuestResponse(response, 'admin');
             setSendError('');
         } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSentRetry'))); }
         finally { setResolutionBusy(false); }
@@ -323,7 +331,7 @@ const ChatWidget = () => {
             setReplyingTo(null);
             setSendError(''); // an earlier failure no longer applies
             const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
-        setGuestMessages(normalizeGuestMessages(response.data.messages || []));
+        applyGuestResponse(response);
         } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
         finally { setIsSending(false); }
     };
@@ -353,7 +361,7 @@ const ChatWidget = () => {
                 api.post('guest_chat.php', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
                     .then(async () => {
                         const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
-                        setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin'));
+                        applyGuestResponse(response, 'admin');
                         setNewMessage('');
                         setAttachment(null);
                         setReplyingTo(null);
@@ -474,15 +482,6 @@ const ChatWidget = () => {
                         </div>
                         
                         <div className="flex items-center gap-3 shrink-0">
-                            {guestToken && !userId && guestResolved && (
-                                <button
-                                    type="button"
-                                    onClick={endGuestChat}
-                                    className="text-xs font-semibold text-indigo-100 hover:text-white bg-transparent border-0 cursor-pointer whitespace-nowrap"
-                                >
-                                    {t('chat.endGuest')}
-                                </button>
-                            )}
                             {userRole === 'admin' && !activeChat && (
                                 <button
                                     type="button"
@@ -527,8 +526,9 @@ const ChatWidget = () => {
                                             setReplyingTo(null);
                                             if (conv.thread_type === 'guest') {
                                                 setGuestMessages([]);
+                                                setGuestEnded(false);
                                                 api.get('guest_chat.php', { params: { thread_id: conv.thread_id } })
-                                                    .then((response) => setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin')))
+                                                    .then((response) => applyGuestResponse(response, 'admin'))
                                                     .catch((error) => console.error('Unable to load guest chat history', error));
                                             } else if (fetchChatHistory) {
                                                 fetchChatHistory(conv.other_user_id);
@@ -675,7 +675,7 @@ const ChatWidget = () => {
                                     );
                                 })
                             )}
-                            {isGuestChat && guestResolved && (
+                            {isGuestChat && guestResolved && !guestEnded && (
                                 <div className="animate-fade-in-up rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center text-xs text-emerald-900">
                                     <p className="m-0">{t('chat.resolution.endPrompt')}</p>
                                     <button type="button" onClick={endGuestChat} className="mt-2 min-h-[36px] rounded-full border-0 bg-emerald-600 px-4 text-xs font-bold text-white cursor-pointer hover:bg-emerald-700">
@@ -688,18 +688,27 @@ const ChatWidget = () => {
                     )}
 
                     {/* Input Field Section */}
-                    {(activeChat || (!userId && guestToken)) && (
+                    {(isGuestChat || isAdminGuestChat) && guestEnded ? (
+                        <div className="shrink-0 border-t border-slate-200 bg-white p-3 text-center text-xs text-slate-600">
+                            <p className="m-0">{isGuestChat ? t('chat.endedNotice') : t('chat.endedNoticeAdmin')}</p>
+                            {isGuestChat && (
+                                <button type="button" onClick={() => { setIsChatOpen(false); navigate('/inquire'); }} className="mt-2 min-h-[36px] rounded-full border border-indigo-200 bg-indigo-50 px-4 text-xs font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100">
+                                    {t('chat.newInquiry')}
+                                </button>
+                            )}
+                        </div>
+                    ) : (activeChat || (!userId && guestToken)) && (
                         <div className={`p-2 sm:p-3 bg-white shrink-0 ${replyingTo ? '' : 'border-t border-slate-200'}`}>
                             {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>{String(replyingTo.sender_id) === (isGuestChat ? 'guest' : String(userId)) ? t('chat.replyingSelf') : t('chat.replyingTo', { name: isGuestChat ? t('chat.adminUser') : activeChat?.other_user_name })}</strong><p className="m-0 truncate">{replyingTo.message || t('chat.attachment')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label={t('chat.cancelReply')} className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                             {attachment && <div className="flex items-center justify-start p-2">
                                 <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
                             </div>}
-                            {isAdminGuestChat && (
+                            {isAdminGuestChat && !guestEnded && (
                                 <div className="mb-2 flex items-center justify-between gap-2 px-1">
                                     <span className="min-w-0 truncate text-xs text-slate-500">
                                         {checkPending ? t('chat.resolution.waiting') : guestResolved ? t('chat.resolution.guestResolved') : ''}
                                     </span>
-                                    <button
+                                    {!guestResolved && <button
                                         type="button"
                                         onClick={askIfResolved}
                                         disabled={resolutionBusy || !adminHasReplied || checkPending}
@@ -707,7 +716,7 @@ const ChatWidget = () => {
                                         className="shrink-0 min-h-[32px] rounded-full border border-indigo-200 bg-indigo-50 px-3 text-xs font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                         {t('chat.resolution.ask')}
-                                    </button>
+                                    </button>}
                                 </div>
                             )}
                             <form onSubmit={isGuestChat ? sendGuestMessage : handleSendMessage} className="flex items-center gap-1">
