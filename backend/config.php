@@ -3418,7 +3418,7 @@ function record_login_failure($conn, $ip, $email) {
     $stmt->close();
 }
 
-// Password-reset request throttle (policy decided 2026-09-16, docs/todo.md).
+// Password-reset request throttle (policy decided 2026-09-16, docs/planning/todo.md).
 // Every request counts, whether or not the email has an account, so the limit
 // can't be used to find out which addresses are registered.
 const RESET_MAX_REQUESTS_PER_EMAIL = 3;
@@ -4529,7 +4529,7 @@ function resolve_admin_queue($conn, $type, $entity_id) {
     return $n;
 }
 
-// ── Household roster & unit waitlist (decided 2026-09-16, docs/todo.md) ──
+// ── Household roster & unit waitlist (decided 2026-09-16, docs/planning/todo.md) ──
 
 // Upper bound on a unit's occupant count (lease holder + household members).
 function max_occupants_per_unit($conn) {

@@ -368,3 +368,6 @@ flowchart LR
 | Test GCash | Auto-approved in sandbox |
 | PHP HTTP Client | `cURL` (already available in XAMPP) |
 | SDK | None needed — raw cURL is sufficient for this scale |
+
+## Tenant payment screens (2026-11)
+Details in [tenant_pages.md](tenant_pages.md) §4. Pay Bills lays out the statement and the "how to pay" column side by side and offers: manual (GCash / bank with reference and proof), in person (scheduled date, morning / afternoon), online PayMongo checkout, **split payment** (portions kept in `payment_proof_parts` until the admin confirms; each confirmed portion becomes a `payment_transactions` row), partial amounts capped at the balance, **pay all together** (bundle, `BND-` key, one combined receipt) and **pay in advance** (`advance_payment.php`, `advance_credits`). Payment History groups open, paid (by year) and cancelled bills with printable receipts. Online payments can be refunded through PayMongo (My Refunds, `refund_requests`).

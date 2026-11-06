@@ -46,16 +46,17 @@ Docs are part of the deliverable. Before finishing, find every row below your ch
 | An audited module or its tests | `docs/documentation/module_verification_guide.md` (section per §2 template, test IDs `M<module>-NN`) |
 | Deployment, env vars, CI/CD, backup | `docs/deployment/*` (`environment_config.md`, `cicd_pipeline.md`, `backup_and_restore.md`, …) |
 | SMS / email / third-party services | `docs/features/sms_email_implementation.md`, `docs/documentation/external_services.md` |
-| Security finding or fix | `docs/security_audit.md` |
-| Backlog (new or finished open work) | `docs/consolidated_todo.md` (move finished items to Recently Completed) |
+| Security finding or fix | `docs/audits/security_audit.md` |
+| Backlog (new or finished open work) | `docs/planning/todo.md` (move finished items to Recently Completed) |
 | A command, env var, folder or convention in this guide | `AGENTS.md` (and `README.md` if user-facing) |
 
-- Not maintained: `docs/todo.md`, `.agents/prd.md`, `notification_services.md`. `docs/progress_report.md` and `docs/AMS_Development_Timeline.xlsx` are gitignored. If your change makes `api_documentation.md` wrong, fix the affected section.
+`docs/planning/progress_report.md` is tracked and refreshed per milestone; `docs/planning/AMS_Development_Timeline.xlsx` is gitignored. If your change makes `api_documentation.md` wrong, fix the affected section.
 - Say which docs you updated in the commit body under **Docs**. If you could not update one, say so in your final message.
 
 ## Docs map (authoritative first)
+- Folders (nothing loose in `docs/`): `documentation/` (schema, API, design, testing guides) · `features/` (per-feature designs, checklist) · `deployment/` (env, CI/CD, backup, PayMongo, hooks) · `audits/` (security_audit and dated audits) · `planning/` (`todo.md` = live backlog, `archive/` = old backlogs, local progress files).
 - `docs/features/panelist_feature_checklist.md` scope/status · `docs/documentation/module_verification_guide.md` audited modules (contract, workflow, tests) · `api_testing.md` the suite · `database_schema.md`, `system_design.md`, `system_diagrams.md` · `docs/features/sms_email_implementation.md` (+ `sms_email_mock_testing.md`) · `chat_design.md` ("As built" first) · `docs/deployment/*` · `docs/documentation/claude_code_guide.md` (Claude hooks, permissions).
-- Possibly stale: `api_documentation.md`, `notification_services.md`, `todo.md`, `.agents/prd.md`.
+- Possibly stale: `api_documentation.md` (spot-checked 2026-11-06; new endpoints are in its §15).
 
 ## Workflow rules
 - Git: everything goes straight to `main`, no feature branches or required PRs.

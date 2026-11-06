@@ -10,9 +10,7 @@
 >
 > Everything else in this document — the 80-endpoint PHP syntax check, the stack versions, the deployment target guidance — was verified accurate against the current codebase.
 
-> ⚠️ **Dropped (2026-09-20):** the Railway/SaaS deployment target is no longer part of the plan — the project is deployed locally (self-hosted XAMPP) only. [Phase 2](#phase-2--continuous-deployment-cd)'s SaaS deployment target and all of [Phase 3](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback) (dual-target/SaaS-parallel-fallback CD) are historical and should not be followed. [Phase 1](#phase-1--continuous-integration-ci) (CI: lint, build, PHP syntax/PHPStan, the mariadb-based DB job) remains accurate and in effect via `.github/workflows/ci.yml`.
->
-> 🔗 **Deployment architecture context (historical):** this document originally assumed the dual-environment strategy defined in `saas_fallback_strategy.md` (deleted) (self-hosted XAMPP home server as production, SaaS stack as fallback) and the per-service self-hosted/SaaS mapping in [`external_services.md`](../documentation/external_services.md). [Phase 3](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback) wired those two documents' recommendations into a CD workflow that deployed to **both** targets in parallel — dropped along with the SaaS stack.
+> **Scope (2026-11-06):** the project is deployed to one place, the self-hosted XAMPP server. The earlier cloud/SaaS parallel-deployment plan (Vercel and Railway) was dropped on 2026-09-20 and has been removed from this document; git history keeps it.
 
 ---
 
@@ -28,13 +26,6 @@
 - [Phase 2 — Continuous Deployment (CD)](#phase-2--continuous-deployment-cd)
   - [CD Workflow File](#cd-workflow-file)
   - [Deployment Targets](#deployment-targets)
-- [Phase 3 — Dual-Target Deployment: Self-Hosted Production + SaaS Parallel Fallback](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback)
-  - [Reaching the Home Server From GitHub Actions](#31-reaching-the-home-server-from-github-actions-without-opening-inbound-ports)
-  - [The Dual-Target Workflow File](#32-the-dual-target-workflow-file)
-  - [External Services Are Shared Dependencies — Configure Per Environment](#33-external-services-are-shared-dependencies-not-infrastructure--configure-per-environment)
-  - [GitHub Secrets Required](#34-github-secrets-required)
-  - [Keeping Data in Sync (Optional Stretch)](#35-keeping-data-in-sync-optional-stretch)
-  - [When to Cut Over for Real](#36-when-to-cut-over-for-real)
 - [Local Development vs CI Environment](#local-development-vs-ci-environment)
 - [Adding Tests](#adding-tests)
 - [GitHub Actions Cheat Sheet](#github-actions-cheat-sheet)
@@ -159,12 +150,8 @@ main branch updated
         ↓
    Build production assets
         ↓
-        ├── 🏠 Deploy to self-hosted home server (production, source of truth for tenant data)
-        │
-        └── ☁️  Deploy to SaaS parallel stack (Vercel + Railway — warm fallback / public demo mirror)
+   🏠 Deploy to the self-hosted server (production, source of truth for tenant data)
 ```
-
-> This two-target branch is the [Phase 3](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback) model. If you haven't set up the SaaS side yet, the single-target [Phase 2](#phase-2--continuous-deployment-cd) workflow below is still a complete, valid CD pipeline on its own — Phase 3 is additive.
 
 ---
 
@@ -508,229 +495,8 @@ jobs:
 | **Vercel** | Frontend demo | ✅ | ❌ | ❌ | Free tier |
 | **Shared hosting (cPanel)** | Full stack | ✅ | ✅ | ✅ | ~$3–10/mo |
 | **VPS (DigitalOcean, etc.)** | Full stack + control | ✅ | ✅ | ✅ | ~$5–12/mo |
-| **Railway / Render** | Full stack, managed | ✅ | ✅ | ✅ | Free tier available |
 
-> **Recommendation for capstone:** Deploy the React frontend to **Vercel** (free, instant) and the PHP backend + MySQL to a **shared hosting** or **Railway**. This gives you a real production URL to demo without server management overhead.
-
----
-
-## Phase 3 — Dual-Target Deployment: Self-Hosted Production + SaaS Parallel Fallback
-
-> Only take this on after Phase 1 (CI) is green and Phase 2 (single-target CD) works. This phase is additive, not a replacement.
-
-`saas_fallback_strategy.md` treats the SaaS stack as a **break-glass procedure** — something you migrate to manually, over a few days, only after the home server has already failed. That's a reasonable minimum, but it means the fallback path is untested until the day you actually need it under pressure.
-
-This phase turns it into a **parallel deployment**: every push to `main` that passes CI deploys to the self-hosted home server (still the authoritative production environment) **and** to the SaaS stack from `saas_fallback_strategy.md` §7 / `external_services.md` §5 (Vercel + Railway) at the same time. The fallback is now a live, continuously-deployed environment instead of a runbook you hope works.
-
-```
-                              CI passes on main
-                                     │
-                    ┌────────────────┴────────────────┐
-                    ▼                                  ▼
-       🏠 deploy-self-hosted                 ☁️  deploy-saas-parallel
-       (self-hosted GitHub Actions           (Vercel frontend +
-        runner on the home server)            Railway API + Railway MySQL)
-                    │                                  │
-          Production traffic,                 Public demo URL / warm
-          authoritative tenant data            standby with its OWN
-                                                 independent database
-```
-
-**What "parallel" does *not* mean here:** the two environments do not share a live database. They are independent deployments of the same codebase against two different MariaDB/MySQL instances. Data entered through the self-hosted portal will not appear on the SaaS mirror unless you deliberately sync it (§3.5). For a capstone, that's usually fine — the SaaS mirror exists to (a) give panelists/evaluators a URL that doesn't depend on your home network being up, and (b) prove the fallback actually deploys cleanly, continuously, rather than only being tested once during a real outage.
-
-### 3.1 Reaching the Home Server From GitHub Actions (without opening inbound ports)
-
-`saas_fallback_strategy.md`'s own risk table flags this exact problem: *"Router/firewall blocks port"* and *"ISP changes public IP"* are both listed as likely risks for the self-hosted side. A GitHub-hosted runner pushing over SSH (the commented-out "Option A" in the Phase 2 workflow above) needs the home server to accept **inbound** SSH from the internet — that means port-forwarding SSH (22) on your router and keeping a dynamic DNS record current, which is both a security exposure and a single point of failure that mirrors the exact fragility this whole document is trying to route around.
-
-**Use a self-hosted GitHub Actions runner instead.** It flips the connection direction: the runner lives on the home server and polls GitHub over an *outbound* HTTPS connection — no inbound port ever needs to open.
-
-```
-GitHub Settings → Actions → Runners → New self-hosted runner
-# follow the generated commands, e.g. on the home server:
-
-# Linux / macOS
-./config.sh --url https://github.com/<you>/ApartmentManagementSystem_React --token <REGISTRATION_TOKEN>
-sudo ./svc.sh install && sudo ./svc.sh start
-
-# Windows (this repo's dev machine is Windows — likely also the home server's OS)
-.\config.cmd --url https://github.com/<you>/ApartmentManagementSystem_React --token <REGISTRATION_TOKEN>
-.\svc.cmd install
-.\svc.cmd start
-```
-
-Once registered, `runs-on: self-hosted` in a workflow job runs **on the home server itself** — `git pull` + `npm run build` + restarting Apache all happen locally, with no port-forwarding required.
-
-> [!NOTE]
-> A lighter-weight alternative that avoids installing the Actions runner at all: a cron job or scheduled task on the home server that periodically does `git fetch && git reset --hard origin/main` and rebuilds if there's a new commit. Simpler to set up, but deploys land on a polling interval rather than instantly on push. Fine for a capstone; the self-hosted runner is the more "real" pattern if you want to demonstrate it.
-
-### 3.2 The Dual-Target Workflow File
-
-Extend `.github/workflows/deploy.yml` from Phase 2 with a second job. Both jobs run from the same triggering CI success, in parallel:
-
-```yaml
-# .github/workflows/deploy.yml
-# Continuous Deployment — dual target: self-hosted production + SaaS parallel fallback
-
-name: Deploy
-
-on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
-
-jobs:
-  # ──────────────────────────────────────────────
-  # Target 1: Self-hosted home server (production, authoritative DB)
-  # ──────────────────────────────────────────────
-  deploy-self-hosted:
-    name: Deploy (Self-Hosted Production)
-    runs-on: self-hosted   # the runner registered on the home server itself — see §3.1
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
-    steps:
-      - name: Pull latest main
-        run: |
-          cd /path/to/htdocs/ApartmentManagementSystem_React
-          git fetch origin main
-          git reset --hard origin/main
-
-      - name: Build frontend
-        working-directory: ams-react
-        run: |
-          npm ci
-          npm run build
-
-      # backend/api/**.php needs no build step — Apache serves it directly.
-      # Only run this if a migration actually changed since the last deploy;
-      # SetupDB.sql is additive-only (per .agents/CLAUDE.md), so re-running
-      # ADD COLUMN IF NOT EXISTS statements is safe, but don't blindly DROP/reload.
-      - name: Apply any new additive migrations
-        run: |
-          mysql -u root ams_db < backend/api/migrations/SetupDB.sql
-
-      - name: Restart Apache (if config changed)
-        run: |
-          # Windows: net stop/start via XAMPP control, or a scheduled restart script.
-          # Linux: sudo systemctl restart apache2
-          echo "Restart Apache here if httpd.conf or vhost config changed."
-
-  # ──────────────────────────────────────────────
-  # Target 2: SaaS parallel stack (warm fallback / public demo mirror)
-  # Provider stack matches saas_fallback_strategy.md §7 and external_services.md §5
-  # ──────────────────────────────────────────────
-  deploy-saas-parallel:
-    name: Deploy (SaaS Parallel Fallback)
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20.19"
-          cache: npm
-          cache-dependency-path: ams-react/package-lock.json
-
-      - name: Build frontend (Vite)
-        working-directory: ams-react
-        run: |
-          npm ci
-          npm run build
-        env:
-          # axiosConfig.js base URL for the SaaS mirror points at Railway,
-          # NOT the self-hosted API — see external_services.md §2.8
-          VITE_API_BASE_URL: ${{ secrets.SAAS_API_BASE_URL }}
-
-      - name: Deploy frontend to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ams-react
-          vercel-args: '--prod'
-
-      - name: Deploy PHP API to Railway
-        uses: bervProject/railway-deploy@main
-        with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          service: ams-api
-
-      - name: Apply schema to Railway MySQL (idempotent — additive migration only)
-        run: |
-          mysql -h ${{ secrets.RAILWAY_MYSQL_HOST }} \
-                -u ${{ secrets.RAILWAY_MYSQL_USER }} \
-                -p${{ secrets.RAILWAY_MYSQL_PASSWORD }} \
-                ${{ secrets.RAILWAY_MYSQL_DATABASE }} \
-                < backend/api/migrations/SetupDB.sql
-```
-
-> Railway's own GitHub integration can also auto-deploy on push without any Actions step at all (connect the repo in the Railway dashboard). The explicit `railway-deploy` step above is shown for symmetry with the Vercel step and so both targets are visible in one workflow run — use whichever fits how much you want to see in the Actions log versus configure once in a dashboard.
-
-### 3.3 External Services Are Shared Dependencies, Not Infrastructure — Configure Per Environment
-
-PayMongo, Semaphore, and (once implemented) Resend/Gmail SMTP are **already external** on both deployment targets — self-hosted and SaaS alike make the same outbound API calls (`external_services.md` §1.1 note). Deploying in parallel doesn't change *that* code path at all. What it does change is that **you now have two independent environments that each need their own provider configuration**, because these credentials live in `ams_db.system_settings` (a DB row per environment), not in a shared `.env` (`external_services.md` §3):
-
-| Service | Why it needs separate config per environment | Where |
-|---|---|---|
-| **PayMongo webhook** | Each webhook URL you register in the PayMongo dashboard gets its **own** `whsk_...` secret. The self-hosted target's webhook URL (via ngrok/DDNS) and the Railway target's webhook URL (`https://ams-api.railway.app/paymongo_webhook.php`) are different URLs → two different secrets, each stored in that environment's own `system_settings.paymongo_webhook_secret`. Registering only one webhook means the *other* environment's payments never confirm. | `AdminAccountSettings.jsx` → Payment Gateway Integration, once per environment |
-| **PayMongo sandbox vs live keys** | Decide deliberately whether the SaaS mirror runs in sandbox mode permanently (safer for a public demo URL panelists might poke at) even after self-hosted production goes live. | Same panel, `system_settings.paymongo_secret_key` / `paymongo_public_key` |
-| **Semaphore / SMTP credentials** | Semaphore SMS and SMTP email settings are configured independently in each environment's database; one deployment's configuration does not carry over to another. Confirm Email Notifications is enabled and Email Driver is SMTP in each target before expecting email delivery. | `system_settings` SMS settings and `smtp_*` / `email_driver` settings, Account Settings → Notifications |
-| **Frontend API base URL** | `ams-react/src/api/axiosConfig.js` is currently hardcoded to `http://localhost:8080/...`. Before either target's frontend can point at its own backend, this needs to become an env-driven value (`VITE_API_BASE_URL`, as used in the workflow above) rather than a single hardcoded string. | `axiosConfig.js` (needs a one-time code change to support multiple deploy targets) |
-
-> [!IMPORTANT]
-> None of this is something CI should try to automate by writing rows into `system_settings` on every deploy — these are one-time-per-environment business configuration steps, done once by an admin through `AdminAccountSettings.jsx` on each environment, same as `external_services.md` §2.1's manual PayMongo sandbox setup walkthrough. CI's job is to get the *code* to both places reliably; provider credentials are configured, not deployed.
-
-### 3.4 GitHub Secrets Required
-
-Add these under **Settings → Secrets and variables → Actions** for the `deploy-saas-parallel` job (the `deploy-self-hosted` job needs no GitHub secrets at all, since it runs on the home server directly and reads local `backend/config.env.php`):
-
-| Secret | Used for |
-|---|---|
-| `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Frontend deploy to Vercel |
-| `RAILWAY_TOKEN` | PHP API deploy to Railway |
-| `RAILWAY_MYSQL_HOST`, `RAILWAY_MYSQL_USER`, `RAILWAY_MYSQL_PASSWORD`, `RAILWAY_MYSQL_DATABASE` | Applying `SetupDB.sql` to the Railway database |
-| `SAAS_API_BASE_URL` | Baked into the Vercel build as `VITE_API_BASE_URL` so the SaaS frontend calls the SaaS backend, not the home server |
-
-None of these overlap with the self-hosted target's credentials (`backend/config.env.php`, gitignored, lives only on the home server) — that separation is the point: a leaked SaaS secret can't touch production data, and vice versa.
-
-### 3.5 Keeping Data in Sync (Optional Stretch)
-
-By default the two environments have independent data — a tenant who registers on the SaaS mirror doesn't exist on the self-hosted production DB. For a capstone demo this is usually the right call (don't let panelists accidentally create real-looking data in two places). If you do want the SaaS mirror to mirror real production data (e.g., so a cutover during an actual outage doesn't lose recent activity), add a **one-directional, scheduled** sync — never bidirectional, to avoid write conflicts:
-
-```yaml
-sync-saas-mirror:
-  name: Sync SaaS mirror from production (one-way)
-  runs-on: self-hosted   # reads from the authoritative self-hosted DB
-  # Run on a schedule, not on every push — this is a data job, not a deploy job.
-  # (Move this to its own workflow with `on: schedule: - cron: "0 */6 * * *"`.)
-  steps:
-    - name: Dump production DB
-      run: mysqldump -u root ams_db > /tmp/ams_sync.sql
-
-    - name: Push dump into Railway MySQL (production → mirror, one direction only)
-      run: |
-        mysql -h ${{ secrets.RAILWAY_MYSQL_HOST }} -u ${{ secrets.RAILWAY_MYSQL_USER }} \
-              -p${{ secrets.RAILWAY_MYSQL_PASSWORD }} ${{ secrets.RAILWAY_MYSQL_DATABASE }} \
-              < /tmp/ams_sync.sql
-```
-
-> [!CAUTION]
-> This overwrites the SaaS mirror's database wholesale on every run — including the separate `paymongo_webhook_secret` and other per-environment `system_settings` rows described in §3.3. If you adopt this, either exclude the `system_settings` table from the dump (`mysqldump --ignore-table=ams_db.system_settings`) or re-apply the SaaS-specific config rows after each sync.
-
-### 3.6 When to Cut Over for Real
-
-With Phase 3 running, `saas_fallback_strategy.md` §6's "Recommended Migration Path" gets much shorter, because Phases 1–3 of that runbook (database provisioning, PHP API deploy, React SPA deploy) are **already done and continuously kept current** by this pipeline. If the home server actually goes down, what's left is just:
-
-1. Point your DNS / the URL you give tenants at the Vercel/Railway URLs instead of the home server.
-2. If §3.5's sync job wasn't running, restore the most recent `mysqldump` backup into the Railway database so it has current data.
-3. Re-verify the PayMongo webhook for the Railway environment is still the one registered as **live** (not just present, but the *active* one tenants' payments will actually hit) — see §3.3.
-
-That's the entire value of this phase: turning a multi-day manual migration runbook into a DNS change and a data restore.
+> **Recommendation for capstone:** deploy the full stack to the self-hosted server (or a VPS / shared hosting). Vercel and GitHub Pages only suit a frontend-only demo, because the PHP API and database need a server.
 
 ---
 
@@ -920,14 +686,6 @@ Implement CI/CD incrementally. Don't try to do everything at once.
 - [ ] Choose a deployment target and configure secrets
 - [ ] Test the full push → CI → CD → live pipeline
 
-### 🟣 Week 5+ — Deploy, Dual Target (Optional, Stretch)
-
-- [ ] Register a self-hosted GitHub Actions runner on the home server ([§3.1](#31-reaching-the-home-server-from-github-actions-without-opening-inbound-ports))
-- [ ] Extend `deploy.yml` with the `deploy-self-hosted` and `deploy-saas-parallel` jobs ([§3.2](#32-the-dual-target-workflow-file))
-- [ ] Make `ams-react/src/api/axiosConfig.js`'s base URL env-driven so the two targets can point at different backends
-- [ ] Configure PayMongo (and later Semaphore/Resend) credentials **separately** on each environment's `AdminAccountSettings.jsx` — including registering a second PayMongo webhook for the Railway URL ([§3.3](#33-external-services-are-shared-dependencies-not-infrastructure--configure-per-environment))
-- [ ] Decide whether to add the one-way data sync job, or accept the two environments as independently-seeded ([§3.5](#35-keeping-data-in-sync-optional-stretch))
-
 ---
 
 ## Summary
@@ -938,7 +696,6 @@ Implement CI/CD incrementally. Don't try to do everything at once.
 | **PHP backend** | Syntax validation on 80+ endpoint files | Catches missing semicolons, unclosed brackets, typos |
 | **MariaDB database** | Schema import on a fresh database | Catches broken migrations, invalid SQL, missing tables |
 | **Git workflow** | Protected `main`, required PR reviews | Prevents broken code from reaching production |
-| **Dual-target CD** (Phase 3) | Deploys the same passing build to self-hosted production *and* the SaaS fallback stack | Fallback is continuously proven to deploy, not just documented — see [Phase 3](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback) |
 
 The philosophy is straightforward:
 
@@ -946,5 +703,5 @@ The philosophy is straightforward:
 
 ---
 
-*Last updated: September 2026 — verified against the live repo (lint status, DB engine, endpoint count) before the corrections above were applied; Phase 3 integrates the dual-environment strategy from `saas_fallback_strategy.md` and `external_services.md`.*
-*Related: [Deployment Guide](localhost_to_production.md) · SaaS Fallback Strategy (doc removed) · [External Services Matrix](../documentation/external_services.md) · [Security Audit](../security_audit.md) · [Development Backlog](../todo.md)*
+*Last updated: September 2026 — verified against the live repo (lint status, DB engine, endpoint count) before the corrections above were applied
+*Related: [Deployment Guide](localhost_to_production.md) · [External Services Matrix](../documentation/external_services.md) · [Security Audit](../audits/security_audit.md) · [Development Backlog](../planning/todo.md)*

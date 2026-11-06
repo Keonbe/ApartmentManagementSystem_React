@@ -246,3 +246,13 @@ percentages stop summing to 100.
 - **`parking_reservation.php` still stores `../uploads/…`.** Left alone
   deliberately; fixing it would orphan existing rows. New service uploads do not
   inherit the bug.
+
+## 9. Visit scheduling, cancellation and ratings (2026-11)
+Added to `service_requests` (and the same scheduling columns on `maintenance_requests`); column meanings are in [database_schema.md](../documentation/database_schema.md#column-notes-2026-11-06). Tenant screens: [tenant_pages.md](tenant_pages.md) §5.
+- **Confirmed visit.** The admin sets `scheduled_date` + `scheduled_window` (`morning` 08:00 / `afternoon` 13:00). Approving without one copies the tenant's preferred date and slot. My Requests shows the confirmed visit (or "visit pending") and an Approved service reads "Confirmed", not "Completed".
+- **Capacity.** `service_catalog.max_per_slot` (NULL = unlimited) caps Pending / Approved / In Progress bookings per service, date and window; `service_request.php` answers 409 "fully booked" and the booking form disables the full slot (`get_service_availability.php`).
+- **Cancelling.** A Pending request is cancelled outright. An Approved booking more than 24 h before the visit (`SERVICE_FREE_CANCEL_HOURS`) cancels freely; otherwise, and for an In Progress booking or maintenance ticket, the tenant sends a cancel request (`cancel_requested_at`) and the admin accepts or declines it.
+- **Not fixed.** A tenant can reopen their own Completed, not-yet-invoiced maintenance ticket with a reason (`reopen_maintenance_request.php`); it returns to In Progress.
+- **Final quantity.** Completing with a different final quantity keeps the original in `booked_quantity` / `booked_total_cost` and the tenant sees the price change.
+- **Ratings.** One 1-5 star rating with an optional comment per Completed service, within 14 days of completion (`rate_service_request.php`).
+- **Categories.** Service categories are rows in `service_categories` (built in: cleaning, laundry, other), edited in admin; the tenant catalog groups by them in English or Filipino.

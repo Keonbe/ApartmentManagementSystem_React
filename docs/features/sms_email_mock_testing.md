@@ -1,7 +1,7 @@
 # AMS — Testing SMS & Email on the mock drivers
 
 > **For:** whoever is running this on XAMPP. Every command is copy-pasteable from Git Bash.
-> **Design and build order:** [`sms_email_implementation.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md). This page is only how to drive it.
+> **Design and build order:** [`sms_email_implementation.md`](sms_email_implementation.md). This page is only how to drive it.
 >
 > **Start at [§6](#6-from-the-admin-ui)** if you just want to see it work: admin actions print the message to the browser console, no command line involved. Sections 2–5 are the command-line equivalents, for debugging and for reading what the UI recorded.
 
@@ -202,7 +202,7 @@ rm -rf backend/logs/notification_outbox
 The code path does not change. In order:
 
 1. **Email** — install PHPMailer (`cd backend && composer require phpmailer/phpmailer:^6.9`; pin 6.x, PHPMailer 7 needs PHP 8.1 and local XAMPP is 8.0.30), fill the SMTP fields with a Gmail **App Password**, set **Delivery Method** to `SMTP`. Free and no lead time — do this one first.
-2. **SMS (Semaphore — built)** — full steps in [Appendix C.1](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md#c1-semaphore-sms--philippine-local). In short:
+2. **SMS (Semaphore — built)** — full steps in [Appendix C.1](sms_email_implementation.md#c1-semaphore-sms--philippine-local). In short:
    1. Make sure the database has the Semaphore settings (`sms_sender_approved`, `sms_daily_cap`; the dropped providers' settings removed). `SetupDB.sql` has them; an existing database gets them from `php backend/cron/migrate.php`.
    2. **Schedule the queue drain** — with a real provider, admin actions enqueue (the console shows `queued`, §6.4) and nothing is delivered until it runs:
       ```bat

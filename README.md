@@ -4,10 +4,10 @@ A full-featured Apartment Management System for tenant self-service and day-to-d
 
 | Part | Technology | Location |
 |---|---|---|
-| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7 | [ams-react/](ams-react/) |
-| REST API | Plain PHP 8 endpoints (no framework), MySQLi prepared statements | [backend/](backend/) |
-| Chat server | Node.js, Express 5, Socket.IO 4, mysql2 | [websocket-server/](websocket-server/) |
-| Database | MariaDB 10.4+ / MySQL 8 (`ams_db`) | [backend/api/migrations/](backend/api/migrations/) |
+| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7 | [ams-react/](ams-react) |
+| REST API | Plain PHP 8 endpoints (no framework), MySQLi prepared statements | [backend/](backend) |
+| Chat server | Node.js, Express 5, Socket.IO 4, mysql2 | [websocket-server/](websocket-server) |
+| Database | MariaDB 10.4+ / MySQL 8 (`ams_db`) | [backend/api/migrations/](backend/api/migrations) |
 
 > Last reviewed against the code: **2026-10-31**.
 
@@ -15,14 +15,14 @@ A full-featured Apartment Management System for tenant self-service and day-to-d
 
 ## 📑 Documentation Index
 
-System documentation lives in [docs/](docs/). The first two entries are the authoritative status sources; when a document disagrees with the code, the code wins.
+System documentation lives in [docs/](docs). The first two entries are the authoritative status sources; when a document disagrees with the code, the code wins.
 
 - **For AI assistants & contributors:** [AGENTS.md](AGENTS.md) is the shared guide for Claude, Codex, Gemini and Copilot (conventions, commit workflow, and which doc to update for which change). [SPRINT.md](SPRINT.md) tracks tasks and progress per commit.
 - **Status & verification:**
   - [Panelist Feature Checklist](docs/features/panelist_feature_checklist.md) — Scope and completion status of every panel requirement.
   - [Module Verification Guide](docs/documentation/module_verification_guide.md) — Audited modules: API contracts, workflows, and test cases.
-  - [Consolidated TODO](docs/consolidated_todo.md) — The open-work list (backend, security, deployment, testing).
-  - [Security Audit & Hardening](docs/security_audit.md) — Findings, fixes, and open risks.
+  - [Consolidated TODO](docs/planning/todo.md) — The open-work list (backend, security, deployment, testing).
+  - [Security Audit & Hardening](docs/audits/security_audit.md) — Findings, fixes, and open risks.
 - **System architecture & design:**
   - [System Design Specification](docs/documentation/system_design.md) — Data model, workflows, routes, and API inventory.
   - [Database Schema Reference](docs/documentation/database_schema.md) — ER diagram, table-by-table reference, and migration files.
@@ -36,17 +36,16 @@ System documentation lives in [docs/](docs/). The first two entries are the auth
   - [Inquiry & Reservation Design](docs/features/inquiry_reservation_design.md) — Public inquiries, holds, waitlist, conversion to application.
   - [Service Management Design](docs/features/service_management_design.md) — Service catalog, bookings, billing.
   - [Mobile Responsive Layout Guidelines](docs/features/mobile_responsive.md) — Viewport standards and responsive components.
-  - [Notification Services (historical)](docs/features/notification_services.md) — The original SMS/email research; superseded by the SMS & Email doc above.
 - **Deployment & operations:**
   - [Dual Deployment Plan](docs/deployment/dual-deployment-environment-plan.md) — Local / self-hosted build targets and guardrails.
   - [Environment Configuration](docs/deployment/environment_config.md) — Local (XAMPP) and production environment values.
   - [Localhost to Production Deployment Guide](docs/deployment/localhost_to_production.md) — Deploying frontend, backend, and database.
   - [CI/CD Pipeline](docs/deployment/cicd_pipeline.md) — What CI runs and the deployment strategy.
   - [Backup and Restore Runbook](docs/deployment/backup_and_restore.md) — Procedure for backing up and restoring a production install.
-  - [PayMongo Integration Guide](docs/paymongo_integration_guide.md) — Online payments (sandbox) and webhook.
+  - [PayMongo Integration Guide](docs/deployment/paymongo_integration_guide.md) — Online payments (sandbox) and webhook.
 - **Testing & development:**
   - [API Test Suite](docs/documentation/api_testing.md) — How the Vitest suite builds its scratch database and runs.
-  - [Date-Dependent Testing Guide](docs/date_dependent_testing.md) — Simulating overdue payments, expiring rentals, billing cycles.
+  - [Date-Dependent Testing Guide](docs/documentation/date_dependent_testing.md) — Simulating overdue payments, expiring rentals, billing cycles.
   - [Claude Code in this repo](docs/documentation/claude_code_guide.md) — Hooks, permissions and the `/db-snapshot` skill used for AI-assisted work.
   - [API Documentation (historical)](docs/documentation/api_documentation.md) — Older endpoint reference; check the code when they disagree.
 
@@ -257,10 +256,10 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
 
 - **Frontend:** React 19, React Router 7, Axios, Tailwind CSS 4, Font Awesome, socket.io-client.
 - **Backend:** PHP 8 REST endpoints (no framework), MySQLi prepared statements for all request input.
-- **Chat server:** Node.js with Express 5, Socket.IO 4 and mysql2 ([websocket-server/](websocket-server/)).
+- **Chat server:** Node.js with Express 5, Socket.IO 4 and mysql2 ([websocket-server/](websocket-server)).
 - **Quality:** Vitest API suite (~390 tests) plus CI: ESLint + production build, PHP syntax checks and PHPStan, schema/seed/migration validation on MariaDB, and a live-endpoint smoke test ([ci.yml](.github/workflows/ci.yml)).
 - **Auth:** login issues a session token stored in the `sessions` table. The frontend sends it as `Authorization: Bearer …`, and `require_admin()` / `require_user()` / `require_owner_or_admin()` resolve identity from it; client-sent identity headers are overwritten. A 401 signs the user out.
 - **Uploads:** extension + MIME allowlists; private files are served only through `download_file.php`.
 - **Audit logging:** `log_activity()` into `activity_logs` for every write.
 - **Secrets:** real credentials live only in the gitignored `backend/config.env.php` or environment variables (and the optional `websocket-server/.env`); templates ending in `.example` hold placeholders only.
-- **Open risks:** the Socket.IO chat server does not authenticate connections yet, so do not expose port 3001 to the public internet before reading [docs/security_audit.md](docs/security_audit.md) (§6e), which tracks this and the other open items.
+- **Open risks:** the Socket.IO chat server does not authenticate connections yet, so do not expose port 3001 to the public internet before reading [docs/audits/security_audit.md](docs/audits/security_audit.md) (§6e), which tracks this and the other open items.

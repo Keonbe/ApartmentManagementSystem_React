@@ -2,7 +2,7 @@
 
 > **Base URL:** `http://localhost/ApartmentManagementSystem_React/backend/api/`
 > **Content-Type:** `application/json` (unless file upload)
-> **Total Endpoints:** 84 PHP files across 12 modules
+> **Total Endpoints:** 155 PHP files in `backend/api/` (about 146 HTTP endpoints; the rest are helpers, includes and CLI-only schema scripts) across 15 modules. Modules 1-14 were written first; module 15 lists the endpoints added since 2026-09 and §15.7 corrects behaviour notes for earlier ones. Re-checked 2026-11-06.
 
 ---
 
@@ -17,13 +17,14 @@
 | 5 | [Lease & Contract Management](#5-lease--contract-management) | 6 | Contracts, documents, lease extensions |
 | 6 | [Billing & Invoices](#6-billing--invoices) | 11 | Invoice generation, payments, PayMongo |
 | 7 | [Utility Management](#7-utility-management) | 5 | Meter readings, corrections, utility billing sync |
-| 8 | [Maintenance Requests](#8-maintenance-requests) | 5 | Tenant maintenance tickets |
+| 8 | [Maintenance Requests](#8-maintenance-requests) | 4 | Tenant maintenance tickets |
 | 9 | [Service Requests](#9-service-requests) | 6 | Bookable services, catalog management |
 | 10 | [Visitor Management](#10-visitor-management) | 3 | Visitor registration, check-in/out |
 | 11 | [Parking Management](#11-parking-management) | 4 | Parking slot reservations |
 | 12 | [Communications & System](#12-communications--system) | 12 | Notifications, announcements, settings, reports |
 | 13 | [Inquiries & Reservations](#13-inquiries--reservations) | 5 | Pre-lease inquiries, unit reservations |
-| 14 | [Scheduled / Cron Tasks](#14-scheduled--cron-tasks) | 4 | Automated expiry and reminder jobs |
+| 14 | [Scheduled / Cron Tasks](#14-scheduled--cron-tasks) | 6 | Automated expiry and reminder jobs, plus the CCTV request endpoints |
+| 15 | [Endpoints Added Since 2026-09](#15-endpoints-added-since-2026-09) | 62 | Refunds, split / bundle / advance payments, household, guest chat, sign-in code, CCTV footage, site images |
 
 ---
 
@@ -292,7 +293,7 @@ Submit or resubmit a rent/lease application.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `X-User-Id` header |
+| **Auth** | `require_user()` (session; tenant role only, 403 otherwise) |
 | **Content-Type** | `multipart/form-data` |
 | **Duplicate Guard** | Blocks if user has active/pending application |
 
@@ -307,7 +308,7 @@ Submit or resubmit a rent/lease application.
 | `roomName` | string | ✅ |
 | `monthlyRent` | decimal | ✅ |
 | `agreeTerms` | boolean | ✅ |
-| `validIdFrontFile` | file | ✅ (first submit) |
+| `doc_<requirementId>` | file | one per active requirement (Settings → Application Requirements); replaces the old `validIdFrontFile` / `validIdBackFile` / `nbiFile` |
 | `validIdBackFile` | file | ✅ (first submit) |
 | `nbiFile` | file | ✅ (first submit) |
 | `appId` | integer | ❌ (for resubmission) |
@@ -384,7 +385,7 @@ Admin processes occupancy change or lease extension requests.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `verify_admin()` |
+| **Auth** | `require_admin()` |
 | **Idempotent** | Claim-first pattern prevents double-processing |
 
 **Handles:**
@@ -399,7 +400,7 @@ Tenant cancels their own pending occupancy/lease request.
 ---
 
 ### `GET` [get_my_requests.php](../../backend/api/get_my_requests.php)
-Returns a tenant's pending requests (occupancy, lease extension, CCTV).
+Returns the caller's maintenance, CCTV, parking and service requests (one UNION; service rows add `can_cancel_free` and `can_rate`; admins may pass `?userId=`).
 
 ---
 
@@ -514,7 +515,7 @@ Uploads signed or notarized lease document PDFs/images to a contract.
 ### `POST` [extend_lease.php](../../backend/api/extend_lease.php)
 Tenant requests a lease extension (creates a pending admin notification).
 
-**Request Body:** `{months}` — 1 to 24 months
+**Request Body:** `{additionalMonths}` — 1 to `MAX_RENT_AHEAD_MONTHS_CEILING` (12) months; also subject to `extension_block_reason()` and `extension_deadline_reason()`, one pending request at a time (errors are HTTP 400).
 
 ---
 
@@ -607,7 +608,7 @@ Admin confirms/records a payment — marks invoice as `paid`, activates occupanc
 |----------|--------|
 | **Auth** | `require_admin()` |
 | **Transactional** | Payment + occupancy activation + contract creation |
-| **Guard** | Rejects partial payments (amount < total) |
+| **Guard** | A short amount is refused unless `partial: true` (single invoice), which records an instalment through `record_partial_payment()`; `payments[]` accepts split-method payments; a bill in `processing` returns 409 |
 
 **On First Payment Approval:**
 1. Marks invoice `paid`
@@ -634,7 +635,7 @@ Creates a PayMongo checkout session for online payment.
 |----------|--------|
 | **Auth** | `require_user()` |
 | **Channels** | `gcash`, `paymaya`, `card`, `bank`, sandbox variants |
-| **Guard** | Only open-status invoices; re-uses existing unexpired session |
+| **Guard** | Only open-status invoices; a `processing` invoice is refused ("already in progress"), no session is re-used; non-admins need `payment_mode` `sandbox` or `both` and the pay-bills and channel switches on (403) |
 
 ---
 
@@ -687,7 +688,7 @@ Records one unit's water **and** electricity meter readings for a billing month.
 | `water_other_fees` / `electric_other_fees` | decimal | — (0) |
 | `notes` | string | — |
 
-Response includes `id`, consumption, `total_amount`, and a `warning` when the unit has no billable tenant.
+Response includes `id`, consumption, `total_amount`, and refuses (422) a unit with no billable tenant. Modes: `entry_mode` `metered` (default), `bill` (provider amounts `water_bill_amount` / `electric_bill_amount`, meter values optional) or `total` (`total_amount`), plus extra utility types.
 
 ---
 
@@ -756,7 +757,7 @@ Tenant submits a maintenance ticket.
 | `preferredTime` | string | ✅ | `morning` or `afternoon` |
 | `description` | string | ✅ | Issue description |
 | `permissionToEnter` | boolean | ❌ | Entry consent |
-| `attachment` | file | ❌ | Photo/video (max 10MB) |
+| `uploadedFile` | file | ❌ | Photo/video (max 10MB; JPG, PNG, GIF, WEBP, MP4, M4V, WEBM, MOV) |
 
 **Categories:** `Plumbing`, `Electrical`, `Structural/Physical`, `Water Supply`, `General Maintenance`, `Others`
 
@@ -803,7 +804,7 @@ stateDiagram-v2
     In_Progress --> Completed: Finished
     In_Progress --> Cancelled: Cancelled
     Completed --> Cancelled: Charge reversed
-    Completed --> [*]: Invoiced via post_service_charge()
+    Completed --> [*]: Invoiced via post_invoice_charge('service')
 ```
 
 ### `POST` [service_request.php](../../backend/api/service_request.php)
@@ -824,7 +825,7 @@ Lists service requests — admin sees all, tenant sees own.
 ---
 
 ### `POST` [update_service_status.php](../../backend/api/update_service_status.php)
-Admin updates service request status. On completion, triggers `post_service_charge()` to bill the tenant. On cancellation of a completed request, triggers `reverse_service_charge()`.
+Admin updates service request status. On completion, triggers `post_invoice_charge($conn, 'service', $id)` to bill the tenant. On cancellation of a completed request, triggers `reverse_invoice_charge()`. Rejected and Cancelled need `adminNotes` (422, <= 500).
 
 ---
 
@@ -839,7 +840,7 @@ Returns the active service catalog for tenants (filters by `is_active` + categor
 ---
 
 ### `POST` [sync_service_to_invoice.php](../../backend/api/sync_service_to_invoice.php)
-Admin manually triggers billing of a completed service request (calls `post_service_charge()`).
+Admin manually triggers billing of a completed service request (calls `post_invoice_charge('service')`).
 
 ---
 
@@ -909,7 +910,7 @@ Admin broadcasts an announcement to all tenants via in-app notifications.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `verify_admin()` |
+| **Auth** | `require_admin()` |
 | **Transactional** | Announcement + per-user notification insert |
 
 **Request Body:**
@@ -1077,6 +1078,139 @@ Admin approves/rejects CCTV footage requests.
 
 ---
 
+## 15. Endpoints Added Since 2026-09
+
+Endpoints added or split out after the modules above were written (verified against the code on 2026-11-06). Same conventions: JSON body unless noted, `{success:false, message}` on error, `validation_fail()` answers 422 with `{success, message, errors:{field:msg}, field}`. Identity always comes from the session; `X-User-Id` / `X-Admin-Id` are overwritten by `config.php`.
+
+### 15.1 Payments, bundles and refunds
+
+| Endpoint | Auth | Request | Response / errors | Effects |
+|---|---|---|---|---|
+| `POST` [adjust_invoice.php](../../backend/api/adjust_invoice.php) | admin | `invoiceId`, `reason` (5-255), optional `baseRent`, `water`, `electricity`, `parking`, `lateFee` (>= 0), `dueDate` (`Y-m-d`, not in the past unless unchanged) | `{success, message, invoice_id, total_amount}`; 404; 409 advance invoice, status not adjustable (pending, unpaid, overdue, scheduled, payment-failed) or row changed; 422 bad value, total <= `amount_paid`, nothing changed | Updates `invoices` under `FOR UPDATE`, inserts `invoice_adjustments`; tenant notified if the total moved; log `billing` |
+| `POST` [reject_payment_proof.php](../../backend/api/reject_payment_proof.php) | admin | `invoiceId` (may be a `payment_group`), `reason` (3-255) | `{success, message}`; 409 no proof awaiting verification; 422 | Invoice back to pending / overdue, clears proof and reference, sets `proof_rejection_reason`, `clear_payment_proof_parts`, tenant notice + e-mail; log `billing` |
+| `POST` [submit_split_payment.php](../../backend/api/submit_split_payment.php) | tenant (admin 403) | multipart: `invoice_id` (invoice or group), `parts` (JSON, 2 portions across cash / GCash / bank), optional `amount` (single bill only), `scheduled_date` (<= +60 days) + `scheduled_time_slot` when a portion is cash, `proof_<i>` (JPG/PNG/WEBP/PDF, 10 MB) | `{success, message}`; 409 bill not open / processing / duplicate / reference reuse blocked; 422 | Replaces `payment_proof_parts`, invoice -> `pending-verification` (`SPLIT_PAYMENT_LABEL`), admin queue `payment_verification`; log `billing` |
+| `POST` [bundle_payment.php](../../backend/api/bundle_payment.php) | tenant | `action` `create` or `release` (+ `key` for release) | create: `{key, invoices[{id, billing_period, amount}], total}` (amounts are balances); 409 already awaiting / already submitted; 422 fewer than two unpaid bills or none overdue | Sets `invoices.payment_group` (`BND-`); log `billing` |
+| `GET` / `POST` [advance_payment.php](../../backend/api/advance_payment.php) | tenant (admin 403) | GET none. POST `{action:'create', months}` (1-6, `ADVANCE_PAYMENT_MAX_MONTHS`) or `{action:'cancel', invoice}` (legacy `group:'ADV-...'`) | GET `{available, monthly_rent, lease_end, months[], pending, credits}`; create `{invoice_id, months, total, due_date}`; 403 no active tenancy; 409 open advance exists / cannot cancel; 422 | Inserts an advance `invoices` row + `advance_credits` (`reserved`); cancel voids both; log `billing` |
+| `POST` [create_refund_request.php](../../backend/api/create_refund_request.php) | tenant (admin must pass `user_id`) | `type` `advance` / `overpayment`, `reason` (<= 1000), `amount` (> 0), `invoice_id` for overpayment | `{success, message, id}`; 400; 404; 409 concurrent claim or not whole months; 422 nothing refundable / over the maximum | `insert_refund_request()` under a user-row lock; advance credits held (`refund_request_id`); admin queue; log `billing` |
+| `GET` [get_refund_requests.php](../../backend/api/get_refund_requests.php) | user (tenant: own; admin: all, optional `status`, `user_id`) | - | `{requests[{id, type, amount, status, decisionReason, payoutMethod, payoutReference, canRefundOnline, gatewayRefundId, gatewayStatus, raisedByRole, events[] ...}], eligible?}` (max 300) | none |
+| `POST` [respond_refund_request.php](../../backend/api/respond_refund_request.php) | tenant (own) | `id`, `action` `reply` / `cancel`, `message` (reply, <= 1000) | `{status}`; 409 not `Info Requested` or transition not allowed | Updates request + `refund_request_events`; cancel frees the credits; log `billing` |
+| `POST` [update_refund_request.php](../../backend/api/update_refund_request.php) | admin | `id`, `action` `approve` / `reject` / `request_info` / `mark_refunded`, `message` (reject, request_info), for `mark_refunded` either `gateway:true` (PayMongo refund, >= ₱1.00) or `payout_method` + `payout_reference` | `{status}`; 409 illegal transition (`REFUND_TRANSITIONS`) or gateway refund already `requesting`; 422; 502 PayMongo refused; 500 PayMongo accepted but AMS failed to record (do not retry) | Updates request + events, advance credits `refunded` / freed, tenant `refund_update` notice; log `billing` |
+| `POST` [sync_maintenance_to_invoice.php](../../backend/api/sync_maintenance_to_invoice.php) | admin | `id` (maintenance request) | `{invoiceId}`; failures are HTTP 200 with `success:false` | `post_invoice_charge('maintenance')`; log `billing` |
+| `POST` [sync_parking_to_invoice.php](../../backend/api/sync_parking_to_invoice.php) | admin | `reservation_id`, `period` (`YYYY-MM`, default current), `action` `post` / `reverse` | `{invoice_id, already_billed}`; 404; 409; 422 | `post_invoice_charge` / `reverse_invoice_charge('parking')`; log `billing` |
+
+> Reference lookups: `payment_transactions` and `payment_proof_parts` carry the generated `reference_norm` used by the duplicate-reference policy (see [database_schema.md](database_schema.md)).
+
+### 15.2 Rent, units and applications
+
+| Endpoint | Auth | Request | Response / errors | Effects |
+|---|---|---|---|---|
+| `POST` [admin_extend_rent.php](../../backend/api/admin_extend_rent.php) | admin | `roomId`, `addMonths`, optional `newRent` (> 0), `overrideConflict` | `{newLeaseEnd, holdoverInvoices}`; 409 no tenant or `ExtensionRefused` (overdue bills, scheduled move-out; carries `conflict.applications[]`); 422 | `extend_tenancy()` in one transaction, tenant notified, competing applicants notified on override; log `contract` |
+| `POST` [schedule_move_in.php](../../backend/api/schedule_move_in.php) | admin | multipart: `id`, `move_in_date` (today to +365 d), `message` (<= 1000), optional `attachment` (JPG/PNG/PDF, 10 MB) | `{success}`; 409 not Approved or deposit invoice unpaid; 422 | Sets `move_in_date`, `move_in_notified_at`, tenant notice + e-mail, admin queue; log `tenant` |
+| `POST` [cancel_application.php](../../backend/api/cancel_application.php) | applicant (own) | `id`, `reason` (3-255) | `{success}`; 409 not Approved / Pending Review, or part of the move-in bill already paid | `transition_application(..., 'Cancelled')`, `release_application_holds()`, voids move-in invoices, e-mails |
+| `POST` [resubmit_date.php](../../backend/api/resubmit_date.php) | applicant (own) | `id`, `preferred_move_in_date` | `{success}`; 400 status changed; 422 | `Action Required` -> `Pending Review`; admin queue; log `tenant` |
+| `GET` [get_application_requirements.php](../../backend/api/get_application_requirements.php) | user (admin `?all=1` includes inactive) | - | `{requirements[]}` | none |
+| `POST` [manage_application_requirements.php](../../backend/api/manage_application_requirements.php) | admin | `action` `create` / `update` / `reorder` / `deactivate` / `activate`, `label` (2-60), `label_fil`, `is_required`, `sort_order`, `id`, `ids[]` | `{requirements[]}`; 409 already (in)active; 422. Max 12 active, labels unique | Writes `application_requirements`; log `system` |
+| `POST` [apply_floor_rate.php](../../backend/api/apply_floor_rate.php) | admin | `floor`, `preview` | `{rate, updated, skippedCustom, skippedOccupied}`; 422 no floor rate | Sets `rooms.monthly_rent` on vacant, non-custom units; log `unit` |
+| `POST` [archive_room.php](../../backend/api/archive_room.php) | admin | `id` | `{success}`; 409 occupied, active application or reservation; 503 column missing | Sets `rooms.archived_at` / `archived_by`; log `unit` |
+| `POST` [set_unit_maintenance.php](../../backend/api/set_unit_maintenance.php) | admin | `unitId`, `action` `start` / `complete`, `completionDate` (required for start, not in the past), `notes` | `{availableDate, maintenanceFlag}`; 409 occupied; 422 | Updates `rooms` (flag, `available_date`, condition); log `unit` |
+| `POST` [upload_room_images.php](../../backend/api/upload_room_images.php) | admin | multipart `room_id`, `images[]` (max 8 per unit) | `{gallery}`; 422 | Updates `rooms.gallery`; log `unit` |
+| `POST` [update_room_image.php](../../backend/api/update_room_image.php) | admin | `room_id`, `path`, `alt` (<= `GALLERY_ALT_MAX`), `fit` (`GALLERY_FITS`) | `{gallery}`; 404 | Updates the gallery item |
+| `POST` [delete_room_image.php](../../backend/api/delete_room_image.php) | admin | `room_id`, `path` | `{gallery}`; 404 | Removes the item and unlinks the file |
+| `POST` [save_contract_template.php](../../backend/api/save_contract_template.php) | admin | `template`, `note`, `base_version` | `{changed, version, id}`; 409 version conflict (carries the current `version`) | New `contract_template_versions` row; log `contract` |
+| `GET` [get_contract_template.php](../../backend/api/get_contract_template.php) | user (`history`, `default` and `full` are admin) | `history`, `default`, `version_id` | template + `version`, `terms_version`, `is_default`; 403 a tenant asking for a version that is not theirs; 404; 422 | none |
+
+### 15.3 Household, waitlist and expenses
+
+| Endpoint | Auth | Request | Response / errors | Effects |
+|---|---|---|---|---|
+| `GET` / `POST` [household_members.php](../../backend/api/household_members.php) | user (admin read-only via `?userId=`) | POST `action:'add'` (`fullName` 2-150, `relationship`, optional PH `contactNo`, `age` 0-120, required for a Child who must be <= 17) or `action:'remove'` (`memberId`) | GET `{hasLease, leaseHolder, roomName, occupants, maxOccupants, relationships, ageCategories, minAge, childFloorRule, members[]}`; 403; 404; 409 duplicate / cap / removal pending; 422 (age, floor rules) | Adds a `Pending` row or sets `removal_requested_at`; notice `household_request` for admin approval; log `tenant` |
+| `GET` / `POST` [manage_waitlist.php](../../backend/api/manage_waitlist.php) | admin | POST `action:'add'` (`inquiryId`, optional `roomName`) or `'remove'` (`id`) | GET `{entries[]}`; 404; 409 inquiry closed, unit vacant or already waitlisted | `unit_waitlist`; `waitlist_update` notice; log `inquiry` |
+| `GET` / `POST` [manage_expenses.php](../../backend/api/manage_expenses.php) | admin | GET `?month=YYYY-MM`; POST `action` `create` / `update` / `delete`, `category` (utilities, supplies, salaries, repairs_common, taxes_fees, insurance, other), `amount` (0-10,000,000), `expenseDate` (<= tomorrow), `description` (<= 255) | `{expenses[], categories}`; 404; 422 | `expenses`; log `billing` |
+| `GET` / `POST` [monitor_followups.php](../../backend/api/monitor_followups.php) | admin | POST `kind` `payment` / `document`, `id` | GET `{payments[], documents[], counts}`; 409 reminder already sent today | `send_followup_nudge()`; syncs the admin queue; log `billing` |
+| `GET` / `POST` / `PUT` / `DELETE` [house_rules.php](../../backend/api/house_rules.php) | GET public; writes admin | GET `?scope=house|parking|minors|all`; POST/PUT `category`, `title` (<= 255), `title_fil`, `description`, `description_fil`, `is_highlight`, `is_active`, `sort_order`, `scope`; PUT `{action:'reorder', rules:[{id}]}`; DELETE `{id}` (soft) | `{rules[]}` / `{id}`; 404; 422. "Visitors & Guests" is hidden from non-admins when visitor management is off | `house_rules` |
+| `GET` / `POST` / `PUT` / `DELETE` [manage_utility_types.php](../../backend/api/manage_utility_types.php) | GET user (admin `?all=1`); writes admin | `name` (<= 60), `unit_label` (<= 20), `billing_mode` `metered` / `flat`, `default_rate` (0-100000), `is_active`; DELETE `{id}` (sets inactive) | `{types[]}`; 404; 422 | `utility_types`; log `utilities` |
+| `POST` [upload_utility_bill.php](../../backend/api/upload_utility_bill.php) | admin | multipart `reading_id`, `bill` (JPG/PNG/PDF, 10 MB) or `remove=1` | `{bill_file_path}`; 404; 422 | `utility_readings.bill_file_path`; tenant notice on attach; log `utilities` |
+
+### 15.4 Services, maintenance and CCTV
+
+| Endpoint | Auth | Request | Response / errors | Effects |
+|---|---|---|---|---|
+| `GET` [get_service_categories.php](../../backend/api/get_service_categories.php) | public | - | `{categories[{id, key, label, labelFil, sortOrder, itemCount, builtin}]}` | none |
+| `POST` [manage_service_categories.php](../../backend/api/manage_service_categories.php) | admin | `action` `create` / `update` / `delete`, `label` (<= 60, unique), `labelFil`, `id` | `{id, key}` on create; 409 built-in or still has services; 422 | `service_categories`; log `service` |
+| `GET` [get_service_availability.php](../../backend/api/get_service_availability.php) | user | `serviceId`, `date` (`Y-m-d`) | `{slots:{morning:{limit, taken, full}, afternoon:{...}}}`; 404; 422 | none |
+| `POST` [rate_service_request.php](../../backend/api/rate_service_request.php) | tenant (own) | `id`, `rating` (1-5), `comment` (<= 255) | `{success}`; 409 not Completed, already rated, past `SERVICE_RATING_DAYS`; 422 | Updates `service_requests`; admins notified; log `service` |
+| `POST` [reopen_maintenance_request.php](../../backend/api/reopen_maintenance_request.php) | tenant (own) | `id`, `reason` (<= 255) | `{success}`; 409 not Completed, older than `MAINTENANCE_REOPEN_DAYS`, already invoiced | Back to `In Progress`, stores `reopen_reason`; admin queue; log `maintenance` |
+| `POST` [attach_cctv_footage.php](../../backend/api/attach_cctv_footage.php) | admin | multipart `id`, exactly one of `file` (mp4, m4v, webm, mov, jpg, png, webp; 25 MB) or `url` (https, <= 500) | `{footageKind, footageExpiresAt}`; 404; 409 not Approved; 413; 422 | Sets footage columns (expiry = `cctv_footage_days`), tenant notified (in-app, SMS, e-mail); log `service` |
+| `POST` [remove_cctv_footage.php](../../backend/api/remove_cctv_footage.php) | admin | `id` | `{success}`; 404 none attached | Clears footage, deletes the file; log `service` |
+| `GET` [open_cctv_footage.php](../../backend/api/open_cctv_footage.php) | owner or admin (`?token=` accepted) | `?id=` | 302 to `footage_url`; 403; 404; 410 expired | `log_cctv_footage_view` |
+| `GET` [download_file.php](../../backend/api/download_file.php) | per file: owner or admin; admin only for visitor ID photos; chat participants; notification recipients; guest with `X-Guest-Token` for guest chat media (Bearer header or `?token=`) | `?path=uploads/<folder>/<file>` | the file (inline, `nosniff`); 400; 401; 403; 404 (also when no DB row references the path); 410 CCTV footage expired | none (CCTV views are logged) |
+| `GET` / `HEAD` [public_file.php](../../backend/api/public_file.php) | public (no DB) | `?path=<room_images|qr_codes|site_assets>/<file>` (jpg, png, gif, webp) | the image, cached 30 days, ETag / 304; 400; 404 | none |
+
+### 15.5 Chat, guest chat and notifications
+
+| Endpoint | Auth | Request | Response / errors | Effects |
+|---|---|---|---|---|
+| `POST` [send_message.php](../../backend/api/send_message.php) (`save_message.php` just includes it) | signed-in session (no role check; see security_audit CH-3) | `receiver_id`, `message`, `reply_to_id`, `attachment` (JPG/PNG/GIF/WEBP 10 MB, MP4/WEBM/MOV 25 MB) | `{message{...}}`; 400; 404; 413; 415 | `messages`; log `chat`. Realtime delivery is the Socket.IO sidecar's job |
+| `GET` [get_chat_history.php](../../backend/api/get_chat_history.php) | signed-in session | `other_user_id`, `mark_as_read` | `{messages[]}`; 400; 401 | optionally marks received messages read |
+| `GET` [get_conversations.php](../../backend/api/get_conversations.php) | signed-in session | `search` | `{conversations[]}` with last message and `unread_count` | none |
+| `GET` [get_admin_user.php](../../backend/api/get_admin_user.php) | signed-in session | - | `{user}` (lowest-id admin); 404 | none |
+| `GET` / `POST` [guest_chat.php](../../backend/api/guest_chat.php) | guest (`X-Guest-Token`, 64 hex) or admin (`thread_id`) | POST `message` (<= 4000) or `attachment`, `reply_to_id` | GET `{thread, messages[]}`; 401; 404; 413; 415; 422; 429 (20 messages/hour per guest) | `guest_messages`; admin queue; admin reply e-mails the guest once per unseen batch |
+| `GET` [get_guest_conversations.php](../../backend/api/get_guest_conversations.php) (`guest_chat_inbox.php` includes it) | admin | - | `{conversations[]}` de-duplicated by e-mail / phone | none |
+| `POST` [guest_chat_resume.php](../../backend/api/guest_chat_resume.php) | public | `action:'request'` + `email`, or `action:'redeem'` + `code` (64 hex) | request: always the same message (3/hour per e-mail, 10/hour per IP, 429); redeem: `{guest_token, thread_id}`; 410 expired / used | `guest_chat_links` single use; sets `guest_verified_at` |
+| `GET` [get_notification_preferences.php](../../backend/api/get_notification_preferences.php) | user | - | `{preferences[], always_on[], channels, sms_opt_out, email_opt_out, ...}` | none |
+| `POST` [update_notification_preferences.php](../../backend/api/update_notification_preferences.php) | user | `preferences` (`{category: bool}` or `{category: {in_app, sms, email}}`), `sms_opt_out`, `email_opt_out` | `{changed}`; 422 unknown category | Upserts `notification_preferences`; log `user` |
+| `POST` [archive_notification.php](../../backend/api/archive_notification.php) | user (own) | `notificationId` (omit to archive all non-Pending) | `{archived}`; 404; 409 still Pending | `notifications.is_archived = 1` |
+| `POST` [send_test_notification.php](../../backend/api/send_test_notification.php) | admin | `channel` `sms` / `email` / `both` | `{dry_run, drivers, results{...}, rendered{...}}` | sends only to the calling admin; log `system` |
+| `GET` [get_sms_balance.php](../../backend/api/get_sms_balance.php) | admin | - | `{provider, credit_balance, account_status, cached}`; provider errors are HTTP 200 with `success:false` (cached 60 s) | none |
+
+### 15.6 Sign-in, e-mail and site appearance
+
+| Endpoint | Auth | Request | Response / errors | Effects |
+|---|---|---|---|---|
+| `POST` [verify_device.php](../../backend/api/verify_device.php) | public (login flow) | `email_address`, `otp` (6 digits) | `{valid:true, role, user, sessionToken}` + `ams_trusted_device` cookie (1 year); wrong / expired code is HTTP 200 `valid:false`; 400 malformed | Clears the code, inserts `trusted_devices`, creates the session; 3 wrong tries lock the code |
+| `GET` / `POST` [login_otp_settings.php](../../backend/api/login_otp_settings.php) | admin | GET `?q`, `?filter=all|active|past|non_tenant|custom`, `?page` (20 per page); POST `set_global` (`enabled`), `set_user` (`user_id`, `mode` `default` / `on` / `off`), `clear_overrides` | `{enabled, counts, users[], total, page, per_page}`; 404; 422 | `system_settings.login_otp_enabled`, `users.login_otp_mode`; log `auth` |
+| `POST` [verify_email.php](../../backend/api/verify_email.php) | public | `token` (64 hex) | `{success}`; unknown / used token is HTTP 200 `success:false`; 400 malformed | Sets `email_verified_at`, clears the token |
+| `GET` [get_glass_backgrounds.php](../../backend/api/get_glass_backgrounds.php) | admin | `kind` `glass` / `preview` | `{backgrounds, limit}` | none |
+| `POST` [upload_glass_background.php](../../backend/api/upload_glass_background.php) | admin | multipart `background` (content-checked, 640-8000 px) | `{image_path, backgrounds[]}` | file kept in a rolling list; goes live only when settings are saved; log `system` |
+| `POST` [upload_preview_image.php](../../backend/api/upload_preview_image.php) | admin | multipart `image` | same | same, for the Preview hero |
+| `POST` [delete_glass_background.php](../../backend/api/delete_glass_background.php) | admin | `path`, `kind` | `{backgrounds}`; 409 it is the live photo; 422 | deletes the file; log `system` |
+| `POST` [upload_qr_image.php](../../backend/api/upload_qr_image.php) | admin | multipart `slot` (1-5), `qr_image` (JPG/PNG/WEBP/GIF, 5 MB) | `{image_path, slot}`; 422 | file in `qr_codes/`; the path is saved with the settings; log `payment` |
+
+> `auth_email.php` is a helper (`send_auth_email()`, not an endpoint). `apply_live_schema_fix.php`, `audit_live_schema.php`, `final_schema_patch.php` and `sync_live.php` are CLI-only schema scripts that answer 403 over HTTP; they are one-offs superseded by `cron/migrate.php` and candidates for removal.
+
+### 15.7 Corrections and details for earlier modules (2026-11-06)
+
+Behaviour that the sections above no longer describe fully. The code wins; endpoint names link to the module section.
+
+| Endpoint | Current behaviour |
+|---|---|
+| login.php | Unverified e-mail: HTTP 200 `valid:false`, `email_verification_required:true`. A non-admin on an untrusted device gets `{status:'device_verification_required', valid:false}` and a 6-digit code by e-mail (finish with `verify_device.php`); skipped for admins, demo domains (non-production), accounts with codes off and a valid `ams_trusted_device` cookie. Lockout: 5 failures per account + IP, 25 per account across IPs, 20 per IP, 15-minute window. `user` also returns `contact_no`, `gender`. Optional `guest_token` adopts a guest chat. |
+| registration.php | Stores a `verification_token` and e-mails a link (`email_delivery_failed` in the response if it could not be sent); sign-in is refused until verified. Max lengths 30 / 50 / 30 / 20 / 190, `password_policy_error()`, IP rate limit (429). Validation errors are HTTP 200 with `success:false`. |
+| rent_application.php | Session auth, tenant role only. Extra fields: `previousAddress` (5-255, required), `isAsap`, `preferredMoveInDate`. `occupants` <= `max_occupants_per_unit`; `monthsOfRent` from `min_lease_duration` to 24; `monthlyRent` is ignored (re-read from the room). Resubmit only from Rejected / Declined (else 409). |
+| get_rooms.php | Guests and tenants get `id, type, floor, rent, status, roomCondition, furnishingStatus, images, availableDate, availableFrom`. Admins also get `tenant`, `leaseStart`, `leaseEnd`, `lastTenant`, `maintenanceFlag`, `occupants`, `lastInspectionDate`, `extensionRange`, `maintenanceHistory`, `occupancyHistory`, `leaseHistory`. Expired reservations are released at most once a minute. |
+| update_room.php | `status`, `tenant_name`, `occupants`, `last_tenant`, `lease_start`, `lease_end` are refused (422, "Use Extend Rent") outside the assign flow. Assigning a tenant sets the room to `reserved`, creates the move-in invoice and a draft contract (`issue_move_in_billing()`) and notifies the tenant; the unit becomes occupied only after the move-in is paid and confirmed. `monthly_rent` > 0 sets `rent_is_custom`; `available_date` is editable. |
+| my_room.php | Admin lookup also by `?email=`; `?summary=1` returns only the latest application status. |
+| get_invoices.php | A tenant must send `?userId=<self>` (without it the call is admin-only, 403). The overdue promotion and auto-cancel of invoices of cancelled / rejected applications run at most once a minute. |
+| pay_bill.php | A non-cash method needs a proof already stored by `upload_payment_proof.php` (422 otherwise). "In-Person Payment" is stored as `Cash on Hand`. `invoiceId` may be an advance-payment group id. A cash declaration queues an admin item. |
+| upload_payment_proof.php | Also takes `amount` (instalment, checked against the balance), `bank_name` (required for bank methods) and `sender_name`; the proof file is required. Tenants get 403 when pay-bills is off, `payment_mode` is `sandbox` or the channel is off. |
+| create_checkout_session.php | Body `{invoice_id, channel}`; channels `gcash`, `gcash_sandbox`, `paymaya`, `maya`, `bank`, `bank_sandbox`, `card`; `invoice_id` may be an advance group id. |
+| paymongo_webhook.php | Authenticated by the `Paymongo-Signature` header (HMAC-SHA256 over `t.payload`, 300 s freshness; 400 / 401 / 500 on failure). Handles `checkout_session.payment.paid` (settles any open, non-paid invoice), `payment.failed` (`processing` -> `payment-failed`, tenant notified) and refund events (`refund_requests.gateway_status`). An amount mismatch goes to `pending-verification` with an admin queue item; stale or cancelled payments call `raise_unapplied_payment`. |
+| service_request.php | Fields `serviceId`, `preferredDate` (<= `SERVICE_MAX_ADVANCE_DAYS`), `preferredTimeSlot` (morning / afternoon), `quantity` (whole for `item`, 1 for `session`), `notes`, optional `uploadedFile` (JPG/PNG/GIF/WEBP/PDF). Needs an active tenancy (403), a duplicate booking is 409, a full slot is 409, a disabled category blocks the booking. |
+| maintenance_request.php | File field `uploadedFile`; 403 when `service_maintenance_active` is off or the tenant has no active tenancy; response includes `id`. |
+| cancel_request.php | Body `{id, type}` with `type` Maintenance, CCTV, Parking or Service. Only `Pending` rows cancel directly; an `In Progress` maintenance ticket and a service that is not free to cancel become a cancel request (`requested:true`). |
+| update_service_status.php | Also takes `assignedTo`, `scheduledDate` + `scheduledWindow`, `finalQuantity`, `declineCancel`. Transitions follow `SERVICE_TRANSITIONS` (Approved -> Rejected is allowed). |
+| update_maintenance_status.php | Also takes `scheduledDate` + `scheduledWindow`, `workNotes`, `tenantResponsible`, `estimatedCost`, `actualCost` (required to complete a tenant-billed ticket), `declineCancel`. `In Progress -> Cancelled` is allowed; Cancelled and Rejected are terminal. |
+| update_parking_status.php | Statuses `Assigned` (needs `slotNumber` 1..max; legacy `Approved` maps to it), `Rejected` (reason) and `Released` (reason). Only Pending can be assigned or rejected; only Assigned can be released. 409 when the slot is taken, the lot is full or the tenant has no active tenancy. |
+| create_announcement.php | `require_admin`. In-app is always on; `sms` / `email` only when requested (SMS body <= 160, else 422). Extra fields: `unit` (for "Specific unit"), `draft`, `scheduledAt`, `draftId`, `removeAttachment`, `attachment` (JPG/PNG/PDF, 10 MB), `action` `unschedule` / `sendNow`. Recipients are current tenants (`Approved`, `active`, `pending-move-out`). |
+| cctv_request.php / update_cctv_status.php | Request: `incidentDate` (not in the future, within `lookbackDays`), `incidentTime`, `locationDetails` (from the settings list), `incidentType`, `reasonRequest` (settings minimum, >= 20 for `other`), `privacyConsent: true`; 403 when the service is off. Decision: only `Approved` / `Rejected`, `note` required (<= 500), only on Pending. |
+| get_notifications.php | Admins also receive notifications addressed to them, not only the action queue. Max 100; includes `unread_count`. Runs the notification sweep, lapsed-payment voiding, scheduled announcements, CCTV purge and visitor overstay checks at most once a minute. |
+| get_system_settings.php / update_system_settings.php | Reading needs no login (secret keys removed for non-admins, masked for admins). Saving is all-or-nothing in one transaction with per-key `$SETTING_RULES` bounds (for example `min_lease_duration` 1-24, `payment_window_days` 1-30, `visitor_overstay_hours` 1-168); the late-fee keys have no rule and are stored as posted. |
+| update_tenant_status.php | Accepted statuses: `Approved`, `Rejected`, `Declined`, `Cancelled`, `active` (confirm move-in), `pending-move-out`, `moved-out`, `Action Required`. Rejected / Declined need a reason and may carry an attachment; `moved-out` accepts itemised `deductions`. The occupant surcharge comes from `occupant_surcharge_per_person` (default 1000). |
+| manage_service_catalog.php | POST only, `action` `create` / `update` / `toggle` / `delete`; categories come from `service_categories`; pricing units `session`, `kg`, `hour`, `item`. Listing is `get_service_catalog.php`. |
+| update_occupants.php | Body `{occupants}`: between 1 + active household members and `max_occupants_per_unit`, and different from the current count. |
+
+----
+
 ## Shared Constants & Helper Functions
 
 Defined in [config.php](../../backend/config.php):
@@ -1114,8 +1248,8 @@ SERVICE_ADJUSTABLE_INVOICE_STATUSES = ['pending', 'unpaid', 'overdue',
 | `billing_period_label()` | Formats DateTime as `"September 2026"` |
 | `get_active_tenancy()` | Returns user's active rent application |
 | `promote_overdue_invoices()` | Auto-marks lapsed invoices as overdue + applies late fee |
-| `post_service_charge()` | Accumulates service cost onto tenant's current invoice |
-| `reverse_service_charge()` | Backs out a service charge from an unpaid invoice |
+| `post_invoice_charge($conn, 'service'\|'maintenance'\|'parking', $id)` | Claim-first posting of a charge onto the tenant's invoice (records `invoiced_amount`) |
+| `reverse_invoice_charge()` | Backs out the posted `invoiced_amount` from an unpaid invoice |
 | `store_maintenance_attachment()` | Validates + stores maintenance photo/video |
 
 ---
@@ -1151,10 +1285,10 @@ All endpoints return JSON with this shape on error:
 | Endpoint | Field Name | Max Size | Formats | Storage Path |
 |----------|-----------|----------|---------|-------------|
 | [profile.php](../../backend/api/profile.php) | `avatar` | — | JPG, PNG, WEBP | `uploads/avatars/` |
-| [rent_application.php](../../backend/api/rent_application.php) | `validIdFrontFile`, `validIdBackFile`, `nbiFile` | 10MB | JPG, PNG, PDF | `uploads/applications/` |
+| [rent_application.php](../../backend/api/rent_application.php) | `doc_<requirementId>` (one per active requirement) | 10MB | JPG, PNG, PDF | `uploads/applications/` |
 | [upload_payment_proof.php](../../backend/api/upload_payment_proof.php) | `proof` / `proofImage` | 10MB | JPG, PNG, WEBP, PDF | `uploads/payment_proofs/` |
 | [upload_lease_document.php](../../backend/api/upload_lease_document.php) | `document` | 10MB | JPG, PNG, PDF, WEBP | `uploads/lease_documents/` |
-| [maintenance_request.php](../../backend/api/maintenance_request.php) | `attachment` | 10MB | JPG, PNG, GIF, WEBP, MP4, WEBM, MOV | `uploads/maintenance/` |
+| [maintenance_request.php](../../backend/api/maintenance_request.php) | `uploadedFile` | 10MB | JPG, PNG, GIF, WEBP, MP4, WEBM, MOV | `uploads/maintenance/` |
 
 > [!TIP]
 > All file uploads validate both extension AND MIME type server-side using `finfo_file()`.
@@ -1236,7 +1370,7 @@ All endpoints return JSON with this shape on error:
 | 67 | [mark_notification_read.php](../../backend/api/mark_notification_read.php) | POST | Comms | User | Mark as read |
 | 68 | [delete_notification.php](../../backend/api/delete_notification.php) | POST | Comms | User | Delete notification |
 | 69 | [get_activity_logs.php](../../backend/api/get_activity_logs.php) | GET | System | Admin | Audit trail |
-| 70 | [get_system_settings.php](../../backend/api/get_system_settings.php) | GET | System | Admin | Read settings |
+| 70 | [get_system_settings.php](../../backend/api/get_system_settings.php) | GET | System | Public | Read settings (secret keys removed for non-admins, masked for admins) |
 | 71 | [update_system_settings.php](../../backend/api/update_system_settings.php) | POST | System | Admin | Write settings |
 | 72 | [dashboard_stats.php](../../backend/api/dashboard_stats.php) | GET | System | Admin | Dashboard statistics |
 | 73 | [get_report_data.php](../../backend/api/get_report_data.php) | GET | System | Admin | Export reports |
@@ -1251,3 +1385,55 @@ All endpoints return JSON with this shape on error:
 | 82 | [expire_contracts.php](../../backend/api/expire_contracts.php) | GET/POST | Cron | — | Auto-expire contracts |
 | 83 | [expire_reservations.php](../../backend/api/expire_reservations.php) | GET/POST | Cron | — | Auto-expire reservations |
 | 84 | [check_due_date_reminders.php](../../backend/api/check_due_date_reminders.php) | GET/POST | Cron | — | Send due date reminders |
+| 85 | [adjust_invoice.php](../../backend/api/adjust_invoice.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 86 | [reject_payment_proof.php](../../backend/api/reject_payment_proof.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 87 | [submit_split_payment.php](../../backend/api/submit_split_payment.php) | POST | Added 2026-09+ | User | See §15 |
+| 88 | [bundle_payment.php](../../backend/api/bundle_payment.php) | POST | Added 2026-09+ | User | See §15 |
+| 89 | [create_refund_request.php](../../backend/api/create_refund_request.php) | POST | Added 2026-09+ | User | See §15 |
+| 90 | [get_refund_requests.php](../../backend/api/get_refund_requests.php) | GET | Added 2026-09+ | User | See §15 |
+| 91 | [respond_refund_request.php](../../backend/api/respond_refund_request.php) | POST | Added 2026-09+ | User | See §15 |
+| 92 | [update_refund_request.php](../../backend/api/update_refund_request.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 93 | [sync_maintenance_to_invoice.php](../../backend/api/sync_maintenance_to_invoice.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 94 | [sync_parking_to_invoice.php](../../backend/api/sync_parking_to_invoice.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 95 | [admin_extend_rent.php](../../backend/api/admin_extend_rent.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 96 | [schedule_move_in.php](../../backend/api/schedule_move_in.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 97 | [cancel_application.php](../../backend/api/cancel_application.php) | POST | Added 2026-09+ | User | See §15 |
+| 98 | [resubmit_date.php](../../backend/api/resubmit_date.php) | POST | Added 2026-09+ | User | See §15 |
+| 99 | [get_application_requirements.php](../../backend/api/get_application_requirements.php) | GET | Added 2026-09+ | User | See §15 |
+| 100 | [manage_application_requirements.php](../../backend/api/manage_application_requirements.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 101 | [apply_floor_rate.php](../../backend/api/apply_floor_rate.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 102 | [archive_room.php](../../backend/api/archive_room.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 103 | [set_unit_maintenance.php](../../backend/api/set_unit_maintenance.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 104 | [upload_room_images.php](../../backend/api/upload_room_images.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 105 | [update_room_image.php](../../backend/api/update_room_image.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 106 | [delete_room_image.php](../../backend/api/delete_room_image.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 107 | [save_contract_template.php](../../backend/api/save_contract_template.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 108 | [get_contract_template.php](../../backend/api/get_contract_template.php) | GET | Added 2026-09+ | User | See §15 |
+| 109 | [upload_utility_bill.php](../../backend/api/upload_utility_bill.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 110 | [get_service_categories.php](../../backend/api/get_service_categories.php) | GET | Added 2026-09+ | Public | See §15 |
+| 111 | [manage_service_categories.php](../../backend/api/manage_service_categories.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 112 | [get_service_availability.php](../../backend/api/get_service_availability.php) | GET | Added 2026-09+ | User | See §15 |
+| 113 | [rate_service_request.php](../../backend/api/rate_service_request.php) | POST | Added 2026-09+ | User | See §15 |
+| 114 | [reopen_maintenance_request.php](../../backend/api/reopen_maintenance_request.php) | POST | Added 2026-09+ | User | See §15 |
+| 115 | [attach_cctv_footage.php](../../backend/api/attach_cctv_footage.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 116 | [remove_cctv_footage.php](../../backend/api/remove_cctv_footage.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 117 | [open_cctv_footage.php](../../backend/api/open_cctv_footage.php) | GET | Added 2026-09+ | User | See §15 |
+| 118 | [download_file.php](../../backend/api/download_file.php) | GET | Added 2026-09+ | User | See §15 |
+| 119 | [send_message.php](../../backend/api/send_message.php) | POST | Added 2026-09+ | User | See §15 |
+| 120 | [get_chat_history.php](../../backend/api/get_chat_history.php) | GET | Added 2026-09+ | User | See §15 |
+| 121 | [get_conversations.php](../../backend/api/get_conversations.php) | GET | Added 2026-09+ | User | See §15 |
+| 122 | [get_admin_user.php](../../backend/api/get_admin_user.php) | GET | Added 2026-09+ | User | See §15 |
+| 123 | [get_guest_conversations.php](../../backend/api/get_guest_conversations.php) | GET | Added 2026-09+ | Admin | See §15 |
+| 124 | [guest_chat_resume.php](../../backend/api/guest_chat_resume.php) | POST | Added 2026-09+ | Public | See §15 |
+| 125 | [get_notification_preferences.php](../../backend/api/get_notification_preferences.php) | GET | Added 2026-09+ | User | See §15 |
+| 126 | [update_notification_preferences.php](../../backend/api/update_notification_preferences.php) | POST | Added 2026-09+ | User | See §15 |
+| 127 | [archive_notification.php](../../backend/api/archive_notification.php) | POST | Added 2026-09+ | User | See §15 |
+| 128 | [send_test_notification.php](../../backend/api/send_test_notification.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 129 | [get_sms_balance.php](../../backend/api/get_sms_balance.php) | GET | Added 2026-09+ | Admin | See §15 |
+| 130 | [verify_device.php](../../backend/api/verify_device.php) | POST | Added 2026-09+ | Public | See §15 |
+| 131 | [verify_email.php](../../backend/api/verify_email.php) | POST | Added 2026-09+ | Public | See §15 |
+| 132 | [get_glass_backgrounds.php](../../backend/api/get_glass_backgrounds.php) | GET | Added 2026-09+ | Admin | See §15 |
+| 133 | [upload_glass_background.php](../../backend/api/upload_glass_background.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 134 | [upload_preview_image.php](../../backend/api/upload_preview_image.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 135 | [delete_glass_background.php](../../backend/api/delete_glass_background.php) | POST | Added 2026-09+ | Admin | See §15 |
+| 136 | [upload_qr_image.php](../../backend/api/upload_qr_image.php) | POST | Added 2026-09+ | Admin | See §15 |

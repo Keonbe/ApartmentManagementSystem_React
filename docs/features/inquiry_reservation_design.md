@@ -21,7 +21,7 @@ Inquiry  →  Triage  →  Reservation (unit held)  →  Rent Application  →  
 ```
 
 It also resolves a long-standing gap: `rooms.status` now genuinely takes the
-value `reserved`, which `.agents/prd.md` and the panelist checklist had specified
+value `reserved`, which the old PRD and the panelist checklist had specified
 but nothing ever set.
 
 ---
@@ -169,7 +169,7 @@ any failure:
 2. No other `unit_reservations` row for that room is `Active`.
 3. No `rent_applications` row for that room is `Pending Review`.
 
-Check 3 is the resolution to the open question recorded in `docs/todo.md` and
+Check 3 is the resolution to the open question recorded in the 2026-09-16 decisions in `docs/planning/todo.md` and
 `system_design.md` FR-4.7 — *"when the current tenant requests an extension but
 the room is already reserved."*
 

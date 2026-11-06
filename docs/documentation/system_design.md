@@ -7,7 +7,7 @@
 
 ---
 
-## 0. Current State (2026-09-24)
+## 0. Current State (2026-09-24; tenant pages and tables re-checked 2026-11-06, see [tenant_pages.md](../features/tenant_pages.md) and [database_schema.md](database_schema.md))
 
 **Auth.** Login creates a session token in `sessions`; the SPA sends `Authorization: Bearer <token>` (`src/api/axiosConfig.js`) and endpoints call `require_admin()` / `require_user()` / `require_owner_or_admin()`. `config.php` overwrites any client-sent `X-User-Id` / `X-Admin-Id` from the session, so older endpoints that still read those headers get the session identity. A 401 signs the user out.
 
@@ -308,6 +308,8 @@ flowchart LR
 
 ### 5.2 User Portal Modules
 
+Per-page behaviour (panels, forms, validations, actions) is in [tenant_pages.md](../features/tenant_pages.md); this table is the route-to-API map.
+
 | Route | File | Backend API | DB Table | Status |
 |-------|------|-------------|----------|--------|
 | `/home` | `Home.jsx` | — | — | ✅ |
@@ -315,17 +317,23 @@ flowchart LR
 | `/inquire` | `InquiryForm.jsx` | `submit_inquiry.php`, `get_rooms.php` | `inquiries` | ✅ Public — guests may submit; prefilled when logged in |
 | `/rent-application` | `RentApplication.jsx` | `rent_application.php` | `rent_applications` | ✅ (`user_id` stored) |
 | `/track-application` | `TrackApplication.jsx` | `my_room.php`, `pay_bill.php` | `rent_applications`, `invoices` | ✅ |
-| `/my-room` | `MyRoom.jsx` | `my_room.php`, `extend_lease.php`, `update_occupants.php` | `rent_applications` | ✅ |
+| `/my-room` | `MyRoom.jsx` | `my_room.php`, `extend_lease.php`, `update_occupants.php`, `record_move_out.php`, `household_members.php` | `rent_applications`, `household_members` | ✅ (important-info panel, rent term, household cards, house rules) |
 | `/view-contract` | `ViewContract.jsx` | `my_room.php` | `rent_applications` | ⚠️ Not from `lease_contracts` table |
-| `/services` | `Services.jsx` | — | — | ✅ (Hub with 7 navigation cards) |
-| `/pay-bills` | `PayBills.jsx` | `get_invoices.php`, `pay_bill.php` | `invoices` | ✅ |
+| `/services` | `Services.jsx` | `get_system_settings.php`, `get_service_catalog.php` | `system_settings`, `service_catalog` | ✅ (hub, cards follow the service switches) |
+| `/service-catalog`, `/service-booking` | `ServiceCatalog.jsx`, `ServiceBooking.jsx` | `get_service_catalog.php`, `get_service_categories.php`, `get_service_availability.php`, `service_request.php` | `service_catalog`, `service_categories`, `service_requests` | ✅ |
+| `/pay-bills` | `PayBills.jsx` | `get_invoices.php`, `pay_bill.php`, `get_payment_channels.php`, `upload_payment_proof.php`, `submit_split_payment.php`, `schedule_payment.php`, `create_checkout_session.php`, `bundle_payment.php`, `advance_payment.php` | `invoices`, `payment_transactions`, `payment_proof_parts`, `advance_credits` | ✅ (online, manual, in person, split, bundle, advance) |
+| `/upload-payment` | `PaymentUpload.jsx` | `get_payment_channels.php`, `upload_payment_proof.php` | `invoices` | ✅ |
+| `/user-utilities` | `UserUtilities.jsx` | `get_utility_readings.php`, `upload_payment_proof.php` | `utility_readings`, `utility_reading_items` | ✅ |
+| `/my-refunds` | `UserRefunds.jsx` | `get_refund_requests.php`, `create_refund_request.php`, `respond_refund_request.php` | `refund_requests`, `refund_request_events` | ✅ |
+| `/visitor-management` | `UserVisitors.jsx` | `get_visitors.php`, `check_in_visitor.php`, `update_visitor_status.php` | `visitor_logs` | ✅ |
 | `/parking-reservation` | `ParkingReservation.jsx` | `parking_reservation.php` | `parking_reservations` | ✅ |
-| `/maintenance-request` | `MaintenanceRequest.jsx` | `maintenance_request.php` | `maintenance_requests` | ✅ |
+| `/maintenance-request` | `MaintenanceRequest.jsx` | `maintenance_request.php` | `maintenance_requests` | ✅ (scheduled visit, cancel request and not-fixed reopen in My Requests) |
 | `/cctv-request` | `CctvRequest.jsx` | `cctv_request.php` | `cctv_requests` | ✅ |
+| `/login`, `/register`, `/verify-email`, `/reset-password` | `Login.jsx`, `Registration.jsx`, `VerifyEmail.jsx`, `ResetPassword.jsx` | `login.php`, `verify_device.php`, `registration.php`, `verify_email.php`, `forgot_password.php`, `reset_password.php` | `users`, `trusted_devices`, `password_resets` | ✅ (sign-in code for untrusted devices) |
 | `/profile-settings` | `ProfileSettings.jsx` | `profile.php`, `get_documents.php`, `change_password.php` | `users`, `rent_applications` | ✅ |
 | `/notifications` | `UserNotifications.jsx` | `get_notifications.php`, `mark_notification_read.php`, `delete_notification.php` | `notifications` | ✅ |
-| `/my-requests` | `UserMyRequests.jsx` | `get_my_requests.php`, `cancel_request.php` | `maintenance_requests`, `cctv_requests`, `parking_reservations` | ✅ |
-| `/announcements` | `UserAnnouncements.jsx` | `get_announcements.php` | `announcements` | ✅ |
+| `/my-requests` | `UserMyRequests.jsx` | `get_my_requests.php`, `cancel_request.php`, `reopen_maintenance_request.php`, `rate_service_request.php` | `maintenance_requests`, `cctv_requests`, `parking_reservations`, `service_requests` | ✅ |
+| `/announcements` | `UserAnnouncements.jsx` | `get_announcements.php` | `announcements` | ✅ (pinned section) |
 | `/payment-history` | `UserPaymentHistory.jsx` | `get_invoices.php` | `invoices` | ✅ |
 
 **Themes (2026-11).** Every user-side page (sign-in and registration too) renders in **Light**, **Dark** or **Glass**, picked in the account menu (guests: the switch on the TopBar; on the sign-in, registration and reset pages, a floating Light/Dark switch top-right next to an EN/FIL switch, Glass showing as Dark there; not on Home, which is always Glass) and kept per browser (`localStorage` `ams_user_theme`, `config/theme.js`). Home is always Glass. Pages are written once in the light palette; `UserThemeScope` (`Components/UserTheme.jsx`) puts `.ut-root .ut-<theme>` on the layout, and `assets/styles/themes.generated.css` (from `ams-react/scripts/gen-theme-css.mjs`) remaps Tailwind's per-property colour variables (`--background-color-white`, `--text-color-slate-800`, …) for Dark and Glass, so hover/opacity variants follow. `ut-native` keeps a piece drawn for a dark backdrop (TopBar bar, Home panel, the contract sheet) in its own colours, and the TopBar stays brand indigo in every theme; `ut-themed` re-applies the theme inside one. The Glass backdrop photo, tint, tint strength and blur are set in Admin → Other Settings → **Glass Mode** (`glass_*` settings, `upload_glass_background.php`); the last 6 uploads stay listed there to switch back to (`get_glass_backgrounds.php`, `delete_glass_background.php`; `prune_glass_bg_files()` deletes older ones, never the live one). The Home page text (badge, heading, location, description) is edited or hidden in Other Settings → **Home Page** (`home_content` setting, checked by `normalize_home_content()` in `config.php`; empty text = the built-in i18n wording, an empty Filipino box falls back to the English text). The Preview page hero (photo, badge, title, location, feature chips) is set in Other Settings → **Preview Page** (`preview_hero`, `normalize_preview_hero()`, `upload_preview_image.php`; like Glass Mode it keeps the last 6 photos to switch back to: `site_image_*()` helpers by kind, `get_glass_backgrounds.php` / `delete_glass_background.php` with `kind=preview`, shared `AdminPages/settings/RecentPhotos.jsx`), and the page lists units that will free up under "Coming Soon" (sortable by price or soonest; Available by room or price). Those units can be applied for: `rent_application.php` / `resubmit_date.php` take a move-in date no earlier than the day the unit is free ("any time" stores that day; `room_open_for_application()`, `move_in_date_error(..., $available_from)`), and approval waits until the room is vacant. Body, the layout's <main> and page roots use `overflow-x: clip` (not hidden) so the Preview map can stick while the page scrolls (`get_rooms.php` `availableFrom` from `upcoming_room_dates()`; Other Settings → **Contract End**). The admin side has **Light** and **Dark** only (no Glass): the sun/moon button in the admin header (`AdminDashboardHeader.jsx`) switches it, kept per browser (`localStorage` `ams_admin_theme`; with none saved the system setting decides; `config/adminTheme.js`). `AdminSidebar` (rendered by every admin page) puts `.admin-dark` on `<html>` while an admin page is open and takes it off on the way out, so dialogs and the chat widget follow and user pages never see it; the same generator emits the `html.admin-dark` remap, and `admin-native` (or `ut-native`) keeps pieces drawn dark on purpose (sidebar, flyouts, chart tooltips, the Home/Glass/Preview previews) in their own colours. Printing always uses the light palette. Route changes fade in (`.ut-route`, honours reduced motion). Switching theme or language runs in a View Transition (`utils/viewTransition.js`: the new theme spreads in a circle from the pressed switch, the language cross-fades; browsers without the API just switch), and the switches' highlight slides (`SegmentThumb`, `LangSwitch` in `Components/UserTheme.jsx`).
@@ -336,10 +344,11 @@ flowchart LR
 
 | Guard | Applied To | Logic |
 |-------|-----------|-------|
-| `ProtectedRoute` | `/rent-application`, `/track-application`, `/profile-settings`, `/notifications` | Must be logged in (any role) |
-| `TenantProtectedRoute` | `/services`, `/pay-bills`, `/my-room`, `/view-contract`, `/my-requests`, `/announcements`, `/payment-history`, parking, cctv, maintenance | Must be logged in AND have approved+paid room (or admin) |
+| `ProtectedRoute` | `/rent-application`, `/track-application`, `/view-contract`, `/profile-settings`, `/my-refunds`, `/upload-payment`, `/notifications` | Must be logged in (any role) |
+| `TenantProtectedRoute` | `/services`, `/pay-bills`, `/my-room`, `/my-requests`, `/announcements`, `/payment-history`, `/user-utilities`, parking, cctv, maintenance, visitors, service catalog / booking | Must be logged in AND have approved+paid room (or admin) |
 | `AdminProtectedRoute` | All `/admin-*` routes | Must be logged in AND `role === 'admin'` |
-| *(none)* | `/home`, `/preview`, `/inquire`, `/login`, `/register`, `/reset-password` | Public — reachable by guests |
+| `ServiceRouteGuard` | pay bills, parking, cctv, maintenance, visitors, service catalog / booking, `/upload-payment` | Also needs the matching `service_*_active` setting on (admin always passes) |
+| *(none)* | `/home`, `/preview`, `/inquire`, `/login`, `/register`, `/reset-password`, `/verify-email` | Public — reachable by guests |
 
 ---
 
@@ -446,7 +455,7 @@ flowchart LR
 | `Preview.jsx` | `/preview` | Room browsing with rent CTA |
 | `Login.jsx` | `/login` | Login form |
 | `Registration.jsx` | `/register` | User registration form |
-| `Services.jsx` | `/services` | Services hub (7 navigation cards) |
+| `Services.jsx` | `/services` | Services hub (cards follow the admin service switches) |
 | `RentApplication.jsx` | `/rent-application` | Multi-step rent application with doc upload |
 | `TrackApplication.jsx` | `/track-application` | Application status tracker + initial payment |
 | `MyRoom.jsx` | `/my-room` | Tenant room status + lease extension |
@@ -460,6 +469,12 @@ flowchart LR
 | `UserMyRequests.jsx` | `/my-requests` | All submitted requests with status + cancel action |
 | `UserAnnouncements.jsx` | `/announcements` | Read-only tenant announcement board |
 | `UserPaymentHistory.jsx` | `/payment-history` | Invoice history + receipt viewer |
+| `UserRefunds.jsx` | `/my-refunds` | Refund requests and their trail |
+| `UserUtilities.jsx` | `/user-utilities` | Meter readings and utility bills |
+| `UserVisitors.jsx` | `/visitor-management` | Visitor pre-registration and log |
+| `ServiceCatalog.jsx`, `ServiceBooking.jsx` | `/service-catalog`, `/service-booking` | Add-on services |
+| `PaymentUpload.jsx` | `/upload-payment` | Stand-alone payment proof upload |
+| `InquiryForm.jsx`, `VerifyEmail.jsx`, `ResetPassword.jsx` | `/inquire`, `/verify-email`, `/reset-password` | Public inquiry (guest chat) and account e-mail pages |
 
 ### Frontend — Admin Pages
 

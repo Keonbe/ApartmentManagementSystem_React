@@ -6,7 +6,7 @@
 -- or on dev after `/db-snapshot save`, then `/db-snapshot restore`.
 -- Dates are relative to today (CURDATE()), so it can be run on the defense day.
 -- Idempotent: every row is guarded by NOT EXISTS / fixed ids. Checklist:
--- docs/date_dependent_testing.md, "Defense scenario checklist".
+-- docs/documentation/date_dependent_testing.md, "Defense scenario checklist".
 
 -- 1. Split payment: Rosa (user 5) paid this month's rent in two parts, cash + GCash.
 INSERT INTO invoices (id, user_id, base_rent, total_amount, billing_period, status, payment_method, paid_at, due_date)

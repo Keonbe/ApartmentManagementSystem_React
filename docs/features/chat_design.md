@@ -15,7 +15,7 @@
 | Frontend | `context/ChatContext.jsx` (socket + polling state) · `Components/ChatWidget.jsx` (floating widget with unread total; tenant "support chat" opens the admin thread) · `AdminPages/AdminMessages.jsx` at `/admin-messages` (inbox: search, most recent first, unread badges). |
 | Not built | Admin starting a thread with a tenant who hasn't written (the inbox lists existing threads only) · a `notifications` row per message (§3.2 / §12) · a tenant↔admin membership rule (any signed-in user can message any user) · rate limiting · complaints (7.7, §12 — needs rebasing onto `messages`, since `conversations` does not exist). `send_message.php` calls `log_activity()` on every message with category `'chat'`, which is not in `LOG_CATEGORIES`. |
 | Guest chat | A visitor who submits `/inquire` while signed out gets a `guest_token` (kept in `localStorage` as `ams_guest_token`) and a thread in `inquiries` (`thread_type='guest'`) with messages in `guest_messages`. Endpoints: `guest_chat.php` (guest by `X-Guest-Token` header, admin by session + `thread_id`; polling, no sockets), `get_guest_conversations.php` (admin inbox, with `unread_count`). The token is never accepted in a URL; the widget fetches guest attachments through `download_file.php` with the header and shows them from blob URLs. A guest message queues one `inquiry` admin-bell row per thread (`metadata_value = inquiry:chat-<id>`), cleared when an admin opens or answers the thread. When the guest signs in, `login.php` sends the token and `adopt_guest_chat()` moves the thread into `messages` (guest messages become the user's, the thread becomes `registered`, `guest_messages` rows are deleted); matching is by token only because inquiry emails are unverified. Tests: `tests/api/guest_chat.test.js`. **Emailed links (2026-10-31):** `guest_chat_resume.php` sends a one-time link (`/inquire?resume=<code>`, sha256 in `guest_chat_links`, 7 days, single use) when asked from the inquiry page, and an admin reply emails the guest once per unseen batch (`inquiries.guest_reply_emailed_at`, cleared when the guest opens the chat). Redeeming a link returns the token and sets `guest_verified_at` (Messages shows *Email not verified* until then). A repeat inquiry whose email or phone matches a guest thread no longer receives that thread's token: it is a separate inquiry with `matched_thread_id` and the link goes to the thread's stored address. The widget has *End chat on this device*. Emails obey the building email switch. Tests: `tests/api/guest_chat_links.test.js`. |
-| Security | **The socket server is unauthenticated**: any client can `join` any user's room and send with any `sender_id`; CORS is `*`; message bodies are logged to the console. See [security_audit.md](../security_audit.md) §6e. |
+| Security | **The socket server is unauthenticated**: any client can `join` any user's room and send with any `sender_id`; CORS is `*`; message bodies are logged to the console. See [security_audit.md](../audits/security_audit.md) §6e. |
 
 ---
 
@@ -548,7 +548,7 @@ export default function TenantChat() {
 
 ## 5. Routing
 
-In [`App.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/App.jsx), add two protected routes:
+In [`App.jsx`](../../ams-react/src/App.jsx), add two protected routes:
 
 ```jsx
 // Admin-guarded route
@@ -897,3 +897,6 @@ ALTER TABLE conversations
 ### Scope
 
 Build this after §9 Phase 1–2 (conversations/messages + UI) are working — it's a small additive migration plus one status endpoint and one UI filter, not a phase of its own.
+
+## Guest chat tables (2026-11)
+A signed-out `/inquire` creates a guest thread: `inquiries.thread_type='guest'` with `guest_token`, messages in `guest_messages` (not `messages`), and one-time resume links in `guest_chat_links` (7 days, single use, e-mailed to the thread's address). On sign-in, `adopt_guest_chat()` copies the thread into `messages` and clears the token. The launcher is shown for guests while `ams_guest_token` exists and has an "End guest chat" action. See [database_schema.md](../documentation/database_schema.md) and [tenant_pages.md](tenant_pages.md) §2.

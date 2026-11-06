@@ -106,9 +106,9 @@ This document is the **hands-on verification reference** for the AMS. For each a
 | Full endpoint inventory across **all** modules | [`system_design.md`](system_design.md) §7 |
 | Entity-relationship diagram, table-by-table schema | [`database_schema.md`](database_schema.md) |
 | Use-case diagrams and Level 0–2 data-flow diagrams | [`system_diagrams.md`](system_diagrams.md) |
-| Manipulating dates to trigger overdue / expiry logic | [`date_dependent_testing.md`](../date_dependent_testing.md) |
+| Manipulating dates to trigger overdue / expiry logic | [`date_dependent_testing.md`](date_dependent_testing.md) |
 | Feature-completion claims mapped to panel requirements | [`../features/panelist_feature_checklist.md`](../features/panelist_feature_checklist.md) |
-| Security findings and their remediation history | [`../security_audit.md`](../security_audit.md) |
+| Security findings and their remediation history | [`../security_audit.md`](../audits/security_audit.md) |
 
 ### Reading the test tables
 
@@ -240,7 +240,7 @@ Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded Ju
 | 4 | Maintenance Request | ✅ Documented | [§7](#7-module-4--maintenance-request) |
 | 5 | Service Management | ✅ Documented (add-on catalog, bookings, billing, CCTV) | [§8](#8-module-5--service-management) |
 | 6 | Notification Module | ✅ Documented — in-app audited here; the email/SMS pipeline (6.6/6.7, SMS live via Semaphore) is tested in [sms_email_implementation.md §4.3](../features/sms_email_implementation.md#43-verification) | [§13](#13-module-6--notifications--automation) |
-| 7 | Communication (Two-Way Chat) | ⬜ Built (Socket.IO + `messages`, PR #8), not yet audited — open security findings in [security_audit.md §6e](../security_audit.md) | — |
+| 7 | Communication (Two-Way Chat) | ⬜ Built (Socket.IO + `messages`, PR #8), not yet audited — open security findings in [security_audit.md §6e](../audits/security_audit.md) | — |
 | 8 | Admin Dashboard & Reports | ✅ Documented — Financial Tracking (8.1–8.3), Utility Usage (8.7), Reports & Activity Log (8.4–8.6, extended for logging coverage), and demo data (8.8, `seed_mock_data.sql`) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
 | 9 | Contract & Document Generation | ✅ Documented — transition guards, one contract per application, termination ends the tenancy | [§15](#15-module-9--contract--document-generation) |
 | 10 | Parking Reservation | ✅ Documented — numbered slots, release on move-out/archive, manual or automatic fee billing | [§14](#14-module-10--parking-reservation) |
@@ -2855,7 +2855,7 @@ Seed fixtures: visitor **1** (Liza Santos, Maria's unit A, `checked_out`); **2**
 
 Several behaviours here only fire when a date passes: overdue promotion and the late fee ([§6.4](#64-test-conditions) M3-08…M3-10, M3-17), lease expiry and lease-end reminders ([§15.4](#154-test-conditions) M9-12, M9-15), reservation holds ([§5.4](#54-test-conditions) M2-10), reminder cadence and parking permit expiry ([§14.4](#144-test-conditions) M10-15).
 
-The techniques — moving the row versus moving the system clock, and which columns drive which feature — live in **[`date_dependent_testing.md`](../date_dependent_testing.md)** and are not duplicated here.
+The techniques — moving the row versus moving the system clock, and which columns drive which feature — live in **[`date_dependent_testing.md`](date_dependent_testing.md)** and are not duplicated here.
 
 > Prefer **moving the row** (back-date `due_date`, `lease_end`, `hold_expires_at`, `assigned_at`). Changing the Windows system clock affects MySQL timestamps and every other process on the machine.
 
@@ -2913,7 +2913,7 @@ Also: `expire_contracts.php` and `expire_reservations.php` mutate rows with **no
 
 ### 18.4 Household roster, waitlist and room preview (added Sept 2026)
 
-Built from the 2026-09-16 decisions (`docs/todo.md`). These tests will move into their module sections at the next audit of Modules 1, 2 and 8. Use Jose (`jose.reyes@demo.example`, application 2, Unit B, 2 occupants) as the tenant, and take a `mysqldump` first — the archive test ends his tenancy.
+Built from the 2026-09-16 decisions (the 2026-09-16 decisions in `docs/planning/todo.md`). These tests will move into their module sections at the next audit of Modules 1, 2 and 8. Use Jose (`jose.reyes@demo.example`, application 2, Unit B, 2 occupants) as the tenant, and take a `mysqldump` first — the archive test ends his tenancy.
 
 | ID | Type | Scenario | Precondition | Action | Expected | Verify |
 |---|---|---|---|---|---|---|
@@ -3221,7 +3221,7 @@ House rules gained `scope` (`house` default, `parking`, `minors`); `GET house_ru
 
 ## 21. Defense Gaps (2026-10-13)
 
-Seed: `seeds/seed_defense_scenarios.sql` (checklist in `docs/date_dependent_testing.md` §13b). Migration: `2026_10_defense_gaps.sql`.
+Seed: `seeds/seed_defense_scenarios.sql` (checklist in `docs/documentation/date_dependent_testing.md` §13b). Migration: `2026_10_defense_gaps.sql`.
 
 ### 21.1 Rejection after approval with money, payment window, follow-up monitor
 

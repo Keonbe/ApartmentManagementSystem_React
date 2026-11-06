@@ -3,7 +3,6 @@ backend/config.env.php
 TASK.md
 TASK.archive.md
 .db-snapshots/
-docs/audits/ams_security_workflow_audit_2026-09-16.md
 
 # Filled-in deployment env files (templates are *.example)
 deploy/env/*.env
@@ -14,10 +13,9 @@ deploy/env/*.env
 !ams-react/.env.production
 !ams-react/.env.example
 !ams-react/.env.selfhosted.example
-docs/progress_report.md
 backend/logs/*
 !backend/logs/.htaccess
-docs/AMS_Development_Timeline.xlsx
+docs/planning/AMS_Development_Timeline.xlsx
 
 # Ignore specific downloaded skills
 .agents/skills/ui-ux-pro-max-skill

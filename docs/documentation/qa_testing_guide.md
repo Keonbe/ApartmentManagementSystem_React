@@ -181,7 +181,7 @@ Smoke: guard page loads.
 | QS-01 | Boundary | Settings rules (types, ranges) | invalid rejected | settings, appearance_settings |
 
 ### C10. Chat (Module 7), risk: medium; not yet audited
-Smoke: guest chat link opens. Only guest chat is automated (guest_chat, guest_chat_links, including the 429 on the 4th request). Admin and tenant chat (`send_message`, `save_message`, `get_chat_history`, `get_conversations`) are covered for session identity, scoping and attachments by chat_messages.test.js; recipient restrictions and rate limits (CH-3) are not tested because the app has none; see [security_audit.md](../security_audit.md) §6e.
+Smoke: guest chat link opens. Only guest chat is automated (guest_chat, guest_chat_links, including the 429 on the 4th request). Admin and tenant chat (`send_message`, `save_message`, `get_chat_history`, `get_conversations`) are covered for session identity, scoping and attachments by chat_messages.test.js; recipient restrictions and rate limits (CH-3) are not tested because the app has none; see [security_audit.md](../audits/security_audit.md) §6e.
 
 ---
 

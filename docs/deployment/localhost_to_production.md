@@ -39,21 +39,21 @@ Error details visible in browser   Errors logged, never displayed
 
 | Status | File | Line(s) | Current Value | Fix |
 |---|---|---|---|---|
-| [x] | [config.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/config.php) | 8–11 | `DB_HOST`/`DB_USER`/`DB_PASS` fallback constants (only used if `config.env.php` is absent) | Already uses env config file — `config.env.php` loader implemented at lines 2–5, fallbacks are dev-only |
-| [ ] | [axiosConfig.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/api/axiosConfig.js) | 5 | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `VITE_API_BASE_URL` env var |
-| [x] | [vite.config.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/vite.config.js) | 11 | `http://localhost:8080` proxy target | Dev-only, not bundled — OK as-is |
-| [ ] | [AdminApplications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminApplications.jsx) | 48, 309, 316, 323 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ ] | [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx) | 661, 702 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ ] | [AdminMaintainance.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminMaintainance.jsx) | 104 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ ] | [AdminParking.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminParking.jsx) | 246 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
-| [ ] | [AdminPayments.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminPayments.jsx) | 20 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ ] | [AdminServicePage.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminServicePage.jsx) | 646, 825 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(2nd occurrence missing from original audit)* |
-| [ ] | [AdminTenants.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminTenants.jsx) | 676–678 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ ] | [AdminVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminVisitors.jsx) | 461 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
-| [ ] | [TopBar.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/Components/TopBar.jsx) | 65 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ ] | [ProfileSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ProfileSettings.jsx) | 245 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ ] | [UserMyRequests.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserMyRequests.jsx) | 139 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
-| [ ] | [UserPaymentHistory.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserPaymentHistory.jsx) | 219 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [x] | [config.php](../../backend/config.php) | 8–11 | `DB_HOST`/`DB_USER`/`DB_PASS` fallback constants (only used if `config.env.php` is absent) | Already uses env config file — `config.env.php` loader implemented at lines 2–5, fallbacks are dev-only |
+| [ ] | [axiosConfig.js](../../ams-react/src/api/axiosConfig.js) | 5 | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `VITE_API_BASE_URL` env var |
+| [x] | [vite.config.js](../../ams-react/vite.config.js) | 11 | `http://localhost:8080` proxy target | Dev-only, not bundled — OK as-is |
+| [ ] | [AdminApplications.jsx](../../ams-react/src/AdminPages/AdminApplications.jsx) | 48, 309, 316, 323 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminContracts.jsx](../../ams-react/src/AdminPages/AdminContracts.jsx) | 661, 702 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminMaintainance.jsx](../../ams-react/src/AdminPages/AdminMaintainance.jsx) | 104 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminParking.jsx](../../ams-react/src/AdminPages/AdminParking.jsx) | 246 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
+| [ ] | [AdminPayments.jsx](../../ams-react/src/AdminPages/AdminPayments.jsx) | 20 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminServicePage.jsx](../../ams-react/src/AdminPages/AdminServicePage.jsx) | 646, 825 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(2nd occurrence missing from original audit)* |
+| [ ] | [AdminTenants.jsx](../../ams-react/src/AdminPages/AdminTenants.jsx) | 676–678 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminVisitors.jsx](../../ams-react/src/AdminPages/AdminVisitors.jsx) | 461 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
+| [ ] | [TopBar.jsx](../../ams-react/src/Components/TopBar.jsx) | 65 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [ProfileSettings.jsx](../../ams-react/src/UserPages/ProfileSettings.jsx) | 245 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [UserMyRequests.jsx](../../ams-react/src/UserPages/UserMyRequests.jsx) | 139 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
+| [ ] | [UserPaymentHistory.jsx](../../ams-react/src/UserPages/UserPaymentHistory.jsx) | 219 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
 
 > [!WARNING]
 > Two different ports are hardcoded — some files use bare `http://localhost` (port 80) and others use `http://localhost:8080`. Both happen to resolve on XAMPP but are inconsistent. Consolidate to one `VITE_BACKEND_BASE_URL` env var.
@@ -110,7 +110,7 @@ error_log = /var/log/php/ams_errors.log
 
 ### 1.5 Login — Dead Session Code ✅ Fixed
 
-~~[login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) line 41 assigns `$_SESSION['user']` but there is no `session_start()` in the file.~~ **Already resolved** — the dead `$_SESSION` assignment has been removed; the response now builds a clean `$userData` array directly (see the `// Clean user payload without dead $_SESSION assignment (A-6)` comment in the current file). Auth remains stateless via the `X-User-Id` header, as designed. No action needed.
+~~[login.php](../../backend/api/login.php) line 41 assigns `$_SESSION['user']` but there is no `session_start()` in the file.~~ **Already resolved** — the dead `$_SESSION` assignment has been removed; the response now builds a clean `$userData` array directly (see the `// Clean user payload without dead $_SESSION assignment (A-6)` comment in the current file). Auth remains stateless via the `X-User-Id` header, as designed. No action needed.
 
 ### 1.6 File Upload MIME Type Validation ✅ Fixed
 
@@ -485,9 +485,8 @@ SECURITY
 
 | Doc | Path |
 |---|---|
-| System Design | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| Feature Checklist | [panelist_feature_checklist.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/panelist_feature_checklist.md) |
-| Notification Services | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| Chat Design | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
-| PayMongo Integration | [paymongo_integration_guide.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/paymongo_integration_guide.md) |
+| System Design | [system_design.md](../documentation/system_design.md) |
+| Feature Checklist | [panelist_feature_checklist.md](../features/panelist_feature_checklist.md) |
+| Chat Design | [chat_design.md](../features/chat_design.md) |
+| PayMongo Integration | [paymongo_integration_guide.md](paymongo_integration_guide.md) |
 | Backup and Restore | [backup_and_restore.md](backup_and_restore.md) |

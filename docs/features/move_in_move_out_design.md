@@ -158,3 +158,9 @@ Deactivates user authentication (`is_archived = 1`) and stores final security de
 - [ ] Confirm `archive_tenant.php` toggles `is_archived` in the `users` table correctly.
 - [ ] Ensure `MyRoom.jsx` disables the "End Rent Term" button once status becomes `pending-move-out`.
 - [ ] Test the full pipeline: Apply → Approve → Pay → Active Occupancy → Request Move-Out → Admin Inspection → Complete Move-out → Archive.
+
+## My Room panels and household roster (2026-11)
+The tenant's My Room page ([tenant_pages.md](tenant_pages.md) §3) now leads with an **important info panel** (overdue bill, moving out, rent ending within 30 days, household requests in review), a **rent term card** (start, end, progress, Extend), the **household panel** and a **house rules card**.
+- **Household.** One shared contract; only the lease holder signs in (decision 2026-09-16). Members are added or removed through `household_members.php` and every change waits for admin approval (cards show "Awaiting approval" / "Removal requested", with Withdraw). Age is required for a child (17 or less); the dialog previews the rent change from the per-person surcharge above 4 occupants. Rows: `household_members` with `age` and `age_category`.
+- **Move-in date.** The admin confirms it with `schedule_move_in.php` (today to +365 days; tenant notified, `move_in_notified_at`); it becomes the contract `lease_start` at move-in. Track Application shows the six steps from submitted to moved in.
+- **Extending** is blocked while a bill is overdue (the card links to Pay Bills) and honours `extension_deadline_days`; reminders before the end use `send_lease_end_reminders()` and `renewal_reminder_sent_at`.

@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Building expenses entered by an admin (decided 2026-09-16, docs/todo.md › Reports).
+// Building expenses entered by an admin (decided 2026-09-16, docs/planning/todo.md › Reports).
 // get_report_data.php adds these to the maintenance costs it already derives, so
 // repairs are never entered here.
 $admin_id = require_admin($conn);

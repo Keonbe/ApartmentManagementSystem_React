@@ -66,7 +66,7 @@ tests/api/
 1. Call the endpoint through `api()`; log in with `loginAs('admin')` or a tenant (`maria` = user 2 / room A, `rosa` = 5 / C, `jose` = 3 / B with overdue bills, `mark` = 13 / L with a scheduled move-out). Seed accounts are in the verification guide §1.4.
 2. Set up fixtures with SQL (`q()`), not through other endpoints, when that is simpler. **Express dates relative to today** (`CURDATE() + INTERVAL 5 DAY`, `NOW() - INTERVAL 100 HOUR`) so the test does not rot as the calendar moves past the seed data.
 3. Assert on the HTTP status **and** on the database: a refused request must leave the rows unchanged.
-4. Name tests with the spec ID where one exists (`KB-B05 …`), so a failure maps back to [known_bugs_test_spec](../audits/known_bugs_test_spec_2026-10-15.md) (local file).
+4. Name tests with the spec ID where one exists (`KB-B05 …`), so a failure maps back to `known_bugs_test_spec_2026-10-15.md` (a local, gitignored file in `docs/audits/`; not in the repo).
 5. Check that a new test can fail: break the rule in the PHP temporarily and confirm it goes red.
 6. The response shape is part of the contract: assert on exact keys (`res.body.rooms`), not on fallbacks, and guard "every item …" checks with a length check so they cannot pass on an empty list.
 

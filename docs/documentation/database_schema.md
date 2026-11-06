@@ -1,11 +1,11 @@
 # Database Schema Reference
 
 Authoritative reference for the `ams_db` MySQL/MariaDB schema and the SQL files under
-[`backend/api/migrations/`](../../backend/api/migrations/).
+[`backend/api/migrations/`](../../backend/api/migrations).
 This document reflects the schema as actually defined in
 [`SetupDB.sql`](../../backend/api/migrations/SetupDB.sql) —
 verified table-by-table against that file, not against any earlier design doc.
-Last re-checked 2026-09-24: 31 tables in `SetupDB.sql`, including the chat table `messages` (added to `SetupDB.sql` 2026-10-11).
+Last re-checked 2026-11-06: 49 tables in `SetupDB.sql` (and in dev `ams_db`), every one in the ER diagram below with a row in §2; new columns are explained in "Column notes".
 
 > For workflows, API inventory, and frontend wiring status, see
 > [system_design.md](system_design.md). This doc covers only the database layer.
@@ -32,6 +32,11 @@ erDiagram
         tinyint sms_opt_out
         tinyint email_opt_out
         datetime sms_consent_at
+        datetime email_verified_at
+        varchar verification_token
+        varchar login_otp
+        datetime login_otp_expires_at
+        tinyint login_otp_attempts
     }
 
     ROOMS {
@@ -51,6 +56,10 @@ erDiagram
         date last_inspection_date
         json gallery "showcase images: path strings (legacy) or objects path, alt, fit"
         timestamp created_at
+        tinyint rent_is_custom
+        date available_date
+        datetime archived_at
+        int archived_by
     }
 
     RENT_APPLICATIONS {
@@ -76,6 +85,13 @@ erDiagram
         varchar archive_reason
         text archive_notes
         date requested_move_out_date
+        date preferred_move_in_date
+        date move_in_date
+        datetime move_in_notified_at
+        varchar rejection_attachment_path
+        datetime cancelled_at
+        varchar pre_archive_status
+        timestamp terms_agreed_at
     }
 
     LEASE_CONTRACTS {
@@ -94,6 +110,12 @@ erDiagram
         decimal refund_amount
         date refund_date
         timestamp generated_at
+        int template_version_id
+        text termination_reason
+        datetime terminated_at
+        datetime renewal_reminder_sent_at
+        text tenant_signature_path
+        text owner_signature_path
     }
 
     LEASE_RENEWALS {
@@ -138,6 +160,17 @@ erDiagram
         datetime processing_since
         varchar payment_gateway
         timestamp created_at
+        decimal maintenance
+        decimal late_fee
+        decimal amount_paid
+        decimal proof_amount
+        varchar bank_name
+        varchar proof_rejection_reason
+        varchar cancel_reason
+        date last_reminder_date
+        int reminder_count
+        tinyint late_fee_waived
+        varchar paymongo_payment_id
     }
 
     ADVANCE_CREDITS {
@@ -152,6 +185,7 @@ erDiagram
         varchar applied_invoice_id "the month's rent invoice"
         timestamp applied_at
         timestamp created_at
+        int refund_request_id
     }
 
     MAINTENANCE_REQUESTS {
@@ -170,6 +204,21 @@ erDiagram
         text work_notes
         tinyint tenant_responsible
         timestamp created_at
+        varchar room_name
+        varchar title
+        datetime acknowledged_at
+        datetime started_at
+        datetime resolved_at
+        decimal actual_cost
+        varchar rejection_reason
+        tinyint is_invoiced
+        varchar invoice_id
+        varchar billing_period
+        decimal invoiced_amount
+        date scheduled_date
+        varchar scheduled_window
+        datetime cancel_requested_at
+        varchar reopen_reason
     }
 
     CCTV_REQUESTS {
@@ -182,6 +231,12 @@ erDiagram
         text reason_request
         varchar status "Pending | Approved | Rejected"
         timestamp created_at
+        datetime privacy_consent_at
+        text decision_note
+        varchar footage_path
+        varchar footage_url
+        datetime footage_attached_at
+        datetime footage_expires_at
     }
 
     PARKING_RESERVATIONS {
@@ -196,6 +251,13 @@ erDiagram
         decimal total_cost
         varchar document_path
         timestamp created_at
+        int slot_number
+        datetime assigned_at
+        datetime released_at
+        varchar release_reason
+        varchar rejection_reason
+        int active_slot UK
+        int open_user UK
     }
 
     SERVICE_CATALOG {
@@ -214,6 +276,7 @@ erDiagram
         int created_by FK "admin id, ON DELETE SET NULL"
         timestamp created_at
         timestamp updated_at
+        int max_per_slot
     }
 
     SERVICE_REQUESTS {
@@ -242,6 +305,15 @@ erDiagram
         int handled_by
         timestamp created_at
         timestamp updated_at
+        decimal invoiced_amount
+        date scheduled_date
+        varchar scheduled_window
+        datetime cancel_requested_at
+        decimal booked_quantity
+        decimal booked_total_cost
+        tinyint rating
+        varchar rating_comment
+        datetime rated_at
     }
 
     UTILITY_READINGS {
@@ -268,6 +340,9 @@ erDiagram
         int recorded_by "admin id"
         timestamp created_at
         timestamp updated_at
+        varchar bill_file_path
+        enum entry_mode
+        decimal total_amount
     }
 
     VISITOR_LOGS {
@@ -291,6 +366,7 @@ erDiagram
         int created_by "admin id"
         timestamp created_at
         timestamp updated_at
+        datetime overstay_alerted_at
     }
 
     INQUIRIES {
@@ -312,6 +388,15 @@ erDiagram
         varchar ip_address
         timestamp created_at
         timestamp updated_at
+        enum thread_type
+        varchar guest_token UK
+        varchar guest_name
+        varchar guest_email
+        varchar guest_phone
+        varchar unit_of_interest
+        datetime guest_reply_emailed_at
+        datetime guest_verified_at
+        int matched_thread_id
     }
 
     HOUSEHOLD_MEMBERS {
@@ -324,6 +409,9 @@ erDiagram
         datetime added_at
         datetime removed_at
         datetime removal_requested_at
+        tinyint age
+        varchar age_category
+        timestamp created_at
     }
 
     APPLICATION_REQUIREMENTS {
@@ -333,6 +421,8 @@ erDiagram
         tinyint is_required
         tinyint is_active
         int sort_order
+        timestamp created_at
+        timestamp updated_at
     }
 
     APPLICATION_DOCUMENTS {
@@ -351,6 +441,10 @@ erDiagram
         varchar full_name
         varchar status "Waiting | Notified | Removed"
         datetime notified_at
+        varchar contact_no
+        varchar email
+        int created_by
+        timestamp created_at
     }
     EXPENSES {
         int id PK
@@ -359,6 +453,8 @@ erDiagram
         date expense_date
         varchar description
         int created_by
+        timestamp created_at
+        timestamp updated_at
     }
     UNIT_RESERVATIONS {
         int id PK
@@ -390,6 +486,8 @@ erDiagram
         datetime scheduled_date
         int recipient_count
         timestamp created_at
+        varchar attachment_path
+        tinyint is_pinned
     }
 
     NOTIFICATIONS {
@@ -402,6 +500,9 @@ erDiagram
         varchar status "Pending | Resolved | Approved | Rejected (ALTER-added)"
         varchar metadata_value "ALTER-added, e.g. 'service_request:12'"
         timestamp created_at
+        varchar audience
+        varchar attachment_path
+        tinyint is_archived
     }
 
     ACTIVITY_LOGS {
@@ -480,6 +581,8 @@ erDiagram
         enum status "sent | failed | skipped"
         text error_message
         timestamp sent_at
+        varchar provider_message_id
+        varchar provider_status
     }
 
     PARKING_CHARGES {
@@ -497,6 +600,175 @@ erDiagram
         int receiver_id FK
         text message
         tinyint is_read
+        timestamp created_at
+        varchar attachment_path
+        int reply_to_id
+    }
+
+    CONTRACT_TEMPLATE_VERSIONS {
+        int id PK
+        int version UK
+        longtext content
+        varchar note
+        int created_by
+        datetime created_at
+    }
+    DEPOSIT_DEDUCTIONS {
+        int id PK
+        int rent_application_id FK
+        varchar contract_id
+        enum category
+        varchar reason
+        decimal amount
+        int recorded_by
+        timestamp created_at
+    }
+    GUEST_CHAT_LINKS {
+        int id PK
+        int inquiry_id FK
+        char token_hash UK
+        datetime expires_at
+        datetime used_at
+        timestamp created_at
+    }
+    GUEST_MESSAGES {
+        int id PK
+        int inquiry_id FK
+        enum sender_role
+        int sender_id FK
+        text message
+        varchar attachment_path
+        int reply_to_id
+        tinyint is_read
+        timestamp created_at
+    }
+    HOUSE_RULES {
+        int id PK
+        varchar category
+        varchar title
+        varchar title_fil
+        text description
+        text description_fil
+        tinyint is_highlight
+        tinyint is_active
+        int sort_order
+        varchar scope
+        timestamp created_at
+        timestamp updated_at
+    }
+    INVOICE_ADJUSTMENTS {
+        int id PK
+        varchar invoice_id FK
+        int admin_id FK
+        varchar reason
+        decimal old_total
+        decimal new_total
+        text changes
+        timestamp created_at
+    }
+    PASSWORD_RESET_REQUESTS {
+        int id PK
+        varchar email
+        varchar ip_address
+        datetime requested_at
+    }
+    PAYMENT_PROOF_PARTS {
+        int id PK
+        varchar payment_key
+        tinyint position
+        varchar method
+        varchar bank_name
+        decimal amount
+        varchar reference_number
+        varchar reference_norm
+        varchar proof_path
+        timestamp created_at
+    }
+    PAYMENT_TRANSACTIONS {
+        int id PK
+        varchar invoice_id FK
+        decimal amount
+        varchar payment_method
+        varchar bank_name
+        varchar reference_number
+        varchar reference_norm
+        int recorded_by FK
+        timestamp created_at
+    }
+    RATE_LIMIT_EVENTS {
+        int id PK
+        varchar action
+        varchar rate_key
+        timestamp created_at
+    }
+    REFUND_REQUEST_EVENTS {
+        int id PK
+        int refund_request_id FK
+        int actor_id
+        varchar actor_role
+        varchar action
+        text message
+        timestamp created_at
+    }
+    REFUND_REQUESTS {
+        int id PK
+        int user_id FK
+        int rent_application_id
+        enum type
+        varchar invoice_id
+        decimal amount
+        text reason
+        enum status
+        text decision_reason
+        varchar payout_method
+        varchar payout_reference
+        int raised_by
+        varchar raised_by_role
+        int decided_by
+        datetime decided_at
+        datetime refunded_at
+        timestamp created_at
+        timestamp updated_at
+        varchar paymongo_payment_id
+        varchar gateway_refund_id
+        varchar gateway_status
+    }
+    SERVICE_CATEGORIES {
+        int id PK
+        varchar category_key UK
+        varchar label
+        varchar label_fil
+        int sort_order
+    }
+    TRUSTED_DEVICES {
+        bigint id PK
+        int user_id FK
+        char device_token UK
+        varchar user_agent
+        varchar ip_address
+        datetime created_at
+        datetime last_used_at
+    }
+    UTILITY_READING_ITEMS {
+        int id PK
+        int reading_id FK
+        int type_id FK
+        decimal prev_reading
+        decimal curr_reading
+        decimal consumption
+        decimal rate
+        decimal amount
+        decimal other_fees
+    }
+    UTILITY_TYPES {
+        int id PK
+        varchar code UK
+        varchar name
+        varchar unit_label
+        enum billing_mode
+        decimal default_rate
+        tinyint is_active
+        int sort_order
         timestamp created_at
     }
 
@@ -532,6 +804,19 @@ erDiagram
     USERS ||--o{ NOTIFICATION_LOG : "delivered to"
     PARKING_RESERVATIONS ||--o{ PARKING_CHARGES : "billed monthly"
     USERS ||--o{ MESSAGES : "sends / receives"
+    INQUIRIES ||--o{ GUEST_MESSAGES : "guest chat thread"
+    INQUIRIES ||--o{ GUEST_CHAT_LINKS : "resume links"
+    USERS |o--o{ GUEST_MESSAGES : "admin sender (SET NULL)"
+    INVOICES ||--o{ PAYMENT_TRANSACTIONS : "payments recorded"
+    USERS |o--o{ PAYMENT_TRANSACTIONS : "recorded by (SET NULL)"
+    INVOICES ||--o{ INVOICE_ADJUSTMENTS : "adjusted by admin"
+    USERS ||--o{ REFUND_REQUESTS : "asks"
+    REFUND_REQUESTS ||--o{ REFUND_REQUEST_EVENTS : "status trail"
+    RENT_APPLICATIONS ||--o{ DEPOSIT_DEDUCTIONS : "move-out deductions"
+    UTILITY_READINGS ||--o{ UTILITY_READING_ITEMS : "extra utilities"
+    UTILITY_TYPES ||--o{ UTILITY_READING_ITEMS : "priced by"
+    USERS ||--o{ TRUSTED_DEVICES : "signed-in devices"
+    LEASE_CONTRACTS }o--o| CONTRACT_TEMPLATE_VERSIONS : "built from (template_version_id)"
 ```
 
 ---
@@ -561,6 +846,8 @@ erDiagram
 |---|---|
 | `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. Installments: `amount_paid` is the running sum of the parts received (`payment_transactions`), balance = `total_amount - amount_paid`; `proof_amount` is the part a tenant declared with a proof (NULL = the whole balance). `base_rent`/`water`/`electricity`/`parking`/`services`/`maintenance`/`late_fee` are itemized and summed into `total_amount`; `services` and `maintenance` accumulate (each can hold more than one completed charge's cost in the same month) — `maintenance` is kept separate from `services` so a tenant-caused repair recharge (audit H10) doesn't blend into voluntary add-on bookings. `water`/`electricity` are set once from a single utility reading — `sync_utility_to_invoice.php` refuses to merge into an invoice that already carries them, and adds to `total_amount` rather than recomputing it. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. Creation is insert-only (`create_invoice.php`, audit H8) — re-issuing an existing id is refused; `adjust_invoice.php` edits only the manual lines (`base_rent`/`water`/`electricity`/`parking`/`late_fee`/`due_date`) and always recomputes `total_amount` from every column, so `services`/`maintenance`/`security_deposit` can never be dropped. **Rent periods (2026-09-26):** a rent invoice's `rent_period_start` is the first day of the tenancy month it bills — the contract's lease-start day in that month, clamped to month end — and its due date. The daily sweep (`generate_due_rent_invoices()`) issues each month 7 days before it starts and never back-bills a month that has already started. `UNIQUE (user_id, rent_period_key)`, where the STORED generated `rent_period_key` is `rent_period_start` except on a cancelled row, stops any writer billing a month twice. Older rent invoices have no `rent_period_start` and are matched by their `billing_period` label. `payment_group` (`ADV-…`) ties the months of a legacy advance payment (before 2026-09-28), or, as `BND-…`, the overdue bills a tenant pays together (combined payment, 2026-09-30; `bundle_payment.php`). A group is paid together but settled and receipted one invoice at a time. **Advance credits (2026-09-28):** an advance payment is now one advance-rent invoice with `advance_months = N`; it is left out of revenue, receivables and arrears and never gets a late fee.  `processing_since` is set when an online checkout claims the bill (`status='processing'`); `void_lapsed_payments()` releases it after `system_settings.payment_window_days` (default 3). |
 | `invoice_adjustments` | One row per `adjust_invoice.php` change (manager interview Q13): `invoice_id` (FK, cascade), `admin_id` (FK to `users`, set null), `reason` (required, 5-255), `old_total`, `new_total`, `changes` (JSON `{line: [old, new]}` for the changed lines: `base_rent`, `water`, `electricity`, `parking`, `late_fee`, `due_date`), `created_at`; index on `invoice_id`. Written in the same transaction as the invoice update; returned admin-only by `get_invoices.php` (`adjustments[]`). **Reference lookups (Q22):** `invoices`, `payment_transactions` and `payment_proof_parts` each have a STORED generated column `reference_norm` varchar(100) = `NULLIF(UPPER(<reference> without spaces, dashes, tabs, CR, LF), '')` over `payment_reference` / `reference_number`, indexed as `idx_invoices_reference_norm`, `idx_payment_transactions_reference_norm` and `idx_payment_proof_parts_reference_norm` (they replace the three raw-reference indexes; 2026_10_manager_interview_alignment.sql, section `reference_norm`). It must equal `normalize_payment_reference()` in `config.php` (a test in `reference_reuse.test.js` checks both on the same inputs), so `find_reference_reuse()` / `reference_reuse_for_pending()` seek by it per channel, under `system_settings.duplicate_reference_policy` (`warn` default, or `block`). Never write the column; it follows the reference on insert and update. |
+| `payment_transactions` | The payment ledger: one row per payment portion (split and instalment payments have several). `invoice_id` (FK, cascade), `amount`, `payment_method`, `bank_name`, `reference_number` and the generated `reference_norm` (indexed, used by the duplicate-reference check), `recorded_by` (FK to `users`, set null). Written by the settlement code in `config.php`; kept after the invoice is paid, it is the permanent record read by `get_invoices.php`, receipts and the dashboard. |
+| `payment_proof_parts` | The portions of a tenant's split payment waiting for admin confirmation (`submit_split_payment.php`): `payment_key` (the invoice id, or a grouped key such as `ADV-` / `BND-`; no FK), `position`, `method`, `bank_name`, `amount`, `reference_number` + generated `reference_norm`, `proof_path`. Re-inserted on every resubmission and cleared by `clear_payment_proof_parts()` on reject, admin settlement, a new single upload or when the invoice is settled. |
 | `advance_credits` | One row per month an advance-rent invoice covers. `reserved` until that invoice is paid (`settle_invoice()`), then `available`; the daily sweep bills the month on its usual date at the credited amount, settles it (`payment_method = 'Advance credit'`) and marks the credit `applied` with `applied_invoice_id`. An advance still unpaid when its first month comes due is cancelled with its credits (`expire_unpaid_advances()`); at move-out `end_tenancy()` turns `available` credits into `refund-due`. `UNIQUE (user_id, credit_key)`, where the STORED `credit_key` is `period_start` except on a cancelled row, stops a month being credited twice. |
 | `refund_requests` | A tenant's or admin's request to get advance rent or an overpayment back (`type` `advance` / `overpayment` / `rejected_application` / `rejected_charge` (the last two are raised automatically when an approved application, or a paid service/maintenance charge, is rejected after payment), `amount`, `reason`). `status` runs Pending Review → Approved → Refunded, with Info Requested (admin asks, tenant replies back to Pending Review), Rejected (`decision_reason` required) and Cancelled; transitions are `REFUND_TRANSITIONS` in `config.php`. `payout_method` / `payout_reference` are recorded at payout. `type` `online_payment` is raised by `paymongo_webhook.php` for an online payment AMS could not apply (bill cancelled or already paid, older checkout); it carries its own `paymongo_payment_id`. A payout through PayMongo stores `gateway_refund_id` (`re_…`) and `gateway_status` (`requesting` while the call is in flight, then PayMongo's `pending` / `processing` / `succeeded` / `failed`, kept current by the refund webhook). The security deposit is not refundable and cannot be requested. Advance credits held by a request carry its id in `advance_credits.refund_request_id` and become `refunded` at payout. |
 | `refund_request_events` | The status trail: one row per action (`raised`, `request_info`, `reply`, `approve`, `reject`, `mark_refunded`, `cancel`) with actor, message and timestamp. |
@@ -577,6 +864,7 @@ erDiagram
 | `parking_charges` | One row per parking reservation per billing month (`UNIQUE (reservation_id, billing_period)`), so a month is never billed twice whether billing is manual ("Bill this month") or automatic (daily sweep). `invoice_id` records where the charge landed. |
 | `parking_reservations` | `vehicle_type` must match the JSON array in the `parking_allowed_vehicle_types` setting; the admin-configured `max_parking_slots` cap counts rows in `Pending`/`Assigned`/`Approved`/`Active`. |
 | `service_catalog` | Admin-managed price list for add-on services (cleaning, laundry, pest control, ...). `is_active=0` hides an item from the tenant-facing catalog without deleting history. |
+| `service_categories` | Categories for the service catalog: `category_key` (unique, 20), `label`, `label_fil`, `sort_order`. `cleaning`, `laundry` and `other` are built in and cannot be removed (`SERVICE_BUILTIN_CATEGORIES`). Managed in `manage_service_categories.php`; `manage_service_catalog.php` validates a service's `category` against it. |
 | `service_requests` | Bookings against the catalog. Price/name/category are **snapshotted** at booking time (not joined live) so re-pricing the catalog never rewrites past invoices. `is_invoiced` is claimed atomically before the charge is posted to `invoices.services`, so a double-click can't double-bill. `invoiced_amount` (2026_11_cctv_auth_chat_billing.sql) is the amount that was posted, so reversing backs out exactly that even if `total_cost` is edited later. |
 
 ### Communication, Access & Audit
@@ -592,6 +880,8 @@ erDiagram
 | `notification_queue` | Outbound SMS/email jobs. The admin endpoints enqueue; `backend/cron/process_queue.php` claims a batch with `claim_token` (so two drains never send the same job), retries with backoff up to `max_attempts`, defers non-urgent SMS in quiet hours, and copies the failure reason to `error_message`. |
 | `notification_log` | One row per SMS/email attempt (`sent` / `failed` / `skipped`, with the reason). SMS rows sent through Semaphore also keep its `provider_message_id` and `provider_status` (`Queued` / `Pending` / `Sent` ...). Only `log_notification_delivery()` writes it; `message_body` is truncated to 500 characters and rows past `notification_log_retention_days` are pruned by the queue drain. Also the source of the daily SMS cap count. |
 | `messages` | Two-way chat (PR #8): one flat row per message, `sender_id` → `receiver_id`, `is_read`. There is no `conversations` table — a thread is all messages between two users. Also carries `attachment_path` and `reply_to_id` (no key or constraint on the latter, as on production). Defined in `SetupDB.sql`; `2026_10_chat_and_signature_columns.sql` adds the table or the two columns to a database that lacks them. The endpoints no longer create or alter it at request time. Written by the PHP endpoints and by the Socket.IO server (`websocket-server/server.js`). |
+| `guest_messages` | Chat of a signed-out visitor's inquiry, kept apart from `messages`: `inquiry_id` (FK, cascade), `sender_role` (`admin` / `guest`), `sender_id` (FK to `users`, set null), `message`, `attachment_path`, `reply_to_id`, `is_read`. Read and written by `guest_chat.php`. When the guest signs in, `adopt_guest_chat()` (`login.php`) copies the rows into `messages` and deletes them here. |
+| `guest_chat_links` | One-time links that let a guest reopen their chat: `inquiry_id` (FK, cascade), `token_hash` (SHA-256, unique), `expires_at` (7 days, `GUEST_CHAT_LINK_DAYS`), `used_at`. Issuing a new link marks older unused ones used, so one link is live per thread. Redeemed (single use, `FOR UPDATE`) by `guest_chat_resume.php`, which sets `inquiries.guest_verified_at`. |
 | `activity_logs` | Audit trail (checklist 8.6), append-only. `performed_by` is always the session user when there is one (set by `log_activity()`), and nullable so a deleted account doesn't cascade-delete history. `category` is one of the 12 keys in `LOG_CATEGORIES`; `normalize_log_category()` maps legacy spellings on write. |
 
 ### Settings & Auth Support
@@ -607,9 +897,55 @@ erDiagram
 | `trusted_devices` | One row per device that passed the emailed sign-in code (`verify_device.php`): `user_id`, `device_token` (SHA-256 of the `ams_trusted_device` cookie, unique), `user_agent`, `ip_address`, `last_used_at`. `login.php` lets a tenant on a trusted device straight in; any other device gets a six-digit code (`users.login_otp`, 15 minutes, three tries) when the code is required: `users.login_otp_mode` `on` / `off` decides for that account, `default` follows the `login_otp_enabled` setting (`'1'` = ask; Admin → Other Settings → Sign-in Codes, `login_otp_settings.php`, rule in `api/services/login_otp_policy.php`). Administrators skip the code. |
 | `users` (auth columns) | `email_verified_at` (NULL until the emailed link is used; `login.php` refuses an unverified address), `verification_token` (emailed at registration, cleared on use), `login_otp`, `login_otp_expires_at`, `login_otp_attempts`. Added by `2026_11_cctv_auth_chat_billing.sql`, which marks accounts that already exist as verified; seeds do the same for the accounts they create. |
 
-### Audit (2026-10-28): is 46 tables too many?
+### Column notes (2026-11-06)
+Columns added since the first version of this document. Types are in the ER diagram above; this lists what they mean.
+
+| Table.column | Meaning |
+|---|---|
+| `announcements.is_pinned` | 1 = pinned. `pin_announcement.php` (admin) pins only `sent` announcements, at most 3 at once (`MAX_PINNED_ANNOUNCEMENTS`); `get_announcements.php` sorts pinned first. |
+| `service_catalog.max_per_slot` | NULL = no limit, else 1-100 bookings per date and time window. `service_request.php` answers 409 "fully booked" when `service_slot_taken()` (Pending / Approved / In Progress bookings of that service) reaches it. |
+| `service_requests.scheduled_date`, `scheduled_window` | The confirmed visit (`morning` 08:00 / `afternoon` 13:00, Asia/Manila), set by `update_service_status.php`; approving without one copies the tenant's preferred date and slot. Both set or both empty. |
+| `service_requests.cancel_requested_at` | Set when a tenant cancels an Approved / In Progress booking that is not free to cancel (free = Approved and the visit is more than `SERVICE_FREE_CANCEL_HOURS` = 24 h away, which cancels outright). Cleared by any status change or when the admin declines the cancel. |
+| `service_requests.rating`, `rating_comment`, `rated_at` | One 1-5 rating (optional comment, 255) per Completed booking, set once by `rate_service_request.php` within `SERVICE_RATING_DAYS` = 14 days of `completed_at`. |
+| `service_requests.booked_quantity`, `booked_total_cost` | The original quantity and total, kept only when the admin completes the booking with a different final quantity (which overwrites `quantity` and `total_cost`). NULL = never adjusted. |
+| `maintenance_requests.scheduled_date`, `scheduled_window` | Same visit scheduling as services (`update_maintenance_status.php`). |
+| `maintenance_requests.cancel_requested_at` | A tenant's cancel request on an `In Progress` ticket (`cancel_request.php`); cleared by `declineCancel` or any status change. |
+| `maintenance_requests.acknowledged_at`, `started_at`, `resolved_at` | Timestamps for leaving Pending, first move to In Progress (kept on reopen) and move to Completed (cleared when leaving Completed). |
+| `maintenance_requests.rejection_reason` | Required (422) when an admin sets Rejected. |
+| `maintenance_requests.reopen_reason` | Set by `reopen_maintenance_request.php` when a tenant says a Completed, not-yet-invoiced ticket is not fixed; the ticket returns to In Progress. |
+| `users.email_verified_at`, `verification_token` | Sign-up e-mail check: `registration.php` stores a random 64-hex token and e-mails the link; `verify_email.php` sets `email_verified_at` and clears the token; `login.php` refuses sign-in while it is NULL. The token has no expiry. |
+| `users.login_otp`, `login_otp_expires_at`, `login_otp_attempts` | The 6-digit sign-in code for an untrusted device (plain text, valid 15 minutes, locked after 3 wrong tries, cleared on success). `login_otp_mode` (`default` / `on` / `off`, `2026_11_login_otp_controls.sql`) and the `login_otp_enabled` setting decide who is asked. Admins and `demo.example` accounts outside production are never asked. |
+| `trusted_devices` | A device that passed the code: `user_id` (FK, cascade), `device_token` (SHA-256 of the `ams_trusted_device` cookie, unique), `user_agent`, `ip_address`, `created_at`, `last_used_at`. The only expiry is the 1-year cookie; there is no purge or revoke endpoint. |
+| `rent_applications.terms_agreed_at` | When the applicant accepted the Terms (set on submit / resubmit, or by an admin assigning a tenant directly); approval is blocked while empty. |
+| `rent_applications.preferred_move_in_date`, `move_in_date`, `move_in_notified_at` | The applicant's requested date (NULL = ASAP), the date the admin confirms with `schedule_move_in.php` (today to +365 days, used as `lease_start` at move-in) and when the tenant was told. |
+| `rent_applications.cancelled_at` | Set by `transition_application()` on Cancelled; feeds the "Payment window lapsed" list (last 30 days). |
+| `rent_applications.pre_archive_status` | The status held before `archive_application()`; `restore_application()` puts it back. |
+| `rent_applications.rejection_attachment_path` | File the admin attached when rejecting, declining, cancelling or requesting action; cleared on other transitions; opened through `download_file.php`. |
+| `rooms.archived_at`, `archived_by` | Soft delete by `archive_room.php`; most room queries filter `archived_at IS NULL`. `create_room.php` clears them when an archived id is re-created. |
+| `rooms.available_date` | End of maintenance ("Coming Soon"), set by `set_unit_maintenance.php` `start` (required, not in the past), cleared on `complete`. |
+| `rooms.rent_is_custom` | 1 when an admin set the rent by hand and it differs from the floor rate; `apply_floor_rate.php` skips those vacant rooms. |
+| `notifications.is_archived` | The tenant archived the notice (`archive_notification.php`, non-Pending only); archived rows leave the unread count. |
+| `notifications.attachment_path` | File on an admin-composed notification (`create_notification.php`); the helper `create_notification()` never sets it. |
+| `notifications.audience` | Default `tenant`; no code writes or reads it (unused). |
+| `parking_reservations.slot_number`, `assigned_at`, `released_at`, `release_reason`, `rejection_reason` | Slot given at approval (1 to the configured maximum; one active reservation per slot via the generated `active_slot` key), approval and release times, and the reasons. Sweeps set `release_reason` to "Permit term ended" / "Tenancy ended". |
+| `inquiries.thread_type`, `guest_token`, `guest_name`, `guest_email`, `guest_phone`, `unit_of_interest` | A signed-out `/inquire` creates a `guest` thread with a 64-hex `guest_token` (unique; sent as `X-Guest-Token`) and copies of the form fields. When the guest signs in, `adopt_guest_chat()` flips it to `registered`, sets `user_id` and nulls the token. |
+| `inquiries.matched_thread_id` | A repeat guest inquiry with the same e-mail or phone points at the existing thread instead of getting a token; a resume link is e-mailed. |
+| `inquiries.guest_verified_at`, `guest_reply_emailed_at` | The e-mailed link was redeemed; and a throttle so only the first admin reply of an unseen batch sends an e-mail (reset when the guest opens the chat). |
+| `utility_readings.entry_mode`, `bill_file_path`, `total_amount` | `metered` (readings x rates), `bill` (provider amounts billed as-is, meter values optional) or `total` (one `total_amount`, > 0 and <= 1,000,000); an uploaded provider bill (`upload_utility_bill.php`). |
+| `visitor_logs.overstay_alerted_at` | `alert_overstayed_visitors()` stamps a checked-in visit older than `visitor_overstay_hours` (default 24) once, so admins are alerted once. |
+| `lease_contracts.terminated_at`, `termination_reason` | Set on termination (`update_contract_status.php`, `archive_tenant.php`); cleared by `restore_tenant.php`. |
+| `lease_contracts.template_version_id` | The `contract_template_versions` row in force when the contract was created. |
+| `lease_contracts.renewal_reminder_sent_at` | Claimed by `send_lease_end_reminders()` when `lease_end` is within `lease_end_reminder_days` (default 30); reset when the contract is extended. |
+| `lease_contracts.tenant_signature_path`, `owner_signature_path` | Signature images on the contract. |
+| `household_members.age`, `age_category` | Age 0-120 (required for a child, who must be under 18); `age_category` is the key of the matching `age_categories` setting range, stored at insert and not recalculated. |
+| `notification_log.provider_message_id`, `provider_status` | Semaphore's message id and the status it returned at send time (not updated later). NULL for e-mail. |
+| `unit_waitlist.contact_no`, `email`, `created_by` | Copied from the inquiry; `created_by` is the admin who added the entry (no FK). |
+
+**Settings added by the 2026-11 migrations** (`INSERT IGNORE`, so existing values stay): `glass_bg_image` (empty = built-in photo), `glass_overlay_opacity` (78, range 0-95), `glass_blur` (0, range 0-20), `glass_tint` (`#0f172a`), `home_content` and `preview_hero` (JSON, per-field `show` / `en` / `fil`), `extension_deadline_days` (0 = none), `lease_end_reminders_enabled`, `lease_end_reminder_email`, `lease_end_reminder_sms` (all 1), `upcoming_rooms_enabled` (1), `login_otp_enabled` (1). QR Ph (`2026_10_qrph_payment_settings.sql`): `payment_ch_qrph_manual` (1), `qrph_active_slot` (1), `qrph_slots` (JSON, 5 slots of label, image, account name, number).
+
+### Audit (2026-10-28): is 46 tables too many? (49 since 2026-11-06)
 No. A scan of dev `ams_db` against the code (`backend/**/*.php` without migrations, `ams-react/src`, `websocket-server`) found:
-- **Every table is used.** All 46 are read by at least one endpoint and written by at least one (the busiest: `rent_applications` in 48 PHP files, `users` 57, `invoices` 35, `rooms` 30, `notifications` 28). The whole database is 2.2 MB on dev. Prod also has `schema_migrations` (47 tables), created by `cron/migrate.php`; dev, built from `SetupDB.sql`, does not.
+- **Every table is used.** All 46 (then) are read by at least one endpoint and written by at least one (the busiest: `rent_applications` in 48 PHP files, `users` 57, `invoices` 35, `rooms` 30, `notifications` 28). The whole database is 2.2 MB on dev. Prod also has `schema_migrations` (47 tables), created by `cron/migrate.php`; dev, built from `SetupDB.sql`, does not.
 - **Columns never named in code:** only six. `advance_credits.credit_key`, `parking_reservations.active_slot` and `open_user` are generated columns that exist to back unique keys, so they stay. `rent_applications.valid_id_front_path`, `valid_id_back_path` and `nbi_clearance_path` were left over from before `application_documents`; `2026_10_drop_legacy_document_columns.sql` copies any path still only there and drops them.
 - **Possible follow-ups, not done:** `login_attempts` and `password_reset_requests` are per-feature throttles that `rate_limit_events` could absorb (46 → 44 tables, but it touches sign-in and password reset). `backend/api/apply_live_schema_fix.php`, `final_schema_patch.php`, `sync_live.php` and `audit_live_schema.php` are CLI-only one-off scripts from 2026-10-20 that nothing references; `cron/migrate.php` replaced them.
 
@@ -622,7 +958,7 @@ No. A scan of dev `ams_db` against the code (`backend/**/*.php` without migratio
 | Path | What |
 |---|---|
 | `SetupDB.sql` | The full current schema; fresh installs need only this |
-| `YYYY_MM_*.sql` | The current upgrade migrations: `2026_10_panelist_gaps` (refunds, floor rent, utility bills and types, scoped rules, age categories, all in one file), `2026_10_rent_wording`, `2026_10_room_archiving`, `2026_10_server_database_update`, `2026_10_prod_schema_repair`. `backend/cron/migrate.php` (and the git post-merge hook) runs each one not yet in `schema_migrations`; prod has the first three, the repair is pending there. CI applies them all on a fresh schema to prove they stay idempotent |
+| `YYYY_MM_*.sql` | The upgrade migrations (28 files at 2026-11-06: `2026_10_*` x24 and `2026_11_*` x4: `appearance_settings`, `cctv_auth_chat_billing`, `contract_end_and_preview`, `login_otp_controls`). Each is idempotent and mirrored into `SetupDB.sql`. `backend/cron/migrate.php` runs (a git post-merge hook calling it is optional) each one not yet in `schema_migrations` (prod only; dev built from `SetupDB.sql` has no such table). Files already applied everywhere are deleted (see AGENTS.md). CI applies them all on a fresh schema to prove they stay idempotent. |
 | `seeds/` | Demo data and reset helpers: `seed_mock_data.sql` / `seed_reset.sql` / `clear_and_seed.sql` (empty or dev databases only; CI and the API tests load `seed_mock_data.sql`), `seed_defense_scenarios.sql` (extra states on top of the mock seed), `seed_demo_full.sql` / `seed_demo_reset.sql` (the full-coverage demo set, safe on a live database, tracked and CI-tested), and `seed_prod_demo.sql` / `seed_prod_demo_reset.sql` / `prod_wipe_operational.sql` (live-database helpers; local only, gitignored) |
 
 Migrations must run on prod's MySQL 8 as well as local MariaDB. The runner strips `IF NOT EXISTS` from `ADD COLUMN`/`ADD INDEX` (MySQL 8 rejects it) and runs the file one statement at a time: a statement that fails because its change is already there (duplicate column/key/table, MySQL 1060/1061/1050/1091) is skipped and the rest of the file still runs; any other error stops the file and leaves it unrecorded, so it is retried next run. Until 2026-10-07 it sent the whole file through `multi_query()`, where the first duplicate error silently skipped the rest while the file was still recorded as applied; that is how prod ended up half-migrated in October 2026. Guarding each change with an `information_schema` check and a prepared statement, as `2026_10_prod_schema_repair.sql` does, is still the preferred style. Statements are split on `;` outside quotes and comments, so `DELIMITER` blocks (procedures, triggers) are not supported. Once a migration has run everywhere (prod included), delete it: `SetupDB.sql` already has the change and git keeps the file's history (`git log --diff-filter=D -- backend/api/migrations/`). The September 2026 upgrades (`2026_09_*`) were removed this way on 2026-10-03.
@@ -630,9 +966,9 @@ Migrations must run on prod's MySQL 8 as well as local MariaDB. The runner strip
 ### `SetupDB.sql` — the schema, run once per environment
 The single source of truth for every `CREATE TABLE`. Structure:
 1. `CREATE DATABASE IF NOT EXISTS ams_db` + all `DROP TABLE IF EXISTS` / `CREATE TABLE` statements for the 13 "original" tables (`users`, `rooms`, `invoices`, `lease_contracts`, `maintenance_requests`, `notifications`, `parking_reservations`, `rent_applications`, `cctv_requests`, `announcements`, `activity_logs`, `system_settings`, `visitor_logs`).
-2. The one seed row that must exist for the app to be usable at all: the **admin account** (`admin@gmail.com` / `admin123`) and the **14-room inventory**.
-3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `inquiries`, `unit_reservations`, `household_members`, `expenses`, `unit_waitlist`, `service_catalog`, `service_requests`, `utility_readings`, `sessions`, `login_attempts`, `password_resets`, `password_reset_requests`, `notification_preferences`, `notification_log`, `notification_queue`, `parking_charges`, `advance_credits`, `payment_transactions`, `house_rules`, `rate_limit_events`, `refund_requests`, `refund_request_events`, `utility_types`, `utility_reading_items`, `application_requirements`, `application_documents`) — additive, so re-running this file against an existing DB won't wipe those.
-4. A trailing block of `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements patching columns the API code depends on that were never added to the original `CREATE TABLE` blocks — `notifications` (`status`, `metadata_value`), `invoices` (`services`, `late_fee`, `maintenance`, reminder tracking, `cancel_reason`, ...), and `maintenance_requests` (the timeline columns, `actual_cost`, and the `is_invoiced`/`invoice_id`/`billing_period` billing trio). New columns keep landing here rather than in the original `CREATE TABLE`, so check this block — not just the table's own `CREATE TABLE` — before assuming a column doesn't exist.
+2. The rows the app needs to be usable at all: the **admin account** (`admin@gmail.com` / `admin123`) and the **14-room inventory**. Further down, `INSERT IGNORE` blocks add the default `service_categories` (cleaning, laundry, other), the `service_catalog` starter items, the `house_rules` starters (EN + FIL), the `utility_types`, the `application_requirements` (Valid ID front / back) and the default `system_settings`.
+3. The other 36 tables (49 in total with the 13 above), each added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `inquiries`, `unit_reservations`, `household_members`, `expenses`, `unit_waitlist`, `notification_preferences`, `notification_log`, `notification_queue`, `parking_charges`, `service_catalog`, `service_requests`, `service_categories`, `utility_readings`, `sessions`, `trusted_devices`, `login_attempts`, `password_resets`, `password_reset_requests`, `contract_template_versions`, `advance_credits`, `payment_transactions`, `payment_proof_parts`, `guest_messages`, `guest_chat_links`, `messages`, `house_rules`, `rate_limit_events`, `refund_requests`, `refund_request_events`, `utility_types`, `utility_reading_items`, `application_requirements`, `application_documents`, `deposit_deductions`, `invoice_adjustments`) - additive, so re-running this file against an existing DB won't wipe those.
+4. A block of `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `ADD INDEX IF NOT EXISTS` statements (about 40) for columns that were never part of the original `CREATE TABLE` blocks, mostly on `notifications` (`status`, `metadata_value`, `attachment_path`, `is_archived`), `invoices` (`services`, `late_fee`, `maintenance`, reminder tracking, `cancel_reason`, payment-proof columns, ...), `maintenance_requests`, `rooms`, `rent_applications` and `users`. New columns still land here rather than in the original `CREATE TABLE`, so check this block, not just the table's own `CREATE TABLE`, before assuming a column is missing. Each column is also listed in the ER diagram above.
 5. The default `system_settings` rows.
 
 **Important:** `users` and `rooms` (and every other "original" table) use `DROP TABLE IF EXISTS` — re-importing this file against a database that already has tenant data **destroys it**. Always run `seed_mock_data.sql` (if wanted) immediately after, in the same session — never re-run `SetupDB.sql` alone against a populated DB.
@@ -650,7 +986,7 @@ Must run **after** `SetupDB.sql` in the same import — it resolves the admin's 
 Tracked and CI-tested (`demo_seed.test.js`, the "Demo seed" CI step). Adds 16 `@demo.example.com` accounts (password `tenant123`, email and SMS opted out) next to existing data: no fixed ids (users are read back by email into session variables), `INV-DEMO-` / `CTR-DEMO-` ids, dates relative to today, no `USE` line, and nothing addressed to All Tenants. It fills 12 vacant rooms and covers every workflow state: all invoice statuses (paid, pending, overdue, `pending-verification` single and split, `scheduled`, `processing`, `payment-failed`), partial and split payments, a reused reference, an invoice adjustment, advance rent (reserved, available, applied, refund-due), move-in and rejected-after-approval payments, three refund requests with timelines, deposit deductions, every application status, draft/active/expired/eviction-pending contracts and an extension, parking, maintenance, services, CCTV, visitors (including overstayed), inquiries with guest chat, a unit hold and waitlist, household members, tenant-admin chat, notifications with admin queue rows for the pending records, expenses and nine months of rent history for reports. Two optional utility types (internet, gas) are switched on.
 A guard at the top stops the script with a duplicate-key error, before anything is written, if there is no admin, fewer than 12 vacant rooms, fewer than two free parking slots, recent meter readings on the target rooms, or the demo accounts already exist. It sets `utf8mb4_general_ci` for the session because user variables take the connection collation and MySQL 8 defaults to `utf8mb4_0900_ai_ci` (error 1267). `seed_demo_reset.sql` removes exactly those rows (`Demo:`-prefixed log rows, the demo announcements and expenses by title and description) and frees the rooms; it restores a fresh database to identical row counts.
 
-### `seed_prod_demo.sql` and `seed_prod_demo_reset.sql` — demo data on a live database (local only)
+### `seed_prod_demo.sql` and `seed_prod_demo_reset.sql` — demo data on a live database (local only; superseded by `seed_demo_full.sql`)
 These two files are gitignored: they target prod and are run by hand there (Adminer or the mysql client), never deployed or run by CI.
 
 The prod-safe sibling of `seed_mock_data.sql`: the same people, scenarios and invoice amounts, added next to real data without touching it. Rules it follows:

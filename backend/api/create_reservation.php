@@ -82,7 +82,7 @@ try {
     }
 
     // 3. No pending rent application already competing for this room.
-    //    This is the conflict check called for by docs/todo.md and FR-4.7.
+    //    This is the conflict check called for by docs/planning/todo.md and FR-4.7.
     $app_stmt = $conn->prepare("SELECT id FROM rent_applications WHERE room_name = ? AND status = 'Pending Review' LIMIT 1");
     $app_stmt->bind_param("s", $room_name);
     $app_stmt->execute();

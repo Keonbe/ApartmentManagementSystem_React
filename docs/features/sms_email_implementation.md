@@ -61,7 +61,6 @@
 - [x] Semaphore driver — **shipped 2026-09-24**. The Twilio / Vonage / Movider / iTexMo stubs were removed the same day (migration `2026_09_sms_semaphore_only.sql`).
 - [ ] Schedule the queue drain (`backend/cron/run_queue.bat`, every minute — command in C.1). A real provider makes the admin endpoints enqueue; nothing is delivered until it runs.
 - [ ] Put the API key into Account Settings → Notifications tab, then switch **SMS Provider** off `log`
-- [ ] ~~Update the `Dockerfile` so Railway gets `vendor/`~~ — deferred; Railway is on indefinite hold, so XAMPP is the only target ([§1.2](#12-install-phpmailer))
 
 ---
 
@@ -71,7 +70,7 @@ This section is the result of auditing the rest of this guide against the code o
 
 ### 0.1 Compatibility findings
 
-**Status (2026-09-22).** Every finding that could be closed against code that exists today has been. Shipped: **C1**, **C2**, **C3**, **C4**, **C9**, **C11**, **C12**, **C14**, **C15** — see [§0.1a](#01a-what-shipped). Still open, because they are corrections to files Phase 1 has yet to create or constraints on how it is written: **C5** (queue before wiring — the tables exist, the dispatcher does not), **C6** (Composer in the deploy path), **C7** (Railway cron), **C8** (write to the PHP 8.0 floor), **C10** (escape template values), **C13** (anchor Phase 2 edits to call text). C6 and C7 are **deferred**: Railway is on indefinite hold, so the XAMPP path is the only deploy target this feature targets for now.
+**Status (2026-09-22).** Every finding that could be closed against code that exists today has been. Shipped: **C1**, **C2**, **C3**, **C4**, **C9**, **C11**, **C12**, **C15** — see [§0.1a](#01a-what-shipped). Still open, because they are corrections to files Phase 1 has yet to create or constraints on how it is written: **C5** (queue before wiring — the tables exist, the dispatcher does not), **C6** (Composer in the deploy path), **C7** (queue drain on hosts without cron), **C8** (write to the PHP 8.0 floor), **C10** (escape template values), **C13** (anchor Phase 2 edits to call text). C6 and C7 are **deferred**: Railway is on indefinite hold, so the XAMPP path is the only deploy target this feature targets for now.
 
 | # | Finding | Where | Action |
 |---|---|---|---|
@@ -81,14 +80,13 @@ This section is the result of auditing the rest of this guide against the code o
 | **C4** | **`users.email_address` is `varchar(30)`** — shorter than a great many real addresses, and `UNIQUE`. Any tenant with a longer address either can't register or is silently truncated, and email notifications then bounce. | `SetupDB.sql:379` | Widen to `varchar(190)` in the same migration (190 keeps the unique index inside the utf8mb4 key limit). Pre-existing bug, but email delivery is what makes it visible. |
 | **C5** | **Synchronous sends will time out the HTTP request.** §2.1 loops over every recipient calling `send_sms()` (15 s cURL timeout) and `send_email()` (a fresh SMTP handshake each). A 30-tenant announcement is 30 TCP+TLS round trips inside one POST — PHP's `max_execution_time` and the browser both give up first, and the admin sees a failure on a request that partly succeeded. | §2.1, §2.5 | See [§0.2](#02-architecture-decision--queue-first). |
 | **C6** | **No Composer anywhere in the deploy path.** The `Dockerfile` is `php:8.2-apache`, has no `composer` binary, and does `COPY backend/ /var/www/html/`. §1.2's "the Dockerfile must run `composer install`" would fail the build as written. `vendor/` is also **not** in `.gitignore`. | `Dockerfile`, `.gitignore` | Pick one of the two options in [§1.2](#12-install-phpmailer). Committing `vendor/` is the lower-risk choice for this project. |
-| **C7** | **Railway has no cron.** `process_queue.php` is documented as a Windows Task Scheduler job, which only covers the XAMPP install. The SaaS deployment would queue notifications and never drain them. | §4.1 | Drain the queue from `run_notification_sweep()` / the `get_notifications.php` poll, the same trick `config.php:1585-1595` already uses for the daily sweep. Details in [§4.1](#41-notification-queue--process_queuephp). |
+| **C7** | **Hosts without a scheduler have no cron.** `process_queue.php` is documented as a Windows Task Scheduler job, which only covers the XAMPP install. A host without Task Scheduler or cron would queue notifications and never drain them. | §4.1 | Drain the queue from `run_notification_sweep()` / the `get_notifications.php` poll, the same trick `config.php:1585-1595` already uses for the daily sweep. Details in [§4.1](#41-notification-queue--process_queuephp). |
 | **C8** | **PHP version split: local 8.0.30, container 8.2.** `match` and named arguments are fine on 8.0. `readonly`, enums-in-interfaces, `never`, and PHPMailer 7 are not. | — | Write to the 8.0 floor; pin `phpmailer/phpmailer:^6.9`. |
 | **C9** | **Preference API payload shape is a breaking change.** `update_notification_preferences.php:33-38` validates that each value is a bool/0/1 and **422s on anything else**. §3.1's new `{"in_app":…,"sms":…}` object payload would be rejected before it reached the insert, and `UserNotifications.jsx` (C13 — the guide said `ProfileSettings.jsx`) still sends the old shape. | `update_notification_preferences.php` | Accept **both** shapes ([§3.1](#31-extend-preferences-api)); ship the backend before the frontend. |
 | **C10** | **Email templates interpolate unescaped values.** `email_status_update_template()` inserts `$details`, `$request_label` and `$tenant_name` straight into HTML; `email_payment_template()` does the same with `$room` and `$ref`. A tenant-supplied maintenance description is enough to inject markup into an email the admin also receives. | §1.5 | `htmlspecialchars()` every interpolated value ([§1.5](#15-email-templates--email_templatesphp)). |
 | **C11** | **`notification_log` stores full message bodies forever** — names, unit numbers, amounts, phone numbers and email addresses, with no retention policy. Under RA 10173 that is personal data held without a purpose limit, and the table grows unbounded. | §1.1 | Store a truncated body and prune on a schedule ([§1.1](#11-database-migration)). |
 | **C12** | **Phone normalisation is too naive.** `preg_replace('/^0/', '+63', trim($phone))` does not strip spaces, dashes or parentheses, so `0917 123 4567` fails the regex and is logged as invalid. `users.contact_no` is free-text `varchar(30)` with no format enforcement. | §1.3 | Strip non-digits first ([§1.3](#13-sms-service--send_smsphp)). |
 | **C13** | **Line numbers in Phase 2 are already drifting.** Several "after line N" anchors no longer point where the guide says (`create_announcement.php:23` still holds, `config.php`'s sweep is at ~1585 not 1590). **§3.1 also names the wrong file:** the legacy flat preferences payload is sent by `UserNotifications.jsx`, not `ProfileSettings.jsx`, which contains no preferences UI at all. | §2, §3.1 | Anchor edits to the `create_notification(...)` call text, not to line numbers. File names corrected below. |
-| **C14** | **Link fix:** the footer points at `docs/documentation/notification_services.md`, which does not exist. The file is `docs/features/notification_services.md`. | footer | Corrected below. |
 | **C15** | `backend/api/services/` does not exist yet; `backend/cron/` does (`check_environment.php`, `daily_sweep.php`). | — | Create the one directory; the cron additions sit beside the existing scripts. |
 
 ### 0.1a What shipped
@@ -122,7 +120,6 @@ Implemented 2026-09-22. Phase 1 builds on these rather than restating them.
 
 **C15** — `backend/api/services/` exists (placeholder only).
 
-**C14** — verified: the footer already points at `docs/features/notification_services.md`.
 
 ### 0.2 Architecture decision — queue first
 
@@ -143,7 +140,7 @@ Revised order:
 | 7 | Phase 3 user/admin controls | |
 | 8 | Real providers, delivery log viewer | |
 
-Concretely, `dispatch_external_notification()` writes rows to `notification_queue` and returns in microseconds. `process_queue.php` — run by Task Scheduler on XAMPP, and by the sweep piggyback on Railway (C7) — is the only place a provider is ever contacted. The synchronous path stays available behind a `notifications_dispatch_mode` setting (`queue` | `sync`) purely so a live demo can show an SMS arriving while the panel watches.
+Concretely, `dispatch_external_notification()` writes rows to `notification_queue` and returns in microseconds. `process_queue.php` — run by Task Scheduler on XAMPP, and by the sweep/poll piggyback (C7) — is the only place a provider is ever contacted. The synchronous path stays available behind a `notifications_dispatch_mode` setting (`queue` | `sync`) purely so a live demo can show an SMS arriving while the panel watches.
 
 ### 0.3 Cost model
 
@@ -217,7 +214,7 @@ Email is the honest win here: it is free, has no registration lead time, and dem
 
 Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end testable; no provider is contacted and nothing is spent.
 
-> **How to run and test it: [`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md).** That runbook replaces the two `php -r` recipes that used to live in [§4.3](#43-verification).
+> **How to run and test it: [`sms_email_mock_testing.md`](sms_email_mock_testing.md).** That runbook replaces the two `php -r` recipes that used to live in [§4.3](#43-verification).
 
 | File | What it is |
 |---|---|
@@ -404,7 +401,7 @@ composer require phpmailer/phpmailer:^6.9
 + && rm -f /usr/bin/composer
 ```
 
-Option B needs `backend/composer.json` **and** `backend/composer.lock` committed, and it lengthens every Railway build. Option A is the smaller change; with a single pure-PHP dependency it is also the safer one.
+Option B needs `backend/composer.json` **and** `backend/composer.lock` committed. Option A is the smaller change; with a single pure-PHP dependency it is also the safer one.
 
 Either way, confirm before wiring anything up:
 
@@ -416,7 +413,7 @@ Either way, confirm before wiring anything up:
 
 ### 1.3 SMS Service — send_sms.php
 
-**File:** [`backend/api/services/send_sms.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_sms.php) — **shipped**. The `log` and **Semaphore** drivers are built, and they are the only two; any other `sms_provider` value fails loudly with "Unknown SMS provider" instead of appearing to work.
+**File:** [`backend/api/services/send_sms.php`](../../backend/api/services/send_sms.php) — **shipped**. The `log` and **Semaphore** drivers are built, and they are the only two; any other `sms_provider` value fails loudly with "Unknown SMS provider" instead of appearing to work.
 
 > **The Semaphore listing below is the original plan, superseded by the shipped driver.** The real one strips the `+` from the number, posts `sendername` only when `sms_sender_approved = '1'`, requires a `message_id` in the response (Semaphore reports errors as a JSON object *with HTTP 200*), and `send_sms()` enforces `sms_daily_cap` before any real provider is called. See [Appendix C.1](#c1-semaphore-sms--philippine-local).
 
@@ -539,7 +536,7 @@ function _send_via_semaphore($conn, $phone, $message) {
 
 ### 1.4 Email Service — send_email.php
 
-**File:** [`backend/api/services/send_email.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_email.php) — **shipped**, with two changes to the listing below ([§1.0](#10-what-phase-1-shipped)):
+**File:** [`backend/api/services/send_email.php`](../../backend/api/services/send_email.php) — **shipped**, with two changes to the listing below ([§1.0](#10-what-phase-1-shipped)):
 >
 > 1. A **`log` driver** was added alongside this SMTP one, selected by the new `email_driver` setting and used by default. It writes the rendered HTML to the mock outbox and opens no socket, which is what lets the email path be built and demonstrated before any Gmail account exists.
 > 2. `require_once '../../vendor/autoload.php'` moved **inside** the SMTP branch, behind an `is_file()` check. As written below, a checkout without `vendor/` fatals on include — including on the log path, which does not need PHPMailer at all. A missing dependency is now a `failed` row with a readable reason.
@@ -618,7 +615,7 @@ function send_email($conn, $to_email, $subject, $html_body, $event_type = 'gener
 
 ### 1.5 Email Templates — email_templates.php
 
-**File:** [`backend/api/services/email_templates.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/email_templates.php) — **shipped** as written, `esc()` throughout. Emoji were dropped from the subject lines: they survive in email but the same strings feed SMS, where they force UCS-2 encoding (§0.3).
+**File:** [`backend/api/services/email_templates.php`](../../backend/api/services/email_templates.php) — **shipped** as written, `esc()` throughout. Emoji were dropped from the subject lines: they survive in email but the same strings feed SMS, where they force UCS-2 encoding (§0.3).
 
 Returns HTML email bodies. Called by the dispatcher or endpoint before `send_email()`.
 
@@ -760,7 +757,7 @@ The in-app text is unchanged. It still comes from each endpoint (and from `remin
 
 ### 1.6 Central Dispatcher — send_notification.php
 
-**File:** [`backend/api/services/send_notification.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_notification.php) — **shipped**, and it holds the queue drain too. The per-channel opt-out ladder written out twice below is now one `user_channel_allowed()` call per channel (config.php), so C2 ordering lives in exactly one place.
+**File:** [`backend/api/services/send_notification.php`](../../backend/api/services/send_notification.php) — **shipped**, and it holds the queue drain too. The per-channel opt-out ladder written out twice below is now one `user_channel_allowed()` call per channel (config.php), so C2 ordering lives in exactly one place.
 
 The single function every endpoint calls after `create_notification()`. It resolves the user's contact info, checks per-channel preferences, and — by default — **enqueues** rather than sends. In-app is already handled by `create_notification()`.
 
@@ -876,13 +873,13 @@ function dispatch_external_broadcast($conn, $user_ids, $event_type, $subject, $s
 >
 > All seven admin endpoints are wired (announcements, maintenance, payment reminders ×2 paths, CCTV, parking, service, tenant requests). Three differences from the listings below:
 >
-> **Call sites use `dispatch_admin_action_notification()`, not the dispatcher directly.** It is a thin wrapper in [`send_notification.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_notification.php) that adds two things the raw dispatcher cannot: a **`rendered`** block (the post-`gsm7_safe()`, post-`sms_single_segment()` SMS text, the subject and the email HTML) and a **`dry_run`** flag. Endpoints return that as `notification_dispatch`, and a response interceptor in `axiosConfig.js` prints it to the browser console. On a mock driver the console *is* the message, so this is what makes the feature visible without a provider. `dispatch_admin_action_broadcast()` is the announcement equivalent. A companion `notify_recipient_name()` supplies the template greeting so it never renders "Hello ,".
+> **Call sites use `dispatch_admin_action_notification()`, not the dispatcher directly.** It is a thin wrapper in [`send_notification.php`](../../backend/api/services/send_notification.php) that adds two things the raw dispatcher cannot: a **`rendered`** block (the post-`gsm7_safe()`, post-`sms_single_segment()` SMS text, the subject and the email HTML) and a **`dry_run`** flag. Endpoints return that as `notification_dispatch`, and a response interceptor in `axiosConfig.js` prints it to the browser console. On a mock driver the console *is* the message, so this is what makes the feature visible without a provider. `dispatch_admin_action_broadcast()` is the announcement equivalent. A companion `notify_recipient_name()` supplies the template greeting so it never renders "Hello ,".
 >
 > **Admin actions dispatch synchronously while both drivers are `log`.** `dispatch_external_notification()` gained an optional 7th parameter, `$force_mode`; `_admin_action_mode()` returns `'sync'` only when `sms_provider` **and** `email_driver` are both `log`, otherwise `null` (fall through to the configured mode). Sync is what puts the rendered message in the HTTP response. Forcing it unconditionally would undo C5's whole point the day a provider is configured — an announcement to 30 tenants would become 30 round trips inside one POST. Configure a real provider and the endpoints silently revert to enqueuing.
 >
 > **Dispatch happens after `commit()` where the endpoint has a transaction** (announcements, tenant requests). A notification problem must not roll back an announcement tenants can already see, or an approval that has already changed occupancy and billing. `create_announcement.php` consequently records `channels` by **updating** the row after the broadcast, so the stored value reflects what actually reached someone rather than §2.1's hardcoded `['in-app']`.
 >
-> **§2.5 (the daily sweep) is deliberately not wired.** It runs from cron with no browser, so it gains nothing from sync dispatch and belongs on the queue path. See [`sms_email_mock_testing.md` §6](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md) for how to drive the wired endpoints from the UI.
+> **§2.5 (the daily sweep) is deliberately not wired.** It runs from cron with no browser, so it gains nothing from sync dispatch and belongs on the queue path. See [`sms_email_mock_testing.md` §6](sms_email_mock_testing.md) for how to drive the wired endpoints from the UI.
 
 Each change below is a single `require_once` + a function call added **after** the existing `create_notification()` call. The in-app notification remains the primary channel.
 
@@ -894,7 +891,7 @@ Each change below is a single `require_once` + a function call added **after** t
 
 ### 2.1 Announcements — create_announcement.php
 
-**File:** [`backend/api/create_announcement.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/create_announcement.php)
+**File:** [`backend/api/create_announcement.php`](../../backend/api/create_announcement.php)
 
 > **Shipped (2026-09-24).** The endpoint dispatches through `dispatch_admin_action_broadcast()` after the commit. The admin form's `channels` is honoured — SMS/email text is passed as `null` (skipped) unless that channel was ticked; in-app always goes out — and `announcements.channels` is rewritten with the channels that actually reached someone. `unit` targets one unit's current tenants; `draft: true` stores a `status = 'draft'` row and notifies nobody. The cost preview (§0.5 *Should*) is not built.
 
@@ -969,7 +966,7 @@ dispatch_external_broadcast(
 
 ### 2.2 Maintenance Status — update_maintenance_status.php
 
-**File:** [`backend/api/update_maintenance_status.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/update_maintenance_status.php) — **Closes checklist 4.10 🔧**
+**File:** [`backend/api/update_maintenance_status.php`](../../backend/api/update_maintenance_status.php) — **Closes checklist 4.10 🔧**
 
 **What changes:** After the `create_notification()` call on line 163, dispatch SMS/email.
 
@@ -995,7 +992,7 @@ dispatch_external_broadcast(
 
 ### 2.3 Payment Reminders — send_payment_reminder.php
 
-**File:** [`backend/api/send_payment_reminder.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/send_payment_reminder.php)
+**File:** [`backend/api/send_payment_reminder.php`](../../backend/api/send_payment_reminder.php)
 
 **What changes:** After each `create_notification()` call (lines 50 and 104), also dispatch SMS/email.
 
@@ -1029,10 +1026,10 @@ The same pattern applies to each status-change endpoint. After the existing `cre
 
 | File | Notification Call Line | SMS Text Pattern |
 |---|---|---|
-| [`update_cctv_status.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/update_cctv_status.php) | L57 | `AMS: Your CCTV request for {location} has been {status}.` |
-| [`update_parking_status.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/update_parking_status.php) | After status notification | `AMS: Your parking request has been {status}.` |
-| [`update_service_status.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/update_service_status.php) | After status notification | `AMS: Service request #{id} is now {status}.` |
-| [`process_tenant_request.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/process_tenant_request.php) | After decision notification | `AMS: Your {type} request has been {decision}.` |
+| [`update_cctv_status.php`](../../backend/api/update_cctv_status.php) | L57 | `AMS: Your CCTV request for {location} has been {status}.` |
+| [`update_parking_status.php`](../../backend/api/update_parking_status.php) | After status notification | `AMS: Your parking request has been {status}.` |
+| [`update_service_status.php`](../../backend/api/update_service_status.php) | After status notification | `AMS: Service request #{id} is now {status}.` |
+| [`process_tenant_request.php`](../../backend/api/process_tenant_request.php) | After decision notification | `AMS: Your {type} request has been {decision}.` |
 
 **Example — update_cctv_status.php (L54–58):**
 
@@ -1053,11 +1050,11 @@ The same pattern applies to each status-change endpoint. After the existing `cre
 
 ### 2.5 Daily Sweep — run_notification_sweep()
 
-**File:** [`backend/config.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/config.php) — `run_notification_sweep()`, near line 1585 (search for the function, not the line — C13)
+**File:** [`backend/config.php`](../../backend/config.php) — `run_notification_sweep()`, near line 1585 (search for the function, not the line — C13)
 
 > **This is the highest-value wiring in Phase 2 and the one most at risk from C5.** The sweep runs from `get_notifications.php` — a poll that *every signed-in page* makes. The first request of the day claims the run, so if the sweep sends synchronously, one unlucky tenant's page load carries every rent-due SMS and email for the whole building. Enqueuing is not optional here.
 >
-> The sweep is also the natural place to **drain** the queue on Railway (C7): after the reminder loops, call `process_notification_queue($conn, 20)` — the same function `process_queue.php` wraps. One tenant's poll then carries at most 20 sends, and the next poll carries the next 20.
+> The sweep is also the natural place to **drain** the queue (C7): after the reminder loops, call `process_notification_queue($conn, 20)` — the same function `process_queue.php` wraps. One tenant's poll then carries at most 20 sends, and the next poll carries the next 20.
 
 > **Status (2026-09-26).** The **lease-end reminder** now goes out by SMS and email. `send_lease_end_reminders()` dispatches `sms_lease_reminder_template()` + `email_lease_reminder_template()` after its once-per-lease claim. It is wrapped in try/catch, and the mode is `_admin_action_mode()`: sync on the `log` drivers, otherwise the configured mode, which is `queue` by default. **Rent-due and overdue reminders from the sweep are still in-app only.** The design below is not yet wired; when it is, use `sms_payment_template()` (§1.5a), not `"AMS: " . $message`.
 
@@ -1097,7 +1094,7 @@ require_once __DIR__ . '/api/services/send_notification.php';
 
 #### get_notification_preferences.php
 
-**File:** [`backend/api/get_notification_preferences.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_notification_preferences.php)
+**File:** [`backend/api/get_notification_preferences.php`](../../backend/api/get_notification_preferences.php)
 
 ```diff
 -$stmt = $conn->prepare("SELECT category, in_app_enabled FROM notification_preferences WHERE user_id = ?");
@@ -1150,7 +1147,7 @@ Also add to the response:
 
 #### update_notification_preferences.php
 
-**File:** [`backend/api/update_notification_preferences.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/update_notification_preferences.php)
+**File:** [`backend/api/update_notification_preferences.php`](../../backend/api/update_notification_preferences.php)
 
 Accept per-channel preferences in the payload:
 
@@ -1165,7 +1162,7 @@ Accept per-channel preferences in the payload:
 }
 ```
 
-> **C9 — this is a breaking change, and the diff below is incomplete.** The endpoint validates each value with `if (!is_bool($enabled) && !in_array($enabled, [0, 1, '0', '1'], true))` and **422s before reaching the insert**, so an object payload is rejected outright. [`UserNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) — **not** `ProfileSettings.jsx`, which has no preferences UI — also still sends the old flat shape, so a backend-only deploy would break saving entirely.
+> **C9 — this is a breaking change, and the diff below is incomplete.** The endpoint validates each value with `if (!is_bool($enabled) && !in_array($enabled, [0, 1, '0', '1'], true))` and **422s before reaching the insert**, so an object payload is rejected outright. [`UserNotifications.jsx`](../../ams-react/src/UserPages/UserNotifications.jsx) — **not** `ProfileSettings.jsx`, which has no preferences UI — also still sends the old flat shape, so a backend-only deploy would break saving entirely.
 >
 > Accept both shapes. Replace the validation loop with:
 >
@@ -1234,7 +1231,7 @@ Accept per-channel preferences in the payload:
 
 ### 3.2 Profile Settings UI
 
-**File:** [`ams-react/src/UserPages/UserNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) — the preferences panel lives here, not in `ProfileSettings.jsx` (C13).
+**File:** [`ams-react/src/UserPages/UserNotifications.jsx`](../../ams-react/src/UserPages/UserNotifications.jsx) — the preferences panel lives here, not in `ProfileSettings.jsx` (C13).
 
 Add a "Notification Preferences" section with three toggles per category.
 
@@ -1280,11 +1277,11 @@ Also note the table headers below are gated on `channels.sms_available`, which i
 
 ### 3.3 Admin Settings UI — SMTP / SMS Config
 
-**File:** [`ams-react/src/AdminPages/AdminAccountSettings.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAccountSettings.jsx) — **shipped 2026-09-22**, ahead of the rest of Phase 3, because a mock build you cannot drive from the UI is not much of a demo.
+**File:** [`ams-react/src/AdminPages/AdminAccountSettings.jsx`](../../ams-react/src/AdminPages/AdminAccountSettings.jsx) — **shipped 2026-09-22**, ahead of the rest of Phase 3, because a mock build you cannot drive from the UI is not much of a demo.
 
 > **Three things the table below does not mention.**
 >
-> 1. **The settings map is where the work is.** `settings` on that page is camelCase and passes through [`ams-react/src/config/systemSettings.js`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/config/systemSettings.js), where `saveSystemSettings()` posts a **fixed payload object**. A key missing from that object is silently never saved, so each setting needs an entry in `DEFAULTS`, in `getSystemSettings()` **and** in `saveSystemSettings()` — three places, not one form field.
+> 1. **The settings map is where the work is.** `settings` on that page is camelCase and passes through [`ams-react/src/config/systemSettings.js`](../../ams-react/src/config/systemSettings.js), where `saveSystemSettings()` posts a **fixed payload object**. A key missing from that object is silently never saved, so each setting needs an entry in `DEFAULTS`, in `getSystemSettings()` **and** in `saveSystemSettings()` — three places, not one form field.
 > 2. **`log` is the first option in both driver dropdowns**, and an inline note marks the real providers as not yet implemented. The **Email Driver** dropdown (`log` | `smtp`) is the new `email_driver` setting.
 > 3. **A "Send test notification" control** posts to `send_test_notification.php` (admin-only; always to the admin's own number and address, never a tenant's) and prints the full rendered SMS text and email HTML to the **browser console**. On a mock driver that console output *is* the message. The response carries a `dry_run` flag so a log-driver success cannot be read as a delivery.
 
@@ -1332,7 +1329,7 @@ Fields, alongside the existing PayMongo settings:
 
 ### 4.1 Notification Queue — process_queue.php
 
-**File:** [`backend/cron/process_queue.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/cron/process_queue.php) — **shipped**, as a thin CLI wrapper over `process_notification_queue()` in `send_notification.php`. All four corrections below are implemented. The `flock` in the listing was dropped: claiming the batch with a token makes it redundant. The web-path drain (change 1) is deferred to Phase 2 — nothing enqueues from an endpoint yet.
+**File:** [`backend/cron/process_queue.php`](../../backend/cron/process_queue.php) — **shipped**, as a thin CLI wrapper over `process_notification_queue()` in `send_notification.php`. All four corrections below are implemented. The `flock` in the listing was dropped: claiming the batch with a token makes it redundant. The web-path drain (change 1) is deferred to Phase 2 — nothing enqueues from an endpoint yet.
 
 Processes the `notification_queue` table with retry and exponential backoff.
 
@@ -1340,7 +1337,7 @@ Processes the `notification_queue` table with retry and exponential backoff.
 
 Four changes to the script below:
 
-**1. C7 — Railway has no cron.** Windows Task Scheduler only covers the XAMPP install; the SaaS deployment would queue and never drain. Split the work into a function and give it two entry points, exactly as `run_notification_sweep()` already does:
+**1. C7 — hosts without a scheduler have no cron.** Windows Task Scheduler only covers the XAMPP install; a host without one would queue and never drain. Split the work into a function and give it two entry points, exactly as `run_notification_sweep()` already does:
 
 ```php
 // In config.php (or api/services/send_notification.php):
@@ -1349,7 +1346,7 @@ function process_notification_queue($conn, $limit = 20) { /* the loop below */ }
 ```
 
 - **XAMPP:** `backend/cron/process_queue.php` calls it, Task Scheduler runs that every minute.
-- **Railway:** `run_notification_sweep()` calls it at the end of each run, and `get_notifications.php` — which every signed-in page polls — calls it with a small limit and its own once-per-N-minutes claim row (`notification_queue_last_run`), mirroring `notification_sweep_last_run`. A building with anyone logged in drains continuously; a building with nobody logged in has nobody waiting on a notification.
+- **Any host without a scheduler:** `run_notification_sweep()` calls it at the end of each run, and `get_notifications.php` — which every signed-in page polls — calls it with a small limit and its own once-per-N-minutes claim row (`notification_queue_last_run`), mirroring `notification_sweep_last_run`. A building with anyone logged in drains continuously; a building with nobody logged in has nobody waiting on a notification.
 - Keep the limit small on the web path. 20 SMTP handshakes is several seconds a tenant should not pay for; 5 is plenty.
 
 **2. Quiet hours (§0.4).** Skip non-urgent jobs outside `notifications_quiet_start`–`notifications_quiet_end` by pushing `next_attempt_at` to the window's end rather than sending:
@@ -1458,7 +1455,7 @@ $conn->close();
 
 ### 4.2 Delivery Log Viewer
 
-Add a "Delivery Log" tab to [`AdminNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminNotifications.jsx) that queries `notification_log`:
+Add a "Delivery Log" tab to [`AdminNotifications.jsx`](../../ams-react/src/AdminPages/AdminNotifications.jsx) that queries `notification_log`:
 
 ```
 GET /api/get_notification_log.php?page=1&channel=sms&status=failed
@@ -1552,26 +1549,23 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | ID | Test | Expected |
 |---|---|---|
 | M6-31 | `npm run build:local` | Clean; no localhost-URL guard failure |
-| M6-32 | Railway build with the Dockerfile change | `vendor/autoload.php` present in the image; `PHPMailer` class resolves (C6) |
-| M6-33 | Queue drains on Railway with no cron | Rows drain via the sweep/poll piggyback (C7) |
-| M6-34 | Outbound port 587 from the Railway container | SMTP connects — verify before relying on it |
+| M6-33 | Queue drains with no cron | Rows drain via the sweep/poll piggyback (C7) |
 
 **Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18, C11, M6-35, M6-39, M6-41 through M6-47 and DRY (26 checks) in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
 
-> **[`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)**
+> **[`sms_email_mock_testing.md`](sms_email_mock_testing.md)**
 
 M6-01 (migration idempotency), M6-19 to M6-26 (preferences API, secret masking, the widened `email_address`, the environment check) were verified with the §0.1 work. M6-06, M6-09 and M6-11 need an endpoint to dispatch, so they belong to Phase 2. Tier 3's Railway rows (M6-32, M6-33) are deferred.
 
 
 After all tests pass:
 - Run `php -l` on every changed PHP file, and `npm run build:local` for the JSX
-- Update [`panelist_feature_checklist.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/panelist_feature_checklist.md): row **4.10** (L708) — drop "+ optional SMS/email, not yet built"; rows **6.6** (L748) and **6.7** (L749) → ✅; row **6.8** (L750) — drop "Per-channel (email/SMS) preferences await 6.6/6.7". Update the detail table and the summary counts in the same pass (CLAUDE.md panel-audit routine).
-- Add a §2 section to [`module_verification_guide.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/documentation/module_verification_guide.md) with the M6-NN IDs above
-- Update [`database_schema.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/documentation/database_schema.md) for `notification_log`, `notification_queue`, the new `users` and `notification_preferences` columns, and the widened `email_address`
-- Update [`external_services.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/documentation/external_services.md) with the chosen SMS provider and Gmail SMTP
+- Update [`panelist_feature_checklist.md`](panelist_feature_checklist.md): row **4.10** (L708) — drop "+ optional SMS/email, not yet built"; rows **6.6** (L748) and **6.7** (L749) → ✅; row **6.8** (L750) — drop "Per-channel (email/SMS) preferences await 6.6/6.7". Update the detail table and the summary counts in the same pass (CLAUDE.md panel-audit routine).
+- Add a §2 section to [`module_verification_guide.md`](../documentation/module_verification_guide.md) with the M6-NN IDs above
+- Update [`database_schema.md`](../documentation/database_schema.md) for `notification_log`, `notification_queue`, the new `users` and `notification_preferences` columns, and the widened `email_address`
+- Update [`external_services.md`](../documentation/external_services.md) with the chosen SMS provider and Gmail SMTP
 - Mirror the migration into `SetupDB.sql` **and** `seed_mock_data.sql`
-- Update [`consolidated_todo.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/consolidated_todo.md): remove 4.10/6.6/6.7 from the Urgent table
-- Mark [`notification_services.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) as superseded by this guide, or fold the still-accurate parts in — CLAUDE.md lists it as "historical/possibly stale" and it is the doc every checklist row links to
+- Update [`consolidated_todo.md`](../planning/todo.md): remove 4.10/6.6/6.7 from the Urgent table
 
 ---
 
@@ -1599,8 +1593,6 @@ After all tests pass:
 | ✅ `docs/features/sms_email_mock_testing.md` | 1 | **Shipped:** how to run and test the mock drivers |
 | `backend/api/get_notification_log.php` | 4 | Admin delivery log API |
 | `backend/composer.json` + `composer.lock` | — | Deferred: the `log` email driver needs no Composer |
-| ~~`Dockerfile`~~ | 1 | Deferred — Railway on indefinite hold (C6/C7) |
-| ~~`.gitattributes`~~ | — | Deferred with Composer and Railway |
 
 ### Modified Files (18)
 
@@ -1622,7 +1614,7 @@ After all tests pass:
 | ✅ `.gitignore` | 1 | **Shipped:** ignores `backend/logs/` (the mock outbox) |
 | ✅ `backend/api/get_system_settings.php` | 3 | **Shipped:** shared secret list, and credentials masked for admins |
 | ✅ `backend/api/update_system_settings.php` | 3 | **Shipped:** shared list; a returned mask means "unchanged" |
-| `backend/api/get_notifications.php` | 4 | Drain the queue on poll (the XAMPP path; the Railway motivation in C7 is deferred) |
+| `backend/api/get_notifications.php` | 4 | Drain the queue on poll (the XAMPP path) |
 | `backend/cron/daily_sweep.php` | 4 | Drain after the sweep |
 | ✅ `backend/api/migrations/SetupDB.sql` | 1 | **Shipped:** migration mirrored. `seed_mock_data.sql` needed no change |
 
@@ -1753,26 +1745,11 @@ Do not verify by calling `send_sms()` with a made-up number — once the driver 
 
 - **`From` must be the authenticated Gmail account.** Setting `smtp_from_email` to `noreply@yourbuilding.com` while authenticating as a `@gmail.com` address fails SPF/DKIM alignment and lands in spam. Either send as the Gmail address, or use a provider where you own the domain (C.7).
 - **App Passwords require 2FA**, and Google has removed them for some Workspace configurations. If the App Password option is missing, the account's admin has disabled it.
-- **Verify outbound port 587 from the Railway container** before relying on it (test M6-34). Many hosts block 25; 587 is usually open, but confirm rather than assume.
 - **Send a test to a non-Gmail address** (Outlook, Yahoo). Gmail-to-Gmail always looks fine and tells you nothing.
 - Keep an unsubscribe route visible in the footer — a link to the tenant's notification preferences page. Below Gmail's bulk-sender thresholds you are not obliged to add a `List-Unsubscribe` header, but the footer link costs nothing and is what a reasonable reader expects.
-
-### C.3 Resend (Email — SaaS Alternative)
-
-1. Sign up at [resend.com](https://resend.com) → verify your domain (DNS TXT records)
-2. **API Keys** → Create → copy
-3. In AMS admin panel → **Account Settings**:
-   - SMTP Host: `smtp.resend.com`
-   - SMTP Port: `465`
-   - Username: `resend`
-   - Password: your Resend API key
-   - From Email: `noreply@yourdomain.com`
-
-**Limit:** 3,000 emails/month free, then $20/month for 50k.
 
 ---
 
 > **Related docs:**
-> - [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) — full design spec, provider comparisons, alternative approaches
-> - [external_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/documentation/external_services.md) — integration matrix for all external services
-> - [panelist_feature_checklist.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/panelist_feature_checklist.md) — Module 6 checklist
+> - [external_services.md](../documentation/external_services.md) — integration matrix for all external services
+> - [panelist_feature_checklist.md](panelist_feature_checklist.md) — Module 6 checklist

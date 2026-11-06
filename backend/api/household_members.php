@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Household roster (decided 2026-09-16, docs/todo.md › Room & Occupancy).
+// Household roster (decided 2026-09-16, docs/planning/todo.md › Room & Occupancy).
 // One shared lease: only the lease holder has a login. Co-occupants are listed
 // here, and every add or removal is a request an admin approves through
 // process_tenant_request.php (type 'household_request', metadata "add:<id>" /

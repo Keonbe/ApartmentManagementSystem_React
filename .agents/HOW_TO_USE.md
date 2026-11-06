@@ -63,7 +63,7 @@ Run this every few weeks. The agent scans the repo and lists dead code, duplicat
 ```
 "what's Priority C and how do I implement it?"
 ```
-The agent will read `docs/todo.md` and `docs/system_design.md` (both in AGENTS.md's context) and give you a concrete plan.
+The agent will read `docs/planning/todo.md` (the live backlog) and `docs/documentation/system_design.md` and give you a concrete plan.
 
 ---
 

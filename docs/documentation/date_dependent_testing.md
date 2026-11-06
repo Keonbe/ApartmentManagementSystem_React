@@ -2,7 +2,7 @@
 
 This guide documents how to manually test every major module in the AMS, including workflows that span multiple steps across days or months. Where a test depends on a date (late fees, billing cycles, lease expiry, overdue detection), the setup SQL is provided inline.
 
-> **Companion document:** for audited modules, [`documentation/module_verification_guide.md`](documentation/module_verification_guide.md) carries the full API contract, workflow diagrams and a numbered test-condition matrix. This guide stays focused on **date manipulation**; that one covers everything else.
+> **Companion document:** for audited modules, [`documentation/module_verification_guide.md`](module_verification_guide.md) carries the full API contract, workflow diagrams and a numbered test-condition matrix. This guide stays focused on **date manipulation**; that one covers everything else.
 >
 > **Endpoint testing now requires a session token.** Auth is a server-issued bearer token (`Authorization: Bearer …`), not the old `X-User-Id` header — so any curl-based test must log in first. See the verification guide's §3 for the recipe.
 
