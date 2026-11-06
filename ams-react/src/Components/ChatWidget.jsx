@@ -25,6 +25,7 @@ import useFilePreview from '../hooks/useFilePreview';
 import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
 import { useLang, dateLocale } from '../config/i18n';
 import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
+import ResolutionCheck from './chat/ResolutionCheck';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
@@ -123,6 +124,15 @@ const ChatWidget = () => {
         [isGuestChat, guestMessages, messages],
     );
     const isAdminGuestChat = userRole === 'admin' && activeChat?.thread_type === 'guest';
+    // "Did this answer your question?" (guest_chat.php): the latest one decides.
+    // A guest may end the chat on this device only after answering "resolved";
+    // the admin may ask once they have replied and no question is waiting.
+    const guestRaw = isGuestChat || isAdminGuestChat ? guestMessages : [];
+    const lastCheck = [...guestRaw].reverse().find((m) => m.kind === 'resolution_check');
+    const guestResolved = lastCheck?.resolution_answer === 'resolved';
+    const checkPending = Boolean(lastCheck) && !lastCheck.resolution_answer;
+    const adminHasReplied = guestRaw.some((m) => m.sender_role === 'admin' && (m.kind || 'text') === 'text');
+    const [resolutionBusy, setResolutionBusy] = useState(false);
     const displayedMessages = useMemo(
         () => (isAdminGuestChat ? normalizeGuestMessages(guestMessages, 'admin') : activeMessages),
         [isAdminGuestChat, guestMessages, activeMessages],
@@ -193,11 +203,13 @@ const ChatWidget = () => {
         });
     };
 
+    // A guest has no activeChat (one thread, no list), so it is checked on its own:
+    // guest chats never scrolled to the newest message or the end-chat prompt.
     useEffect(() => {
-        if (isChatOpen && activeChat) {
+        if (isChatOpen && (activeChat || isGuestChat)) {
             scrollToBottom();
         }
-    }, [messages, activeMessages, isChatOpen, activeChat]);
+    }, [messages, activeMessages, isChatOpen, activeChat, isGuestChat]);
 
     useEffect(() => {
         if (!guestToken || userId || !isChatOpen) return undefined;
@@ -269,6 +281,30 @@ const ChatWidget = () => {
         const timer = window.setInterval(() => { if (document.visibilityState === 'visible') loadGuestHistory(); }, 3000);
         return () => { cancelled = true; window.clearInterval(timer); };
     }, [activeChat?.thread_id, isAdminGuestChat]);
+
+    const answerResolution = async (messageId, answer) => {
+        if (resolutionBusy) return;
+        setResolutionBusy(true);
+        try {
+            await api.post('guest_chat.php', { action: 'resolution_answer', message_id: messageId, answer }, { headers: { 'X-Guest-Token': guestToken } });
+            const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
+            setGuestMessages(normalizeGuestMessages(response.data.messages || []));
+            setSendError('');
+        } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
+        finally { setResolutionBusy(false); }
+    };
+
+    const askIfResolved = async () => {
+        if (resolutionBusy || !activeChat?.thread_id) return;
+        setResolutionBusy(true);
+        try {
+            await api.post('guest_chat.php', { thread_id: activeChat.thread_id, action: 'resolution_check' });
+            const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
+            setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin'));
+            setSendError('');
+        } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSentRetry'))); }
+        finally { setResolutionBusy(false); }
+    };
 
     const sendGuestMessage = async (event) => {
         event.preventDefault();
@@ -438,7 +474,7 @@ const ChatWidget = () => {
                         </div>
                         
                         <div className="flex items-center gap-3 shrink-0">
-                            {guestToken && !userId && (
+                            {guestToken && !userId && guestResolved && (
                                 <button
                                     type="button"
                                     onClick={endGuestChat}
@@ -539,7 +575,11 @@ const ChatWidget = () => {
                         </div>
                     ) : (
                         /* Active Conversation Message Stream */
-                        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
+                        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
+                            {/* Takes the free space above the messages, so a short chat sits at
+                                the bottom next to the input (like Messenger). It shrinks to
+                                nothing once the messages fill the window, so scrolling works. */}
+                            <div aria-hidden="true" className="flex-1" />
                                             {displayedMessages.length === 0 ? (
                                 <div className="text-center text-slate-500 text-xs mt-10">
                                     {t('chat.startConversation')}
@@ -547,6 +587,19 @@ const ChatWidget = () => {
                             ) : (
                                 displayedMessages.map((msg, index) => {
                                     const messageKey = msg.id || index;
+                                    if (msg.kind === 'resolution_check') {
+                                        return (
+                                            <div id={`chat-message-${msg.id}`} key={messageKey} className="message-enter mb-3">
+                                                <ResolutionCheck
+                                                    message={msg}
+                                                    viewer={isGuestChat ? 'guest' : 'admin'}
+                                                    busy={resolutionBusy}
+                                                    onAnswer={(answer) => answerResolution(msg.id, answer)}
+                                                    t={t}
+                                                />
+                                            </div>
+                                        );
+                                    }
                                     const isMe = String(msg.sender_id) === (isGuestChat ? 'guest' : isAdminGuestChat ? 'current-admin' : String(userId));
                                     const messageDate = new Date(msg.created_at);
                                     const previousDate = index > 0 ? new Date(displayedMessages[index - 1].created_at) : null;
@@ -622,6 +675,14 @@ const ChatWidget = () => {
                                     );
                                 })
                             )}
+                            {isGuestChat && guestResolved && (
+                                <div className="animate-fade-in-up rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center text-xs text-emerald-900">
+                                    <p className="m-0">{t('chat.resolution.endPrompt')}</p>
+                                    <button type="button" onClick={endGuestChat} className="mt-2 min-h-[36px] rounded-full border-0 bg-emerald-600 px-4 text-xs font-bold text-white cursor-pointer hover:bg-emerald-700">
+                                        {t('chat.endGuest')}
+                                    </button>
+                                </div>
+                            )}
                             <div ref={messagesEndRef} />
                         </div>
                     )}
@@ -633,6 +694,22 @@ const ChatWidget = () => {
                             {attachment && <div className="flex items-center justify-start p-2">
                                 <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
                             </div>}
+                            {isAdminGuestChat && (
+                                <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                                    <span className="min-w-0 truncate text-xs text-slate-500">
+                                        {checkPending ? t('chat.resolution.waiting') : guestResolved ? t('chat.resolution.guestResolved') : ''}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={askIfResolved}
+                                        disabled={resolutionBusy || !adminHasReplied || checkPending}
+                                        title={t('chat.resolution.askHint')}
+                                        className="shrink-0 min-h-[32px] rounded-full border border-indigo-200 bg-indigo-50 px-3 text-xs font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        {t('chat.resolution.ask')}
+                                    </button>
+                                </div>
+                            )}
                             <form onSubmit={isGuestChat ? sendGuestMessage : handleSendMessage} className="flex items-center gap-1">
                                 <div className="flex shrink-0 items-center gap-1">
                                 <label className="relative flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors focus-within:ring-2 focus-within:ring-indigo-500" title={t('chat.attachTitle')}><FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /><span className="sr-only">{t('chat.attach')}</span><input type="file" accept={CHAT_ACCEPT} className="sr-only" onChange={pickAttachment} /></label>

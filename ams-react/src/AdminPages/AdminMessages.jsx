@@ -19,6 +19,11 @@ import Modal from '../Components/admin/Modal';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
+import ResolutionCheck from '../Components/chat/ResolutionCheck';
+import { textIn } from '../config/i18n';
+
+// The admin side is in English whatever language the tenant pages use.
+const tEn = (key) => textIn('en', key);
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
@@ -113,6 +118,29 @@ const AdminMessages = () => {
   const [mediaPreview, setMediaPreview] = useState(null);
   const [guestThreads, setGuestThreads] = useState([]);
   const [guestMessages, setGuestMessages] = useState([]);
+  // "Did this answer your question?" in a guest thread (guest_chat.php): the
+  // admin may ask once they have replied and no earlier question is waiting.
+  const lastCheck = [...guestMessages].reverse().find((m) => m.kind === 'resolution_check');
+  const checkPending = Boolean(lastCheck) && !lastCheck.resolution_answer;
+  const guestResolved = lastCheck?.resolution_answer === 'resolved';
+  const adminHasReplied = guestMessages.some((m) => m.sender_role === 'admin' && (m.kind || 'text') === 'text');
+  const [asking, setAsking] = useState(false);
+
+  // An open guest thread is read again every 3 s while the tab is visible (as
+  // in ChatWidget), so the guest's new messages and answers show without reopening it.
+  const openGuestThreadId = activeChat?.thread_type === 'guest' ? activeChat.thread_id : null;
+  useEffect(() => {
+    if (!openGuestThreadId) return undefined;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const response = await api.get('guest_chat.php', { params: { thread_id: openGuestThreadId } });
+        if (!cancelled && response.data?.success) setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+      } catch { /* the next tick tries again */ }
+    }, 3000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [openGuestThreadId]);
   const cameraInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -304,6 +332,21 @@ const AdminMessages = () => {
     if (!fileError) setAttachment(file);
   };
 
+  const askIfResolved = async () => {
+    if (asking || activeChat?.thread_type !== 'guest') return;
+    setAsking(true);
+    setSendError('');
+    try {
+      await api.post('guest_chat.php', { thread_id: activeChat.thread_id, action: 'resolution_check' });
+      const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
+      setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+    } catch (error) {
+      setSendError(apiErrorMessage(error, 'The question was not sent. Please try again.'));
+    } finally {
+      setAsking(false);
+    }
+  };
+
   const handleSend = async (event) => {
     event.preventDefault();
     const message = draft.trim();
@@ -428,6 +471,24 @@ const AdminMessages = () => {
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
                     <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
                     <div className="min-w-0"><h3 className="m-0 text-body font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
+                    {activeChat.thread_type === 'guest' && (
+                      <div className="ml-auto flex shrink-0 items-center gap-2">
+                        {(checkPending || guestResolved) && (
+                          <span className={`hidden sm:inline-flex rounded-full px-2.5 py-1 text-caption font-semibold ${guestResolved ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                            {guestResolved ? 'Resolved' : 'Waiting for answer'}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={askIfResolved}
+                          disabled={asking || !adminHasReplied || checkPending}
+                          title={adminHasReplied ? tEn('chat.resolution.askHint') : 'Reply to the guest first.'}
+                          className="min-h-[36px] rounded-full border border-indigo-200 bg-indigo-50 px-3 text-label font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {tEn('chat.resolution.ask')}
+                        </button>
+                      </div>
+                    )}
                     {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-control border border-slate-200 bg-white px-2 py-1.5 text-label text-slate-600" aria-live="polite">
                       {activeMessageMatches.length ? <>
                         <span>Match {activeMatchIndex + 1} of {activeMessageMatches.length}</span>
@@ -436,9 +497,18 @@ const AdminMessages = () => {
                       </> : <span>No matches in this chat</span>}
                     </div>}
                   </header>
-                  <div ref={messagesContainerRef} className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
+                  <div ref={messagesContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
+                    {/* Short threads sit at the bottom, by the input (like Messenger). */}
+                    <div aria-hidden="true" className="flex-1" />
                     {(activeChat.thread_type === 'guest' ? guestMessages : messages).length === 0 ? <p className="text-center text-body text-slate-500 mt-10">No messages in this conversation yet.</p> : (activeChat.thread_type === 'guest' ? normalizeGuestMessages(guestMessages) : messages).map((message, index) => {
                       const messageKey = message.id || index;
+                      if (message.kind === 'resolution_check') {
+                        return (
+                          <div id={`chat-message-${message.id}`} key={messageKey} className="message-enter">
+                            <ResolutionCheck message={message} viewer="admin" t={tEn} />
+                          </div>
+                        );
+                      }
                       const isAdmin = activeChat.thread_type === 'guest' ? String(message.sender_id) === 'admin' : String(message.sender_id) === String(userId);
                       const hasText = Boolean(message.message?.trim());
                       const messageDate = new Date(message.created_at);
