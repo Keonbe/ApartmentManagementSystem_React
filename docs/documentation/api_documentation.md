@@ -1030,6 +1030,8 @@ Public or tenant-submitted unit inquiry with rate limiting and duplicate detecti
 | `preferred_move_in` | date | ❌ |
 | `message` | string | ❌ |
 
+`occupants`: a whole number from 1 to `max_occupants_per_unit` (Settings → Rental). `preferred_move_in`: `YYYY-MM-DD` from today up to `inquiry_move_in_max_months` months ahead (default 6; `inquiry_move_in_latest()`). Invalid input → `422` with `errors` keyed by field (`full_name`, `email`, `contact_no`, `room_name`, `occupants`, `preferred_move_in`) via `validation_fail()`; more than 3 inquiries a day per email or IP → `429`.
+
 ---
 
 ### `GET` [get_inquiries.php](../../backend/api/get_inquiries.php)

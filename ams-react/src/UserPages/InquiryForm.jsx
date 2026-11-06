@@ -6,7 +6,7 @@ import SuccessModal from '../Components/SuccessModal';
 import RulesGroups from '../Components/RulesGroups';
 import useAllRules from '../hooks/useAllRules';
 import api from '../api/axiosConfig';
-import { LIMITS, checkDate, checkEmail, checkIntRange, checkPersonName, checkPhMobile, checkText, localDateString, maxFutureDate, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, checkDate, checkEmail, checkIntRange, checkPersonName, checkPhMobile, checkText, localDateString, addMonths, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import PhoneInput from '../Components/PhoneInput';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -14,14 +14,17 @@ import FieldError from '../Components/form/FieldError';
 import InlineAlert from '../Components/InlineAlert';
 import CharCount from '../Components/form/CharCount';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
 import { useChat } from '../context/ChatContext';
 import { formatAvailable } from '../utils/availableDate';
+import { usePublicSettings } from '../config/publicSettings';
 import Collapsible from '../Components/tenant/Collapsible';
 import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 
-const MAX_OCCUPANTS = 20;
+// Until the settings arrive (Settings → Rental; the shipped defaults).
+const DEFAULT_MAX_OCCUPANTS = 8;
+const DEFAULT_MOVE_IN_MONTHS = 6;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
 
 // Reads the stored session so the form can prefill for a logged-in visitor.
@@ -136,14 +139,27 @@ export default function InquiryForm() {
         fetchRooms();
     }, []);
 
+    // Settings → Rental: Maximum Occupants per Unit and Inquiry Move-In Date.
+    // submit_inquiry.php checks the same limits.
+    const publicSettings = usePublicSettings();
+    const maxOccupants = publicSettings?.maxOccupantsPerUnit || DEFAULT_MAX_OCCUPANTS;
+    const moveInMonths = publicSettings?.inquiryMoveInMaxMonths || DEFAULT_MOVE_IN_MONTHS;
+    const latestMoveIn = addMonths(moveInMonths);
+    const latestMoveInText = new Date(`${latestMoveIn}T00:00:00`).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' });
+
     // Keys match submit_inquiry.php's body.
     const form = useFieldErrors({
         full_name: (v) => checkPersonName(v, { label: t('inquiry.fullNameLabel'), max: LIMITS.fullName }),
         contact_no: (v) => checkPhMobile(v),
         email: (v) => checkEmail(v, { max: LIMITS.email }),
         room_name: (v) => (!v || rooms.some(r => String(r.id) === String(v)) ? '' : t('inquiry.errUnit')),
-        occupants: (v) => (v === '' || v == null ? '' : checkIntRange(v, 1, MAX_OCCUPANTS, 'Occupants')),
-        preferred_move_in: (v) => (v ? checkDate(v, { min: localDateString(), max: maxFutureDate(), label: t('inquiry.moveInLabel') }) : ''),
+        occupants: (v) => (v !== '' && v != null && checkIntRange(v, 1, maxOccupants, 'Occupants') ? t('inquiry.errOccupants', { max: maxOccupants }) : ''),
+        // checkDate covers a bad or past date; the upper limit gets a readable message.
+        preferred_move_in: (v) => {
+            if (!v) return '';
+            return checkDate(v, { min: localDateString(), label: t('inquiry.moveInLabel') })
+                || (v > latestMoveIn ? t('inquiry.errMoveInMax', { n: moveInMonths, date: latestMoveInText }) : '');
+        },
         message: (v) => checkText(v, { label: 'Message', max: LIMITS.message, required: false }),
     }, { idPrefix: 'inquiry-' });
     const values = { full_name: fullName, contact_no: contactNo, email, room_name: roomName, occupants, preferred_move_in: moveIn, message };
@@ -395,7 +411,7 @@ export default function InquiryForm() {
                             {...form.fieldA11y('occupants')}
                             inputMode="numeric"
                             min="1"
-                            max={MAX_OCCUPANTS}
+                            max={maxOccupants}
                             step="1"
                             value={occupants}
                             onKeyDown={blockNonIntegerKeys}
@@ -404,6 +420,7 @@ export default function InquiryForm() {
                             placeholder={t('inquiry.occupantsPlaceholder')}
                             className={inputClass + invalidCls(form.errors.occupants)}
                         />
+                        {!form.errors.occupants && <p className="m-0 text-xs text-slate-500">{t('inquiry.occupantsHint', { max: maxOccupants })}</p>}
                         <FieldError id="inquiry-occupants" error={form.errors.occupants} className="m-0" />
                     </div>
 
@@ -416,11 +433,12 @@ export default function InquiryForm() {
                             {...form.fieldA11y('preferred_move_in')}
                             value={moveIn}
                             min={localDateString()}
-                            max={maxFutureDate()}
+                            max={latestMoveIn}
                             onChange={change('preferred_move_in')}
                             onBlur={blur('preferred_move_in')}
                             className={inputClass + invalidCls(form.errors.preferred_move_in)}
                         />
+                        {!form.errors.preferred_move_in && <p className="m-0 text-xs text-slate-500">{t('inquiry.moveInHint', { n: moveInMonths, date: latestMoveInText })}</p>}
                         <FieldError id="inquiry-preferred_move_in" error={form.errors.preferred_move_in} className="m-0" />
                     </div>
 

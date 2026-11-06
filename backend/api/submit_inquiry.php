@@ -31,8 +31,9 @@ $contact_no = trim($input['contact_no'] ?? $input['contact_number'] ?? '');
 $room_name  = trim($input['room_name'] ?? $input['unit_of_interest'] ?? '');
 $message    = trim($input['message'] ?? '');
 $source     = trim($input['source'] ?? 'web');
-$occupants  = isset($input['occupants']) && $input['occupants'] !== '' ? (int)$input['occupants'] : null;
-$move_in    = trim($input['preferred_move_in'] ?? $input['move_in_date'] ?? '');
+// Kept as posted: (int) turned "abc" into 0 and "1e3" into 1000 before the check.
+$occupants_raw = $input['occupants'] ?? null;
+$move_in    = trim((string)($input['preferred_move_in'] ?? $input['move_in_date'] ?? ''));
 
 // Optional — an inquiry is linked to an account only when the submitter has a
 // real session; guests stay anonymous. (This used to trust X-User-Id, so a guest
@@ -52,22 +53,44 @@ if ($is_admin) {
 }
 
 // ── Validation ──
+// Keyed by the form's field names, so InquiryForm marks each field
+// (validation_fail: 422 with errors{field: message}).
 $errors = [];
-if ($full_name === '')                                  $errors[] = "Full name is required.";
-if (mb_strlen($full_name) > 150)                        $errors[] = "Full name is too long.";
-if ($email === '')                                      $errors[] = "Email address is required.";
-elseif (!filter_var($email, FILTER_VALIDATE_EMAIL))     $errors[] = "Please enter a valid email address.";
-elseif (mb_strlen($email) > 150)                        $errors[] = "Email address is too long.";
-if ($contact_no === '')                                 $errors[] = "Contact number is required.";
-elseif (($contact_no = normalize_ph_mobile($contact_no) ?? '') === '') $errors[] = "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).";
-if (mb_strlen($room_name) > 50)                         $errors[] = "Invalid unit selection.";
-if ($occupants !== null && ($occupants < 1 || $occupants > 20)) $errors[] = "Occupants must be between 1 and 20.";
-if ($move_in !== '' && real_date($move_in) === null)    $errors[] = "Invalid preferred move-in date.";
+if ($full_name === '')                                  $errors['full_name'] = "Full name is required.";
+elseif (mb_strlen($full_name) > 150)                    $errors['full_name'] = "Full name is too long.";
+if ($email === '')                                      $errors['email'] = "Email address is required.";
+elseif (!filter_var($email, FILTER_VALIDATE_EMAIL))     $errors['email'] = "Please enter a valid email address.";
+elseif (mb_strlen($email) > 150)                        $errors['email'] = "Email address is too long.";
+if ($contact_no === '')                                 $errors['contact_no'] = "Contact number is required.";
+elseif (($contact_no = normalize_ph_mobile($contact_no) ?? '') === '') $errors['contact_no'] = "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).";
+if (mb_strlen($room_name) > 50)                         $errors['room_name'] = "Invalid unit selection.";
 
-if (!empty($errors)) {
-    echo json_encode(["success" => false, "message" => implode(' ', $errors)]);
-    exit;
+// Occupants: optional; a whole number from 1 to Settings → Rental → Maximum
+// Occupants per Unit (the same cap as applications).
+$occupants = null;
+if ($occupants_raw !== null && $occupants_raw !== '') {
+    $max_occ = max_occupants_per_unit($conn);
+    if (!is_scalar($occupants_raw) || is_bool($occupants_raw) || !ctype_digit((string)$occupants_raw) || (int)$occupants_raw < 1 || (int)$occupants_raw > $max_occ) {
+        $errors['occupants'] = "Number of occupants must be a whole number from 1 to $max_occ.";
+    } else {
+        $occupants = (int)$occupants_raw;
+    }
 }
+
+// Preferred move-in: optional; from today to inquiry_move_in_latest()
+// (Settings → Rental, default 6 months). A typed 2030 used to be saved.
+if ($move_in !== '') {
+    $latest = inquiry_move_in_latest($conn);
+    if (real_date($move_in) === null) {
+        $errors['preferred_move_in'] = "Enter the move-in date as a valid date.";
+    } elseif ($move_in < date('Y-m-d')) {
+        $errors['preferred_move_in'] = "The move-in date cannot be in the past.";
+    } elseif ($move_in > $latest['date']) {
+        $errors['preferred_move_in'] = "The move-in date can be at most {$latest['months']} months from today: the latest is " . date('F j, Y', strtotime($latest['date'])) . ".";
+    }
+}
+
+if (!empty($errors)) validation_fail($errors);
 
 $room_name = $room_name !== '' ? $room_name : null;
 $message = $message !== '' ? $message : 'Inquired about ' . ($room_name ?? 'available apartment units');

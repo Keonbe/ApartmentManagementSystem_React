@@ -4383,6 +4383,17 @@ function move_in_window_days($conn) {
     return ['min' => $min, 'max' => max($min, $max)];
 }
 
+// The latest preferred move-in date on an inquiry (submit_inquiry.php): today
+// plus inquiry_move_in_max_months (Settings → Rental, 1-24, default 6). Wider
+// than the application window above: an inquiry is a question, not a booking.
+const INQUIRY_MOVE_IN_DEFAULT_MONTHS = 6;
+function inquiry_move_in_latest($conn) {
+    $months = get_setting($conn, 'inquiry_move_in_max_months', null);
+    $months = ($months !== null && ctype_digit((string)$months) && (int)$months >= 1 && (int)$months <= 24)
+        ? (int)$months : INQUIRY_MOVE_IN_DEFAULT_MONTHS;
+    return ['months' => $months, 'date' => date('Y-m-d', strtotime("+$months months"))];
+}
+
 // A preferred move-in date (rent_application.php, resubmit_date.php): a real
 // YYYY-MM-DD inside move_in_window_days() from today (APP_TIMEZONE). The date
 // input's `min` only stops the picker; a typed or posted 2023-02-01 used to be

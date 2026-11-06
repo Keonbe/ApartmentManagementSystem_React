@@ -72,7 +72,15 @@ export default function LeasingPanel({ settings, updateSetting }) {
             </WithUnit>
           </Field>
 
-          <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Main tenant plus household members. Applications and occupant requests above this are refused.">
+          {/* Inquiries are questions, not applications, so they get a wider window
+              (submit_inquiry.php, config.php inquiry_move_in_latest()). */}
+          <Field label="Inquiry Move-In Date" htmlFor="setting-inquiryMoveInMaxMonths" icon={faCalendarAlt} hint="On the Send an Inquiry form, the preferred move-in date can be from today up to this many months ahead.">
+            <WithUnit suffix="months">
+              <input {...intInput(settings, updateSetting, 'inquiryMoveInMaxMonths', 1, 24)} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+
+          <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Main tenant plus household members. Applications, inquiries and occupant requests above this are refused.">
             <WithUnit suffix="people">
               <input {...intInput(settings, updateSetting, 'maxOccupantsPerUnit', 1, 20)} className={`${INPUT_NUMBER} w-24`} />
             </WithUnit>

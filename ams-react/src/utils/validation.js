@@ -281,6 +281,14 @@ export const addDays = (days, from = new Date()) => {
   return localDateString(d);
 };
 
+// Overflows like PHP's strtotime("+N months") (Aug 31 + 6 → Mar 3), so a
+// limit computed here matches the server's.
+export const addMonths = (months, from = new Date()) => {
+  const d = new Date(from);
+  d.setMonth(d.getMonth() + months);
+  return localDateString(d);
+};
+
 export const addYears = (years, from = new Date()) => {
   const d = new Date(from);
   d.setFullYear(d.getFullYear() + years);

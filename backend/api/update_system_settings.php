@@ -61,6 +61,7 @@ $SETTING_RULES = [
     'lease_end_reminder_days'  => ['type' => 'int', 'min' => 0, 'max' => 180, 'message' => 'Rent-end reminder days must be a whole number between 0 and 180.'],
     'maintenance_monthly_budget' => ['type' => 'num', 'min' => 0, 'max' => 100000000, 'message' => 'The monthly maintenance budget must be an amount from 0 to 100,000,000.'],
     'max_occupants_per_unit'   => ['type' => 'int', 'min' => 1, 'max' => 20, 'message' => 'Maximum occupants per unit must be a whole number between 1 and 20.'],
+    'inquiry_move_in_max_months' => ['type' => 'int', 'min' => 1, 'max' => 24, 'message' => 'The inquiry move-in limit must be a whole number of months from 1 to 24.', 'field' => 'Enter 1 to 24 months.'],
     'min_household_age'        => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The minimum household age must be a whole number from 0 to 17.'],
     'child_restricted_below_age' => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The child age limit must be a whole number from 0 to 17.'],
     'parking_billing_mode'     => ['type' => 'enum', 'values' => ['manual', 'auto'], 'message' => 'Parking billing mode must be manual or auto.'],
