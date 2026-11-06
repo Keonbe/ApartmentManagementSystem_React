@@ -28,6 +28,7 @@ import AdminContractEditor from './AdminContractEditor';
 import LoadError from '../Components/admin/ui/LoadError';
 import ContractEndPanel from './settings/ContractEndPanel';
 import PreviewPagePanel from './settings/PreviewPagePanel';
+import LoginOtpPanel from './settings/LoginOtpPanel';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -270,6 +271,7 @@ const AdminOtherSettings = () => {
             {activeTab === 'cctv' && <CctvPanel />}
             {activeTab === 'parking-rules' && <HouseRulesPanel scope="parking" />}
             {activeTab === 'minors' && <MinorsPanel />}
+            {activeTab === 'sign-in-codes' && <LoginOtpPanel />}
 
             {!SELF_SAVING_TAB_IDS.includes(activeTab) && !settings && (loadFailed ? (
               <div className="bg-white rounded-xl border border-slate-200">

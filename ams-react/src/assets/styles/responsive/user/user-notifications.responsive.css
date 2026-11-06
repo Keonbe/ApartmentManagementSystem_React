@@ -32,6 +32,11 @@
     justify-content: center !important;
   }
 
+  /* The preferences gear stays a square icon, not a stretched button */
+  .user-notif-header-actions .user-notif-pref-btn {
+    flex: 0 0 44px !important;
+  }
+
   /* Search input container */
   .user-notif-search-container {
     max-width: 100% !important;

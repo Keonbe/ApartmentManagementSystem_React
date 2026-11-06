@@ -1,0 +1,18 @@
+/* Account area shell (Components/AccountLayout.jsx): Profile Settings, Payment
+   History and My Refunds. On phones and tablets the side menu is a tab strip
+   that scrolls sideways without showing a scrollbar. */
+
+.account-nav ul {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.account-nav ul::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .account-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+}

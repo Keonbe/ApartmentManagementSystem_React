@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid-svg-icons';
+import { faBell, faSignOutAlt, faUserCog, faBars, faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import {
@@ -10,12 +10,19 @@ import {
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
 import { clickable } from '../utils/clickable';
 import AdminNotificationModal from './AdminNotificationModal';
+import { useAdminTheme, setAdminTheme } from '../config/adminTheme';
+import { withViewTransition } from '../utils/viewTransition';
+import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import '../assets/styles/responsive/admin/admin-header.responsive.css';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
 const NO_HIGHLIGHT = new Set();
 
 const Header = ({ title = "Dashboard", onToggleSidebar }) => {
+  const adminTheme = useAdminTheme();
+  // True once the admin clicks the colour switch on this page: its icons and
+  // highlight animate only then, not on the first paint of every page.
+  const [themeSwitched, setThemeSwitched] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
@@ -23,6 +30,27 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const avatarRef = useRef(null);
 
   const [notifications, setNotifications] = useState([]);
+  const [adminEmail, setAdminEmail] = useState(() => {
+    try {
+      const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+      return user.email_address || user.email || 'admin@gmail.com';
+    } catch {
+      return 'admin@gmail.com';
+    }
+  });
+
+  useEffect(() => {
+    const refreshAdminEmail = () => {
+      try {
+        const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+        setAdminEmail(user.email_address || user.email || 'admin@gmail.com');
+      } catch {
+        setAdminEmail('admin@gmail.com');
+      }
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, refreshAdminEmail);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, refreshAdminEmail);
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -194,6 +222,63 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
 
       <div className="flex items-center gap-3 sm:gap-6 relative shrink-0">
 
+        {/* Light / dark (admin side only; config/adminTheme.js). A two-way switch:
+            the highlight slides to the active side (white in light, indigo in dark),
+            so the current mode reads at a glance, not just the one a click would pick. */}
+        <div
+          role="radiogroup"
+          aria-label="Colour mode"
+          className="relative grid grid-cols-2 items-center p-0.5 sm:p-1 rounded-full bg-slate-100 ring-1 ring-inset ring-slate-200 shrink-0"
+        >
+          {/* Tailwind 4 moves it with the CSS `translate` property, so that is what
+              transitions. The squash has one animation name per side, so changing
+              side restarts it without remounting (which would skip the slide). */}
+          <span
+            aria-hidden="true"
+            className={`absolute top-0.5 bottom-0.5 left-0.5 sm:top-1 sm:bottom-1 sm:left-1 w-[calc(50%-0.125rem)] sm:w-[calc(50%-0.25rem)] rounded-full shadow-sm transition-[translate,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none ${
+              adminTheme === 'dark' ? 'translate-x-full bg-indigo-500 shadow-indigo-500/40' : 'translate-x-0 bg-white'
+            } ${themeSwitched ? `admin-theme-thumb-to-${adminTheme}` : ''}`}
+          />
+          {[
+            { id: 'light', icon: faSun, label: 'Light mode', on: 'text-amber-500' },
+            { id: 'dark', icon: faMoon, label: 'Dark mode', on: 'text-white' },
+          ].map((m) => {
+            const active = adminTheme === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-label={m.label}
+                title={m.label}
+                onClick={() => {
+                  if (active) return;
+                  setThemeSwitched(true);
+                  // A quick cross-fade, not the tenant side's circle reveal.
+                  withViewTransition(() => setAdminTheme(m.id), { kind: 'fade' });
+                }}
+                className={`admin-theme-btn admin-theme-btn-${m.id} group touch-compact relative z-[1] w-7 h-7 sm:w-9 sm:h-9 rounded-full border-0 bg-transparent cursor-pointer flex items-center justify-center text-label sm:text-body transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  active ? m.on : 'text-slate-400 hover:text-slate-700'
+                }`}
+              >
+                <FontAwesomeIcon
+                  key={`${m.id}-${active}`}
+                  icon={m.icon}
+                  className={`admin-theme-icon ${active && themeSwitched ? `admin-theme-${m.id}-in` : ''}`}
+                />
+                {/* Two stars beside the moon while dark is on. */}
+                {m.id === 'dark' && active && (
+                  <>
+                    <span aria-hidden="true" className={`admin-theme-star absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-1 h-1 rounded-full bg-white ${themeSwitched ? 'admin-theme-star-in' : ''}`} />
+                    <span aria-hidden="true" className={`admin-theme-star absolute bottom-1.5 left-1 sm:bottom-2 sm:left-1.5 w-0.5 h-0.5 rounded-full bg-white/80 ${themeSwitched ? 'admin-theme-star-in admin-theme-star-late' : ''}`} />
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Notifications */}
         <div className="relative">
           <button
@@ -281,7 +366,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
             <div className="admin-header-profile-dropdown animate-scale-in absolute right-0 mt-3 w-56 bg-white rounded-card shadow-raised border border-slate-200 py-2 z-50 transform origin-top-right transition-all">
               <div className="px-4 py-3 border-b border-slate-100 mb-2">
                 <p className="text-body font-semibold text-slate-800 m-0">Admin Dashboard</p>
-                <p className="text-label text-slate-500 m-0 mt-0.5 truncate">admin@system.com</p>
+                <p className="text-label text-slate-500 m-0 mt-0.5 truncate">{adminEmail}</p>
               </div>
               <button
                 className="btn-interactive w-full text-left px-4 py-2.5 text-body text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-3 bg-transparent border-none cursor-pointer"

@@ -94,5 +94,31 @@ ${indent(lightVars())}
 ${indent(lightVars(), 4)}
   }
 }
+
+/* ---------- Admin dark mode ----------
+   config/adminTheme.js puts .admin-dark on <html> while an admin page is open
+   and the admin chose Dark (the admin side has Light and Dark only). On <html>,
+   so dialogs and the chat widget outside .admin-shell follow too. Pieces
+   already drawn dark (sidebar, chart tooltips, previews of tenant pages) carry
+   .admin-native or .ut-native and keep the light palette's colours. */
+html.admin-dark {
+  --ut-surface: #121a2d;
+  --ut-raised: #182238;
+  color-scheme: dark;
+  background: #0b1120;
+${indent(themeVars('dark'))}
+}
+
+html.admin-dark .admin-native,
+html.admin-dark .ut-native {
+${indent(lightVars())}
+}
+
+@media print {
+  html.admin-dark {
+    color-scheme: light;
+${indent(lightVars(), 4)}
+  }
+}
 `);
 console.log(`Wrote ${OUT}`);

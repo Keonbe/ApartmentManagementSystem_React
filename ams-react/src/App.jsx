@@ -4,6 +4,8 @@ import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
 import { GUEST_CHAT_OPENED_EVENT } from './config/appEvents';
 import ChatWidget from './Components/ChatWidget';
+import BackToTop from './Components/BackToTop';
+import AccountLayout from './Components/AccountLayout';
 
 // Components
 import TopBar from './Components/TopBar';
@@ -164,6 +166,7 @@ function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
           &copy; 2026 Apartment Management System. All Rights Reserved.
         </p>
       </footer>
+      <BackToTop />
     </UserThemeScope>
   );
 }
@@ -308,14 +311,14 @@ function AppContent() {
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/track-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><TrackApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/upload-payment" element={<ProtectedRoute><ServiceRouteGuard settingKey="service_pay_bills_active" fallbackPath="/pay-bills"><BaseAppLayout hasRentedRoom={hasRentedRoom}><PaymentUpload /></BaseAppLayout></ServiceRouteGuard></ProtectedRoute>} />
-        <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><AccountLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></AccountLayout></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-room" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/my-refunds" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserRefunds /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/my-refunds" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><AccountLayout hasRentedRoom={hasRentedRoom}><UserRefunds /></AccountLayout></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-requests" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><AccountLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></AccountLayout></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/visitor-management" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey="service_visitor_management_active"><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserVisitors /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
         <Route path="/user-utilities" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserUtilities /></BaseAppLayout></TenantProtectedRoute>} />
         

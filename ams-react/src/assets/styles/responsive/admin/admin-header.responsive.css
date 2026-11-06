@@ -66,3 +66,75 @@
     max-width: 300px !important;
   }
 }
+
+/* ---------- Light / dark switch (AdminDashboardHeader) ----------
+   Animations play only after a click on this page (.admin-theme-*-in and
+   .admin-theme-thumb-to-* are added then), never on a page's first paint.
+   Individual `rotate` / `scale` properties, so they never fight Tailwind's
+   `translate` on the sliding highlight. */
+@keyframes adminThemeThumbToDark {
+  0% { scale: 1 1; }
+  35% { scale: 1.35 0.82; }
+  65% { scale: 0.94 1.06; }
+  100% { scale: 1 1; }
+}
+@keyframes adminThemeThumbToLight {
+  0% { scale: 1 1; }
+  35% { scale: 1.35 0.82; }
+  65% { scale: 0.94 1.06; }
+  100% { scale: 1 1; }
+}
+.admin-theme-thumb-to-dark { animation: adminThemeThumbToDark 0.5s ease-out; }
+.admin-theme-thumb-to-light { animation: adminThemeThumbToLight 0.5s ease-out; }
+
+/* The sun spins in; the moon swings in like a pendulum. */
+@keyframes adminThemeSunIn {
+  0% { rotate: -150deg; scale: 0.3; opacity: 0.2; }
+  65% { rotate: 20deg; scale: 1.2; opacity: 1; }
+  100% { rotate: 0deg; scale: 1; }
+}
+@keyframes adminThemeMoonIn {
+  0% { rotate: 80deg; scale: 0.3; opacity: 0.2; }
+  45% { rotate: -25deg; scale: 1.2; opacity: 1; }
+  70% { rotate: 10deg; scale: 1; }
+  85% { rotate: -4deg; }
+  100% { rotate: 0deg; }
+}
+.admin-theme-light-in { animation: adminThemeSunIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.admin-theme-dark-in { animation: adminThemeMoonIn 0.75s ease-out both; }
+
+/* Stars beside the moon: pop in after the moon, then twinkle slowly. */
+@keyframes adminThemeStarIn {
+  0% { scale: 0; opacity: 0; }
+  60% { scale: 1.6; opacity: 1; }
+  100% { scale: 1; opacity: 0.9; }
+}
+@keyframes adminThemeTwinkle {
+  0%, 100% { opacity: 0.9; scale: 1; }
+  50% { opacity: 0.35; scale: 0.7; }
+}
+.admin-theme-star { animation: adminThemeTwinkle 2.4s ease-in-out infinite; }
+.admin-theme-star.admin-theme-star-in {
+  animation: adminThemeStarIn 0.45s ease-out 0.35s both, adminThemeTwinkle 2.4s ease-in-out 0.8s infinite;
+}
+.admin-theme-star.admin-theme-star-late {
+  animation-delay: 0.5s, 1.4s;
+}
+
+/* Hover on the side you could switch to: the sun turns, the moon tilts. */
+.admin-theme-icon { transition: rotate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.3s ease; }
+.admin-theme-btn-light[aria-checked="false"]:hover .admin-theme-icon { rotate: 90deg; scale: 1.15; }
+.admin-theme-btn-dark[aria-checked="false"]:hover .admin-theme-icon { rotate: -25deg; scale: 1.15; }
+.admin-theme-btn-light[aria-checked="true"]:hover .admin-theme-icon { rotate: 45deg; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-theme-thumb-to-dark,
+  .admin-theme-thumb-to-light,
+  .admin-theme-light-in,
+  .admin-theme-dark-in,
+  .admin-theme-star,
+  .admin-theme-star.admin-theme-star-in {
+    animation: none;
+  }
+  .admin-theme-icon { transition: none; }
+}

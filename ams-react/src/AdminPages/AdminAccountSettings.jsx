@@ -8,6 +8,7 @@ import { LIMITS, checkEmail, checkNewPassword, checkPasswordMatch, checkPersonNa
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import AccountPanel from './settings/AccountPanel';
+import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 
 const PROFILE_VALIDATORS = {
   firstName: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
@@ -117,8 +118,9 @@ const AdminAccountSettings = () => {
       const store = sessionStorage.getItem('loggedInUser') ? sessionStorage : localStorage;
       store.setItem(
         'loggedInUser',
-        JSON.stringify({ ...storedUser, first_name: clean.firstName, last_name: clean.lastName, email_address: clean.email })
+        JSON.stringify({ ...storedUser, first_name: clean.firstName, last_name: clean.lastName, email_address: clean.email, email: clean.email })
       );
+      window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
       showToast('success', 'Profile Updated', 'Your administrator details have been saved.');
     } catch (err) {
       if (!profileForm.applyServerErrors(err)) {

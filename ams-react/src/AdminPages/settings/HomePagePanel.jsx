@@ -49,7 +49,7 @@ export default function HomePagePanel({ settings, updateSetting }) {
           </div>
         )}
       >
-        <div className="relative overflow-hidden rounded-card border border-slate-200 bg-slate-900">
+        <div className="admin-native relative overflow-hidden rounded-card border border-slate-200 bg-slate-900">
           <GlassLayers
             glassBgImage={settings.glassBgImage}
             glassOverlayOpacity={settings.glassOverlayOpacity}

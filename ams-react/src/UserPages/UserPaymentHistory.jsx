@@ -240,8 +240,9 @@ export default function UserPaymentHistory() {
     const SECTION = 'bg-white rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6';
 
     return (
-        <div className="payment-history-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-[900px] flex flex-col gap-6 text-left">
+        // Inside AccountLayout (App.jsx), which gives the page its width, padding and side menu.
+        <div className="payment-history-root w-full">
+            <div className="w-full flex flex-col gap-6 text-left">
 
                 <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-slate-200 pb-4">
                     <div>
@@ -251,13 +252,7 @@ export default function UserPaymentHistory() {
                         </h1>
                         <p className="payment-history-subtext m-0 mt-2 text-sm text-slate-600">{t('paymentHistory.subtext')}</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/my-refunds')}
-                        className="self-start sm:self-auto inline-flex items-center gap-2 min-h-[44px] px-4 rounded-lg border border-indigo-200 bg-white text-indigo-700 text-sm font-semibold cursor-pointer hover:bg-indigo-50 transition-colors"
-                    >
-                        {t('paymentHistory.myRefunds')} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
-                    </button>
+                    {/* My Refunds is in the account side menu (AccountLayout). */}
                 </header>
 
                 {loading ? (

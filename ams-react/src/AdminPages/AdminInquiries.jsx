@@ -24,6 +24,7 @@ import { getSystemSettings } from '../config/systemSettings';
 import WaitlistPanel from '../Components/WaitlistPanel';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
+import { useSearchParams } from 'react-router-dom';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
@@ -34,6 +35,7 @@ const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
 
 export default function AdminInquiries() {
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
 
   const [inquiries, setInquiries] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -405,7 +407,15 @@ export default function AdminInquiries() {
                   <button
                     key={v}
                     type="button"
-                    onClick={() => { setView(v); setStatusFilter('all'); }}
+                    onClick={() => {
+                      setSearchParams(prev => {
+                        const next = new URLSearchParams(prev);
+                        if (v === 'inquiries') next.delete('view');
+                        else next.set('view', v);
+                        next.delete('status');
+                        return next;
+                      }, { replace: true });
+                    }}
                     className={`flex-1 sm:flex-none rounded-control px-4 py-2 text-label font-bold capitalize transition-all border-0 cursor-pointer ${
                       view === v ? 'bg-white text-slate-800 shadow-card' : 'bg-transparent text-slate-600 hover:text-slate-900'
                     }`}

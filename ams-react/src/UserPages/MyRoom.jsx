@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList } from '@fortawesome/free-solid-svg-icons';
+import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
+import HouseRulesModal from '../Components/HouseRulesModal';
 import RoomKeyTag from '../Components/tenant/RoomKeyTag';
 import Disclosure from '../Components/tenant/Disclosure';
+import ImportantInfo from '../Components/tenant/ImportantInfo';
+import HouseRulesCard from '../Components/tenant/HouseRulesCard';
+import RentTermCard from '../Components/tenant/RentTermCard';
+import MyRoomSkeleton, { BillSkeleton, HouseholdSkeleton } from '../Components/tenant/MyRoomSkeleton';
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import useDialog from '../hooks/useDialog';
@@ -73,6 +78,7 @@ export default function MyRoom() {
     const [occupants, setOccupants] = useState(2);
     const [expectedEnd, setExpectedEnd] = useState('');
     const [daysUntilExpiration, setDaysUntilExpiration] = useState(null);
+    const [term, setTerm] = useState(null); // { start, elapsedPct } for RentTermCard
     const [moveOutDaysLeft, setMoveOutDaysLeft] = useState(null);
     const [showMoveOutModal, setShowMoveOutModal] = useState(false);
     const [moveOutDate, setMoveOutDate] = useState('');
@@ -111,6 +117,13 @@ export default function MyRoom() {
                 });
 
                 setDaysUntilExpiration(Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                // Rent period card: start date and how much of the period has passed.
+                const startDate = data.lease_start ? new Date(data.lease_start) : creationDate;
+                const span = endDate.getTime() - startDate.getTime();
+                setTerm({
+                    start: startDate.toISOString().slice(0, 10),
+                    elapsedPct: span > 0 ? Math.min(100, Math.max(0, ((Date.now() - startDate.getTime()) / span) * 100)) : 100,
+                });
                 // Days until a requested move-out (shown under "Ending your rent").
                 setMoveOutDaysLeft(data.requested_move_out_date
                     ? Math.ceil((new Date(`${String(data.requested_move_out_date).slice(0, 10)}T00:00:00`).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -146,6 +159,28 @@ export default function MyRoom() {
         const load = async () => { await loadRoom(); };
         load();
     }, [loadRoom]);
+
+    // The household roster (household_members.php), read here rather than in
+    // HouseholdPanel because Important info lists its open items and rules too.
+    // null while loading.
+    const [household, setHousehold] = useState(null);
+    const [householdError, setHouseholdError] = useState('');
+    const [addMemberOpen, setAddMemberOpen] = useState(false);
+    const [rulesOpen, setRulesOpen] = useState(false);
+    const closeRules = useCallback(() => setRulesOpen(false), []);
+    const loadHousehold = useCallback(async () => {
+        try {
+            const res = await api.get('household_members.php');
+            setHousehold(res.data);
+            setHouseholdError('');
+        } catch (err) {
+            setHouseholdError(apiErrorMessage(err, 'Could not load your household.'));
+        }
+    }, []);
+    useEffect(() => {
+        const load = async () => { await loadHousehold(); };
+        load();
+    }, [loadHousehold]);
 
     // The next bill, from the invoices themselves (the same list Pay Bills uses):
     // the earliest-due bill still to pay, else one awaiting confirmation. An
@@ -192,7 +227,7 @@ export default function MyRoom() {
 
             if (res.data.success) {
                 setNotice({ message: 'Request sent', subtext: 'Your request to change the number of occupants has been sent to management for verification. You will be notified of their decision.' });
-                await loadRoom();
+                await Promise.all([loadRoom(), loadHousehold()]);
             } else {
                 fields.setFieldError('occupants', res.data.message || 'Your request could not be sent.');
             }
@@ -295,16 +330,7 @@ export default function MyRoom() {
     // A panel with an error stays open so the message is seen.
     const [openPanel, setOpenPanel] = useState(null);
 
-    if (loading) {
-        return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 text-slate-900">
-                <div className="flex flex-col items-center gap-4" role="status">
-                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-700 animate-spin" aria-hidden="true" />
-                    <p className="m-0 text-lg font-semibold">Loading your room…</p>
-                </div>
-            </div>
-        );
-    }
+    if (loading) return <MyRoomSkeleton />;
 
     if (error) {
         return (
@@ -353,11 +379,56 @@ export default function MyRoom() {
         { label: 'My requests', icon: faClipboardList, to: '/my-requests' },
     ];
 
+    // Important info: what needs the tenant now, ordered by ImportantInfo
+    // (urgent, action needed, in review, good to know).
+    const importantItems = [];
+    if (nextBill && !nextBillAwaiting && isPastDue(nextBill)) {
+        importantItems.push({
+            key: 'overdue', tone: 'urgent', icon: faReceipt,
+            title: `Overdue bill: ${fmtMoney(nextBillOwed)}`,
+            text: `${nextBill.billing_period || 'Your bill'} was due on ${fmtDay(nextBill.due_date)}. An overdue bill also blocks extending your rent.`,
+            action: { label: 'Pay now', onClick: () => navigate('/pay-bills') },
+        });
+    }
+    if (movingOut) {
+        importantItems.push({
+            key: 'moving-out', tone: daysLeft !== null && daysLeft <= 7 ? 'urgent' : 'action', icon: faSignOutAlt,
+            title: roomDetails.requestedMoveOutDate ? `Moving out on ${fmtDay(roomDetails.requestedMoveOutDate)}` : t('myRoom.moveOutPending'),
+            text: `${daysLeft !== null ? (daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} from now. ` : 'Today. ') : ''}Management will contact you about the room inspection and your deposit.`,
+        });
+    }
+    if (rentEndingSoon) {
+        // Blocked by an overdue bill: the overdue item above already has the Pay button.
+        const overdueBlock = extensionBlocked && extension.overdueTotal > 0;
+        const overdueListed = importantItems.some((i) => i.key === 'overdue');
+        importantItems.push({
+            key: 'rent-ending', tone: 'action', icon: faCalendarAlt,
+            title: `Your rent ends in ${daysUntilExpiration} day${daysUntilExpiration === 1 ? '' : 's'}`,
+            text: `On ${fmtDay(expectedEnd)}. ${!extensionBlocked ? 'Extend it to keep your room.'
+                : overdueListed && overdueBlock ? 'Pay the overdue bill first, then extend it to keep your room.'
+                : `Extending is not available right now. ${extension.reason}`}`,
+            action: !extensionBlocked ? { label: 'Extend rent', onClick: openExtend }
+                : overdueBlock && !overdueListed ? { label: 'Go to Pay Bills', onClick: () => navigate('/pay-bills') }
+                : undefined,
+        });
+    }
+    if (household?.hasLease && !movedOut) {
+        const queued = household.members.filter((m) => m.status === 'Pending').length;
+        const removals = household.members.filter((m) => m.removalRequested).length;
+        if (queued + removals > 0) {
+            const parts = [queued && `${queued} addition${queued === 1 ? '' : 's'}`, removals && `${removals} removal${removals === 1 ? '' : 's'}`].filter(Boolean);
+            importantItems.push({
+                key: 'household-review', tone: 'pending', icon: faHourglassHalf,
+                title: 'Household requests in review',
+                text: `${parts.join(' and ')} ${queued + removals === 1 ? 'is' : 'are'} waiting for management. You'll be notified of their decision.`,
+            });
+        }
+    }
 
     return (
         <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-8 sm:py-10 px-4 md:px-12">
 
-            <div className="w-full max-w-5xl z-10 flex flex-col gap-8 text-left">
+            <div className="my-room-enter w-full max-w-5xl z-10 flex flex-col gap-8 text-left">
                 <header>
                     <h1 className="m-0 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
                         {activeFirstName ? `Welcome back, ${activeFirstName}` : 'Welcome back'}
@@ -368,8 +439,10 @@ export default function MyRoom() {
                     </p>
                 </header>
 
+                <ImportantInfo items={importantItems} />
+
                 {/* The key tag, and what the tenant checks most beside it. */}
-                <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-6 items-start">
+                <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-6 items-stretch">
                     <RoomKeyTag
                         room={roomDetails.name}
                         type={roomDetails.type}
@@ -384,9 +457,9 @@ export default function MyRoom() {
                         <section aria-labelledby="next-bill-heading" className={`${PANEL} p-5 sm:p-6`}>
                             <h2 id="next-bill-heading" className="m-0 text-base font-semibold text-slate-700">{t('myRoom.nextBillDue')}</h2>
                             {!invoicesLoaded ? (
-                                <p className="m-0 mt-3 text-sm text-slate-600">Loading your bills…</p>
+                                <BillSkeleton />
                             ) : nextBill ? (
-                                <div className="mt-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                                <div className="mt-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-fade-in">
                                     <div>
                                         <p className="m-0 text-3xl font-extrabold text-slate-900 tabular-nums">{fmtMoney(nextBillOwed)}</p>
                                         <p className="m-0 mt-1 text-sm text-slate-600">
@@ -402,47 +475,60 @@ export default function MyRoom() {
                                         </p>
                                     </div>
                                     {!nextBillAwaiting && (
-                                        <button type="button" onClick={() => navigate('/pay-bills')} className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold border-0 cursor-pointer shrink-0">
+                                        <button type="button" onClick={() => navigate('/pay-bills')} className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold border-0 cursor-pointer shrink-0 transition-[background-color,transform] active:scale-[0.97]">
                                             {t('myRoom.payRentBalance')}
                                         </button>
                                     )}
                                 </div>
                             ) : (
-                                <p className="m-0 mt-3 text-base font-semibold text-emerald-700">You're all paid up. No open bill right now.</p>
+                                <p className="m-0 mt-3 text-base font-semibold text-emerald-700 animate-fade-in">You're all paid up. No open bill right now.</p>
                             )}
                         </section>
 
-                        {rentEndingSoon && (
-                            <div role="status" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                <p className="m-0 flex items-start gap-3 text-sm text-amber-900">
-                                    <FontAwesomeIcon icon={faCalendarAlt} className="mt-0.5 text-amber-700" aria-hidden="true" />
-                                    <span>
-                                        <strong className="text-amber-800">Your rent ends in {daysUntilExpiration} day{daysUntilExpiration === 1 ? '' : 's'}</strong>, on {fmtDay(expectedEnd)}. Extend it to keep your room.
-                                    </span>
-                                </p>
-                                <button type="button" onClick={openExtend} className="min-h-[44px] px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold border-0 cursor-pointer shrink-0">
-                                    Extend rent
-                                </button>
-                            </div>
+                        {term && !movedOut && (
+                            <RentTermCard
+                                start={fmtDay(term.start)}
+                                end={fmtDay(expectedEnd)}
+                                elapsedPct={term.elapsedPct}
+                                daysLeft={daysUntilExpiration}
+                                onExtend={!movingOut && !extensionBlocked ? openExtend : undefined}
+                            />
                         )}
 
-                        <nav aria-label="Room shortcuts" className="flex flex-wrap gap-2">
+                        <nav aria-label="Room shortcuts" className="grid grid-cols-2 gap-2 mt-auto">
                             {quickLinks.map((link) => (
                                 <button
                                     key={link.to}
                                     type="button"
                                     onClick={() => navigate(link.to)}
-                                    className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-sm font-semibold text-slate-900 cursor-pointer transition-colors"
+                                    className="group flex items-center gap-3 min-h-[52px] px-3 sm:px-4 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-200 text-left text-sm font-semibold text-slate-900 cursor-pointer transition-[background-color,border-color,box-shadow] hover:shadow-md"
                                 >
-                                    <FontAwesomeIcon icon={link.icon} className="text-indigo-700" aria-hidden="true" />
-                                    {link.label}
+                                    <span aria-hidden="true" className="w-8 h-8 shrink-0 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center transition-colors group-hover:bg-indigo-600 group-hover:text-white">
+                                        <FontAwesomeIcon icon={link.icon} />
+                                    </span>
+                                    <span className="flex-1 min-w-0">{link.label}</span>
+                                    <FontAwesomeIcon icon={faChevronRight} className="text-xs text-slate-400 transition-[translate] group-hover:translate-x-0.5" aria-hidden="true" />
                                 </button>
                             ))}
                         </nav>
                     </div>
                 </div>
 
-                <HouseholdPanel />
+                {/* The household, with the rules on who may live in the room right under it. */}
+                <div className="flex flex-col gap-4">
+                    {household === null && !householdError ? <HouseholdSkeleton /> : (
+                        <HouseholdPanel
+                            data={household}
+                            error={householdError}
+                            onChanged={loadHousehold}
+                            addOpen={addMemberOpen}
+                            onAddOpenChange={setAddMemberOpen}
+                            monthlyRent={roomDetails.monthlyRent}
+                            surchargePerPerson={surchargePerPerson}
+                        />
+                    )}
+                    {!movedOut && household?.hasLease !== false && <HouseRulesCard data={household} onViewAll={() => setRulesOpen(true)} />}
+                </div>
 
                 {!movedOut && (
                     <section aria-labelledby="manage-rent-heading">
@@ -551,9 +637,15 @@ export default function MyRoom() {
                     </section>
                 )}
 
-                {/* Ending the rent: quiet on purpose, at the bottom of the page. */}
-                <section aria-labelledby="end-rent-heading" className="rounded-2xl border border-rose-200 bg-white p-5 sm:p-6">
-                    <h2 id="end-rent-heading" className="m-0 text-base font-bold text-slate-900">Ending your rent</h2>
+                {/* Ending the rent: at the bottom of the page, but in a clear rose
+                    card with a solid button. bg-rose-600 is not remapped by the
+                    Dark and Glass themes, so the button reads the same in all three. */}
+                <section aria-labelledby="end-rent-heading" className="flex items-start gap-4 rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 sm:p-6">
+                    <span aria-hidden="true" className="hidden sm:flex w-11 h-11 shrink-0 rounded-xl bg-rose-600 text-white items-center justify-center shadow-lg shadow-rose-600/30">
+                        <FontAwesomeIcon icon={faSignOutAlt} />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                    <h2 id="end-rent-heading" className="m-0 text-lg font-bold text-rose-900">Ending your rent</h2>
                     {movingOut ? (
                         <div className="mt-3 space-y-1 text-sm text-slate-700">
                             <p className="m-0">
@@ -578,18 +670,19 @@ export default function MyRoom() {
                         )
                     ) : (
                         <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <p className="m-0 text-sm leading-relaxed text-slate-600">
+                            <p className="m-0 text-sm leading-relaxed text-slate-700">
                                 Give notice {moveOutNotice.min} to {moveOutNotice.max} days before your move-out date. Management then arranges the room inspection and your deposit.
                             </p>
                             <button
                                 type="button"
                                 onClick={handleEndRent}
-                                className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-xl bg-transparent border border-rose-200 text-rose-800 hover:bg-rose-50 text-sm font-bold cursor-pointer shrink-0"
+                                className="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold border-0 cursor-pointer shrink-0 shadow-lg shadow-rose-600/25 transition-[background-color,transform] active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
                             >
                                 <FontAwesomeIcon icon={faSignOutAlt} aria-hidden="true" /> {t('myRoom.endRentTerm')}
                             </button>
                         </div>
                     )}
+                    </div>
                 </section>
             </div>
 
@@ -652,6 +745,8 @@ export default function MyRoom() {
                     </div>
                 </div>
             )}
+
+            <HouseRulesModal isOpen={rulesOpen} onClose={closeRules} />
 
             <SuccessModal
                 isOpen={!!notice}

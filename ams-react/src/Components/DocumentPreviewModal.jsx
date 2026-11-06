@@ -1,11 +1,12 @@
-import { FileText, Image as ImageIcon, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, X } from 'lucide-react';
 import Modal from './admin/Modal';
 
 /**
  * Reusable modal dialog for document and image previews (PDFs, images).
  * Matches the document preview modal in RentApplication.
  */
-export default function DocumentPreviewModal({ isOpen, onClose, title = 'Document Preview', fileUrl, isImage }) {
+// z: stacking order when opened over another non-Modal dialog (e.g. DocumentsModal).
+export default function DocumentPreviewModal({ isOpen, onClose, title = 'Document Preview', fileUrl, isImage, z }) {
     if (!isOpen || !fileUrl) return null;
 
     const isImg = typeof isImage === 'boolean'
@@ -13,7 +14,7 @@ export default function DocumentPreviewModal({ isOpen, onClose, title = 'Documen
         : /\.(png|jpe?g|webp|gif)$/i.test(fileUrl) || fileUrl.startsWith('data:image/');
 
     return (
-        <Modal title={`${title}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in" className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-scale-in text-left">
+        <Modal title={`${title}`} onClose={onClose} z={z} overlayClassName="flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in" className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-scale-in text-left">
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white z-10 shrink-0">
                     <h3 className="text-lg font-black text-slate-900 m-0 flex items-center gap-2 truncate pr-2">
                         {isImg ? (

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo } from '@fortawesome/free-solid-svg-icons';
+import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo, faPen, faUser, faAddressCard, faChevronRight, faTimes, faTrashAlt, faLock } from '@fortawesome/free-solid-svg-icons';
+import Modal from '../Components/admin/Modal';
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
@@ -32,6 +33,34 @@ const VALIDATORS = {
     gender: (v) => (GENDERS.includes(v) ? '' : translate('profile.errGender')),
 };
 
+// A card's title row: icon, title and a one-line hint, above a divider.
+function SectionHeader({ icon, title, hint }) {
+    return (
+        <div className="flex items-center gap-3 px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100">
+            <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <FontAwesomeIcon icon={icon} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+                <h3 className="m-0 text-base font-bold text-slate-900">{title}</h3>
+                {hint && <p className="m-0 mt-0.5 text-xs sm:text-sm text-slate-500">{hint}</p>}
+            </div>
+        </div>
+    );
+}
+
+// Label (with an "Optional" tag when given), the control, and its error.
+function FormField({ id, label, optional, error, className = '', children }) {
+    return (
+        <div className={`flex flex-col gap-1.5 min-w-0 ${className}`}>
+            <label htmlFor={id} className="flex items-baseline justify-between gap-2 text-sm font-bold text-slate-700">
+                <span>{label}</span>
+                {optional && <span className="text-xs font-medium text-slate-400">{optional}</span>}
+            </label>
+            {children}
+            <FieldError id={id} error={error} className="m-0" />
+        </div>
+    );
+}
 
 export default function ProfileSettings() {
     const { t } = useLang();
@@ -57,6 +86,17 @@ export default function ProfileSettings() {
 
     const [showDocsModal, setShowDocsModal] = useState(false);
     const [showPassModal, setShowPassModal] = useState(false);
+    // The "Change photo" dialog, opened by clicking the avatar.
+    const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+    // The values as last loaded or saved: the Save bar shows only when the form differs.
+    const [saved, setSaved] = useState(() => ({
+        firstName: loggedInUser.first_name || '',
+        middleName: loggedInUser.middle_name || '',
+        lastName: loggedInUser.last_name || '',
+        suffix: loggedInUser.suffix || '',
+        gender: loggedInUser.gender || '',
+        phone: toPhLocal10(loggedInUser.contact_no),
+    }));
 
     // Camera Snapshot Simulation States
     const [isCameraActive, setIsCameraActive] = useState(false);
@@ -85,14 +125,21 @@ export default function ProfileSettings() {
                 const res = await api.get(`/profile.php?email=${encodeURIComponent(loggedInUser.email_address)}`);
                 if (res.data.success && res.data.data) {
                     const data = res.data.data;
-                    setFirstName(data.first_name || '');
-                    setMiddleName(data.middle_name || '');
-                    setLastName(data.last_name || '');
-                    setSuffix(data.suffix || '');
-                    setGender(data.gender || '');
-                    if (data.contact_no) {
-                        setPhoneRawNumber(toPhLocal10(data.contact_no));
-                    }
+                    const loaded = {
+                        firstName: data.first_name || '',
+                        middleName: data.middle_name || '',
+                        lastName: data.last_name || '',
+                        suffix: data.suffix || '',
+                        gender: data.gender || '',
+                        phone: data.contact_no ? toPhLocal10(data.contact_no) : toPhLocal10(loggedInUser.contact_no),
+                    };
+                    setFirstName(loaded.firstName);
+                    setMiddleName(loaded.middleName);
+                    setLastName(loaded.lastName);
+                    setSuffix(loaded.suffix);
+                    setGender(loaded.gender);
+                    setPhoneRawNumber(loaded.phone);
+                    setSaved(loaded);
                     if (data.avatar_url) {
                         // Ensure the URL is properly formatted for the browser
                         const avatarPath = data.avatar_url.startsWith('/') ? data.avatar_url : '/' + data.avatar_url;
@@ -113,7 +160,7 @@ export default function ProfileSettings() {
         fetchProfile();
     }, [loggedInUser.email_address]);
 
-    // Handle profile image file change
+    // Handle profile image file change. True when a valid file was picked.
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -121,7 +168,7 @@ export default function ProfileSettings() {
             setAvatarError(fileError);
             if (fileError) {
                 e.target.value = '';
-                return;
+                return false;
             }
             setSelectedFile(file); // Store the file for later upload
             const reader = new FileReader();
@@ -129,7 +176,9 @@ export default function ProfileSettings() {
                 setTempAvatar(reader.result);
             };
             reader.readAsDataURL(file);
+            return true;
         }
+        return false;
     };
 
     // Opens the camera. Without one (or without permission) it says so; it used
@@ -205,6 +254,26 @@ export default function ProfileSettings() {
     const handlePhoneChange = (digits) => {
         setPhoneRawNumber(digits);
         form.clearError('contactNo');
+    };
+
+    // Unsaved edits (a field differs from the last load / save, or a new photo is waiting).
+    const isDirty = !!selectedFile
+        || firstName !== saved.firstName || middleName !== saved.middleName
+        || lastName !== saved.lastName || suffix !== saved.suffix
+        || gender !== saved.gender || phoneRawNumber !== saved.phone;
+
+    const discardChanges = () => {
+        setFirstName(saved.firstName);
+        setMiddleName(saved.middleName);
+        setLastName(saved.lastName);
+        setSuffix(saved.suffix);
+        setGender(saved.gender);
+        setPhoneRawNumber(saved.phone);
+        setTempAvatar(null);
+        setSelectedFile(null);
+        setSaveError('');
+        setAvatarError('');
+        ['firstName', 'middleName', 'lastName', 'suffix', 'gender', 'contactNo'].forEach((n) => form.clearError(n));
     };
 
 
@@ -290,6 +359,11 @@ export default function ProfileSettings() {
                 setTempAvatar(null);
                 setSelectedFile(null);
                 setAvatarImgFailed(false);
+                // The new baseline: the Save bar hides until the next edit.
+                setSaved({
+                    firstName: clean.firstName, middleName: clean.middleName, lastName: clean.lastName,
+                    suffix: clean.suffix, gender, phone: phoneRawNumber,
+                });
                 // TopBar re-reads the user and avatar (was a full page reload).
                 window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
                 setNotice({ message: t('profile.savedTitle'), subtext: t('profile.savedBody') });
@@ -312,71 +386,286 @@ export default function ProfileSettings() {
         return `${firstLetter}${lastLetter}`.toUpperCase();
     };
 
-    return (
-        <div className="profile-settings-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
-                <div className="profile-settings-header border-b border-slate-200 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
-                            {t('profile.heading')}
-                        </h1>
-                        <p className="text-slate-500 text-sm mt-1 m-0">
-                            {t('profile.subtext')}
-                        </p>
-                    </div>
+    const hasPhoto = !!(tempAvatar || (avatarUrl && !avatarImgFailed));
+    const fullName = [firstName, middleName, lastName, suffix].map((s) => String(s || '').trim()).filter(Boolean).join(' ');
 
-                    {/* Profile Picture Display / Preview */}
-                    <div className="flex items-center gap-4">
-                        <div className="relative group select-none">
-                            {/* A broken image shows the initials (it used to overwrite the DOM, which dropped the delete button). */}
-                            {(tempAvatar || (avatarUrl && !avatarImgFailed)) ? (
+    // The photo dialog: options, or the live camera. Closing it stops the camera.
+    const closePhotoDialog = () => {
+        if (isCameraActive && !tempAvatar) stopCamera();
+        else setIsCameraActive(false);
+        setPhotoDialogOpen(false);
+    };
+
+    return (
+        // Inside AccountLayout (App.jsx), which gives the page its width, padding and side menu.
+        <div className="profile-settings-root w-full">
+            <div className="w-full space-y-6 flex flex-col justify-start text-left">
+                <header className="profile-settings-header">
+                    <h1 className="text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-slate-900">
+                        {t('profile.heading')}
+                    </h1>
+                    <p className="text-slate-500 text-sm sm:text-base mt-1.5 m-0">
+                        {t('profile.subtext')}
+                    </p>
+                </header>
+
+                {/* Identity card: click the photo to change it */}
+                <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                    <div className="h-20 sm:h-24 bg-indigo-50 border-b border-slate-100" aria-hidden="true" />
+                    <div className="px-5 sm:px-8 pb-6 -mt-12 sm:-mt-14 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
+                        <button
+                            type="button"
+                            onClick={() => setPhotoDialogOpen(true)}
+                            aria-label={t('profile.changePhoto')}
+                            title={t('profile.changePhoto')}
+                            className="profile-avatar-btn group relative w-24 h-24 sm:w-28 sm:h-28 shrink-0 rounded-full p-0 border-4 border-white bg-white shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300"
+                        >
+                            {/* A broken image shows the initials. */}
+                            {hasPhoto ? (
                                 <img
                                     src={tempAvatar || fileUrl(avatarUrl)}
                                     alt={t('profile.photoAlt')}
-                                    className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-md"
+                                    className="w-full h-full rounded-full object-cover"
                                     onError={() => { if (!tempAvatar) setAvatarImgFailed(true); }}
                                 />
                             ) : (
-                                <div
-                                    className="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black shrink-0 tracking-wider shadow-md border-2 border-white bg-brand"
-                                >
-                                    {getInitials() || "?"}
-                                </div>
+                                <span className="w-full h-full rounded-full flex items-center justify-center text-white text-3xl sm:text-4xl font-black tracking-wider bg-brand">
+                                    {getInitials() || '?'}
+                                </span>
                             )}
-                            {(tempAvatar || avatarUrl) && (
-                                <button
-                                    type="button"
-                                    onClick={() => setConfirmDeleteAvatar(true)}
-                                    aria-label={t('profile.deletePhoto')}
-                                    title={t('profile.deletePhoto')}
-                                    className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center bg-transparent border-0 cursor-pointer"
-                                >
-                                    {/* The red dot is small; the button around it is the 44px target. */}
-                                    <span aria-hidden="true" className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white shadow-sm">✕</span>
-                                </button>
+                            <span aria-hidden="true" className="absolute inset-0 rounded-full bg-slate-900/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <FontAwesomeIcon icon={faCamera} className="text-xl" />
+                            </span>
+                            <span aria-hidden="true" className="absolute bottom-0.5 right-0.5 w-8 h-8 rounded-full bg-indigo-600 text-white border-2 border-white shadow flex items-center justify-center text-xs transition-transform group-hover:scale-110">
+                                <FontAwesomeIcon icon={faPen} />
+                            </span>
+                        </button>
+
+                        <div className="min-w-0 flex-1 sm:pb-1">
+                            <h2 className="m-0 text-xl sm:text-2xl font-extrabold text-slate-900 truncate">{fullName || t('account.title')}</h2>
+                            <p className="m-0 mt-0.5 text-sm text-slate-500 truncate">{email}</p>
+                            {tempAvatar && (
+                                <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-amber-50 border border-amber-200 pl-3 pr-1 py-1">
+                                    <span className="text-xs font-bold text-amber-800">{t('profile.photoPending')}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setTempAvatar(null); setSelectedFile(null); }}
+                                        className="min-h-[28px] px-2.5 rounded-full bg-white border border-amber-200 text-xs font-bold text-amber-800 cursor-pointer hover:bg-amber-100"
+                                    >
+                                        {t('common.remove')}
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
-                </div>
+                    {avatarError && (
+                        <div className="px-5 sm:px-8 pb-5 -mt-2">
+                            <FieldError id="profile-avatar" error={avatarError} />
+                        </div>
+                    )}
+                </section>
 
-                <div className="profile-settings-card card-interactive bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8">
-                    {/* Profile Photo Uploader with Camera Capture */}
-                    <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-slate-700 m-0">{t('profile.avatarPhoto')}</h3>
+                <form className="space-y-6" onSubmit={handleFormSubmit} noValidate>
+                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <SectionHeader icon={faUser} title={t('profile.personalDetails')} hint={t('profile.personalHint')} />
+                        {/* 12 columns on large screens: first | middle, then last | suffix | gender */}
+                        <div className="profile-details-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-x-5 gap-y-5 p-5 sm:p-8">
+                            <FormField id="profile-firstName" label={t('profile.firstName')} error={form.errors.firstName} className="lg:col-span-6">
+                                <input
+                                    type="text"
+                                    {...form.fieldA11y('firstName')}
+                                    autoComplete="given-name"
+                                    value={firstName}
+                                    maxLength={LIMITS.firstName}
+                                    onChange={change('firstName')}
+                                    onBlur={blur('firstName')}
+                                    className={INPUT_CLS + invalidCls(form.errors.firstName)}
+                                    required
+                                />
+                            </FormField>
+                            <FormField id="profile-middleName" label={t('reg.middleName') || 'Middle Name'} optional={t('profile.optional')} error={form.errors.middleName} className="lg:col-span-6">
+                                <input
+                                    type="text"
+                                    {...form.fieldA11y('middleName')}
+                                    autoComplete="additional-name"
+                                    value={middleName}
+                                    maxLength={LIMITS.middleName}
+                                    onChange={change('middleName')}
+                                    onBlur={blur('middleName')}
+                                    className={INPUT_CLS + invalidCls(form.errors.middleName)}
+                                />
+                            </FormField>
+                            <FormField id="profile-lastName" label={t('profile.lastName')} error={form.errors.lastName} className="lg:col-span-6">
+                                <input
+                                    type="text"
+                                    {...form.fieldA11y('lastName')}
+                                    autoComplete="family-name"
+                                    value={lastName}
+                                    maxLength={LIMITS.lastName}
+                                    onChange={change('lastName')}
+                                    onBlur={blur('lastName')}
+                                    className={INPUT_CLS + invalidCls(form.errors.lastName)}
+                                    required
+                                />
+                            </FormField>
+                            <FormField id="profile-suffix" label={t('profile.suffix')} optional={t('profile.optional')} error={form.errors.suffix} className="lg:col-span-3">
+                                <input
+                                    type="text"
+                                    {...form.fieldA11y('suffix')}
+                                    autoComplete="honorific-suffix"
+                                    value={suffix}
+                                    maxLength={LIMITS.suffix}
+                                    placeholder={t('profile.suffixPlaceholder')}
+                                    onChange={change('suffix')}
+                                    onBlur={blur('suffix')}
+                                    className={INPUT_CLS + invalidCls(form.errors.suffix)}
+                                />
+                            </FormField>
+                            <FormField id="profile-gender" label={t('profile.gender')} error={form.errors.gender} className="lg:col-span-3">
+                                <select
+                                    {...form.fieldA11y('gender')}
+                                    value={gender}
+                                    onChange={change('gender')}
+                                    onBlur={() => form.validateField('gender', values)}
+                                    className={INPUT_CLS + ' cursor-pointer' + invalidCls(form.errors.gender)}
+                                    required
+                                >
+                                    <option value="" disabled hidden>{t('profile.selectGender')}</option>
+                                    {GENDERS.map((g) => <option key={g} value={g}>{t(`profile.gender${g}`)}</option>)}
+                                </select>
+                            </FormField>
+                        </div>
+                    </section>
 
+                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <SectionHeader icon={faAddressCard} title={t('profile.contactDetails')} hint={t('profile.contactHint')} />
+                        <div className="profile-details-grid grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-5 p-5 sm:p-8">
+                            <div className="flex flex-col gap-1.5 min-w-0">
+                                <label htmlFor="profile-contactNo" className="text-sm font-bold text-slate-700">{t('profile.contactNumber')}</label>
+                                <PhoneInput
+                                    id="profile-contactNo"
+                                    name="contactNo"
+                                    value={phoneRawNumber}
+                                    onChange={handlePhoneChange}
+                                    onBlur={() => form.validateField('contactNo', values)}
+                                    error={form.errors.contactNo}
+                                    required
+                                />
+                            </div>
+                            {/* The sign-in email is shown, not edited. */}
+                            <div className="flex flex-col gap-1.5 min-w-0">
+                                <label htmlFor="profile-email" className="text-sm font-bold text-slate-700">{t('profile.email')}</label>
+                                <div className="relative">
+                                    <input
+                                        id="profile-email"
+                                        type="email"
+                                        value={email}
+                                        readOnly
+                                        aria-readonly="true"
+                                        aria-describedby="profile-email-hint"
+                                        className={`${INPUT_CLS} pr-10 bg-slate-100 text-slate-500 cursor-not-allowed focus:ring-0 shadow-none`}
+                                    />
+                                    <FontAwesomeIcon icon={faLock} aria-hidden="true" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" />
+                                </div>
+                                <p id="profile-email-hint" className="m-0 text-xs text-slate-500">{t('profile.emailLocked')}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Account: documents and password, each opens a dialog */}
+                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm p-2 sm:p-3">
+                        <h3 className="m-0 px-3 sm:px-5 pt-3 pb-2 text-xs font-bold uppercase tracking-wider text-slate-400">{t('profile.accountSection')}</h3>
+                        <div className="profile-actions-grid divide-y divide-slate-100">
+                            {[
+                                { icon: faFileAlt, title: t('profile.verificationDocs'), hint: t('profile.docsHint'), onClick: () => setShowDocsModal(true) },
+                                { icon: faKey, title: t('profile.accountSecurity'), hint: t('profile.securityHint'), onClick: () => setShowPassModal(true) },
+                            ].map((row) => (
+                                <button
+                                    key={row.title}
+                                    type="button"
+                                    onClick={row.onClick}
+                                    className="w-full flex items-center gap-4 px-3 sm:px-5 py-4 bg-transparent border-0 rounded-2xl text-left cursor-pointer hover:bg-slate-50 transition-colors"
+                                >
+                                    <span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                        <FontAwesomeIcon icon={row.icon} aria-hidden="true" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-bold text-slate-800">{row.title}</span>
+                                        <span className="block text-xs text-slate-500 mt-0.5">{row.hint}</span>
+                                    </span>
+                                    <FontAwesomeIcon icon={faChevronRight} className="text-slate-400 text-sm shrink-0" aria-hidden="true" />
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    {saveError && (
+                        <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl font-semibold">
+                            {saveError}
+                        </div>
+                    )}
+
+                    {/* Only while something is unsaved. Sticks near the bottom of the screen
+                        (above the chat / back-to-top buttons) until the form ends. */}
+                    {(isDirty || isSaving) && (
+                        <div role="region" aria-label={t('profile.unsavedChanges')} className="profile-save-bar sticky z-20 rounded-2xl border border-indigo-200 bg-white shadow-lg px-4 py-3 sm:px-5 flex flex-col sm:flex-row sm:items-center gap-3">
+                            <p className="m-0 flex-1 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                                {t('profile.unsavedChanges')}
+                            </p>
+                            <div className="flex gap-2 sm:shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={discardChanges}
+                                    disabled={isSaving}
+                                    className="flex-1 sm:flex-none min-h-[44px] px-5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                    {t('profile.discard')}
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSaving}
+                                    className="profile-save-btn flex-1 sm:flex-none min-h-[44px] px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold border-0 cursor-pointer shadow-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    <FontAwesomeIcon icon={faSave} aria-hidden="true" />
+                                    <span>{isSaving ? 'Saving…' : t('profile.saveProfile')}</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </form>
+            </div>
+
+            {/* Change photo: upload, camera, or delete */}
+            {photoDialogOpen && (
+                <Modal
+                    title={t('profile.changePhoto')}
+                    onClose={closePhotoDialog}
+                    className="sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto text-left"
+                >
+                    <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+                        <div className="min-w-0">
+                            <h3 className="m-0 text-lg font-bold text-slate-900">{t('profile.changePhoto')}</h3>
+                            <p className="m-0 mt-0.5 text-xs text-slate-500">{t('profile.photoHint')}</p>
+                        </div>
+                        <button type="button" onClick={closePhotoDialog} aria-label={t('common.close')} className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 bg-transparent border-0 cursor-pointer">
+                            <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
+                        </button>
+                    </div>
+
+                    <div className="p-5 space-y-4">
                         {isCameraActive ? (
-                            <div className="ut-native max-w-sm w-full bg-slate-900 rounded-2xl overflow-hidden aspect-square relative flex flex-col items-center justify-center border border-slate-800">
+                            <div className="ut-native w-full bg-slate-900 rounded-2xl overflow-hidden aspect-square relative flex items-center justify-center">
                                 {tempAvatar ? (
                                     <img src={tempAvatar} alt={t('profile.capturedAlt')} className="w-full h-full object-cover" />
                                 ) : (
                                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]"></video>
                                 )}
-
                                 <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3 px-4">
                                     {!tempAvatar ? (
                                         <>
-                                            <button type="button" onClick={capturePhoto} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow">
-                                                {t('profile.capture')}
+                                            <button type="button" onClick={capturePhoto} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faCamera} aria-hidden="true" /> {t('profile.capture')}
                                             </button>
                                             <button type="button" onClick={stopCamera} className="min-h-[44px] bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-4 rounded-xl border-0 cursor-pointer">
                                                 {t('common.cancel')}
@@ -384,10 +673,10 @@ export default function ProfileSettings() {
                                         </>
                                     ) : (
                                         <>
-                                            <button type="button" onClick={handleRetake} className="min-h-[44px] bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow flex items-center gap-1.5">
+                                            <button type="button" onClick={handleRetake} className="min-h-[44px] bg-white/20 hover:bg-white/30 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer flex items-center gap-1.5">
                                                 <FontAwesomeIcon icon={faUndo} aria-hidden="true" /> {t('profile.retake')}
                                             </button>
-                                            <button type="button" onClick={() => setIsCameraActive(false)} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow">
+                                            <button type="button" onClick={() => { setIsCameraActive(false); setPhotoDialogOpen(false); }} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow">
                                                 {t('profile.keepSnapshot')}
                                             </button>
                                         </>
@@ -395,211 +684,65 @@ export default function ProfileSettings() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="profile-avatar-options grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {/* Local file selector */}
-                                <div className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 relative cursor-pointer group transition-colors min-h-[110px]">
-                                    <input
-                                        type="file"
-                                        id="profile-avatar"
-                                        name="avatar"
-                                        accept={acceptFor(FILE_RULES.avatar)}
-                                        onChange={handleFileChange}
-                                        aria-invalid={avatarError ? true : undefined}
-                                        aria-describedby={avatarError ? 'profile-avatar-error' : undefined}
-                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                    />
-                                    <FontAwesomeIcon icon={faUpload} className="text-slate-500 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
-                                    <span className="text-xs font-bold text-slate-700">{t('profile.chooseFile')}</span>
-                                    <span className="text-xs text-slate-500 mt-0.5">{FILE_RULES.avatar.label} up to {FILE_RULES.avatar.maxMB} MB</span>
+                            <>
+                                <div className="flex justify-center">
+                                    {hasPhoto ? (
+                                        <img src={tempAvatar || fileUrl(avatarUrl)} alt="" className="w-28 h-28 rounded-full object-cover border-4 border-slate-100 shadow-sm" />
+                                    ) : (
+                                        <span className="w-28 h-28 rounded-full flex items-center justify-center text-white text-4xl font-black tracking-wider bg-brand">{getInitials() || '?'}</span>
+                                    )}
                                 </div>
-
-                                {/* Simulated Camera button */}
-                                <button
-                                    type="button"
-                                    onClick={startCamera}
-                                    className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 cursor-pointer group transition-all min-h-[110px]"
-                                >
-                                    <FontAwesomeIcon icon={faCamera} className="text-slate-500 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
-                                    <span className="text-xs font-bold text-slate-700">{t('profile.takeSnapshot')}</span>
-                                    <span className="text-xs text-slate-500 mt-0.5">{t('profile.useCamera')}</span>
-                                </button>
-                            </div>
+                                <div className="profile-avatar-options grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <label className="relative border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 cursor-pointer group transition-colors min-h-[104px] focus-within:ring-2 focus-within:ring-indigo-500">
+                                        <input
+                                            type="file"
+                                            id="profile-avatar-input"
+                                            name="avatar"
+                                            accept={acceptFor(FILE_RULES.avatar)}
+                                            onChange={(e) => { if (handleFileChange(e)) setPhotoDialogOpen(false); }}
+                                            className="sr-only"
+                                        />
+                                        <FontAwesomeIcon icon={faUpload} className="text-slate-500 group-hover:text-indigo-600 text-lg mb-1.5 transition-colors" aria-hidden="true" />
+                                        <span className="text-sm font-bold text-slate-800">{t('profile.chooseFile')}</span>
+                                        <span className="text-xs text-slate-500 mt-0.5">{FILE_RULES.avatar.label} up to {FILE_RULES.avatar.maxMB} MB</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={startCamera}
+                                        className="border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 cursor-pointer group transition-colors min-h-[104px]"
+                                    >
+                                        <FontAwesomeIcon icon={faCamera} className="text-slate-500 group-hover:text-indigo-600 text-lg mb-1.5 transition-colors" aria-hidden="true" />
+                                        <span className="text-sm font-bold text-slate-800">{t('profile.takeSnapshot')}</span>
+                                        <span className="text-xs text-slate-500 mt-0.5">{t('profile.useCamera')}</span>
+                                    </button>
+                                </div>
+                                {(tempAvatar || avatarUrl) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPhotoDialogOpen(false);
+                                            // An unsaved photo is just dropped; a saved one is deleted after a confirm.
+                                            if (tempAvatar) { setTempAvatar(null); setSelectedFile(null); }
+                                            else setConfirmDeleteAvatar(true);
+                                        }}
+                                        className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white text-rose-600 text-sm font-bold cursor-pointer hover:bg-rose-50"
+                                    >
+                                        <FontAwesomeIcon icon={faTrashAlt} aria-hidden="true" />
+                                        {tempAvatar ? t('common.remove') : t('profile.deletePhoto')}
+                                    </button>
+                                )}
+                            </>
                         )}
-                        <FieldError id="profile-avatar" error={avatarError} />
-
-                        {tempAvatar && !isCameraActive && (
-                            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <img src={tempAvatar} alt="" className="w-12 h-12 rounded-full object-cover border border-indigo-200 shadow-sm" />
-                                    <div>
-                                        <p className="text-xs font-bold text-indigo-900 m-0">
-                                            {selectedFile ? `${selectedFile.name} (${formatFileSize(selectedFile.size)})` : t('profile.previewLabel')}
-                                        </p>
-                                        <p className="text-xs text-indigo-500 m-0">{t('profile.saveToApply')}</p>
-                                    </div>
-                                </div>
-                                <button type="button" onClick={() => {
-                                    setTempAvatar(null);
-                                    setSelectedFile(null);
-                                }} className="min-h-[44px] text-slate-600 hover:text-red-600 bg-transparent border-0 cursor-pointer text-sm font-semibold px-3">
-                                    {t('common.remove')}
-                                </button>
-                            </div>
+                        {avatarError && <FieldError id="profile-avatar-dialog" error={avatarError} />}
+                        {tempAvatar && !isCameraActive && selectedFile && (
+                            <p className="m-0 text-xs text-slate-500 text-center">
+                                {selectedFile.name} ({formatFileSize(selectedFile.size)}) · {t('profile.saveToApply')}
+                            </p>
                         )}
                     </div>
+                </Modal>
+            )}
 
-                    <form className="space-y-8" onSubmit={handleFormSubmit} noValidate>
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2 text-brand">{t('profile.personalDetails')}</h3>
-                            <div className="profile-details-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="profile-firstName" className="text-sm font-bold text-slate-700">{t('profile.firstName')}</label>
-                                    <input
-                                        type="text"
-                                        {...form.fieldA11y('firstName')}
-                                        autoComplete="given-name"
-                                        value={firstName}
-                                        maxLength={LIMITS.firstName}
-                                        onChange={change('firstName')}
-                                        onBlur={blur('firstName')}
-                                        className={INPUT_CLS + invalidCls(form.errors.firstName)}
-                                        required
-                                    />
-                                    <FieldError id="profile-firstName" error={form.errors.firstName} className="m-0" />
-                                </div>
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="profile-middleName" className="text-sm font-bold text-slate-700">{t('reg.middleName') || 'Middle Name'}</label>
-                                    <input
-                                        type="text"
-                                        {...form.fieldA11y('middleName')}
-                                        autoComplete="additional-name"
-                                        value={middleName}
-                                        maxLength={LIMITS.middleName}
-                                        onChange={change('middleName')}
-                                        onBlur={blur('middleName')}
-                                        className={INPUT_CLS + invalidCls(form.errors.middleName)}
-                                    />
-                                    <FieldError id="profile-middleName" error={form.errors.middleName} className="m-0" />
-                                </div>
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="profile-lastName" className="text-sm font-bold text-slate-700">{t('profile.lastName')}</label>
-                                    <input
-                                        type="text"
-                                        {...form.fieldA11y('lastName')}
-                                        autoComplete="family-name"
-                                        value={lastName}
-                                        maxLength={LIMITS.lastName}
-                                        onChange={change('lastName')}
-                                        onBlur={blur('lastName')}
-                                        className={INPUT_CLS + invalidCls(form.errors.lastName)}
-                                        required
-                                    />
-                                    <FieldError id="profile-lastName" error={form.errors.lastName} className="m-0" />
-                                </div>
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="profile-suffix" className="text-sm font-bold text-slate-700">{t('profile.suffix')}</label>
-                                    <input
-                                        type="text"
-                                        {...form.fieldA11y('suffix')}
-                                        autoComplete="honorific-suffix"
-                                        value={suffix}
-                                        maxLength={LIMITS.suffix}
-                                        onChange={change('suffix')}
-                                        onBlur={blur('suffix')}
-                                        className={INPUT_CLS + invalidCls(form.errors.suffix)}
-                                    />
-                                    <FieldError id="profile-suffix" error={form.errors.suffix} className="m-0" />
-                                </div>
-                            </div>
-
-                            <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="profile-contactNo" className="text-sm font-bold text-slate-700">{t('profile.contactNumber')}</label>
-                                    <PhoneInput
-                                        id="profile-contactNo"
-                                        name="contactNo"
-                                        value={phoneRawNumber}
-                                        onChange={handlePhoneChange}
-                                        onBlur={() => form.validateField('contactNo', values)}
-                                        error={form.errors.contactNo}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="profile-email" className="text-sm font-bold text-slate-700">{t('profile.email')}</label>
-                                    <input
-                                        type="email"
-                                        {...form.fieldA11y('email')}
-                                        inputMode="email"
-                                        autoComplete="email"
-                                        value={email}
-                                        maxLength={LIMITS.userEmail}
-                                        onChange={change('email')}
-                                        onBlur={blur('email')}
-                                        className={INPUT_CLS + invalidCls(form.errors.email)}
-                                        required
-                                    />
-                                    <FieldError id="profile-email" error={form.errors.email} className="m-0" />
-                                </div>
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="profile-gender" className="text-sm font-bold text-slate-700">{t('profile.gender')}</label>
-                                    <select
-                                        {...form.fieldA11y('gender')}
-                                        value={gender}
-                                        onChange={change('gender')}
-                                        onBlur={() => form.validateField('gender', values)}
-                                        className={INPUT_CLS + invalidCls(form.errors.gender)}
-                                        required
-                                    >
-                                        <option value="" disabled hidden>{t('profile.selectGender')}</option>
-                                        {GENDERS.map((g) => <option key={g} value={g}>{t(`profile.gender${g}`)}</option>)}
-                                    </select>
-                                    <FieldError id="profile-gender" error={form.errors.gender} className="m-0" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="profile-actions-grid grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                            <button type="button" onClick={() => setShowDocsModal(true)} className="btn-interactive bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                                    <FontAwesomeIcon icon={faFileAlt} className="text-base" />
-                                </div>
-                                <div>
-                                    <p className="m-0 text-sm font-bold text-slate-800">{t('profile.verificationDocs')}</p>
-                                    <p className="m-0 text-xs text-slate-500 mt-0.5">{t('profile.docsHint')}</p>
-                                </div>
-                            </button>
-                            <button type="button" onClick={() => setShowPassModal(true)} className="btn-interactive bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                                    <FontAwesomeIcon icon={faKey} className="text-base" />
-                                </div>
-                                <div>
-                                    <p className="m-0 text-sm font-bold text-slate-800">{t('profile.accountSecurity')}</p>
-                                    <p className="m-0 text-xs text-slate-500 mt-0.5">{t('profile.securityHint')}</p>
-                                </div>
-                            </button>
-                        </div>
-
-                        {saveError && (
-                            <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-semibold">
-                                {saveError}
-                            </div>
-                        )}
-
-                        <div className="border-t border-slate-100 pt-6 flex justify-end">
-                            <button
-                                type="submit"
-                                disabled={isSaving}
-                                className="profile-save-btn btn-interactive w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                <FontAwesomeIcon icon={faSave} />
-                                <span>{isSaving ? 'Saving…' : t('profile.saveProfile')}</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
             <DocumentsModal isOpen={showDocsModal} onClose={() => setShowDocsModal(false)} />
             <ChangePasswordModal isOpen={showPassModal} onClose={() => setShowPassModal(false)} />
 

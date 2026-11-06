@@ -95,3 +95,63 @@ describe('dashboard attention counts', () => {
     }
   });
 });
+
+// ?attention_days=N: only what came in during the last N days, by each line's own
+// date; lines without one are named in undated_keys and keep their full count.
+describe('dashboard attention period', () => {
+  const since = async (days) => {
+    const res = await api('dashboard_stats.php', { token: admin, query: { section: 'attention', attention_days: days } });
+    expect(res.status).toBe(200);
+    return res.body.attention;
+  };
+  const addInquiry = (name, daysAgo) => q(
+    `INSERT INTO inquiries (full_name, email, contact_no, status, created_at) VALUES (?, 'period@demo.example', '+639170000000', 'New', NOW() - INTERVAL ? DAY)`,
+    [name, daysAgo],
+  );
+
+  it('counts a new inquiry inside the period and not one older than it', async () => {
+    const before7 = await since(7);
+    const beforeAll = await since(0);
+    await addInquiry('Period Recent', 2);
+    await addInquiry('Period Old', 20);
+    const after7 = await since(7);
+    const afterAll = await since(0);
+    expect(after7.new_inquiries).toBe(before7.new_inquiries + 1);
+    expect(afterAll.new_inquiries).toBe(beforeAll.new_inquiries + 2);
+  });
+
+  it('overdue counts follow the due date', async () => {
+    await addBill('PERIOD-OLD', { dueDays: -40 });
+    await addBill('PERIOD-NEW', { dueDays: -3 });
+    try {
+      const week = await since(7);
+      const all = await since(0);
+      expect(all.overdue_invoices - week.overdue_invoices).toBeGreaterThanOrEqual(1);
+      expect(week.overdue_invoices).toBeGreaterThanOrEqual(1);
+    } finally {
+      await q("DELETE FROM invoices WHERE id IN ('PERIOD-OLD', 'PERIOD-NEW')");
+    }
+  });
+
+  it('undated lines keep their full count and are named', async () => {
+    const week = await since(7);
+    const all = await since(0);
+    expect(week.undated_keys).toEqual(expect.arrayContaining(['move_in_due', 'move_out_requests', 'contracts_ending']));
+    for (const k of week.undated_keys) expect(week[k]).toBe(all[k]);
+    expect(week.since_days).toBe(7);
+    expect(all.since_days).toBe(0);
+  });
+
+  it('section=attention answers with the counts alone', async () => {
+    const res = await api('dashboard_stats.php', { token: admin, query: { section: 'attention' } });
+    expect(res.body.stats).toBeUndefined();
+    expect(res.body.attention).toHaveProperty('new_inquiries');
+  });
+
+  it('refuses a bad period', async () => {
+    for (const days of ['-1', '7d', '366']) {
+      const res = await api('dashboard_stats.php', { token: admin, query: { section: 'attention', attention_days: days } });
+      expect(res.status, days).toBe(422);
+    }
+  });
+});

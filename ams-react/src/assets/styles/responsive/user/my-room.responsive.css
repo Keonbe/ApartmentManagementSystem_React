@@ -6,6 +6,28 @@
    the page padding and the move-out dialog are adjusted here.
    ===================================================== */
 
+/* Page sections rise in one after another. `backwards`, not `both` like
+   .stagger-children: a finished animation must leave no transform behind, or
+   the section becomes the containing block for position: fixed and the
+   Household "Add a member" dialog would be trapped inside its card. */
+.my-room-enter > * {
+  animation: fadeInUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.my-room-enter > *:nth-child(2) { animation-delay: 50ms; }
+.my-room-enter > *:nth-child(3) { animation-delay: 100ms; }
+.my-room-enter > *:nth-child(4) { animation-delay: 150ms; }
+.my-room-enter > *:nth-child(5) { animation-delay: 200ms; }
+.my-room-enter > *:nth-child(n + 6) { animation-delay: 250ms; }
+
+/* The rent period bar fills in from the left once, after the cards arrive. */
+.my-room-grow {
+  animation: myRoomGrow 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s backwards;
+}
+@keyframes myRoomGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
 @media (max-width: 768px) {
   .my-room-root {
     padding: 1.5rem 1rem !important;

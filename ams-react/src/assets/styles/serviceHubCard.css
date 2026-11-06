@@ -1,0 +1,95 @@
+/* Service hub card (Components/ServiceHubCard.jsx): tenant Services page + admin
+   appearance preview. --svc is the admin-chosen preset hex (COLOR_PRESETS[..].hex),
+   so the accent, glow and hover shadow follow the customisation in every theme. */
+
+.service-hub-card {
+  min-height: 230px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+/* Accent strip along the top edge. */
+.service-hub-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--svc), color-mix(in srgb, var(--svc) 35%, transparent));
+  opacity: 0.85;
+  transition: height 0.2s ease, opacity 0.2s ease;
+}
+
+/* Soft colour wash in the top-right corner. */
+.service-hub-card::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -30%;
+  width: 75%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--svc) 14%, transparent) 0%, transparent 70%);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.3s ease;
+  opacity: 0.8;
+}
+
+.service-hub-card__icon,
+.service-hub-card__go {
+  transition: transform 0.25s ease;
+}
+
+.service-hub-card--interactive:hover,
+.service-hub-card--interactive:focus-visible {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--svc) 45%, transparent);
+  box-shadow: 0 22px 44px -22px color-mix(in srgb, var(--svc) 55%, transparent);
+}
+
+.service-hub-card--interactive:hover::before,
+.service-hub-card--interactive:focus-visible::before {
+  height: 6px;
+  opacity: 1;
+}
+
+.service-hub-card--interactive:hover::after,
+.service-hub-card--interactive:focus-visible::after {
+  opacity: 1;
+  transform: scale(1.12);
+}
+
+.service-hub-card--interactive:hover .service-hub-card__icon {
+  transform: scale(1.06) rotate(-3deg);
+}
+
+.service-hub-card--interactive:hover .service-hub-card__go,
+.service-hub-card--interactive:focus-visible .service-hub-card__go {
+  transform: translateX(3px);
+}
+
+@media (max-width: 768px) {
+  .service-hub-card {
+    padding: 1.25rem !important;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .service-hub-card {
+    padding: 1rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .service-hub-card,
+  .service-hub-card::before,
+  .service-hub-card::after,
+  .service-hub-card__icon,
+  .service-hub-card__go {
+    transition: none;
+  }
+  .service-hub-card--interactive:hover,
+  .service-hub-card--interactive:hover .service-hub-card__icon,
+  .service-hub-card--interactive:hover .service-hub-card__go {
+    transform: none;
+  }
+}

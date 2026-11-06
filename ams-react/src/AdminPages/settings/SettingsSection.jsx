@@ -82,7 +82,7 @@ export function Switch({ checked, onChange, label, tone = 'indigo' }) {
       className={`touch-compact relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 border-0 cursor-pointer ${checked ? on : 'bg-slate-300'}`}
     >
       <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-card transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+        className={`admin-native inline-block h-5 w-5 transform rounded-full bg-white shadow-card transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
       />
     </button>
   );

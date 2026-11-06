@@ -338,7 +338,7 @@ export default function AdminUtilities() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
         <Header title="Utility Tracking & Sub-Meters" />
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" style={{ backgroundColor: '#f8fafc' }}>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Usage and money totals; pending sync is on its filter pill. These add up

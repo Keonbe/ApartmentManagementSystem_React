@@ -235,10 +235,13 @@ export default function UserNotifications() {
             <button
               type="button"
               aria-expanded={showSettings}
+              aria-controls="notif-pref-panel"
+              aria-label={t('notifications.preferences')}
+              title={t('notifications.preferences')}
               onClick={() => setShowSettings(!showSettings)}
-              className={`lg:hidden flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all cursor-pointer border shadow-sm min-h-[44px] ${showSettings ? 'bg-brand text-white border-brand' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
+              className={`user-notif-pref-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all cursor-pointer border shadow-sm active:scale-[0.96] ${showSettings ? 'bg-brand text-white border-brand' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
             >
-              <FontAwesomeIcon icon={faCog} /> {t('notifications.preferences')}
+              <FontAwesomeIcon icon={faCog} aria-hidden="true" className={`transition-transform duration-300 ${showSettings ? 'rotate-90' : ''}`} />
             </button>
           </div>
         </div>
@@ -398,7 +401,8 @@ export default function UserNotifications() {
           </div>
 
           {/* Preferences Side Column */}
-          <div className={`user-notif-pref-panel w-full lg:w-[360px] shrink-0 sticky top-24 ${showSettings ? 'block' : 'hidden lg:block'}`}>
+          {/* Opened from the gear icon in the header; on mobile it shows above the list. */}
+          <div id="notif-pref-panel" className={`user-notif-pref-panel order-first lg:order-none w-full lg:w-[360px] shrink-0 lg:sticky lg:top-24 ${showSettings ? 'block' : 'hidden'}`}>
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-6">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <FontAwesomeIcon icon={faCog} className="text-slate-500" />
