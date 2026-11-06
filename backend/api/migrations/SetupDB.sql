@@ -1549,6 +1549,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('lease_end_reminder_email', '1'),
 ('lease_end_reminder_sms', '1'),
 ('upcoming_rooms_enabled', '1'),
+('language_switch_enabled', '1'),
 ('late_fee_enabled', 'false'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),

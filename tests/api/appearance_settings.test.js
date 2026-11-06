@@ -278,3 +278,31 @@ describe('home_content', () => {
     expect(await setting('home_content')).toBe(before);
   });
 });
+
+// Other Settings → Language: language_switch_enabled shows the EN / FIL switch
+// to tenants and guests (off = English only). Stored as '1' / '0'.
+describe('language switch setting', () => {
+  it('is on in a fresh database and readable without signing in', async () => {
+    expect((await api('get_system_settings.php')).body.settings.language_switch_enabled).toBe('1');
+  });
+
+  it('the admin turns it off and on; booleans and words are stored as 1 / 0', async () => {
+    expect((await save({ language_switch_enabled: false })).status).toBe(200);
+    expect(await setting('language_switch_enabled')).toBe('0');
+    expect((await api('get_system_settings.php')).body.settings.language_switch_enabled).toBe('0');
+    expect((await save({ language_switch_enabled: 'true' })).status).toBe(200);
+    expect(await setting('language_switch_enabled')).toBe('1');
+  });
+
+  it('refuses anything that is not on or off', async () => {
+    const res = await save({ language_switch_enabled: 'maybe' });
+    expect(res.status).toBe(422);
+    expect(res.body.errors).toHaveProperty('languageSwitchEnabled');
+    expect(await setting('language_switch_enabled')).toBe('1');
+  });
+
+  it('a tenant cannot change it', async () => {
+    expect((await save({ language_switch_enabled: '0' }, tenant)).status).toBe(403);
+    expect(await setting('language_switch_enabled')).toBe('1');
+  });
+});

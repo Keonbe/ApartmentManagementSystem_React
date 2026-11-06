@@ -18,6 +18,7 @@ import { ThemePicker, LangSwitch } from './UserTheme';
 import useDialog from '../hooks/useDialog';
 import usePresence from '../hooks/usePresence';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
+import { useLanguageSwitch } from '../config/publicSettings';
 import { clearRoomCache, useRoomStatus } from '../config/tenantHome';
 import '../assets/styles/responsive/components/navbar.responsive.css';
 
@@ -133,6 +134,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const location = useLocation();
     // Home is always Glass (App.jsx), so the theme switch would do nothing there.
     const showThemePicker = location.pathname !== '/home';
+    // Other Settings → Language can turn the EN / FIL switch off (pages then show English).
+    const showLangSwitch = useLanguageSwitch();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { hasApplication, refreshRoomStatus } = useRoomStatus();
@@ -467,7 +470,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
                 {/* Desktop Action Controls */}
                 <div className="hidden md:flex shrink-0 items-center space-x-4">
-                    <LangSwitch />
+                    {/* Signed-in users find the language in the account menu. */}
+                    {!isLoggedIn && showLangSwitch && <LangSwitch />}
 
                     {isLoggedIn && (
                         <div className="relative" ref={notificationRef}>
@@ -573,9 +577,10 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     </button>
                                     {/* Payment History and My Refunds are in the Profile Settings side menu. */}
                                     <div className="border-t border-slate-100 my-1"></div>
-                                    {showThemePicker && (
+                                    {(showThemePicker || showLangSwitch) && (
                                         <>
-                                            <ThemePicker variant="menu" />
+                                            {showThemePicker && <ThemePicker variant="menu" />}
+                                            {showLangSwitch && <LangSwitch variant="menu" />}
                                             <div className="border-t border-slate-100 my-1"></div>
                                         </>
                                     )}
@@ -671,10 +676,12 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     className="topbar-mobile-drawer md:hidden absolute left-0 right-0 top-[100%] bg-[#2e3460] shadow-2xl border-b border-white/10 px-5 py-5 z-50 flex flex-col space-y-4 text-left backdrop-blur-md"
                 >
                     {/* Mobile Language Toggle */}
-                    <div className="flex items-center justify-between px-2 pb-2">
-                        <span className="text-white/70 text-xs font-bold">{t('topbar.language')}</span>
-                        <LangSwitch size="lg" />
-                    </div>
+                    {showLangSwitch && (
+                        <div className="flex items-center justify-between px-2 pb-2">
+                            <span className="text-white/70 text-xs font-bold">{t('topbar.language')}</span>
+                            <LangSwitch size="lg" />
+                        </div>
+                    )}
 
                     {showThemePicker && <ThemePicker variant="drawer" />}
 

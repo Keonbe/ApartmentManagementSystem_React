@@ -5,11 +5,14 @@ import ApartmentPic from '../assets/Apartment_Pic.webp';
 import { publicAssetUrl } from '../api/fileUrl';
 import { THEMES, useTheme, useGlassAppearance, glassTintGradient } from '../config/theme';
 import { useLang } from '../config/i18n';
+import { useLanguageSwitch } from '../config/publicSettings';
 import { withViewTransition } from '../utils/viewTransition';
 
 const THEME_ICONS = { light: faSun, dark: faMoon, glass: faGem };
 const AUTH_THEMES = ['light', 'dark'];
 const LANGS = [['en', 'EN'], ['fil', 'FIL']];
+// Each language named in itself, for the account menu.
+const LANG_NAMES = { en: 'English', fil: 'Filipino' };
 
 // Wraps user-side content in the chosen theme (.ut-root .ut-<theme>, see
 // assets/styles/themes.user.css). `force` pins one (Home is always Glass);
@@ -189,9 +192,11 @@ export function SegmentThumb({ index, count, pad = 4, className = '' }) {
 }
 
 // EN / FIL switch with the sliding highlight; the page text cross-fades on change.
-//   variant="bar"      on the TopBar's coloured bar (size="lg" in the mobile drawer)
+//   variant="bar"      on the TopBar's coloured bar for guests (size="lg" in the mobile drawer)
+//   variant="menu"     inside the account menu, for signed-in users
 //   variant="floating" over the sign-in, registration and reset pages
 //                      (App.jsx AuthThemeLayout), next to the floating theme switch
+// Callers hide it when Other Settings → Language turns it off (useLanguageSwitch).
 export function LangSwitch({ variant = 'bar', size = 'sm' }) {
     const { lang, setLang, t } = useLang();
     const index = LANGS.findIndex(([id]) => id === lang);
@@ -200,6 +205,31 @@ export function LangSwitch({ variant = 'bar', size = 'sm' }) {
         if (id === lang) return;
         withViewTransition(() => setLang(id), { kind: 'lang' });
     };
+    if (variant === 'menu') {
+        // Same shape as ThemePicker's menu row above it: a label, then the choices.
+        return (
+            <div className="px-3 py-2">
+                <p className="m-0 mb-1.5 px-1 text-xs font-bold text-slate-500">{t('topbar.language')}</p>
+                <div role="group" aria-label={t('topbar.language')} className="relative grid grid-cols-2 rounded-xl bg-slate-100 p-1 select-none">
+                    <SegmentThumb index={index} count={LANGS.length} className="bg-indigo-600 shadow-sm" />
+                    {LANGS.map(([id]) => {
+                        const active = lang === id;
+                        return (
+                            <button
+                                key={id}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => pick(id)}
+                                className={`relative z-[1] min-h-[40px] px-2 rounded-lg border-0 bg-transparent cursor-pointer text-xs font-bold transition-colors duration-300 ${active ? 'text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                            >
+                                {LANG_NAMES[id]}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
     const sizeCls = floating
         ? 'h-10 min-w-[2.75rem] px-2 rounded-lg'
         : size === 'lg' ? 'min-h-[44px] min-w-[52px] px-3 rounded-md' : 'px-2.5 py-1.5 rounded-md';
@@ -237,5 +267,6 @@ export function LangSwitch({ variant = 'bar', size = 'sm' }) {
 }
 
 export function FloatingLangSwitch() {
-    return <LangSwitch variant="floating" />;
+    const shown = useLanguageSwitch();
+    return shown ? <LangSwitch variant="floating" /> : null;
 }

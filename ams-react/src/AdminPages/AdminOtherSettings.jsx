@@ -23,6 +23,7 @@ import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import CctvPanel from './settings/CctvPanel';
 import MinorsPanel from './settings/MinorsPanel';
 import GlassModePanel from './settings/GlassModePanel';
+import LanguagePanel from './settings/LanguagePanel';
 import HomePagePanel from './settings/HomePagePanel';
 import AdminContractEditor from './AdminContractEditor';
 import LoadError from '../Components/admin/ui/LoadError';
@@ -190,7 +191,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure rent policies, contract end, parking, contact and payment details, notifications, maintenance, the Home and Preview pages and Glass theme, floor rates, and building rules.
+                Configure rent policies, contract end, parking, contact and payment details, notifications, maintenance, the Home and Preview pages, Glass theme and language switch, floor rates, and building rules.
               </p>
             </div>
 
@@ -311,6 +312,9 @@ const AdminOtherSettings = () => {
                 </div>
                 <div data-tab="glass-mode" hidden={activeTab !== 'glass-mode'} className="space-y-6">
                   <GlassModePanel {...panelProps} savedBgImage={savedSettings?.glassBgImage ?? ''} />
+                </div>
+                <div data-tab="language" hidden={activeTab !== 'language'} className="space-y-6">
+                  <LanguagePanel {...panelProps} />
                 </div>
                 <div data-tab="home-page" hidden={activeTab !== 'home-page'} className="space-y-6">
                   <HomePagePanel {...panelProps} />

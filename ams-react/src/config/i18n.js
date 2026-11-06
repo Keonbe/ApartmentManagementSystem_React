@@ -2595,8 +2595,20 @@ const translations = {
 
 // --- Core functions ---
 
+// Other Settings → Language can turn the EN / FIL switch off. Then every page
+// shows English, but the tenant's saved choice is kept for when it comes back.
+let englishOnly = false;
+
 export function getLang() {
-  return localStorage.getItem('ams_lang') || 'en';
+  return englishOnly ? 'en' : (localStorage.getItem('ams_lang') || 'en');
+}
+
+// Called by useLanguageSwitch() once the setting has loaded.
+export function setEnglishOnly(on) {
+  if (englishOnly === on) return;
+  const before = getLang();
+  englishOnly = on;
+  if (getLang() !== before) window.dispatchEvent(new CustomEvent('ams_lang_changed', { detail: getLang() }));
 }
 
 export function setLang(lang) {
@@ -2628,7 +2640,8 @@ export function useLang() {
   const [lang, setLangState] = useState(getLang);
 
   useEffect(() => {
-    const handler = (e) => setLangState(e.detail || getLang());
+    // getLang(), not e.detail: while the switch is off a stored choice stays English.
+    const handler = () => setLangState(getLang());
     window.addEventListener('ams_lang_changed', handler);
     return () => window.removeEventListener('ams_lang_changed', handler);
   }, []);
