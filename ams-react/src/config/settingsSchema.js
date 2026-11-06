@@ -61,7 +61,8 @@ export const SETTINGS_SCHEMA = [
   // (Admin → Edit Contract, backend/contract_template.php).
   { key: 'roomPreviewMode', db: 'room_preview_mode', type: 'enum', values: ['images', 'floor_plan'], default: 'images' }, // public room preview
   { key: 'maxOccupantsPerUnit', db: 'max_occupants_per_unit', type: 'int', default: 8 },              // main tenant + household members
-  { key: 'occupantSurchargePerPerson', db: 'occupant_surcharge_per_person', type: 'float', default: 1000, min: 0, readOnly: true }, // added to the rent for each occupant above 4
+  { key: 'occupantSurchargePerPerson', db: 'occupant_surcharge_per_person', type: 'float', default: 1000, min: 0 }, // added to the rent for each occupant above includedOccupants
+  { key: 'includedOccupants', db: 'included_occupants', type: 'int', default: 4, min: 1 },          // people the room rate covers; more (up to maxOccupantsPerUnit) pay the charge above
 
   // Notification channels. Both switches ship off: email needs SMTP credentials
   // and SMS costs money and needs a carrier-registered sender ID. The 'log'

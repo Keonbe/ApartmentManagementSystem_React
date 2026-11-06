@@ -9,6 +9,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from './form/FieldError';
 import { invalidCls } from './form/formHelpers';
+import { DEFAULT_OCCUPANCY, occupancyExtra } from '../utils/occupancy';
 
 const EMPTY = { fullName: '', relationship: '', contactNo: '', age: '' };
 
@@ -21,7 +22,7 @@ const initials = (name) => String(name || '?').trim().split(/\s+/).filter(Boolea
 // dialog (`addOpen`, lifted so Important info can open it too). Adding or
 // removing someone is a request that management approves. To replace someone,
 // request the removal and the addition.
-export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddOpenChange, monthlyRent = 0, surchargePerPerson = 0 }) {
+export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddOpenChange, monthlyRent = 0, occupancy = DEFAULT_OCCUPANCY }) {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -125,10 +126,11 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
   const SEAT = { named: 'bg-indigo-600', queued: 'bg-amber-400', free: 'bg-slate-200' };
   // What approving one more person does to the rent, as process_tenant_request.php
   // counts it: a named person fills a place already paid for; past that, the
-  // count rises and every person above 4 adds the surcharge (apply_occupant_count()).
+  // count rises and every person above the included number adds the charge
+  // (apply_occupant_count(), occupant_surcharge()).
   const countAfter = Math.max(data.occupants, named + queued + 1);
-  const extraPeople = Math.max(0, countAfter - 4) - Math.max(0, data.occupants - 4);
-  const rentRise = extraPeople * surchargePerPerson;
+  const rentRise = occupancyExtra(occupancy, countAfter) - occupancyExtra(occupancy, data.occupants);
+  const surchargePerPerson = occupancy.fee;
   const peso = (n) => `₱${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
@@ -316,11 +318,11 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
                   </p>
                   <p className="m-0 mt-1 text-slate-700">
                     {rentRise > 0
-                      ? `This makes ${countAfter} occupants. Up to 4 are included in your rent, and each person above 4 adds ${peso(surchargePerPerson)}. Once management approves, your rent becomes ${peso(monthlyRent + rentRise)} a month on the bills issued after that.`
+                      ? `This makes ${countAfter} occupants. Up to ${occupancy.included} are included in your rent, and each person above ${occupancy.included} adds ${peso(surchargePerPerson)}. Once management approves, your rent becomes ${peso(monthlyRent + rentRise)} a month on the bills issued after that.`
                       : countAfter === data.occupants
                         ? `Your room is already registered for ${data.occupants} people, so naming them fills a place you pay for.`
                         : surchargePerPerson > 0
-                          ? `This makes ${countAfter} occupants. Up to 4 people are included in your rent.`
+                          ? `This makes ${countAfter} occupants. Up to ${occupancy.included} people are included in your rent.`
                           : 'There is no extra charge per person.'}
                   </p>
                 </div>

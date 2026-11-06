@@ -17,10 +17,10 @@ import InlineAlert from '../Components/InlineAlert';
 import useDialog from '../hooks/useDialog';
 import { useRoomStatus } from '../config/tenantHome';
 import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
+import { occupancyFrom, occupancyExtra, occupancyRuleText } from '../utils/occupancy';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
 
 const GENDERS = ['Male', 'Female', 'Other'];
-const MAX_OCCUPANTS = 8;
 const MAX_MONTHS = 24;
 // rent_applications.previous_address; rent_application.php checks the same range.
 const ADDRESS_MIN = 5;
@@ -33,9 +33,8 @@ const LABEL_CLS = "text-sm font-bold text-slate-700 select-none";
 // Rent, room type and the occupant rules come from the room list and Settings
 // (rent_application.php takes the rent from the room itself). A hardcoded
 // price per room letter and "Studio" used to show until, or instead of, them.
-// Above this many occupants each extra person adds the per-person surcharge
-// (config.php apply_occupant_count()).
-const SURCHARGE_FROM_OCCUPANTS = 4;
+// The occupant rules (included in the rent, charge per extra person, maximum)
+// are Settings → Rental, read through utils/occupancy.js.
 
 // The unsent form is kept per user in sessionStorage (not localStorage), so a
 // phone number never outlives the browser tab on a shared computer. Documents
@@ -180,13 +179,13 @@ export default function RentApplication() {
     const [minMonths, setMinMonths] = useState(1);
     // Settings → Rental → Earliest / Latest Move-In Date (rent_application.php enforces it too).
     const [moveInWindow, setMoveInWindow] = useState(MOVE_IN_WINDOW_DEFAULT);
-    // Settings → Rental → Maximum Occupants per Unit, and the per-person surcharge.
-    const [maxOccupants, setMaxOccupants] = useState(MAX_OCCUPANTS);
-    const [surchargePerPerson, setSurchargePerPerson] = useState(null);
+    // Settings → Rental → occupants included in the rent, the charge per extra
+    // person and Maximum Occupants per Unit.
+    const [occupancy, setOccupancy] = useState(() => occupancyFrom(null));
+    const maxOccupants = occupancy.max;
     useEffect(() => {
         getSystemSettings().then(s => {
-            setMaxOccupants(s.maxOccupantsPerUnit || MAX_OCCUPANTS);
-            setSurchargePerPerson(s.occupantSurchargePerPerson);
+            setOccupancy(occupancyFrom(s));
             setMinMonths(Math.min(MAX_MONTHS, s.minLeaseDuration || 1));
             setMoveInWindow({ min: s.moveInMinDays ?? MOVE_IN_WINDOW_DEFAULT.min, max: s.moveInMaxDays || MOVE_IN_WINDOW_DEFAULT.max });
         });
@@ -261,8 +260,7 @@ export default function RentApplication() {
     const baseRent = selectedRoom?.rent != null ? Number(selectedRoom.rent)
         : isEditing && Number(editApp.monthly_rent) ? Number(editApp.monthly_rent)
         : null;
-    const extraOccupants = Math.max(0, (Number(occupants) || 0) - SURCHARGE_FROM_OCCUPANTS);
-    const surcharge = extraOccupants * (surchargePerPerson ?? 0);
+    const surcharge = occupancyExtra(occupancy, occupants);
     const monthlyRent = baseRent === null ? null : baseRent + surcharge;
 
     // The room list gives the rate and type, also when editing (the unit stays fixed).
@@ -413,11 +411,8 @@ export default function RentApplication() {
         if (value === '') { setOccupants(''); return; }
         const num = parseInt(value, 10);
         if (isNaN(num)) return;
-        if (num > maxOccupants) {
-            form.setFieldError('occupants', `At most ${maxOccupants} people can live in one room.`);
-        } else if (num >= 1) {
-            setOccupants(num);
-        }
+        // Kept inside 1 to the maximum, like Months of Rent below.
+        setOccupants(Math.min(maxOccupants, Math.max(1, num)));
     };
 
     const handleMonthsInput = (e) => {
@@ -748,7 +743,7 @@ export default function RentApplication() {
                                 <div className="flex flex-col">
                                     <div className="flex items-center justify-between h-7 mb-2">
                                         <label htmlFor="rent-occupants" className={LABEL_CLS}>
-                                            {t('rent.occupants')} {form.errors.occupants && <span className="text-rose-500 ml-0.5">*</span>}
+                                            {t('rent.occupants', { max: maxOccupants })} {form.errors.occupants && <span className="text-rose-500 ml-0.5">*</span>}
                                         </label>
                                     </div>
                                     <input
@@ -773,7 +768,7 @@ export default function RentApplication() {
                                             <FieldError id="rent-occupants" error={form.errors.occupants} className="m-0" />
                                         ) : (
                                             <p className="m-0 text-xs text-indigo-600 font-semibold leading-relaxed">
-                                                {t('rent.occupantsSurcharge')}
+                                                {occupancyRuleText(t, occupancy)}
                                             </p>
                                         )}
                                     </div>

@@ -4563,9 +4563,30 @@ function household_active_count($conn, $app_id) {
     return $count;
 }
 
+// Settings -> Rental: how many people the room rate covers (included_occupants,
+// default 4) and the monthly charge for each person above that
+// (occupant_surcharge_per_person, default 1000). Maximum Occupants per Unit
+// caps the total, so with 4 included and a maximum of 6, two people are paid.
+const INCLUDED_OCCUPANTS_DEFAULT = 4;
+function occupant_pricing($conn) {
+    $included = get_setting($conn, 'included_occupants', null);
+    $included = ($included !== null && ctype_digit((string)$included) && (int)$included >= 1 && (int)$included <= 20)
+        ? (int)$included : INCLUDED_OCCUPANTS_DEFAULT;
+    $fee = get_setting($conn, 'occupant_surcharge_per_person', null);
+    $fee = ($fee !== null && is_numeric($fee) && (float)$fee >= 0) ? (float)$fee : 1000.0;
+    return ['included' => $included, 'fee' => $fee];
+}
+
+// The monthly extra for $occupants people (0 up to the included number).
+function occupant_surcharge($conn, $occupants) {
+    $p = occupant_pricing($conn);
+    return max(0, (int)$occupants - $p['included']) * $p['fee'];
+}
+
 // Sets a lease's occupant count and recalculates its rent: the room's base rate
-// plus the per-person surcharge above 4. rooms.monthly_rent (the catalog rate)
-// is never written here. Returns the new monthly rent, or null if not found.
+// plus occupant_surcharge() for the people above the included number.
+// rooms.monthly_rent (the catalog rate) is never written here. Returns the new
+// monthly rent, or null if not found.
 function apply_occupant_count($conn, $app_id, $occupants) {
     $stmt = $conn->prepare("SELECT ra.room_name, r.monthly_rent AS base_rent FROM rent_applications ra LEFT JOIN rooms r ON r.id = ra.room_name WHERE ra.id = ?");
     $stmt->bind_param("i", $app_id);
@@ -4575,9 +4596,7 @@ function apply_occupant_count($conn, $app_id, $occupants) {
     if (!$app) return null;
 
     $base_rent = $app['base_rent'] !== null ? (float)$app['base_rent'] : 4000;
-    $setting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'occupant_surcharge_per_person'")->fetch_assoc();
-    $surcharge = $setting ? (float)$setting['setting_value'] : 1000;
-    $new_rent = $base_rent + ($occupants > 4 ? ($occupants - 4) * $surcharge : 0);
+    $new_rent = $base_rent + occupant_surcharge($conn, $occupants);
 
     $upd = $conn->prepare("UPDATE rent_applications SET occupants = ?, monthly_rent = ? WHERE id = ?");
     $upd->bind_param("idi", $occupants, $new_rent, $app_id);

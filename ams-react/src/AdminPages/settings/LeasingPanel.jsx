@@ -80,11 +80,49 @@ export default function LeasingPanel({ settings, updateSetting }) {
             </WithUnit>
           </Field>
 
+          {/* Occupancy: the room rate covers `included` people; each one above
+              adds the charge, up to the maximum (config.php occupant_surcharge()). */}
+          <Field label="Occupants Included in the Rent" htmlFor="setting-includedOccupants" icon={faUsers} hint="How many people the room's monthly rate covers. Each person above this pays the extra charge below.">
+            <WithUnit suffix="people">
+              <input {...intInput(settings, updateSetting, 'includedOccupants', 1, 20)} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+
+          <Field label="Charge per Extra Person" htmlFor="setting-occupantSurchargePerPerson" icon={faUsers} hint="Added to the monthly rent for each occupant above the included number. 0 means no charge.">
+            <WithUnit prefix="₱" suffix="/ month">
+              <input
+                id="setting-occupantSurchargePerPerson"
+                name="occupantSurchargePerPerson"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={100000}
+                step="0.01"
+                required
+                value={settings.occupantSurchargePerPerson}
+                onChange={(e) => updateSetting('occupantSurchargePerPerson', numberValue(e))}
+                className={`${INPUT_NUMBER} w-32`}
+              />
+            </WithUnit>
+          </Field>
+
           <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Main tenant plus household members. Applications, inquiries and occupant requests above this are refused.">
             <WithUnit suffix="people">
               <input {...intInput(settings, updateSetting, 'maxOccupantsPerUnit', 1, 20)} className={`${INPUT_NUMBER} w-24`} />
             </WithUnit>
           </Field>
+
+          <Callout tone="slate" icon={faUsers} title="Occupancy for tenants">
+            {(() => {
+              const max = Number(settings.maxOccupantsPerUnit) || 0;
+              const included = Math.min(Number(settings.includedOccupants) || 0, max);
+              const paid = Math.max(0, max - included);
+              const fee = Number(settings.occupantSurchargePerPerson) || 0;
+              return paid > 0 && fee > 0
+                ? `${included} included in the rent + ${paid} more at ₱${fee.toLocaleString()} a month each, ${max} at most. Tenants see this on the application, inquiry and My Room pages.`
+                : `Up to ${max} people, all included in the rent.`;
+            })()}
+          </Callout>
 
           <Field label="Public Room Preview" icon={faImage} hint="What visitors see when they preview a unit on the public page.">
             <select

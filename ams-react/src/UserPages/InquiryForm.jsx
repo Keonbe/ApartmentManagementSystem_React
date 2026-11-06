@@ -19,11 +19,11 @@ import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
 import { useChat } from '../context/ChatContext';
 import { formatAvailable } from '../utils/availableDate';
 import { usePublicSettings } from '../config/publicSettings';
+import { occupancyFrom, occupancyRuleText, occupancyExtraText } from '../utils/occupancy';
 import Collapsible from '../Components/tenant/Collapsible';
 import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 
-// Until the settings arrive (Settings → Rental; the shipped defaults).
-const DEFAULT_MAX_OCCUPANTS = 8;
+// Until the settings arrive (Settings → Rental; the shipped default).
 const DEFAULT_MOVE_IN_MONTHS = 6;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
 
@@ -139,10 +139,12 @@ export default function InquiryForm() {
         fetchRooms();
     }, []);
 
-    // Settings → Rental: Maximum Occupants per Unit and Inquiry Move-In Date.
+    // Settings → Rental: occupants included in the rent, the charge per extra
+    // person, Maximum Occupants per Unit and Inquiry Move-In Date.
     // submit_inquiry.php checks the same limits.
     const publicSettings = usePublicSettings();
-    const maxOccupants = publicSettings?.maxOccupantsPerUnit || DEFAULT_MAX_OCCUPANTS;
+    const occupancy = occupancyFrom(publicSettings);
+    const maxOccupants = occupancy.max;
     const moveInMonths = publicSettings?.inquiryMoveInMaxMonths || DEFAULT_MOVE_IN_MONTHS;
     const latestMoveIn = addMonths(moveInMonths);
     const latestMoveInText = new Date(`${latestMoveIn}T00:00:00`).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' });
@@ -166,6 +168,16 @@ export default function InquiryForm() {
     const setters = { full_name: setFullName, email: setEmail, room_name: setRoomName, occupants: setOccupants, preferred_move_in: setMoveIn, message: setMessage };
 
     const change = (name) => (e) => { setters[name](e.target.value); form.clearError(name); };
+    // Like Months of Rent on the application: what is typed is kept inside
+    // 1 to the maximum, so 1111111 becomes the maximum instead of an error.
+    const changeOccupants = (e) => {
+        form.clearError('occupants');
+        const value = e.target.value;
+        if (value === '') { setOccupants(''); return; }
+        const num = parseInt(value, 10);
+        if (Number.isNaN(num)) return;
+        setOccupants(String(Math.min(maxOccupants, Math.max(1, num))));
+    };
     const blur = (name) => () => {
         const raw = values[name];
         const v = name === 'email' ? normalizeEmail(raw) : (name === 'full_name' || name === 'message') ? String(raw).trim() : raw;
@@ -415,12 +427,17 @@ export default function InquiryForm() {
                             step="1"
                             value={occupants}
                             onKeyDown={blockNonIntegerKeys}
-                            onChange={change('occupants')}
+                            onChange={changeOccupants}
                             onBlur={blur('occupants')}
                             placeholder={t('inquiry.occupantsPlaceholder')}
                             className={inputClass + invalidCls(form.errors.occupants)}
                         />
-                        {!form.errors.occupants && <p className="m-0 text-xs text-slate-500">{t('inquiry.occupantsHint', { max: maxOccupants })}</p>}
+                        {!form.errors.occupants && (
+                            <p className="m-0 text-xs text-slate-500">
+                                {occupancyRuleText(t, occupancy)}
+                                {occupancyExtraText(t, occupancy, occupants) && <strong className="block mt-0.5 text-amber-700">{occupancyExtraText(t, occupancy, occupants)}</strong>}
+                            </p>
+                        )}
                         <FieldError id="inquiry-occupants" error={form.errors.occupants} className="m-0" />
                     </div>
 

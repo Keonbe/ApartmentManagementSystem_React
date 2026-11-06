@@ -103,6 +103,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 | 99 | Inquiry page polish | UI/UX | No emoji in the heading or the phone rules summary, chevron on "Continue your conversation" and the phone rules card, skeleton for the house rules and unit list, sections rise in | In progress | Low | 2026-11-07 | — |
 | 100 | Home backdrop fixes | Bug fix | The darkening layer stopped at the see-through TopBar's edge (a hard line); phones darkened the photo to 70-90 %, the opposite of desktop | In progress | Low | 2026-11-07 | — |
 | 101 | Inquiry occupants and move-in limits | Bug fix | Send an Inquiry: occupants follow Maximum Occupants per Unit (was a fixed 20, and "abc" / "1e3" were cast), move-in date from today to N months ahead (new Settings → Rental "Inquiry Move-In Date", default 6; 2030 and past dates were accepted); per-field errors | In progress | Medium | 2026-11-07 | — |
+| 102 | Occupants included in the rent | Feature | Settings → Rental: "Occupants Included in the Rent" (default 4) and an editable "Charge per Extra Person" (₱1,000) beside the maximum; rent, application, inquiry, My Room and Household use them instead of a hardcoded 4 and show "4 included + 2 paid"; the inquiry and application occupant boxes clamp what is typed | In progress | Medium | 2026-11-07 | — |
 
 ## Open
 

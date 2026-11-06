@@ -223,7 +223,7 @@ if ($id > 0 && !empty($status)) {
                 $monthly_rent = (double)$app['monthly_rent'];
                 $occupants = (int)$app['occupants'];
                 
-                // Enforce the occupant capacity surcharge of ₱1,000/person exceeding 4 occupants.
+                // Enforce the per-person charge above the included occupants (Settings -> Rental, occupant_surcharge()).
                 // The base rate is read live from rooms.monthly_rent (the admin-configurable
                 // rate set via update_room.php) rather than a hardcoded per-letter table, so
                 // this floor always tracks whatever the admin has actually priced the unit at.
@@ -234,9 +234,7 @@ if ($id > 0 && !empty($status)) {
                 $room_rate_row = $room_rate_stmt->get_result()->fetch_assoc();
                 $room_rate_stmt->close();
                 $base_room_rent = $room_rate_row ? (float)$room_rate_row['monthly_rent'] : 4000.00;
-                $occupant_surcharge_setting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'occupant_surcharge_per_person'")->fetch_assoc();
-                $occupant_surcharge = $occupant_surcharge_setting ? (float)$occupant_surcharge_setting['setting_value'] : 1000.00;
-                $expected_rent = $base_room_rent + ($occupants > 4 ? ($occupants - 4) * $occupant_surcharge : 0);
+                $expected_rent = $base_room_rent + occupant_surcharge($conn, $occupants);
                 if ($monthly_rent < $expected_rent) {
                     $monthly_rent = $expected_rent;
                 }

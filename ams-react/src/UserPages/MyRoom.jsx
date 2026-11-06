@@ -21,7 +21,6 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
 
-const MAX_OCCUPANTS = 8;
 const MAX_EXTENSION_MONTHS = 12;
 // Defaults for the move-out notice window; the live values come from Settings → Rental (record_move_out.php enforces them too).
 const DEFAULT_MOVE_OUT_MIN_DAYS = 15;
@@ -29,6 +28,7 @@ const DEFAULT_MOVE_OUT_MAX_DAYS = 30;
 import { getSystemSettings } from '../config/systemSettings';
 import { useLang, dateLocale } from '../config/i18n';
 import { formatAvailable } from '../utils/availableDate';
+import { occupancyFrom, occupancyRuleText, occupancyExtraText } from '../utils/occupancy';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
 export default function MyRoom() {
@@ -41,17 +41,16 @@ export default function MyRoom() {
     const { t } = useLang();
     // Move-out notice window in days from today (Settings → Rental).
     const [moveOutNotice, setMoveOutNotice] = useState({ min: DEFAULT_MOVE_OUT_MIN_DAYS, max: DEFAULT_MOVE_OUT_MAX_DAYS });
-    // Settings → Rental → Maximum Occupants per Unit, and the per-person
-    // surcharge above 4 (both were hardcoded as 8 and ₱1,000).
-    const [maxOccupants, setMaxOccupants] = useState(MAX_OCCUPANTS);
-    const [surchargePerPerson, setSurchargePerPerson] = useState(1000);
+    // Settings → Rental → occupants included in the rent, the charge per extra
+    // person and Maximum Occupants per Unit (were hardcoded as 4, ₱1,000 and 8).
+    const [occupancy, setOccupancy] = useState(() => occupancyFrom(null));
+    const maxOccupants = occupancy.max;
     useEffect(() => {
         let alive = true;
         getSystemSettings().then((s) => {
             if (!alive) return;
             setMoveOutNotice({ min: s.moveOutMinNoticeDays || DEFAULT_MOVE_OUT_MIN_DAYS, max: s.moveOutMaxNoticeDays || DEFAULT_MOVE_OUT_MAX_DAYS });
-            setMaxOccupants(s.maxOccupantsPerUnit || MAX_OCCUPANTS);
-            setSurchargePerPerson(s.occupantSurchargePerPerson);
+            setOccupancy(occupancyFrom(s));
         });
         return () => { alive = false; };
     }, []);
@@ -524,7 +523,7 @@ export default function MyRoom() {
                             addOpen={addMemberOpen}
                             onAddOpenChange={setAddMemberOpen}
                             monthlyRent={roomDetails.monthlyRent}
-                            surchargePerPerson={surchargePerPerson}
+                            occupancy={occupancy}
                         />
                     )}
                     {!movedOut && household?.hasLease !== false && <HouseRulesCard data={household} onViewAll={() => setRulesOpen(true)} />}
@@ -559,8 +558,8 @@ export default function MyRoom() {
                                         required
                                     />
                                     <p className="m-0 text-sm text-slate-600">
-                                        {surchargePerPerson > 0 ? `Each person above 4 adds ₱${surchargePerPerson.toLocaleString()} a month.` : 'There is no extra charge per person.'}
-                                        {occupants > 4 && surchargePerPerson > 0 && <strong className="text-amber-800"> With {occupants}: +₱{((occupants - 4) * surchargePerPerson).toLocaleString()} a month.</strong>}
+                                        {occupancyRuleText(t, occupancy)}
+                                        {occupancyExtraText(t, occupancy, occupants) && <strong className="text-amber-800"> {occupancyExtraText(t, occupancy, occupants)}</strong>}
                                     </p>
                                     <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
                                     <button type="submit" disabled={!!busy} className={`${BTN_PRIMARY} justify-self-start`}>
