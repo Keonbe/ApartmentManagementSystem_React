@@ -95,7 +95,12 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 | 64 | Per-field server validation | Feature | `validation_fail` + `v_*` helpers in config.php on 16 endpoints, `input_validation.test.js`. Uncommitted | In progress | Medium | 2026-10-31 | — |
 | 65 | Inquiries as chat (guest thread) | Feature | Emailed one-time links (`guest_chat_resume.php`, `guest_chat_links`), reply emails, end chat on this device, verified labels, token leak closed (#25). Uncommitted | In progress | Medium | 2026-10-31 | — |
 | 66 | Browser pass fixes | Bug fix | Refund pages reload after a refused action, visitor walk-in dialog cut off on short screens, ReasonModal shows the server reason. Uncommitted | In progress | Medium | 2026-10-31 | — |
-| 94 | Language switch in the account menu, admin on/off | Feature | Signed-in users pick English / Filipino in the account menu (guests keep it on the bar); Other Settings → Language hides the switch everywhere and shows English (`language_switch_enabled`). Uncommitted | In progress | Low | 2026-11-06 | — |
+| 94 | Language switch in the account menu, admin on/off | Feature | Signed-in users pick English / Filipino in the account menu (guests keep it on the bar); Other Settings → Language hides the switch everywhere and shows English (`language_switch_enabled`) (`13312f8`) | Done | Low | 2026-11-06 | 2026-11-06 |
+| 95 | QR Ph crop and 3 slots | Feature | Payment Options: a picked QR image opens a square cropper (drag, zoom, arrow keys; crop or upload as is); 3 slots instead of 5 (`QRPH_SLOT_COUNT`), older slot data trimmed on save, checkout falls back to slot 1. Uncommitted | In progress | Medium | 2026-11-06 | — |
+| 96 | Payment History and My Refunds polish | UI/UX | Skeleton loading, sections rise in, cancelled bills (and My Requests' closed list) get a turning chevron and fade in | In progress | Low | 2026-11-06 | — |
+| 97 | Announcements on the TopBar | UI/UX | Tenant TopBar link; the Announcements card is gone from Services and from the admin Services page | In progress | Low | 2026-11-06 | — |
+| 98 | Service appearance icon grid scroll | Bug fix | Admin Customize Look dialog: the icon grid had its own scroll box inside the scrolling dialog; now only the dialog scrolls | In progress | Low | 2026-11-06 | — |
+| 99 | Inquiry page polish | UI/UX | No emoji in the heading or the phone rules summary, chevron on "Continue your conversation" and the phone rules card, skeleton for the house rules and unit list, sections rise in | In progress | Low | 2026-11-07 | — |
 
 ## Open
 

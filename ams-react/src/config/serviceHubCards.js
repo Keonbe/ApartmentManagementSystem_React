@@ -12,8 +12,8 @@ export const SERVICE_HUB_CARDS = [
     { id: 'visitor-management', key: 'service_visitor_management_active', i18n: 'services.visitors', path: '/visitor-management', tagKey: 'services.tag.access' },
     { id: 'addons', key: null, i18n: 'services.addons', path: '/service-catalog', tagKey: 'services.tag.addons' },
     { id: 'my-requests', key: null, i18n: 'services.myRequests', path: '/my-requests', tagKey: 'services.tag.tracking' },
-    { id: 'announcements', key: null, i18n: 'services.announcements', path: '/announcements', tagKey: 'services.tag.notices' },
-    // Payment History is in the account area (Profile Settings side menu), not here.
+    // Payment History is in the account area (Profile Settings side menu) and
+    // Announcements is a TopBar link, so neither is a card here.
 ];
 
 export const SERVICE_HUB_CARD_BY_ID = Object.fromEntries(SERVICE_HUB_CARDS.map((c) => [c.id, c]));

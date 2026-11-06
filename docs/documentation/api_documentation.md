@@ -1174,7 +1174,7 @@ Endpoints added or split out after the modules above were written (verified agai
 | `POST` [upload_glass_background.php](../../backend/api/upload_glass_background.php) | admin | multipart `background` (content-checked, 640-8000 px) | `{image_path, backgrounds[]}` | file kept in a rolling list; goes live only when settings are saved; log `system` |
 | `POST` [upload_preview_image.php](../../backend/api/upload_preview_image.php) | admin | multipart `image` | same | same, for the Preview hero |
 | `POST` [delete_glass_background.php](../../backend/api/delete_glass_background.php) | admin | `path`, `kind` | `{backgrounds}`; 409 it is the live photo; 422 | deletes the file; log `system` |
-| `POST` [upload_qr_image.php](../../backend/api/upload_qr_image.php) | admin | multipart `slot` (1-5), `qr_image` (JPG/PNG/WEBP/GIF, 5 MB) | `{image_path, slot}`; 422 | file in `qr_codes/`; the path is saved with the settings; log `payment` |
+| `POST` [upload_qr_image.php](../../backend/api/upload_qr_image.php) | admin | multipart `slot` (1-3, `QRPH_SLOT_COUNT`), `qr_image` (JPG/PNG/WEBP/GIF, 5 MB; Payment Options crops it to a square PNG in the browser first, or sends it as is) | `{image_path, slot}`; 422 | file in `qr_codes/`; the path is saved with the settings; log `payment` |
 
 > `auth_email.php` is a helper (`send_auth_email()`, not an endpoint). `apply_live_schema_fix.php`, `audit_live_schema.php`, `final_schema_patch.php` and `sync_live.php` are CLI-only schema scripts that answer 403 over HTTP; they are one-offs superseded by `cron/migrate.php` and candidates for removal.
 

@@ -179,8 +179,8 @@ export default function ServiceAppearanceModal({
                             </div>
                         </div>
 
-                        {/* Icon Selection Grid */}
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 max-h-56 overflow-y-auto p-1 border border-slate-100 rounded-xl bg-slate-50/50">
+                        {/* Icon Selection Grid: full height, so only the dialog's body scrolls (no scroll area inside a scroll area). */}
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 p-1 border border-slate-100 rounded-xl bg-slate-50/50">
                             {filteredIcons.map((item) => {
                                 const isSelected = selectedIcon === item.id;
                                 return (

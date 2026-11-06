@@ -32,6 +32,7 @@ $sandbox_enabled = ($sandbox_master === '1' || $sandbox_master === 'true' || $mo
 $raw_slots = $settings['qrph_slots'] ?? '[]';
 $slots = json_decode($raw_slots, true);
 $active_slot_id = (int)($settings['qrph_active_slot'] ?? 1);
+if ($active_slot_id < 1 || $active_slot_id > QRPH_SLOT_COUNT) $active_slot_id = 1; // left from the 5-slot list
 $active_qr = null;
 if (is_array($slots)) {
     foreach ($slots as $slot) {

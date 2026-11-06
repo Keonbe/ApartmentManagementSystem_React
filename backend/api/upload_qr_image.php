@@ -20,9 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $admin_id = require_admin($conn);
 
 $slot = isset($_POST['slot']) ? (int)$_POST['slot'] : 1;
-if ($slot < 1 || $slot > 5) {
+if ($slot < 1 || $slot > QRPH_SLOT_COUNT) {
     http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Slot number must be between 1 and 5."]);
+    echo json_encode(["success" => false, "message" => "Slot number must be between 1 and " . QRPH_SLOT_COUNT . "."]);
     exit;
 }
 

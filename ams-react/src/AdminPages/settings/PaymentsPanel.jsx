@@ -9,6 +9,8 @@ import { LIMITS } from '../../utils/validation';
 import { blockNonIntegerKeys, numberValue } from '../../Components/form/formHelpers';
 import api from '../../api/axiosConfig';
 import { publicAssetUrl } from '../../api/fileUrl';
+import ImageCropModal from '../../Components/admin/ImageCropModal';
+import { QRPH_SLOT_COUNT } from '../../config/systemSettings';
 
 
 const PAYMENT_MODES = [
@@ -50,11 +52,14 @@ export default function PaymentsPanel({ settings, updateSetting }) {
 
   const [uploadingSlot, setUploadingSlot] = useState(null);
   const [qrUploadError, setQrUploadError] = useState('');
+  // The image picked for a slot, waiting in the crop dialog: { slot, file, url }.
+  const [cropping, setCropping] = useState(null);
+  const slotNums = Array.from({ length: QRPH_SLOT_COUNT }, (_, i) => i + 1);
 
-  // 5 slots guarantee: slots 1 to 5
+  // Always QRPH_SLOT_COUNT slots; ones stored above that (the old 5-slot list) are dropped on save.
   const slotsList = useMemo(() => {
     const existing = Array.isArray(settings.qrphSlots) ? settings.qrphSlots : [];
-    return [1, 2, 3, 4, 5].map((num) => {
+    return Array.from({ length: QRPH_SLOT_COUNT }, (_, i) => i + 1).map((num) => {
       const found = existing.find((s) => Number(s.slot) === num);
       return found || {
         slot: num,
@@ -66,7 +71,9 @@ export default function PaymentsPanel({ settings, updateSetting }) {
     });
   }, [settings.qrphSlots]);
 
-  const activeSlotNum = Number(settings.qrphActiveSlot || 1);
+  // A slot above the count (from the old 5-slot list) shows as slot 1 until one is picked.
+  const storedActive = Number(settings.qrphActiveSlot || 1);
+  const activeSlotNum = storedActive >= 1 && storedActive <= QRPH_SLOT_COUNT ? storedActive : 1;
 
   const handleSlotFieldChange = (slotNum, field, value) => {
     const updated = slotsList.map((s) => (s.slot === slotNum ? { ...s, [field]: value } : s));
@@ -76,6 +83,15 @@ export default function PaymentsPanel({ settings, updateSetting }) {
   const handleRemoveQr = (slotNum) => {
     const updated = slotsList.map((s) => (s.slot === slotNum ? { ...s, image_path: '' } : s));
     updateSetting('qrphSlots', updated);
+  };
+
+  const openCrop = (slotNum, file) => {
+    setQrUploadError('');
+    setCropping({ slot: slotNum, file, url: URL.createObjectURL(file) });
+  };
+  const closeCrop = () => {
+    if (cropping) URL.revokeObjectURL(cropping.url);
+    setCropping(null);
   };
 
   const handleUploadQr = async (slotNum, file) => {
@@ -98,6 +114,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
       setQrUploadError(err?.response?.data?.message || err.message || 'Failed to upload QR code image.');
     } finally {
       setUploadingSlot(null);
+      closeCrop();
     }
   };
 
@@ -240,12 +257,12 @@ export default function PaymentsPanel({ settings, updateSetting }) {
       <SettingsSection
         icon={faQrcode}
         tone="indigo"
-        title="QR Ph Configuration (5 Static QR Slots)"
-        description="Upload up to 5 static QR Ph codes and select the active one shown to tenants when they pay."
+        title={`QR Ph Configuration (${QRPH_SLOT_COUNT} Static QR Slots)`}
+        description={`Upload up to ${QRPH_SLOT_COUNT} static QR Ph codes, cropped to the code, and select the active one shown to tenants when they pay.`}
       >
         <Callout tone="indigo" icon={faInfoCircle} title="How QR Ph Works">
           QR Ph is the Philippine national QR standard supported by <strong>GCash, Maya, BDO, BPI, UnionBank, Landbank, RCBC</strong>, and other InstaPay/PESONet institutions.
-          You can store up to 5 QR codes here (e.g., primary GCash, backup bank, business account). The slot marked <strong>Active</strong> will be displayed to tenants when they choose QR Ph.
+          You can store up to {QRPH_SLOT_COUNT} QR codes here (e.g., primary GCash, backup bank, business account). The slot marked <strong>Active</strong> will be displayed to tenants when they choose QR Ph.
         </Callout>
 
         {qrUploadError && (
@@ -260,7 +277,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
             <span className="text-xs text-indigo-700">Currently showing Slot #{activeSlotNum} to tenants: <strong>{slotsList.find(s => s.slot === activeSlotNum)?.label || `Slot ${activeSlotNum}`}</strong></span>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {[1, 2, 3, 4, 5].map((num) => {
+            {slotNums.map((num) => {
               const isActive = activeSlotNum === num;
               return (
                 <button
@@ -348,7 +365,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                           disabled={uploadingSlot === slot.slot}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) handleUploadQr(slot.slot, file);
+                            if (file) openCrop(slot.slot, file);
                             e.target.value = '';
                           }}
                         />
@@ -408,6 +425,18 @@ export default function PaymentsPanel({ settings, updateSetting }) {
             );
           })}
         </div>
+
+        {cropping && (
+          <ImageCropModal
+            key={cropping.url}
+            file={cropping.file}
+            url={cropping.url}
+            title={`Crop the QR code for slot ${cropping.slot}`}
+            busy={uploadingSlot === cropping.slot}
+            onCancel={closeCrop}
+            onConfirm={(file) => handleUploadQr(cropping.slot, file)}
+          />
+        )}
       </SettingsSection>
 
       <SettingsSection

@@ -7,6 +7,7 @@ import { RefundForm, RefundTrail, StatusBadge } from '../Components/RefundParts'
 import ConfirmDialog from '../Components/ConfirmDialog';
 import { TYPE_LABELS, peso, when } from '../utils/refundFormat';
 import { useLang } from '../config/i18n';
+import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 
 export default function UserRefunds() {
   const { t } = useLang();
@@ -60,7 +61,7 @@ export default function UserRefunds() {
   return (
     // Inside AccountLayout (App.jsx), which gives the page its width, padding and side menu.
     <div className="w-full">
-      <div className="w-full space-y-6 text-left">
+      <div className="page-enter w-full space-y-6 text-left">
         <div className="border-b border-slate-200 pb-4">
           <h1 className="m-0 flex items-center gap-3 text-3xl font-extrabold tracking-tight sm:text-4xl text-brand">
             <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-2xl text-indigo-500 sm:text-3xl" />
@@ -70,21 +71,49 @@ export default function UserRefunds() {
         </div>
 
         {notice && (
-          <div role="status" className={`rounded-lg border p-3 text-sm font-semibold ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>{notice.text}</div>
+          <div role="status" className={`animate-fade-in rounded-lg border p-3 text-sm font-semibold ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>{notice.text}</div>
         )}
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="m-0 mb-3 text-lg font-bold text-slate-800">{t('refunds.requestTitle')}</h2>
-          <RefundForm eligible={eligible} busy={busy === 'form'}
-            onSubmit={(body, reset) => call('form', 'create_refund_request.php', body, t('refunds.submitted'), reset)} />
+          {/* The form shows what can be refunded, so it waits for the same read as the list. */}
+          {loading ? (
+            <SkeletonGroup label={t('common.loading')} className="space-y-3">
+              <Bone className="h-4 w-2/3" />
+              <Bone className="h-11 w-full rounded-lg" />
+              <Bone className="h-20 w-full rounded-lg" />
+              <Bone className="h-11 w-40 rounded-lg" />
+            </SkeletonGroup>
+          ) : (
+            <div className="animate-fade-in">
+              <RefundForm eligible={eligible} busy={busy === 'form'}
+                onSubmit={(body, reset) => call('form', 'create_refund_request.php', body, t('refunds.submitted'), reset)} />
+            </div>
+          )}
         </section>
 
         <section className="space-y-4">
           <h2 className="m-0 text-lg font-bold text-slate-800">{t('refunds.yourRequests')}</h2>
-          {loading ? <p className="text-sm text-slate-500">{t('common.loading')}</p> : requests.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">{t('refunds.none')}</p>
-          ) : requests.map((r) => (
-            <article key={r.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          {loading ? (
+            <SkeletonGroup label={t('common.loading')} className="space-y-4">
+              {[0, 1].map((i) => (
+                <div key={i} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 space-y-2">
+                      <Bone className="h-4 w-48 max-w-full" />
+                      <Bone className="h-3 w-32" />
+                    </div>
+                    <Bone className="h-6 w-24 rounded-full" />
+                  </div>
+                  <Bone className="h-3 w-full" />
+                  <Bone className="h-3 w-3/4" />
+                </div>
+              ))}
+            </SkeletonGroup>
+          ) : requests.length === 0 ? (
+            <p className="animate-fade-in rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">{t('refunds.none')}</p>
+          ) : requests.map((r, i) => (
+            <article key={r.id} style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }} className="animate-fade-in-up rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="m-0 text-base font-bold text-slate-800">{TYPE_LABELS[r.type] || r.type || t('notifications.type.refund_update')} · {peso(r.amount)}</h3>

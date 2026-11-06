@@ -7,7 +7,7 @@ import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
     faBell, faFileContract,
-    faHome, faCompass, faConciergeBell, faBed, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
+    faHome, faCompass, faConciergeBell, faBed, faBullhorn, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import {
     TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, PAYMENT_WATCH_POLL_MS,
@@ -31,7 +31,7 @@ const MENU_EXIT_MS = 160;
 // Pages reached from the Services page: the Services link stays marked on them.
 const SERVICE_PATHS = [
     '/services', '/pay-bills', '/parking-reservation', '/cctv-request', '/service-catalog', '/service-booking',
-    '/maintenance-request', '/visitor-management', '/user-utilities', '/my-requests', '/announcements',
+    '/maintenance-request', '/visitor-management', '/user-utilities', '/my-requests',
 ];
 
 // Where the desktop link pill last sat. TopBar remounts when the route's
@@ -441,6 +441,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         isLoggedIn && !hasRentedRoom && hasApplication && link('/track-application', t('nav.trackApp'), faFileContract),
         isLoggedIn && hasRentedRoom && link('/my-room', t('nav.myRoom'), faBed),
         isLoggedIn && hasRentedRoom && link('/services', t('nav.services'), faConciergeBell, SERVICE_PATHS),
+        // Announcements has its own link (it was a Services card).
+        isLoggedIn && hasRentedRoom && link('/announcements', t('nav.announcements'), faBullhorn),
         // Payment History and My Refunds live in the account area (Profile Settings side menu).
     ].filter(Boolean);
     // Phones list the rooms page for tenants too, last.

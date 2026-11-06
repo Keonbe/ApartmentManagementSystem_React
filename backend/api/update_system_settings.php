@@ -67,7 +67,7 @@ $SETTING_RULES = [
     'parking_monthly_fee'      => ['type' => 'num', 'min' => 0, 'min_exclusive' => true, 'max' => 100000, 'message' => 'Parking monthly fee must be a positive amount.'],
     // The UI's slider goes 1-168 hours (one week).
     'visitor_overstay_hours'   => ['type' => 'int', 'min' => 1, 'max' => 168, 'message' => 'Visitor overstay threshold must be a whole number between 1 and 168 hours.'],
-    'qrph_active_slot'         => ['type' => 'int', 'min' => 1, 'max' => 5, 'message' => 'Active QR Ph slot must be between 1 and 5.'],
+    'qrph_active_slot'         => ['type' => 'int', 'min' => 1, 'max' => QRPH_SLOT_COUNT, 'message' => 'Active QR Ph slot must be between 1 and ' . QRPH_SLOT_COUNT . '.'],
     'room_preview_mode'        => ['type' => 'enum', 'values' => ['images', 'floor_plan'], 'message' => 'Room preview mode must be images or floor_plan.'],
     'payment_mode'             => ['type' => 'enum', 'values' => ['manual', 'sandbox', 'both'], 'message' => 'Payment mode must be manual, sandbox or both.'],
     'email_driver'             => ['type' => 'enum', 'values' => ['log', 'smtp'], 'message' => 'Email driver must be log or smtp.'],
@@ -219,13 +219,16 @@ foreach ($input as $key => $value) {
     }
     if ($key === 'qrph_slots') {
         $decoded = is_string($value) ? json_decode($value, true) : $value;
+        // Up to 5 entries are still read (a page loaded before the change to
+        // QRPH_SLOT_COUNT sends the old list); slots above the count are dropped.
         if (!is_array($decoded) || count($decoded) > 5) {
-            $refuse("QR Ph slots must be a list of up to 5 slots.");
+            $refuse("QR Ph slots must be a list of up to " . QRPH_SLOT_COUNT . " slots.");
         }
         $clean_slots = [];
         foreach ($decoded as $idx => $s) {
             $slot_num = (int)($s['slot'] ?? ($idx + 1));
             if ($slot_num < 1 || $slot_num > 5) $refuse("Invalid slot number.");
+            if ($slot_num > QRPH_SLOT_COUNT) continue;
             $label = mb_substr(trim((string)($s['label'] ?? '')), 0, 100);
             $image_path = mb_substr(trim((string)($s['image_path'] ?? '')), 0, 255);
             $account_name = mb_substr(trim((string)($s['account_name'] ?? '')), 0, 100);

@@ -153,17 +153,9 @@ const tenantUtilityServices = [
     isLocked: true,
     isActive: true,
   },
-  {
-    id: 'announcements',
-    title: 'Announcements',
-    description: 'Building notice board and memorandum center for active tenants.',
-    price: 'Always',
-    unit: 'enabled',
-    isLocked: true,
-    isActive: true,
-  },
-  // Payment History is no longer a Services card (it is in the tenant's account
-  // side menu), so it has no appearance to customise here.
+  // Payment History (the tenant's account side menu) and Announcements (a link
+  // on the tenant top bar) are no longer Services cards, so they have no
+  // appearance to customise here.
 ];
 
 const CATALOG_CATEGORY_BY_CARD ={ cleaning: 'cleaning', laundry: 'laundry', 'other-services': 'other' };

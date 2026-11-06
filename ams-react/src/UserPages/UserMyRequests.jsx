@@ -7,6 +7,7 @@ import { fileUrl, cctvFootageLinkUrl } from '../api/fileUrl';
 import { useLang, dateLocale } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
 import ConfirmDialog from '../Components/ConfirmDialog';
+import Collapsible from '../Components/tenant/Collapsible';
 import '../assets/styles/responsive/user/user-my-requests.responsive.css';
 
 // A request is closed once it has an outcome; everything else is still in play.
@@ -424,14 +425,15 @@ export default function UserMyRequests() {
                         )}
 
                         {closedRequests.length > 0 && (
-                            <details open={activeRequests.length === 0} className="group">
-                                <summary className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xl font-bold text-slate-900">
-                                    {t('myRequests.closedHeading', { count: closedRequests.length })}
-                                </summary>
+                            <Collapsible
+                                defaultOpen={activeRequests.length === 0}
+                                summary={t('myRequests.closedHeading', { count: closedRequests.length })}
+                                summaryClassName="text-xl font-bold text-slate-900"
+                            >
                                 <ul className={`${SECTION} mt-3`}>
                                     {closedRequests.map(renderRow)}
                                 </ul>
-                            </details>
+                            </Collapsible>
                         )}
                     </>
                 )}

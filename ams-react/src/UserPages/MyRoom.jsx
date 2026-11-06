@@ -428,7 +428,7 @@ export default function MyRoom() {
     return (
         <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-8 sm:py-10 px-4 md:px-12">
 
-            <div className="my-room-enter w-full max-w-5xl z-10 flex flex-col gap-8 text-left">
+            <div className="page-enter w-full max-w-5xl z-10 flex flex-col gap-8 text-left">
                 <header>
                     <h1 className="m-0 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
                         {activeFirstName ? `Welcome back, ${activeFirstName}` : 'Welcome back'}

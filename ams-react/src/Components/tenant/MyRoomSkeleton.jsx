@@ -1,7 +1,8 @@
+import { Bone } from './Skeleton';
+
 // Placeholders shaped like My Room while my_room.php loads, so the page does
 // not jump when the content arrives. Decoration only: the wrapper announces
 // "Loading" once to screen readers.
-const Bone = ({ className = '' }) => <span aria-hidden="true" className={`block rounded-lg bg-slate-200 skeleton-shimmer ${className}`} />;
 
 export function HouseholdSkeleton() {
   return (

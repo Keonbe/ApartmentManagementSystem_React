@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEnvelopeOpenText, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
+import { faChevronDown, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SuccessModal from '../Components/SuccessModal';
 import RulesGroups from '../Components/RulesGroups';
@@ -18,6 +18,8 @@ import { useLang } from '../config/i18n';
 import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
 import { useChat } from '../context/ChatContext';
 import { formatAvailable } from '../utils/availableDate';
+import Collapsible from '../Components/tenant/Collapsible';
+import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 
 const MAX_OCCUPANTS = 20;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
@@ -203,14 +205,21 @@ export default function InquiryForm() {
     const renderHouseRules = () => (
         <>
             {loadingHouseRules ? (
-                <div className="flex items-center gap-2 py-5 text-xs text-slate-500" role="status">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
-                    {t('houseRules.loading')}
-                </div>
+                // Shaped like the rule cards that replace it.
+                <SkeletonGroup label={t('houseRules.loading')} className="space-y-3">
+                    <Bone className="h-3 w-24" />
+                    {[0, 1, 2, 3].map((i) => (
+                        <div key={i} className="rounded-xl bg-slate-50 p-3 space-y-2">
+                            <Bone className="h-3.5 w-1/2" />
+                            <Bone className="h-2.5 w-full" />
+                            <Bone className="h-2.5 w-3/4" />
+                        </div>
+                    ))}
+                </SkeletonGroup>
             ) : houseRulesError ? (
                 <p role="status" className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{houseRulesError}</p>
             ) : houseRules.length > 0 ? (
-                <div className="max-h-[500px] space-y-4 overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-200">
+                <div className="animate-fade-in max-h-[500px] space-y-4 overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-200">
                     <RulesGroups rules={houseRules} compact />
                 </div>
             ) : (
@@ -221,11 +230,10 @@ export default function InquiryForm() {
 
     return (
         <div className="inquiry-root w-full min-h-[calc(100vh-76px)] bg-slate-50 box-border">
-            <div className="max-w-6xl mx-auto px-4 py-6 text-left">
+            <div className="page-enter max-w-6xl mx-auto px-4 py-6 text-left">
                 {/*Page Heading*/}
                 <div className="mb-6">
-                    <h1 className="inquiry-heading flex items-center gap-2 text-2xl font-bold text-slate-800 m-0">
-                        <FontAwesomeIcon icon={faEnvelopeOpenText} />
+                    <h1 className="inquiry-heading text-2xl font-bold text-slate-800 m-0">
                         {t('inquiry.heading')}
                     </h1>
                     <p className="text-sm text-slate-500 mt-1 mb-0">{t('inquiry.subtitle')}</p>
@@ -238,15 +246,18 @@ export default function InquiryForm() {
                             type="button"
                             onClick={() => setResumeOpen((v) => !v)}
                             aria-expanded={resumeOpen}
-                            className="bg-transparent border-0 p-0 cursor-pointer font-semibold text-indigo-700 hover:text-indigo-900"
+                            className="flex w-full items-center justify-between gap-3 min-h-[40px] bg-transparent border-0 p-0 text-left cursor-pointer font-semibold text-indigo-700 hover:text-indigo-900"
                         >
                             {t('inquiry.resumeAsk')}
+                            <span aria-hidden="true" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition-[background-color,rotate] duration-300 ${resumeOpen ? 'rotate-180 bg-indigo-100' : ''}`}>
+                                <FontAwesomeIcon icon={faChevronDown} className="text-xs" />
+                            </span>
                         </button>
                         {resumeMsg && (
                             <p role="status" className={`m-0 mt-2 text-sm ${resumeMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{resumeMsg.text}</p>
                         )}
                         {resumeOpen && (
-                            <form onSubmit={requestResumeLink} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end" noValidate>
+                            <form onSubmit={requestResumeLink} className="animate-fade-in-up mt-3 flex flex-col gap-2 sm:flex-row sm:items-end" noValidate>
                                 <div className="flex-1">
                                     <p className="m-0 mb-2 text-xs text-slate-500">{t('inquiry.resumeHint')}</p>
                                     <label htmlFor="inquiry-resume-email" className={labelClass}>{t('inquiry.resumeEmail')}</label>
@@ -274,10 +285,14 @@ export default function InquiryForm() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     <div className="min-w-0 lg:col-span-7">
-                        <details className="mb-6 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs lg:hidden">
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800 marker:hidden">{t('houseRules.mobileSummary')}</summary>
-                    <div className="mt-3">{renderHouseRules()}</div>
-                </details>
+                        <Collapsible
+                            className="mb-6 rounded-2xl border border-slate-200/80 bg-white px-4 py-2 shadow-xs lg:hidden"
+                            summary={t('houseRules.mobileSummary')}
+                            summaryClassName="text-sm font-semibold text-slate-800"
+                            fill
+                        >
+                            <div className="mt-1 pb-2">{renderHouseRules()}</div>
+                        </Collapsible>
 
                 <form
                     className="inquiry-form-card rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
@@ -348,6 +363,11 @@ export default function InquiryForm() {
 
                     <div className="flex flex-col space-y-2">
                         <label htmlFor="inquiry-room_name" className={labelClass}>{t('inquiry.unit')}</label>
+                        {loadingRooms ? (
+                            <SkeletonGroup label={t('inquiry.loadingRooms')}>
+                                <Bone className="h-[48px] rounded-xl" />
+                            </SkeletonGroup>
+                        ) : (
                         <select
                             {...form.fieldA11y('room_name')}
                             value={roomName}
@@ -362,6 +382,7 @@ export default function InquiryForm() {
                                 </option>
                             ))}
                         </select>
+                        )}
                         <FieldError id="inquiry-room_name" error={form.errors.room_name} className="m-0" />
                     </div>
 

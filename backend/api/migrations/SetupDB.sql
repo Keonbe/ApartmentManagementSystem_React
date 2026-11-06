@@ -1499,7 +1499,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('payment_ch_in_person', '1'),
 ('payment_ch_qrph_manual', '1'),
 ('qrph_active_slot', '1'),
-('qrph_slots', '[{"slot":1,"label":"QR Ph Slot 1","image_path":"","account_name":"","account_number":""},{"slot":2,"label":"QR Ph Slot 2","image_path":"","account_name":"","account_number":""},{"slot":3,"label":"QR Ph Slot 3","image_path":"","account_name":"","account_number":""},{"slot":4,"label":"QR Ph Slot 4","image_path":"","account_name":"","account_number":""},{"slot":5,"label":"QR Ph Slot 5","image_path":"","account_name":"","account_number":""}]'),
+('qrph_slots', '[{"slot":1,"label":"QR Ph Slot 1","image_path":"","account_name":"","account_number":""},{"slot":2,"label":"QR Ph Slot 2","image_path":"","account_name":"","account_number":""},{"slot":3,"label":"QR Ph Slot 3","image_path":"","account_name":"","account_number":""}]'),
 ('visitor_overstay_hours', '24'),
 ('service_visitor_management_active', 'true'),
 ('service_cleaning_active', 'true'),

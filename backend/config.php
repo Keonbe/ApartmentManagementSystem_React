@@ -382,6 +382,10 @@ function contract_action_allowed($current_status, $action) {
 // 'extend' in CONTRACT_TRANSITIONS limits extensions to active/expired contracts.
 const MAX_RENT_AHEAD_MONTHS_CEILING = 12;
 
+// QR Ph slots in Settings -> Payment Options (was 5). Stored slots above this
+// are dropped on the next save; an active slot above it reads as slot 1.
+const QRPH_SLOT_COUNT = 3;
+
 function max_rent_ahead_months($conn) {
     $months = (int)get_setting($conn, 'max_rent_ahead_months', MAX_RENT_AHEAD_MONTHS_CEILING);
     return min(MAX_RENT_AHEAD_MONTHS_CEILING, max(1, $months));

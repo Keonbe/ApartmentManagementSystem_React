@@ -15,15 +15,16 @@ import { HOME_CONTENT_DEFAULTS, parseHomeContent } from './homeContent';
 import { SCHEMA_DEFAULTS, parseSchemaSettings, encodeSchemaSettings } from './settingsSchema';
 import { PREVIEW_HERO_DEFAULTS, parsePreviewHero } from './previewHero';
 
+// QR Ph slots in Payment Options (QRPH_SLOT_COUNT in config.php). There were 5;
+// slots stored above 3 are dropped when the settings load, and an active slot
+// above 3 falls back to 1, so the next save cleans the stored list.
+export const QRPH_SLOT_COUNT = 3;
+
 const DEFAULTS = {
   ...SCHEMA_DEFAULTS,
-  qrphSlots: [
-    { slot: 1, label: 'QR Ph Slot 1', image_path: '', account_name: '', account_number: '' },
-    { slot: 2, label: 'QR Ph Slot 2', image_path: '', account_name: '', account_number: '' },
-    { slot: 3, label: 'QR Ph Slot 3', image_path: '', account_name: '', account_number: '' },
-    { slot: 4, label: 'QR Ph Slot 4', image_path: '', account_name: '', account_number: '' },
-    { slot: 5, label: 'QR Ph Slot 5', image_path: '', account_name: '', account_number: '' },
-  ],
+  qrphSlots: Array.from({ length: QRPH_SLOT_COUNT }, (_, i) => (
+    { slot: i + 1, label: `QR Ph Slot ${i + 1}`, image_path: '', account_name: '', account_number: '' }
+  )),
   parkingAllowedVehicleTypes: ['motorcycle'],  // vehicle types eligible for parking reservations
 
   // Glass theme backdrop on the tenant side (Other Settings → Glass Mode).
@@ -59,6 +60,11 @@ export const parseGlassAppearance = (raw = {}) => ({
   glassTint: HEX_COLOR.test(raw.glass_tint ?? '') ? raw.glass_tint.toLowerCase() : DEFAULTS.glassTint,
 });
 
+const inSlotRange = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= QRPH_SLOT_COUNT ? n : 1;
+};
+
 // A JSON list stored as text (or already an array); the fallback otherwise.
 const parseList = (raw, fallback) => {
   if (Array.isArray(raw)) return raw;
@@ -84,7 +90,9 @@ export const getSystemSettings = async ({ strict = false } = {}) => {
         // anyone else; posting a mask back is treated as "unchanged" by the
         // backend, so they can be bound to inputs safely.
         ...parseSchemaSettings(dbSettings),
-        qrphSlots: parseList(dbSettings.qrph_slots, DEFAULTS.qrphSlots),
+        qrphSlots: parseList(dbSettings.qrph_slots, DEFAULTS.qrphSlots)
+          .filter((s) => Number(s?.slot) >= 1 && Number(s?.slot) <= QRPH_SLOT_COUNT),
+        qrphActiveSlot: inSlotRange(dbSettings.qrph_active_slot),
         parkingAllowedVehicleTypes: parseList(dbSettings.parking_allowed_vehicle_types, DEFAULTS.parkingAllowedVehicleTypes),
         ...parseGlassAppearance(dbSettings),
         homeContent: parseHomeContent(dbSettings.home_content),

@@ -10,6 +10,8 @@ import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils
 import { printElement } from '../utils/print';
 import useDialog from '../hooks/useDialog';
 import { invoiceOwed } from '../utils/invoiceBalance';
+import Collapsible from '../Components/tenant/Collapsible';
+import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
 // Badge per invoice status. Anything awaiting management or the gateway is
@@ -244,7 +246,7 @@ export default function UserPaymentHistory() {
         <div className="payment-history-root w-full">
             <div className="w-full flex flex-col gap-6 text-left">
 
-                <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-slate-200 pb-4">
+                <header className="animate-fade-in flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-slate-200 pb-4">
                     <div>
                         <h1 className="payment-history-heading m-0 text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3 text-brand">
                             <FontAwesomeIcon icon={faHistory} className="text-indigo-600 text-2xl sm:text-3xl" aria-hidden="true" />
@@ -256,15 +258,39 @@ export default function UserPaymentHistory() {
                 </header>
 
                 {loading ? (
-                    <p className="m-0 p-8 text-center text-slate-600 bg-white rounded-2xl border border-slate-200" role="status">{t('paymentHistory.loading')}</p>
+                    // Shaped like the page: the summary card, the filters and a list of bills.
+                    <SkeletonGroup label={t('paymentHistory.loading')} className="flex flex-col gap-6">
+                        <Bone className="h-[124px] rounded-2xl" />
+                        <div className="flex gap-2">
+                            {[0, 1, 2].map((i) => <Bone key={i} className="h-11 w-20 rounded-full" />)}
+                        </div>
+                        <div>
+                            <Bone className="h-6 w-28 mb-3" />
+                            <div className={`${SECTION} divide-y divide-slate-100`}>
+                                {[0, 1, 2].map((i) => (
+                                    <div key={i} className="flex items-center justify-between gap-4 py-5">
+                                        <div className="flex-1 space-y-2">
+                                            <Bone className="h-4 w-40" />
+                                            <Bone className="h-3 w-64 max-w-full" />
+                                            <Bone className="h-3 w-32" />
+                                        </div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <Bone className="h-4 w-24" />
+                                            <Bone className="h-10 w-32 rounded-xl" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </SkeletonGroup>
                 ) : invoices.length === 0 ? (
-                    <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
+                    <div className="animate-fade-in-up p-12 text-center bg-white rounded-2xl border border-slate-200">
                         <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-4xl text-slate-300 mb-4" aria-hidden="true" />
                         <h2 className="text-lg font-bold text-slate-800 m-0">{t('paymentHistory.none')}</h2>
                         <p className="text-sm text-slate-600 mt-2 mb-0">{t('paymentHistory.noneDesc')}</p>
                     </div>
                 ) : (
-                    <>
+                    <div className="page-enter flex flex-col gap-6">
                         {/* Summary: what is owed now, and the last payment. */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-brand text-white p-5 sm:p-6">
                             <div>
@@ -293,7 +319,7 @@ export default function UserPaymentHistory() {
                                         type="button"
                                         aria-pressed={view === key}
                                         onClick={() => setView(key)}
-                                        className={`min-h-[44px] cursor-pointer rounded-full border px-4 text-sm font-semibold transition-colors ${view === key ? 'border-indigo-700 bg-indigo-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
+                                        className={`min-h-[44px] cursor-pointer rounded-full border px-4 text-sm font-semibold transition-[background-color,border-color,color,transform] duration-200 active:scale-95 ${view === key ? 'border-indigo-700 bg-indigo-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
                                     >
                                         {t(`paymentHistory.${label}`)}
                                     </button>
@@ -353,10 +379,10 @@ export default function UserPaymentHistory() {
                         )}
 
                         {otherBills.length > 0 && view === 'all' && (
-                            <details className="group">
-                                <summary className="inline-flex items-center gap-2 min-h-[44px] cursor-pointer text-base font-bold text-slate-700 hover:text-slate-900">
-                                    {t('paymentHistory.cancelledBills', { count: otherBills.length })}
-                                </summary>
+                            <Collapsible
+                                summary={t('paymentHistory.cancelledBills', { count: otherBills.length })}
+                                summaryClassName="text-base font-bold text-slate-700 hover:text-slate-900"
+                            >
                                 <ul className={`${SECTION} list-none m-0 mt-2 divide-y divide-slate-100`}>
                                     {otherBills.map((inv) => (
                                         <li key={inv.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
@@ -368,9 +394,9 @@ export default function UserPaymentHistory() {
                                         </li>
                                     ))}
                                 </ul>
-                            </details>
+                            </Collapsible>
                         )}
-                    </>
+                    </div>
                 )}
             </div>
 
