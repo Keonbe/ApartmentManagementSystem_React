@@ -19,9 +19,12 @@
     object-position: 50% 35% !important;
   }
 
-  /* Centered dark gradient for uniform readability on mobile screens */
+  /* The panel spans the screen here, so the left-side gradient becomes a light
+     even one: the photo stays as bright as on desktop and the panel (dark,
+     blurred) carries the contrast. It used to darken the photo to 70-90 %,
+     the opposite of the desktop look. */
   .home-gradient-overlay {
-    background: linear-gradient(180deg, rgba(2, 6, 23, 0.7) 0%, rgba(15, 23, 42, 0.82) 40%, rgba(2, 6, 23, 0.9) 100%) !important;
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.12) 0%, rgba(2, 6, 23, 0.22) 60%, rgba(2, 6, 23, 0.35) 100%) !important;
   }
 
   /* Container wrapper */

@@ -40,8 +40,11 @@ export default function Home({ onCardClick, username }) {
         // backdrop already, so it opts out of the colour remap (ut-native).
         <div className="home-hero ut-native w-full min-h-[calc(100vh-76px)] relative flex items-center justify-start overflow-hidden box-border">
 
-            {/* Darkens the left side under the panel; the backdrop's own tint covers the rest. */}
-            <div className="home-gradient-overlay absolute inset-0 z-0 bg-gradient-to-r from-slate-950/60 via-slate-950/25 to-transparent" aria-hidden="true"></div>
+            {/* Darkens the left side under the panel; the backdrop's own tint covers the rest.
+                Fixed to the whole screen at the backdrop's level (z -1, after it), so the
+                see-through top bar shows the same darkened photo: absolute inside the hero
+                it stopped at the bar's bottom edge and drew a hard line there. */}
+            <div className="home-gradient-overlay fixed inset-0 -z-1 pointer-events-none bg-gradient-to-r from-slate-950/60 via-slate-950/25 to-transparent" aria-hidden="true"></div>
 
             {/*Clean Floating Content Panel Layout*/}
             <div className="home-content-container w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">

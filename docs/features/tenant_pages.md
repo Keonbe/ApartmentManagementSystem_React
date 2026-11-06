@@ -95,7 +95,7 @@ Averages across cycles; per cycle the water and electricity previous / present r
 
 ## 7. Public and auth pages
 
-- **Home** (`/home`): public landing, Glass theme; **Preview** (`/preview`): Available / Upcoming rooms, sort, room modal, house rules.
+- **Home** (`/home`): public landing, Glass theme (the backdrop photo, a left-side darkening fixed behind the whole screen so the see-through TopBar matches, and a dark blurred panel; phones keep the photo as bright as desktop); **Preview** (`/preview`): Available / Upcoming rooms, sort, room modal, house rules.
 - **Inquiry** (`/inquire`): public; a signed-out sender gets a guest chat (`ams_guest_token`); a repeat inquiry resumes the earlier thread, with an e-mailed one-time link (`guest_chat_resume.php`), asked for in a "Continue your conversation" box with a turning chevron. Sections rise in; the house rules (and the unit list) show a skeleton while they load; on phones the rules are a collapsible card.
 - **Login**: password step, lockout message, forgot-password mode, and the **sign-in code step** (six boxes, paste, autofill) when `login.php` returns `device_verification_required`. A device that passed is remembered by a 1-year cookie. Admins, `demo.example` accounts (non-production) and accounts whose sign-in code is switched off skip it. Landing: tenant to My Room, applicant to Track Application, else Home.
 - **Registration**: names, e-mail, password with confirmation, terms; sends a verification e-mail. **Verify e-mail** (`?token=`) and **Reset password** (`?token=`, checklist, redirect to login after 2 s).

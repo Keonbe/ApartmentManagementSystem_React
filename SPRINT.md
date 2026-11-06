@@ -101,6 +101,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 | 97 | Announcements on the TopBar | UI/UX | Tenant TopBar link; the Announcements card is gone from Services and from the admin Services page | In progress | Low | 2026-11-06 | — |
 | 98 | Service appearance icon grid scroll | Bug fix | Admin Customize Look dialog: the icon grid had its own scroll box inside the scrolling dialog; now only the dialog scrolls | In progress | Low | 2026-11-06 | — |
 | 99 | Inquiry page polish | UI/UX | No emoji in the heading or the phone rules summary, chevron on "Continue your conversation" and the phone rules card, skeleton for the house rules and unit list, sections rise in | In progress | Low | 2026-11-07 | — |
+| 100 | Home backdrop fixes | Bug fix | The darkening layer stopped at the see-through TopBar's edge (a hard line); phones darkened the photo to 70-90 %, the opposite of desktop | In progress | Low | 2026-11-07 | — |
 
 ## Open
 
