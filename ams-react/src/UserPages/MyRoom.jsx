@@ -4,11 +4,11 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
-import HouseRulesModal from '../Components/HouseRulesModal';
 import RoomKeyTag from '../Components/tenant/RoomKeyTag';
 import Disclosure from '../Components/tenant/Disclosure';
 import ImportantInfo from '../Components/tenant/ImportantInfo';
-import HouseRulesCard from '../Components/tenant/HouseRulesCard';
+import HouseRulesAccordion from '../Components/tenant/HouseRulesAccordion';
+import useAllRules from '../hooks/useAllRules';
 import RentTermCard from '../Components/tenant/RentTermCard';
 import MyRoomSkeleton, { BillSkeleton, HouseholdSkeleton } from '../Components/tenant/MyRoomSkeleton';
 import SuccessModal from '../Components/SuccessModal';
@@ -21,7 +21,6 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
 
-const MAX_EXTENSION_MONTHS = 12;
 // Defaults for the move-out notice window; the live values come from Settings → Rental (record_move_out.php enforces them too).
 const DEFAULT_MOVE_OUT_MIN_DAYS = 15;
 const DEFAULT_MOVE_OUT_MAX_DAYS = 30;
@@ -32,6 +31,7 @@ import { occupancyFrom, occupancyRuleText, occupancyExtraText } from '../utils/o
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
 export default function MyRoom() {
+    const { rules: houseRules, loading: loadingHouseRules, error: houseRulesError } = useAllRules();
     const navigate = useNavigate();
     // my_room.php: { allowed, reason, overdueTotal, maxMonthsAhead }. An overdue
     // bill, a scheduled move-out or an inactive contract blocks extending.
@@ -137,10 +137,10 @@ export default function MyRoom() {
 
                 setExtension(data.extension || null);
                 // Start the months picker inside the allowed range.
-                if (data.extension?.minMonths) {
-                    const lo = data.extension.minMonths;
-                    const hi = Math.max(lo, data.extension.maxMonths ?? MAX_EXTENSION_MONTHS);
-                    setAdditionalMonths(prev => (prev === '' || prev < lo ? lo : Math.min(prev, hi)));
+                if (data.extension?.minMonths != null) {
+                    const lo = Number(data.extension.minMonths);
+                    const hi = Number(data.extension.maxMonths ?? 0);
+                    if (hi >= lo) setAdditionalMonths(prev => (prev === '' || prev < lo ? lo : Math.min(prev, hi)));
                 }
                 setError(null);
             } else {
@@ -165,8 +165,7 @@ export default function MyRoom() {
     const [household, setHousehold] = useState(null);
     const [householdError, setHouseholdError] = useState('');
     const [addMemberOpen, setAddMemberOpen] = useState(false);
-    const [rulesOpen, setRulesOpen] = useState(false);
-    const closeRules = useCallback(() => setRulesOpen(false), []);
+    const [houseRulesOpen, setHouseRulesOpen] = useState(false);
     const loadHousehold = useCallback(async () => {
         try {
             const res = await api.get('household_members.php');
@@ -241,16 +240,18 @@ export default function MyRoom() {
 
     const [busy, setBusy] = useState(''); // 'occupants' | 'extend' | 'moveout' while a request runs
 
-    // The months a request may ask for, from my_room.php: Minimum Rent Duration,
-    // shrunk to what still fits under the months-ahead limit (the server checks
-    // the same range).
-    const minExtension = extension?.minMonths || 1;
-    const maxExtension = Math.max(minExtension, extension?.maxMonths ?? MAX_EXTENSION_MONTHS);
+    // my_room.php calculates this authoritative range from live rent-policy
+    // settings and the current rent end, using the same date rules as the API.
+    const minExtension = Number(extension?.minMonths ?? 1);
+    const maxExtension = Number(extension?.maxMonths ?? 0);
+    const hasExtensionRange = maxExtension >= minExtension;
 
     const fields = useFieldErrors({
         occupants: (v, all) => checkIntRange(v === '' ? NaN : v, 1, maxOccupants, 'Number of occupants')
             || (Number(v) === all.currentOccupants ? `Your room is already assigned to ${v} occupant(s).` : ''),
-        additionalMonths: (v) => checkIntRange(v === '' ? NaN : v, minExtension, maxExtension, 'Additional months'),
+        additionalMonths: (v) => !hasExtensionRange
+            ? 'No valid rent extension range is currently available.'
+            : checkIntRange(v === '' ? NaN : v, minExtension, maxExtension, 'Additional months'),
         move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(moveOutNotice.min), max: addDays(moveOutNotice.max) })
             .replace(/cannot be before .*/, `must be at least ${moveOutNotice.min} days from today.`)
             .replace(/cannot be after .*/, `cannot be more than ${moveOutNotice.max} days from today.`),
@@ -261,6 +262,10 @@ export default function MyRoom() {
         if (e) e.preventDefault();
         if (busy) return;
 
+        if (!hasExtensionRange) {
+            fields.setFieldError('additionalMonths', 'No valid rent extension range is currently available.');
+            return;
+        }
         const months = Number(additionalMonths);
         if (fields.validateField('additionalMonths', fieldValues)) return;
 
@@ -325,7 +330,7 @@ export default function MyRoom() {
     };
 
 
-    // "Manage your rent": which panel is open ('occupants' | 'extend' | null).
+    // "Manage your rent": the rent-extension panel is the only item in this section now.
     // A panel with an error stays open so the message is seen.
     const [openPanel, setOpenPanel] = useState(null);
 
@@ -362,7 +367,6 @@ export default function MyRoom() {
         : ['active', 'approved'].includes(status) ? { label: t('myRoom.activeTenancy'), tone: 'done' }
         : { label: roomDetails.status, tone: 'neutral' };
     const rentEndingSoon = !movingOut && daysUntilExpiration !== null && daysUntilExpiration > 0 && daysUntilExpiration <= 30;
-    const occupantsOpen = openPanel === 'occupants' || !!fields.errors.occupants;
     const extendOpen = openPanel === 'extend' || !!fields.errors.additionalMonths;
     const toggle = (key) => setOpenPanel((p) => (p === key ? null : key));
     const openExtend = () => {
@@ -513,7 +517,7 @@ export default function MyRoom() {
                     </div>
                 </div>
 
-                {/* The household, with the rules on who may live in the room right under it. */}
+                {/* Household and its related occupancy and house-rules controls. */}
                 <div className="flex flex-col gap-4">
                     {household === null && !householdError ? <HouseholdSkeleton /> : (
                         <HouseholdPanel
@@ -524,50 +528,51 @@ export default function MyRoom() {
                             onAddOpenChange={setAddMemberOpen}
                             monthlyRent={roomDetails.monthlyRent}
                             occupancy={occupancy}
+                            occupantChangeAction={!movedOut ? (
+                                <Disclosure
+                                    id="manage-occupants"
+                                    icon={faUsers}
+                                    title="Change number of occupants"
+                                    summary={`Currently ${currentOccupants} ${currentOccupants === 1 ? 'person' : 'people'}. Management approves changes.`}
+                                    open={openPanel === 'occupants' || !!fields.errors.occupants}
+                                    onToggle={() => toggle('occupants')}
+                                >
+                                    <form onSubmit={handleUpdateOccupants} className="m-0 grid gap-3 sm:max-w-md" noValidate>
+                                        <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-800">Number of occupants (1 to {maxOccupants})</label>
+                                        <input
+                                            type="number"
+                                            {...fields.fieldA11y('occupants')}
+                                            inputMode="numeric"
+                                            min="1"
+                                            max={maxOccupants}
+                                            step="1"
+                                            value={occupants}
+                                            onKeyDown={blockNonIntegerKeys}
+                                            onChange={handleOccupantChange}
+                                            onBlur={() => occupants !== currentOccupants && fields.validateField('occupants', fieldValues)}
+                                            className={`${INPUT}${invalidCls(fields.errors.occupants)}`}
+                                            required
+                                        />
+                                        <p className="m-0 text-sm text-slate-600">
+                                            {occupancyRuleText(t, occupancy)}
+                                            {occupancyExtraText(t, occupancy, occupants) && <strong className="text-amber-800"> {occupancyExtraText(t, occupancy, occupants)}</strong>}
+                                        </p>
+                                        <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
+                                        <button type="submit" disabled={!!busy} className={`${BTN_PRIMARY} justify-self-start`}>
+                                            {busy === 'occupants' ? 'Sending…' : 'Send request'}
+                                        </button>
+                                    </form>
+                                </Disclosure>
+                            ) : null}
                         />
                     )}
-                    {!movedOut && household?.hasLease !== false && <HouseRulesCard data={household} onViewAll={() => setRulesOpen(true)} />}
                 </div>
 
+                {/* Keep both future-rent actions together directly after Household. */}
                 {!movedOut && (
-                    <section aria-labelledby="manage-rent-heading">
-                        <h2 id="manage-rent-heading" className="m-0 mb-3 text-xl font-bold text-slate-900">Manage your rent</h2>
+                    <section aria-labelledby="manage-rent-heading" className="space-y-4">
+                        <h2 id="manage-rent-heading" className="m-0 text-xl font-bold text-slate-900">Manage your rent</h2>
                         <div className={`${PANEL} overflow-hidden`}>
-                            <Disclosure
-                                id="manage-occupants"
-                                icon={faUsers}
-                                title="Change number of occupants"
-                                summary={`Currently ${currentOccupants} ${currentOccupants === 1 ? 'person' : 'people'}. Management approves changes.`}
-                                open={occupantsOpen}
-                                onToggle={() => toggle('occupants')}
-                            >
-                                <form onSubmit={handleUpdateOccupants} className="m-0 grid gap-3 sm:max-w-md" noValidate>
-                                    <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-800">Number of occupants (1 to {maxOccupants})</label>
-                                    <input
-                                        type="number"
-                                        {...fields.fieldA11y('occupants')}
-                                        inputMode="numeric"
-                                        min="1"
-                                        max={maxOccupants}
-                                        step="1"
-                                        value={occupants}
-                                        onKeyDown={blockNonIntegerKeys}
-                                        onChange={handleOccupantChange}
-                                        onBlur={() => occupants !== currentOccupants && fields.validateField('occupants', fieldValues)}
-                                        className={`${INPUT}${invalidCls(fields.errors.occupants)}`}
-                                        required
-                                    />
-                                    <p className="m-0 text-sm text-slate-600">
-                                        {occupancyRuleText(t, occupancy)}
-                                        {occupancyExtraText(t, occupancy, occupants) && <strong className="text-amber-800"> {occupancyExtraText(t, occupancy, occupants)}</strong>}
-                                    </p>
-                                    <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
-                                    <button type="submit" disabled={!!busy} className={`${BTN_PRIMARY} justify-self-start`}>
-                                        {busy === 'occupants' ? 'Sending…' : 'Send request'}
-                                    </button>
-                                </form>
-                            </Disclosure>
-
                             <div id="manage-extend">
                                 <Disclosure
                                     id="manage-extend-panel"
@@ -575,14 +580,16 @@ export default function MyRoom() {
                                     title={t('myRoom.extendLease')}
                                     summary={extensionBlocked
                                         ? 'Not available right now. Open to see why.'
-                                        : `Add ${minExtension === maxExtension ? minExtension : `${minExtension} to ${maxExtension}`} month${maxExtension === 1 ? '' : 's'}. Management approves the request.`}
+                                        : !hasExtensionRange
+                                            ? 'No extension months are currently available.'
+                                            : `Add ${minExtension} to ${maxExtension} months. Management approves the request.`}
                                     open={extendOpen}
                                     onToggle={() => toggle('extend')}
                                 >
                                     <form onSubmit={handleExtendRent} className="m-0 grid gap-3 sm:max-w-md" noValidate>
                                         <p className="m-0 text-sm leading-relaxed text-slate-600">
                                             Each added month is billed a week before it starts.
-                                            {extension?.maxMonthsAhead ? ` Your rent can reach at most ${extension.maxMonthsAhead} month(s) from today.` : ''}
+                                            {extension?.maxMonthsAhead != null ? ` Your rent can reach at most ${extension.maxMonthsAhead} month(s) from today.` : ''}
                                             {extension?.deadline && !extensionBlocked ? ` Requests close on ${formatAvailable(extension.deadline)}.` : ''}
                                         </p>
                                         {extensionBlocked && (
@@ -599,7 +606,7 @@ export default function MyRoom() {
                                             </div>
                                         )}
                                         <label htmlFor="myroom-additionalMonths" className="text-sm font-bold text-slate-800">
-                                            Months to add ({minExtension === maxExtension ? minExtension : `${minExtension} to ${maxExtension}`})
+                                            Months to add ({minExtension} to {maxExtension})
                                         </label>
                                         <input
                                             type="number"
@@ -618,27 +625,23 @@ export default function MyRoom() {
                                                     setAdditionalMonths('');
                                                     return;
                                                 }
-                                                setAdditionalMonths(Math.min(intVal, maxExtension));
+                                                setAdditionalMonths(intVal);
                                             }}
                                             onBlur={() => fields.validateField('additionalMonths', fieldValues)}
-                                            disabled={extensionBlocked}
+                                            disabled={extensionBlocked || !hasExtensionRange}
                                             className={`${INPUT} disabled:opacity-60${invalidCls(fields.errors.additionalMonths)}`}
                                             required
                                         />
                                         <FieldError id="myroom-additionalMonths" error={fields.errors.additionalMonths} className="m-0" />
-                                        <button type="submit" disabled={!!busy || extensionBlocked} className={`${BTN_PRIMARY} justify-self-start`}>
+                                        <button type="submit" disabled={!!busy || extensionBlocked || !hasExtensionRange} className={`${BTN_PRIMARY} justify-self-start`}>
                                             {busy === 'extend' ? 'Sending…' : 'Send extension request'}
                                         </button>
                                     </form>
                                 </Disclosure>
                             </div>
                         </div>
-                    </section>
-                )}
 
-                {/* Ending the rent: at the bottom of the page, but in a clear rose
-                    card with a solid button. bg-rose-600 is not remapped by the
-                    Dark and Glass themes, so the button reads the same in all three. */}
+                {/* Red warning card is paired with the extension action above. */}
                 <section aria-labelledby="end-rent-heading" className="flex items-start gap-4 rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 sm:p-6">
                     <span aria-hidden="true" className="hidden sm:flex w-11 h-11 shrink-0 rounded-xl bg-rose-600 text-white items-center justify-center shadow-lg shadow-rose-600/30">
                         <FontAwesomeIcon icon={faSignOutAlt} />
@@ -683,6 +686,20 @@ export default function MyRoom() {
                     )}
                     </div>
                 </section>
+                    </section>
+                )}
+
+                {!movedOut && household?.hasLease !== false && (
+                    <div className="pb-6">
+                        <HouseRulesAccordion
+                            rules={houseRules}
+                            loading={loadingHouseRules}
+                            error={houseRulesError}
+                            open={houseRulesOpen}
+                            onToggle={() => setHouseRulesOpen((current) => !current)}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* ─── MOVE OUT SCHEDULING MODAL ─── */}
@@ -744,8 +761,6 @@ export default function MyRoom() {
                     </div>
                 </div>
             )}
-
-            <HouseRulesModal isOpen={rulesOpen} onClose={closeRules} />
 
             <SuccessModal
                 isOpen={!!notice}

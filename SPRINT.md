@@ -134,6 +134,11 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 | 81 | CI "Apply upgrade migrations" fails at HEAD | DevOps/CI | `2026_10_add_reference_norm_and_tables.sql` (duplicate column) and `2026_10_deployed_server_sync.sql` (needs `schema_migrations`), both from `9fbf1ef` | Open | High | 2026-10-30 | — |
 | 82 | Hash the guest chat token | Security | Store `guest_token` hashed | Open | Low | — | — |
 | 83 | Contract editor saved-time bug | Bug fix | "Saved <time> by You" formats a UTC timestamp as local time | Open | Low | — | — |
+| 90 | Live tenant house rules | Feature | My Room accordion shows all active admin-managed rules inline in display order; modal removed from this page | In progress | Medium | 2026-11-07 | — |
+| 91 | Household occupant controls | UI/UX | Move the occupant-count change request into the Household card and remove its duplicate Manage your rent accordion | In progress | Medium | 2026-11-07 | — |
+| 92 | Group tenant rent actions | UI/UX | Place the rent-extension accordion and move-out warning card together in Manage your rent immediately after Household | In progress | Medium | 2026-11-07 | — |
+| 93 | Dynamic tenant rent extension range | Feature | Use `my_room.php`'s live policy- and rent-end-aware minimum and maximum for the extension UI, input bounds and validation | In progress | Medium | 2026-11-07 | — |
+| 94 | Move tenant house rules to page bottom | UI/UX | Place the static House Rules & Policies accordion after rent management with bottom spacing | In progress | Low | 2026-11-07 | — |
 
 ## Blocked (prod / operator)
 

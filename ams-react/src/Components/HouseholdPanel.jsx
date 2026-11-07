@@ -22,7 +22,7 @@ const initials = (name) => String(name || '?').trim().split(/\s+/).filter(Boolea
 // dialog (`addOpen`, lifted so Important info can open it too). Adding or
 // removing someone is a request that management approves. To replace someone,
 // request the removal and the addition.
-export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddOpenChange, monthlyRent = 0, occupancy = DEFAULT_OCCUPANCY }) {
+export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddOpenChange, monthlyRent = 0, occupancy = DEFAULT_OCCUPANCY, occupantChangeAction }) {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -245,6 +245,8 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
           );
         })}
       </ul>
+
+      {occupantChangeAction}
 
       {notice && !notice.inDialog && (
         <p role={notice.ok ? 'status' : 'alert'} className={`text-sm font-semibold m-0 animate-fade-in ${notice.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{notice.text}</p>

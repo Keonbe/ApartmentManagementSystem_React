@@ -4,10 +4,13 @@ import useAllRules from '../hooks/useAllRules';
 import RulesGroups from './RulesGroups';
 import { useLang } from '../config/i18n';
 
-export default function HouseRulesModal({ isOpen, onClose }) {
+export default function HouseRulesModal({ isOpen, onClose, rules: providedRules, loading: providedLoading, error: providedError }) {
   const { t } = useLang();
   // House rules, children and pets, and parking, fetched only while the modal is open.
-  const { rules, loading, error } = useAllRules(isOpen);
+  const fetched = useAllRules(isOpen && providedRules === undefined);
+  const rules = providedRules ?? fetched.rules;
+  const loading = providedLoading ?? fetched.loading;
+  const error = providedError ?? fetched.error;
 
   useEffect(() => {
     if (!isOpen) return undefined;

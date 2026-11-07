@@ -1,18 +1,20 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBookOpen, faPaw, faBaby, faStairs, faPeopleGroup, faIdCard } from '@fortawesome/free-solid-svg-icons';
+import { faBookOpen, faClock, faBanSmoking, faCar, faUsers, faPaw, faHouse } from '@fortawesome/free-solid-svg-icons';
 
-// The rules that decide who may live in the room, as a strip right under the
-// Household card on My Room. The limits come from household_members.php
-// (`data`): the minimum age, the stairs rule for the tenant's floor and the
-// occupant cap. The full list opens in HouseRulesModal (`onViewAll`).
-export default function HouseRulesCard({ data, onViewAll }) {
-  const rules = [
-    { icon: faPaw, text: 'No pets in the building.' },
-    data?.minAge ? { icon: faBaby, text: `No children under ${data.minAge} may live in the apartment.` } : null,
-    data?.childFloorRule ? { icon: faStairs, text: `Children under ${data.childFloorRule.belowAge} cannot live on the ${data.childFloorRule.floorLabel} because of the stairs.` } : null,
-    data?.maxOccupants ? { icon: faPeopleGroup, text: `At most ${data.maxOccupants} people per unit, you included.` } : null,
-    { icon: faIdCard, text: 'Everyone who lives in the room must be declared, with their age.' },
-  ].filter(Boolean);
+const iconForRule = (rule) => {
+  const text = `${rule.category || ''} ${rule.title || ''}`.toLowerCase();
+  if (/quiet|noise|hour/.test(text)) return faClock;
+  if (/smok|vape/.test(text)) return faBanSmoking;
+  if (/park|vehicle/.test(text)) return faCar;
+  if (/child|pet|minor/.test(text)) return faPaw;
+  if (/guest|visitor|occupant|resident/.test(text)) return faUsers;
+  return faHouse;
+};
+
+export default function HouseRulesCard({ rules = [], loading = false, error = false, onViewAll }) {
+  const activeRules = rules
+    .filter((rule) => rule.is_active === true || Number(rule.is_active) === 1)
+    .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || (Number(a.id) || 0) - (Number(b.id) || 0));
 
   return (
     <aside aria-labelledby="house-rules-card-heading" className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 text-left">
@@ -31,14 +33,24 @@ export default function HouseRulesCard({ data, onViewAll }) {
           View all rules
         </button>
       </div>
-      <ul className="list-none m-0 mt-4 p-0 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-        {rules.map((r) => (
-          <li key={r.text} className="flex items-start gap-3 text-sm leading-relaxed text-slate-700">
-            <FontAwesomeIcon icon={r.icon} className="mt-1 w-4 shrink-0 text-indigo-600" aria-hidden="true" />
-            <span>{r.text}</span>
-          </li>
-        ))}
-      </ul>
+      {loading ? (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Loading house rules" aria-busy="true">
+          {[0, 1].map((item) => <div key={item} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}
+        </div>
+      ) : error ? (
+        <p role="alert" className="mb-0 mt-4 text-sm text-rose-700">House rules could not be loaded.</p>
+      ) : activeRules.length === 0 ? (
+        <p className="mb-0 mt-4 text-sm text-slate-500">No active house rules posted.</p>
+      ) : (
+        <ul className="list-none m-0 mt-4 p-0 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+          {activeRules.slice(0, 2).map((rule) => (
+            <li key={rule.id} className="flex items-start gap-3 text-sm leading-relaxed text-slate-700">
+              <FontAwesomeIcon icon={iconForRule(rule)} className="mt-1 w-4 shrink-0 text-indigo-600" aria-hidden="true" />
+              <span>{rule.title}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </aside>
   );
 }
