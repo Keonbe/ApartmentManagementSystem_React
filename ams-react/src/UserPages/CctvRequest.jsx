@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { CCTV_DEFAULTS, CCTV_OTHER_KEY, CCTV_OTHER_REASON_MIN, incidentTypeLabel, loadCctvConfig, locationLabel } from '../config/cctvConfig';
 import SuccessModal from '../Components/SuccessModal';
 import InlineAlert from '../Components/InlineAlert';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { LIMITS, addDays, checkDate, checkText, localDateString } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
@@ -101,6 +103,10 @@ export default function CctvRequest() {
                 {/* Page header */}
                 <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
+                        <Link to="/services" className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                            <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+                            <span>Back to Services</span>
+                        </Link>
                         <h1
                             className="cctv-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
                         >

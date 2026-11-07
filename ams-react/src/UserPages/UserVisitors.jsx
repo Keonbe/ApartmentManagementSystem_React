@@ -3,9 +3,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faIdBadge, faUserPlus, faClock,
   faTimes,
-  faSync, faArrowLeft
+  faSync, faChevronLeft
 } from '@fortawesome/free-solid-svg-icons';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { LIMITS, addDays, checkDate, checkPersonName, checkPhMobile, checkText, localDateString, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
@@ -42,7 +42,6 @@ import { useLang, dateLocale } from '../config/i18n';
 import '../assets/styles/responsive/user/user-visitors.responsive.css';
 
 export default function UserVisitors() {
-  const navigate = useNavigate();
   const { t } = useLang();
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
 
@@ -280,14 +279,13 @@ export default function UserVisitors() {
 
         {/* Back Link & Header */}
         <div>
-          <button
-            type="button"
-            onClick={() => navigate('/services')}
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-transparent border-0 cursor-pointer p-0 mb-3"
+          <Link
+            to="/services"
+            className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
           >
-            <FontAwesomeIcon icon={faArrowLeft} />
+            <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
             <span>{t('visitors.backToServices')}</span>
-          </button>
+          </Link>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
             <div>
