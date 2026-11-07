@@ -28,7 +28,7 @@
 | Utilities | get_utility_readings, save_utility_reading, delete_utility_reading, sync_utility_to_invoice, get_utilities_report_data |
 | Maintenance | maintenance_request, create_maintenance_request_admin, get_maintenance_requests, update_maintenance_status, sync_maintenance_to_invoice |
 | Services | get_service_catalog, manage_service_catalog, service_request, get_service_requests, update_service_status, sync_service_to_invoice |
-| Parking & CCTV | parking_reservation, get_parking_reservations, update_parking_status, get_available_parking_slots, sync_parking_to_invoice, cctv_request, get_cctv_requests, update_cctv_status |
+| Parking & CCTV | parking_reservation, get_parking_reservations, update_parking_status, get_available_parking_slots, parking_slots, sync_parking_to_invoice, cctv_request, get_cctv_requests, update_cctv_status |
 | Visitors | get_visitors, check_in_visitor, update_visitor_status |
 | Requests (tenant) | get_my_requests, cancel_request |
 | Announcements & notifications | create_announcement, get_announcements, create_notification, get_notifications, mark_notification_read, delete_notification, get_notification_preferences, update_notification_preferences, send_test_notification, get_sms_balance |

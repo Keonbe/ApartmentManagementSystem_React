@@ -96,9 +96,9 @@ describe('utilities and settings', () => {
     const before = await setting('payment_window_days');
     const res = await api('update_system_settings.php', {
       token: admin,
-      json: { payment_window_days: '99', max_parking_slots: '0', visitor_overstay_hours: '500' },
+      json: { payment_window_days: '99', parking_max_per_tenant: '0', visitor_overstay_hours: '500' },
     });
-    expectFields(res, ['paymentWindowDays', 'maxParkingSlots', 'visitorOverstayHours']);
+    expectFields(res, ['paymentWindowDays', 'parkingMaxPerTenant', 'visitorOverstayHours']);
     expect(await setting('payment_window_days')).toBe(before);
   });
 

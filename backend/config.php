@@ -1030,7 +1030,7 @@ function post_invoice_charge($conn, $kind, $source_id, ?DateTime $month = null) 
     try {
         $charge_id = 0;
         if ($is_parking) {
-            $stmt = $conn->prepare("SELECT user_id, status, assigned_at, duration_months FROM parking_reservations WHERE id = ? FOR UPDATE");
+            $stmt = $conn->prepare("SELECT user_id, status, assigned_at, duration_months, monthly_fee FROM parking_reservations WHERE id = ? FOR UPDATE");
             $stmt->bind_param("i", $source_id);
             $stmt->execute();
             $res = $stmt->get_result()->fetch_assoc();
@@ -1048,7 +1048,11 @@ function post_invoice_charge($conn, $kind, $source_id, ?DateTime $month = null) 
             }
 
             $user_id = (int)$res['user_id'];
-            $amount = parking_monthly_fee($conn);
+            $amount = parking_reservation_fee($conn, $res);
+            if ($amount <= 0) {
+                $conn->rollback();
+                return $fail('This parking permit is free, so there is nothing to bill.');
+            }
             $period = $anchor->format('Y-m');
 
             $claim = $conn->prepare("INSERT IGNORE INTO parking_charges (reservation_id, billing_period, amount) VALUES (?, ?, ?)");
@@ -5233,7 +5237,8 @@ function run_notification_sweep($conn, $force = false) {
 
     if (get_setting($conn, 'parking_billing_mode', 'manual') === 'auto') {
         $month = new DateTime('now', new DateTimeZone('Asia/Manila'));
-        $ids = $conn->query("SELECT id FROM parking_reservations WHERE status = 'Assigned'");
+        // Free permits (monthly_fee 0) are never billed.
+        $ids = $conn->query("SELECT id FROM parking_reservations WHERE status = 'Assigned' AND (monthly_fee IS NULL OR monthly_fee > 0)");
         while ($ids && ($r = $ids->fetch_assoc())) {
             $posted = post_invoice_charge($conn, 'parking', (int)$r['id'], $month);
             if ($posted['ok'] && !empty($posted['invoice_id'])) $result['parking_charges_posted']++;
@@ -5303,26 +5308,138 @@ const PARKING_TRANSITIONS = [
     'Released'  => [],
 ];
 
-const PARKING_MAX_DURATION_MONTHS = 6;
+// Vehicle types a slot can take and the icons a slot can show (Admin → Parking
+// → Slots). An e-bike has no plate and no transmission, so both are optional.
+const PARKING_VEHICLE_TYPES = ['motorcycle', 'ebike', 'sedan', 'suv', 'pickup', 'van'];
+const PARKING_SLOT_ICONS = ['motorcycle', 'car', 'ebike', 'van'];
+const PARKING_SLOT_STATUSES = ['active', 'maintenance'];
+const PARKING_NO_PLATE_TYPES = ['ebike'];
+const PARKING_MAX_DURATION_MONTHS = 6;   // default for the parking_max_duration_months setting
+const PARKING_MAX_SLOTS = 200;           // slots not archived
 
-function parking_max_slots($conn) {
-    $v = get_setting($conn, 'max_parking_slots', 3);
-    return is_numeric($v) && (int)$v > 0 ? (int)$v : 3;
+function parking_setting_int($conn, $key, $default, $min, $max) {
+    $v = get_setting($conn, $key, $default);
+    return ctype_digit((string)$v) && (int)$v >= $min && (int)$v <= $max ? (int)$v : $default;
 }
 
+// Longest permit a tenant may ask for, in months (Parking settings, 1-12).
+function parking_max_duration_months($conn) {
+    return parking_setting_int($conn, 'parking_max_duration_months', PARKING_MAX_DURATION_MONTHS, 1, 12);
+}
+
+// Open (Pending + Assigned) reservations one tenant may hold (Parking settings, 1-5).
+function parking_max_per_tenant($conn) {
+    return parking_setting_int($conn, 'parking_max_per_tenant', 1, 1, 5);
+}
+
+// The "Free parking" switch: new requests cost nothing and are never billed.
+function parking_is_free($conn) {
+    return in_array((string)get_setting($conn, 'parking_free', '0'), ['1', 'true'], true);
+}
+
+// The fee a new request is charged per month: 0 while parking is free.
 function parking_monthly_fee($conn) {
+    if (parking_is_free($conn)) return 0.0;
     $v = get_setting($conn, 'parking_monthly_fee', 300);
     return is_numeric($v) && (float)$v > 0 ? (float)$v : 300.0;
 }
 
-// ['max' => n, 'taken' => [slot numbers], 'occupied' => n, 'available' => n]
-function parking_capacity($conn) {
-    $max = parking_max_slots($conn);
+// A reservation's own fee per month (fixed when it was requested); rows from
+// before monthly_fee existed fall back to the current fee.
+function parking_reservation_fee($conn, $row) {
+    return isset($row['monthly_fee']) && $row['monthly_fee'] !== null ? (float)$row['monthly_fee'] : parking_monthly_fee($conn);
+}
+
+function parking_slot_row($row) {
+    $types = json_decode((string)$row['vehicle_types'], true);
+    $types = is_array($types) ? array_values(array_intersect(array_map('strtolower', $types), PARKING_VEHICLE_TYPES)) : [];
+    return [
+        'id' => (int)$row['id'],
+        'label' => (string)$row['label'],
+        'icon' => in_array($row['icon'], PARKING_SLOT_ICONS, true) ? $row['icon'] : 'motorcycle',
+        'vehicle_types' => $types,
+        'requires_registration' => (int)$row['requires_registration'] === 1,
+        'status' => $row['status'] === 'maintenance' ? 'maintenance' : 'active',
+        'archived' => $row['archived_at'] !== null,
+    ];
+}
+
+// Slots in display order (archived ones only when asked), keyed by id.
+function parking_slots($conn, $include_archived = false) {
+    $sql = "SELECT id, label, icon, vehicle_types, requires_registration, status, archived_at FROM parking_slots"
+         . ($include_archived ? '' : ' WHERE archived_at IS NULL')
+         . " ORDER BY sort_order, id";
+    $res = $conn->query($sql);
+    $slots = [];
+    while ($res && ($row = $res->fetch_assoc())) $slots[(int)$row['id']] = parking_slot_row($row);
+    return $slots;
+}
+
+// Slot id => the Assigned reservation holding it.
+function parking_assigned_by_slot($conn) {
     $taken = [];
-    $res = $conn->query("SELECT slot_number FROM parking_reservations WHERE status = 'Assigned' AND slot_number IS NOT NULL ORDER BY slot_number");
-    while ($res && ($row = $res->fetch_assoc())) $taken[] = (int)$row['slot_number'];
-    $occupied = (int)$conn->query("SELECT COUNT(*) AS c FROM parking_reservations WHERE status = 'Assigned'")->fetch_assoc()['c'];
-    return ['max' => $max, 'taken' => $taken, 'occupied' => $occupied, 'available' => max(0, $max - $occupied)];
+    $res = $conn->query("SELECT id, user_id, slot_number, vehicle_type FROM parking_reservations WHERE status = 'Assigned' AND slot_number IS NOT NULL");
+    while ($res && ($row = $res->fetch_assoc())) $taken[(int)$row['slot_number']] = $row;
+    return $taken;
+}
+
+// Free slots (active, not archived, not assigned), optionally only those that take $type.
+function parking_free_slots($slots, $taken, $type = null) {
+    $type = $type === null ? null : strtolower((string)$type);
+    return array_filter($slots, fn($s) => !$s['archived'] && $s['status'] === 'active' && !isset($taken[$s['id']])
+        && ($type === null || in_array($type, $s['vehicle_types'], true)));
+}
+
+// ['max' => usable slots, 'taken' => [assigned slot ids], 'occupied' => n,
+//  'available' => free slots, 'maintenance' => n, 'free_by_type' => [type => n]]
+function parking_capacity($conn, $slots = null, $taken = null) {
+    $slots = $slots ?? parking_slots($conn);
+    $taken = $taken ?? parking_assigned_by_slot($conn);
+    $usable = array_filter($slots, fn($s) => $s['status'] === 'active');
+    $free = parking_free_slots($slots, $taken);
+    $by_type = array_fill_keys(PARKING_VEHICLE_TYPES, 0);
+    foreach ($free as $s) foreach ($s['vehicle_types'] as $t) $by_type[$t]++;
+    return [
+        'max' => count($usable),
+        'taken' => array_map('intval', array_keys($taken)),
+        'occupied' => count(array_intersect_key($taken, $slots)),
+        'available' => count($free),
+        'maintenance' => count($slots) - count($usable),
+        'free_by_type' => $by_type,
+    ];
+}
+
+// Once the lot is full for a vehicle type, the requests still waiting for that
+// type cannot be given a slot: each is closed as Rejected and the tenant is told
+// the parking is full. Run after a slot is assigned. Returns the closed ids.
+function parking_close_unservable_requests($conn) {
+    $slots = parking_slots($conn);
+    $taken = parking_assigned_by_slot($conn);
+    $res = $conn->query("SELECT id, user_id, vehicle_type, vehicle_model, plate_number FROM parking_reservations WHERE status = 'Pending'");
+    $pending = $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
+    $closed = [];
+    $free_by_type = [];
+    foreach ($pending as $p) {
+        $type = strtolower((string)$p['vehicle_type']);
+        $free_by_type[$type] ??= count(parking_free_slots($slots, $taken, $type));
+        if ($free_by_type[$type] > 0) continue;
+
+        $reason = 'Parking is full';
+        $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Rejected', rejection_reason = ? WHERE id = ? AND status = 'Pending'");
+        $id = (int)$p['id'];
+        $upd->bind_param('si', $reason, $id);
+        $upd->execute();
+        $changed = $upd->affected_rows > 0;
+        $upd->close();
+        if (!$changed) continue;
+
+        resolve_admin_queue($conn, 'parking_reservation', $id);
+        $vehicle = $p['vehicle_model'] . ($p['plate_number'] ? " ({$p['plate_number']})" : '');
+        create_notification($conn, (int)$p['user_id'], 'parking_reservation', 'Parking Is Full',
+            "Unfortunately the parking is full: every slot for your vehicle type is taken, so your request for $vehicle has been closed. You can send a new request when a slot frees up.");
+        $closed[] = $id;
+    }
+    return $closed;
 }
 
 // First day after a permit's last billable month, or null if never assigned.

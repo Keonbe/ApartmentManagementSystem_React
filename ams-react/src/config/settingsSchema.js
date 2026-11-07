@@ -1,7 +1,7 @@
 // One row per plain system setting: how it is read from get_system_settings.php,
 // what it defaults to, and how it is written back to update_system_settings.php
 // (which holds the matching bounds in its $SETTING_RULES). Structured settings
-// (the QR Ph slots, parking vehicle types, the Glass backdrop, the home page
+// (the QR Ph slots, the Glass backdrop, the home page
 // text) keep their own parsers in systemSettings.js.
 //
 // Pure (no api/axios import), so the parsing can be checked in plain Node.
@@ -54,9 +54,12 @@ export const SETTINGS_SCHEMA = [
   { key: 'paymongoPublicKey', db: 'paymongo_public_key', type: 'secret', default: '' },
   { key: 'paymongoWebhookSecret', db: 'paymongo_webhook_secret', type: 'secret', default: '' },
 
-  { key: 'maxParkingSlots', db: 'max_parking_slots', type: 'int', default: 3 },                      // total parking slots available
   { key: 'parkingMonthlyFee', db: 'parking_monthly_fee', type: 'float', default: 300 },              // PHP per assigned slot per month
   { key: 'parkingBillingMode', db: 'parking_billing_mode', type: 'enum', values: ['manual', 'auto'], default: 'manual' }, // manual = admin bills each month, auto = the daily sweep bills it
+  // Admin → Parking → gear (the slots themselves are in parking_slots.php).
+  { key: 'parkingFree', db: 'parking_free', type: 'bool', default: false },                          // new requests cost nothing and are never billed
+  { key: 'parkingMaxDurationMonths', db: 'parking_max_duration_months', type: 'int', default: 6, min: 1 }, // longest permit a tenant may ask for (1-12)
+  { key: 'parkingMaxPerTenant', db: 'parking_max_per_tenant', type: 'int', default: 1, min: 1 },   // open reservations per tenant (1-5)
   // Landlord details and payment accounts moved to the contract template
   // (Admin → Edit Contract, backend/contract_template.php).
   { key: 'roomPreviewMode', db: 'room_preview_mode', type: 'enum', values: ['images', 'floor_plan'], default: 'images' }, // public room preview

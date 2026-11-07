@@ -29,7 +29,7 @@ describe('a refused key saves nothing', () => {
   it('KB-B01 a valid key followed by an invalid one leaves both unsaved', async () => {
     await save({ payment_window_days: '3' });
     const before = await snapshot();
-    const res = await save({ payment_window_days: '5', max_parking_slots: '0' });
+    const res = await save({ payment_window_days: '5', parking_max_per_tenant: '0' });
     expect(res.status).toBe(422);
     expect(await snapshot()).toEqual(before);
   });
@@ -68,7 +68,8 @@ describe('field validation', () => {
     ['min_lease_duration', '1', '24', '25'],
     ['payment_window_days', '1', '30', '31'],
     ['max_rent_ahead_months', '1', '12', '13'],
-    ['max_parking_slots', '2', '500', '501'],
+    ['parking_max_duration_months', '1', '12', '13'],
+    ['parking_max_per_tenant', '1', '5', '6'],
   ])('KB-C05 %s accepts %s and %s, refuses %s', async (key, low, high, over) => {
     expect((await save({ [key]: low })).status).toBe(200);
     expect(await setting(key)).toBe(low);
@@ -78,10 +79,19 @@ describe('field validation', () => {
     expect(await setting(key)).toBe(high);
   });
 
-  it('parking slots cannot drop below an assigned slot', async () => {
-    const res = await save({ max_parking_slots: '1' });
-    expect(res.status).toBe(422);
-    expect(res.body.message).toMatch(/Slot #2 is still assigned/);
+  it('the old parking slot count is ignored (slots are managed in parking_slots.php)', async () => {
+    expect((await save({ max_parking_slots: '1', parking_allowed_vehicle_types: '["van"]' })).status).toBe(200);
+    expect(await setting('max_parking_slots')).toBeNull();
+    expect(await setting('parking_allowed_vehicle_types')).toBeNull();
+  });
+
+  it('parking_free is stored as 1 / 0 and refuses anything else', async () => {
+    expect((await save({ parking_free: true })).status).toBe(200);
+    expect(await setting('parking_free')).toBe('1');
+    expect((await save({ parking_free: '0' })).status).toBe(200);
+    expect(await setting('parking_free')).toBe('0');
+    expect((await save({ parking_free: 'maybe' })).status).toBe(422);
+    expect(await setting('parking_free')).toBe('0');
   });
 
   it('max_rent_ahead_months 0 → 422', async () => {

@@ -20,7 +20,7 @@
 | [~] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [x] two-way chat (admin ↔ tenant messaging — built, socket server not yet authenticated)                                                                                                                                                                            |
 | [~] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [x] notification preferences (per-category; per-channel on the server, tenant UI pending), [x] a daily automated sweep drives reminders/overdue/parking, [~] SMS notifications (Semaphore driver live, go-live pending), [~] email notifications (built and wired, on the dry-run driver), [ ] automated reports         |
 | [x] | **Inquiry & Reservation Management**    | [x] Inquiry handling, [x] reservation tracking, [x] room/unit availability tracking, [x] reservation module                                                                                                                                                             |
-| [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [x] slot assignment management (numbered slots, admin picks a free one, released on move-out/archive/term end), [x] parking fee integration into billing (manual "Bill this month" or automatic monthly posting, admin-configurable, never billed twice) |
+| [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [x] slot assignment management (admin-managed slots with vehicle types, icons and OR/CR rule; admin picks a free one; full lot closes the rest; released on move-out/archive/term end), [x] parking fee integration into billing (manual "Bill this month" or automatic monthly posting, or free parking; never billed twice) |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
 | [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit, [x] month-over-month change & usage-spike flags, [x] billing sync to invoices                                                                                                                  |
 | [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [x] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
@@ -289,12 +289,14 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A(["Tenant Requests Parking"]) --> B{"Lot full, or tenant<br/>already has an open<br/>reservation?"}
+    A(["Tenant Taps a Free Slot"]) --> B{"Slot taken or under maintenance,<br/>or the tenant's limit<br/>of open reservations reached?"}
     B -->|Yes| E["Refused — 409"]
     B -->|No| C["Submit Reservation<br/>parking_reservation.php<br/>Status: Pending"]
     C --> F["Admin Reviews Request"]
     F -->|Reject + reason| G["Notify Tenant: Rejected"]
-    F -->|Approve + pick a free slot| H["Status: Assigned<br/>Numbered Slot Allocated"]
+    F -->|Approve + pick a free slot<br/>that takes the vehicle| H["Status: Assigned<br/>Slot Allocated"]
+    H --> FULL{"Last free slot for<br/>this vehicle type?"}
+    FULL -->|Yes| FULL2["Other waiting requests closed:<br/>'Parking is full' notice"]
     H --> I{"Billing Mode"}
     I -->|Automatic| I1["Fee Posted Immediately<br/>and Each Following Month"]
     I -->|Manual| I2["Admin Clicks 'Bill This Month'<br/>Per Month, Never Twice"]
@@ -541,11 +543,11 @@ flowchart TD
 > Admin Pages: [AdminParking.jsx](../../ams-react/src/AdminPages/AdminParking.jsx)
 > Tenant Pages: [ParkingReservation.jsx](../../ams-react/src/UserPages/ParkingReservation.jsx)
 
-- [x] **10.1 Parking Slot Listing** ✅ — `get_available_parking_slots.php` returns real capacity, the monthly fee and the caller's own reservation; a tenant page that used to always read "3/3 free" now shows the true count
-- [x] **10.2 Reservation Request** ✅ — `parking_reservation.php`, one open reservation per tenant (enforced by a unique key, not just an application check), refused once the lot is full or the parking module is switched off
-- [x] **10.3 Parking Fee Integration** ✅ — `post_invoice_charge('parking')` posts the fee onto the tenant's invoice per calendar month of the permit term, claimed by a `(reservation_id, billing_period)` unique key so a month is never billed twice. Admin-configurable: **manual** ("Bill this month" button, reversible while unpaid) or **automatic** (posted on assignment and by the daily sweep each following month)
-- [x] **10.4 Slot Assignment Management** ✅ — Numbered slots (`slot_number`, 1..`max_parking_slots`); the admin picks a free slot from a live picker, and the database itself refuses two `Assigned` rows on one slot. Status transitions are enforced (`Pending → Assigned \| Rejected \| Cancelled`, `Assigned → Released`). The slot is released automatically on move-out, on archiving, or when its term ends (daily sweep) — previously a moved-out tenant's slot stayed occupied forever
-- [x] **10.5 Parking Rules Before Applying** ✅ — Admin-editable parking rules (Settings → Parking Rules, `house_rules.scope = 'parking'`) are shown on `ParkingReservation.jsx` with a required agreement before submit, and on the inquiry form and rent application.
+- [x] **10.1 Parking Slot Listing** ✅ — The admin manages slots one by one (Admin → Parking → Slots, `parking_slots.php`, 2026-11-07): name, icon (motorcycle, car, e-bike, van), the vehicle types each takes, whether the OR/CR is required, under maintenance, add several at once, remove. The tenant page shows them as a grid (free, taken, yours, requested, maintenance, filtered by vehicle) next to the tenant's reservation status (`get_available_parking_slots.php`)
+- [x] **10.2 Reservation Request** ✅ — The tenant taps a free slot and sends the vehicle (`parking_reservation.php`): the plate is optional for an e-bike, the OR/CR is asked only when the slot requires it, up to `parking_max_per_tenant` open reservations (same plate once), cancel while pending; refused when the slot is taken or under maintenance, or the parking module is switched off. A request does not hold the slot, so several tenants can ask and the admin accepts as many as there are slots
+- [x] **10.3 Parking Fee Integration** ✅ — `post_invoice_charge('parking')` posts the permit's own fee (fixed when requested) onto the tenant's invoice per calendar month of the term, claimed by a `(reservation_id, billing_period)` unique key so a month is never billed twice. Admin → Parking → gear: the fee, **Free parking** (new requests cost nothing and are never billed), **manual** ("Bill this month", reversible while unpaid) or **automatic** billing, the longest permit and reservations per tenant
+- [x] **10.4 Slot Assignment Management** ✅ — The admin picks one of the free slots that take the vehicle (the one the tenant asked for first), and the database itself refuses two `Assigned` rows on one slot. When an assignment fills the last slot for a vehicle type, the requests still waiting for that type are closed and their tenants told "Unfortunately the parking is full". Status transitions are enforced (`Pending → Assigned \| Rejected \| Cancelled`, `Assigned → Released`). The slot is released automatically on move-out, on archiving, or when its term ends (daily sweep) — previously a moved-out tenant's slot stayed occupied forever
+- [x] **10.5 Parking Rules Before Applying** ✅ — Admin-editable parking rules (Admin → Parking → gear → Parking rules, `house_rules.scope = 'parking'`; was Other Settings) open in a pop-up from the request form, like the rent application's Terms, with **Accept & agree** ticking the required agreement; also shown on the inquiry form and rent application.
 
 ---
 

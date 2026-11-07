@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard, faImage, faHouse, faAddressCard, faVideo, faHourglassHalf, faEye, faKey, faLanguage } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faIdCard, faImage, faHouse, faAddressCard, faVideo, faHourglassHalf, faEye, faKey, faLanguage } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -39,13 +39,6 @@ export const SETTINGS_TABS = [
       'paymongoSecretKey', 'paymongoPublicKey', 'paymongoWebhookSecret',
       'qrphSlots', 'qrphActiveSlot',
     ],
-  },
-  {
-    id: 'parking',
-    label: 'Parking',
-    icon: faCar,
-    description: 'Slot capacity, the monthly fee and how it is billed.',
-    keys: ['maxParkingSlots', 'parkingMonthlyFee', 'parkingBillingMode', 'parkingAllowedVehicleTypes'],
   },
   {
     id: 'notifications',
@@ -127,12 +120,6 @@ export const SETTINGS_TABS = [
     description: 'The camera locations and incident types on the CCTV request form, and how far back footage is kept.',
   },
   {
-    id: 'parking-rules',
-    label: 'Parking Rules',
-    icon: faSquareParking,
-    description: 'Rules shown before a parking reservation is submitted.',
-  },
-  {
     id: 'minors',
     label: 'Children & Pets',
     icon: faChildren,
@@ -164,7 +151,7 @@ export const OTHER_SETTINGS_GROUPS = [
     key: 'leasing',
     title: 'Leasing & Rates',
     accentDot: 'bg-indigo-500',
-    tabIds: ['leasing', 'contract-end', 'floor-rent', 'utility-types', 'parking'],
+    tabIds: ['leasing', 'contract-end', 'floor-rent', 'utility-types'],
   },
   {
     key: 'operations',
@@ -176,10 +163,10 @@ export const OTHER_SETTINGS_GROUPS = [
     key: 'policies',
     title: 'Rules & Policies',
     accentDot: 'bg-emerald-500',
-    tabIds: ['house-rules', 'parking-rules', 'minors', 'sign-in-codes'],
+    tabIds: ['house-rules', 'minors', 'sign-in-codes'],
   },
 ];
 
 // Tabs that save on their own (their panel talks to its own endpoints), so the
 // shared settings form and its save bar stay out of the way.
-export const SELF_SAVING_TAB_IDS = ['site', 'house-rules','floor-rent', 'utility-types', 'cctv', 'parking-rules', 'minors', 'requirements', 'sign-in-codes'];
+export const SELF_SAVING_TAB_IDS = ['site', 'house-rules','floor-rent', 'utility-types', 'cctv', 'minors', 'requirements', 'sign-in-codes'];

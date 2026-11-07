@@ -289,7 +289,10 @@ describe('update_parking_status.php and get_available_parking_slots.php', () => 
   });
 
   it('assigns a slot, refuses the same slot twice, and releases only an assigned one', async () => {
-    await setSetting('max_parking_slots', 3);
+    // Slots 1 and 2 are taken in the seed; a fourth slot keeps the lot from filling
+    // (a full lot would close the other request, see parking_slots.test.js).
+    const added = await api('parking_slots.php', { token: admin, json: { action: 'create', label: '4', icon: 'motorcycle', vehicle_types: ['motorcycle'], requires_registration: false } });
+    expect(added.body.success).toBe(true);
     const a = await pend(2);
     const b = await pend(3);
     expect((await setP(admin, { id: a.id, status: 'Assigned', slotNumber: 3 })).body.success).toBe(true); // top edge

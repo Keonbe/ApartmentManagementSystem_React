@@ -45,6 +45,7 @@ TRUNCATE TABLE `expenses`;
 TRUNCATE TABLE `unit_waitlist`;
 TRUNCATE TABLE `notification_preferences`;
 TRUNCATE TABLE `parking_charges`;
+TRUNCATE TABLE `parking_slots`;
 TRUNCATE TABLE `service_catalog`;
 TRUNCATE TABLE `service_requests`;
 TRUNCATE TABLE `utility_readings`;
@@ -132,10 +133,11 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('service_laundry_active', 'true'),
 ('service_other_active', 'true'),
 ('reservation_hold_days', '7'),
-('max_parking_slots', '3'),
-('parking_allowed_vehicle_types', '["motorcycle"]'),
 ('parking_monthly_fee', '300'),
 ('parking_billing_mode', 'manual'),
+('parking_free', '0'),
+('parking_max_per_tenant', '1'),
+('parking_max_duration_months', '6'),
 ('lease_end_reminder_days', '30'),
 ('move_out_min_notice_days', '15'),
 ('move_out_max_notice_days', '30'),
@@ -172,6 +174,12 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('child_restricted_floors', '["3F"]'),
 ('child_restricted_below_age', '5'),
 ('age_categories', '[{"key":"infant","label":"Infant","min_age":0,"max_age":1,"rule":"Not allowed on the 3rd floor (stairs). Allowed on the 1st and 2nd floors.","rule_fil":""},{"key":"toddler","label":"Toddler","min_age":2,"max_age":4,"rule":"Not allowed on the 3rd floor (stairs). Allowed on the 1st and 2nd floors.","rule_fil":""},{"key":"child","label":"Child","min_age":5,"max_age":11,"rule":"Allowed, with adult supervision in common areas.","rule_fil":""},{"key":"minor","label":"Minor","min_age":12,"max_age":17,"rule":"Allowed, with adult responsibility for their conduct. Running and playing in hallways, elevators and the parking area is not allowed.","rule_fil":""}]');
+
+-- The three default parking slots (motorcycles), as in SetupDB.sql.
+INSERT INTO `parking_slots` (`id`, `label`, `icon`, `vehicle_types`, `requires_registration`, `status`, `sort_order`) VALUES
+(1, '1', 'motorcycle', '["motorcycle"]', 1, 'active', 1),
+(2, '2', 'motorcycle', '["motorcycle"]', 1, 'active', 2),
+(3, '3', 'motorcycle', '["motorcycle"]', 1, 'active', 3);
 
 SET FOREIGN_KEY_CHECKS = 1;
 

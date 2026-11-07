@@ -25,7 +25,6 @@ const DEFAULTS = {
   qrphSlots: Array.from({ length: QRPH_SLOT_COUNT }, (_, i) => (
     { slot: i + 1, label: `QR Ph Slot ${i + 1}`, image_path: '', account_name: '', account_number: '' }
   )),
-  parkingAllowedVehicleTypes: ['motorcycle'],  // vehicle types eligible for parking reservations
 
   // Glass theme backdrop on the tenant side (Other Settings → Glass Mode).
   // Ranges match update_system_settings.php.
@@ -93,7 +92,6 @@ export const getSystemSettings = async ({ strict = false } = {}) => {
         qrphSlots: parseList(dbSettings.qrph_slots, DEFAULTS.qrphSlots)
           .filter((s) => Number(s?.slot) >= 1 && Number(s?.slot) <= QRPH_SLOT_COUNT),
         qrphActiveSlot: inSlotRange(dbSettings.qrph_active_slot),
-        parkingAllowedVehicleTypes: parseList(dbSettings.parking_allowed_vehicle_types, DEFAULTS.parkingAllowedVehicleTypes),
         ...parseGlassAppearance(dbSettings),
         homeContent: parseHomeContent(dbSettings.home_content),
         previewHero: parsePreviewHero(dbSettings.preview_hero),
@@ -115,7 +113,6 @@ export const saveSystemSettings = async (settings) => {
       // rather than storing.
       ...encodeSchemaSettings(settings),
       qrph_slots: settings.qrphSlots || DEFAULTS.qrphSlots,
-      parking_allowed_vehicle_types: JSON.stringify(settings.parkingAllowedVehicleTypes || []),
       glass_bg_image: settings.glassBgImage ?? '',
       glass_overlay_opacity: String(settings.glassOverlayOpacity ?? DEFAULTS.glassOverlayOpacity),
       glass_blur: String(settings.glassBlur ?? DEFAULTS.glassBlur),

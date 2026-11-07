@@ -1,648 +1,526 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faFilePdf, faEye, faTimes, faExclamationTriangle, faCar, faClock, faBan } from '@fortawesome/free-solid-svg-icons';
+import {
+  faCloudUploadAlt, faFilePdf, faTimes, faExclamationTriangle, faClock, faCircleCheck, faRotate,
+  faBan, faScaleBalanced, faIdCard, faSquareParking,
+} from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
-import ScopedRules from '../Components/ScopedRules';
 import useScopedRules from '../hooks/useScopedRules';
-import { useNavigate } from 'react-router-dom';
-import api from "../api/axiosConfig";
+import api from '../api/axiosConfig';
 import { useLang, dateLocale } from '../config/i18n';
-import { LIMITS, checkIntRange, checkText } from '../utils/validation';
+import { LIMITS, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import InlineAlert from '../Components/InlineAlert';
 import useDialog from '../hooks/useDialog';
-import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
-
-const TRANSMISSIONS = ['Automatic', 'Manual'];
-const MAX_PARKING_MONTHS = 6;
-import { getSystemSettings } from '../config/systemSettings';
+import { formatFileSize, invalidCls } from '../Components/form/formHelpers';
+import { Bone } from '../Components/tenant/Skeleton';
+import { VEHICLE_TYPES, NO_PLATE_TYPES, slotIcon, vehicleIcon, vehicleLabel, typesText, peso } from '../utils/parkingVehicles';
 import '../assets/styles/responsive/user/parking-reservation.responsive.css';
 
+const INPUT = 'parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-base min-h-[48px]';
+
+// Each slot state's look: tile, icon and the word under the number.
+const STATE_STYLE = {
+  free: { tile: 'border-emerald-200 bg-white hover:border-emerald-400 hover:-translate-y-0.5 hover:shadow-md cursor-pointer', icon: 'bg-emerald-50 text-emerald-700', word: 'text-emerald-700' },
+  mine: { tile: 'border-indigo-300 bg-indigo-50', icon: 'bg-indigo-100 text-indigo-700', word: 'text-indigo-700' },
+  requested: { tile: 'border-amber-300 bg-amber-50', icon: 'bg-amber-100 text-amber-600', word: 'text-amber-700' },
+  taken: { tile: 'border-rose-200 bg-rose-50/60', icon: 'bg-rose-100 text-rose-400', word: 'text-rose-500' },
+  maintenance: { tile: 'border-slate-200 bg-slate-50', icon: 'bg-slate-100 text-slate-400', word: 'text-slate-500' },
+  other: { tile: 'border-slate-200 bg-white opacity-45', icon: 'bg-slate-50 text-slate-400', word: 'text-slate-400' },
+};
+const STATE_WORD = { free: 'parking.stateFree', mine: 'parking.stateMine', requested: 'parking.stateRequested', taken: 'parking.stateTaken', maintenance: 'parking.stateMaintenance', other: 'parking.stateNotForVehicle' };
+
+// Plate numbers, conduction stickers or MV file numbers (as parking_reservation.php).
+const plateError = (val, required, t) => {
+  const raw = String(val || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!raw) return required ? t('parking.errPlateRequired') : '';
+  const ok = [/^\d{3}[A-Z]{3}$/, /^\d{4}[A-Z]{2}$/, /^[A-Z]{2}\d{4}$/, /^[A-Z]{3}\d{3}$/, /^[A-Z]{3}\d{4}$/, /^[A-Z]{2}\d{5}$/, /^\d{10,15}$/].some((re) => re.test(raw));
+  return ok ? '' : t('parking.errPlateFormat');
+};
+
+// The parking rules, read before agreeing (like the rent application's Terms).
+function RulesModal({ rules, onClose, onAccept, t, pick }) {
+  const ref = useDialog(true, onClose);
+  return (
+    <div onClick={onClose} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
+      <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="parking-rules-title" onClick={(e) => e.stopPropagation()}
+        className="outline-none modal-card-anim sheet-mobile bg-white rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] animate-scale-in overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center gap-3">
+          <h3 id="parking-rules-title" className="m-0 flex items-center gap-2.5 text-xl font-black text-slate-900">
+            <FontAwesomeIcon icon={faScaleBalanced} className="text-indigo-500" /> {t('parking.rules')}
+          </h3>
+          <button type="button" aria-label={t('common.close')} onClick={onClose} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
+            <FontAwesomeIcon icon={faTimes} />
+          </button>
+        </div>
+        <ol className="m-0 list-none p-6 overflow-y-auto space-y-4 text-sm text-slate-600 leading-relaxed text-left">
+          {rules.length === 0 && <li className="text-slate-500">{t('parking.noRules')}</li>}
+          {rules.map((r, i) => (
+            <li key={r.id} className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-black text-indigo-600">{i + 1}</span>
+              <div className="min-w-0">
+                <h4 className="font-bold text-slate-900 m-0 mb-0.5">{pick(r.title, r.title_fil)}</h4>
+                <p className="m-0 whitespace-pre-line">{pick(r.description, r.description_fil)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="p-5 border-t border-slate-100 flex justify-end bg-slate-50">
+          <button type="button" onClick={onAccept} className="bg-[#10b981] hover:bg-[#059669] text-white font-black px-8 py-3 rounded-xl text-sm transition-colors shadow-md shadow-emerald-600/20 cursor-pointer border-0">
+            {t('parking.acceptRules')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ParkingReservation() {
-    const { t, lang } = useLang();
-    const [vehicleType, setVehicleType] = useState('motorcycle');
-    const [vehicleModel, setVehicleModel] = useState('');
-    const [plateNumber, setPlateNumber] = useState('');
-    const [transmission, setTransmission] = useState('');
-    const [durationMonths, setDurationMonths] = useState('');
-    const [uploadedFile, setUploadedFile] = useState(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+  const { t, lang } = useLang();
+  const pick = (en, fil) => (lang === 'fil' && fil?.trim() ? fil : en);
+  const [data, setData] = useState(null);       // get_available_parking_slots.php
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [filter, setFilter] = useState('all');   // a vehicle type, or all
+  const [slot, setSlot] = useState(null);        // the slot being requested (opens the form)
+  const [notice, setNotice] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
-    //1.DynamicSlotCounterAndPDFModalStates
-    const [totalCapacity, setTotalCapacity] = useState(3); //AdminConfigurableTotalParkingSlots
-    const [allowedVehicleTypes, setAllowedVehicleTypes] = useState(['motorcycle']); //AdminConfigurableAllowedTypes
-    const [availableSlots, setAvailableSlots] = useState(3);
-    const [loadingSlots, setLoadingSlots] = useState(true);
-    // Until the counts really load, nothing is shown as free (the defaults of 3
-    // used to read "3 / 3 free" and enable submit when the request failed).
-    const [slotsKnown, setSlotsKnown] = useState(false);
-    
-    const [pdfModalUrl, setPdfModalUrl] = useState(null);
-    const [pdfModalTitle, setPdfModalTitle] = useState('PDF Viewer');
+  // The form
+  const [vehicleType, setVehicleType] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
+  const [transmission, setTransmission] = useState('');
+  const [durationMonths, setDurationMonths] = useState('');
+  const [file, setFile] = useState(null);
+  const [agree, setAgree] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const { rules } = useScopedRules('parking');
 
-    const [monthlyFee, setMonthlyFee] = useState(null);
-    const [myReservation, setMyReservation] = useState(null);
-    const [submitting, setSubmitting] = useState(false);
-    const [formError, setFormError] = useState(''); // availability could not load (top of the page)
-    const [submitError, setSubmitError] = useState(''); // a failed submit, shown next to the button
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get('get_available_parking_slots.php');
+      setData(res.data);
+      setLoadError('');
+    } catch (err) {
+      setLoadError(apiErrorMessage(err, t('parking.loadFailed')));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
 
-    const navigate = useNavigate();
+  useEffect(() => {
+    const timer = setTimeout(load, 0);
+    return () => clearTimeout(timer);
+  }, [load]);
 
-    //2.RealCapacityFeeAndTheTenantsOwnReservation
-    // The counter used to call the admin-only reservations endpoint, get a 403, and
-    // show every slot as free. get_available_parking_slots.php is the tenant view.
-    useEffect(() => {
-        const fetchAvailableSlots = async () => {
-            try {
-                const [{ parkingAllowedVehicleTypes }, slotsRes] = await Promise.all([
-                    getSystemSettings(),
-                    api.get('get_available_parking_slots.php'),
-                ]);
-                const allowedTypes = (parkingAllowedVehicleTypes && parkingAllowedVehicleTypes.length > 0)
-                    ? parkingAllowedVehicleTypes
-                    : ['motorcycle'];
-                setAllowedVehicleTypes(allowedTypes);
-                if (!allowedTypes.includes(vehicleType)) {
-                    setVehicleType(allowedTypes[0]);
-                }
+  const slots = useMemo(() => data?.slots || [], [data]);
+  const mine = data?.my_reservations || [];
+  const openOnes = mine.filter((r) => ['Pending', 'Assigned'].includes(r.status));
+  const closed = mine.filter((r) => !['Pending', 'Assigned'].includes(r.status)).slice(0, 3);
+  const atLimit = data && data.open_count >= data.max_per_tenant;
+  const fee = Number(data?.monthly_fee || 0);
+  const free = !!data?.free || fee <= 0;
+  const typesOnSite = VEHICLE_TYPES.filter((vt) => slots.some((s) => s.vehicle_types.includes(vt.value)));
+  const shownState = (s) => (s.state === 'free' && filter !== 'all' && !s.vehicle_types.includes(filter) ? 'other' : s.state);
+  const freeCount = slots.filter((s) => shownState(s) === 'free').length;
 
-                if (slotsRes.data.success) {
-                    setTotalCapacity(slotsRes.data.max_slots);
-                    setAvailableSlots(slotsRes.data.available_slots);
-                    setMonthlyFee(Number(slotsRes.data.monthly_fee));
-                    setMyReservation(slotsRes.data.my_reservation);
-                    setSlotsKnown(true);
-                } else {
-                    setFormError(t('parking.loadFailed'));
-                }
-            } catch (err) {
-                console.error("Failed to load parking availability:", err);
-                setFormError(t('parking.loadFailed'));
-            } finally {
-                setLoadingSlots(false);
-            }
-        };
+  // ── The request form ──
+  const noPlate = NO_PLATE_TYPES.includes(vehicleType);
+  const form = useFieldErrors({
+    vehicleType: (v) => (slot?.vehicle_types.includes(v) ? '' : t('parking.errChooseType')),
+    vehicleModel: (v) => checkText(v, { label: t('parking.vehicleModel'), min: 2, max: LIMITS.vehicleModel }),
+    plateNumber: (v) => plateError(v, !noPlate, t),
+    transmission: (v) => (noPlate || ['Automatic', 'Manual'].includes(v) ? '' : t('parking.errTransmission')),
+    durationMonths: (v) => (v ? '' : t('parking.errDuration')),
+    uploadedFile: (f) => (slot?.requires_registration && !f ? t('parking.errOrcr') : f ? checkFile(f, FILE_RULES.document) : ''),
+  }, { idPrefix: 'parking-' });
+  const values = { vehicleType, vehicleModel, plateNumber, transmission, durationMonths, uploadedFile: file };
 
-        fetchAvailableSlots();
-    }, []);
+  const isImage = file && file.type.startsWith('image/');
+  const previewUrl = useMemo(() => (isImage ? URL.createObjectURL(file) : null), [file, isImage]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
-    //3.DynamicHintAndPlaceholderHelper
-    const getPlateHint = () => {
-        switch (vehicleType) {
-            case 'motorcycle':
-                return t('parking.formatCar');
-            case 'sedan':
-            case 'suv':
-            case 'pickup':
-            case 'van':
-                return t('parking.formatMotorcycle');
-            default:
-                return t('parking.formatDefault');
-        }
-    };
+  const openSlot = (s) => {
+    setSlot(s);
+    setVehicleType(filter !== 'all' && s.vehicle_types.includes(filter) ? filter : s.vehicle_types.length === 1 ? s.vehicle_types[0] : '');
+    setVehicleModel(''); setPlateNumber(''); setTransmission(''); setDurationMonths('');
+    setFile(null); setAgree(false); setSubmitError(''); form.setErrors({});
+  };
+  const closeForm = () => { if (!submitting) setSlot(null); };
+  const formRef = useDialog(!!slot && !showRules, closeForm);
 
-    const getPlatePlaceholder = () => {
-        switch (vehicleType) {
-            case 'motorcycle':
-                return "123-ABC or FA-8231";
-            case 'sedan':
-            case 'suv':
-            case 'pickup':
-            case 'van':
-                return t('parking.formatMotorcycleShort');
-            default:
-                return "123-ABC or FA-8231";
-        }
-    };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    setSubmitError('');
+    const cleanModel = vehicleModel.trim();
+    setVehicleModel(cleanModel);
+    const ok = form.validateAll({ ...values, vehicleModel: cleanModel });
+    const rulesMissing = rules.length > 0 && !agree;
+    if (rulesMissing) form.setFieldError('agree', t('parking.errRules'));
+    if (!ok || rulesMissing) return;
 
-    //PriceCalculationMetrics — the fee is the admin-configured parking_monthly_fee
-    const calculatedTotal = durationMonths && !isNaN(durationMonths) && monthlyFee
-        ? monthlyFee * parseInt(durationMonths, 10)
-        : 0;
-    const peso = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fd = new FormData();
+    fd.append('slotId', String(slot.id));
+    fd.append('vehicleType', vehicleType);
+    fd.append('vehicleModel', cleanModel);
+    fd.append('plateNumber', plateNumber.trim());
+    if (!noPlate) fd.append('transmission', transmission);
+    fd.append('durationMonths', String(durationMonths));
+    if (file) fd.append('uploadedFile', file);
 
-    const hasOpenReservation = myReservation && ['Pending', 'Assigned'].includes(myReservation.status);
-    // A closed request's status in the current language (unknown statuses as sent).
-    const statusWord = (status) => { const key = `parking.status${status}`; const text = t(key); return text === key ? status.toLowerCase() : text; };
+    setSubmitting(true);
+    try {
+      await api.post('parking_reservation.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setSlot(null);
+      setSuccess(true);
+      load();
+    } catch (err) {
+      if (!form.applyServerErrors(err)) setSubmitError(apiErrorMessage(err, t('parking.submitFailed')));
+      load(); // a slot taken meanwhile shows as taken
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    //ImagePreviewUrlIsCreatedOnceAndRevoked (it was recreated on every render and never freed)
-    const isImageFile = uploadedFile && (uploadedFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(uploadedFile.name));
-    const previewUrl = useMemo(() => (isImageFile ? URL.createObjectURL(uploadedFile) : null), [uploadedFile, isImageFile]);
-    useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  const cancelRequest = async (r) => {
+    setCancelling(true);
+    try {
+      const fd = new FormData();
+      fd.append('action', 'cancel');
+      fd.append('id', String(r.id));
+      await api.post('parking_reservation.php', fd);
+      setNotice(t('parking.cancelled'));
+      setConfirmCancel(null);
+      load();
+    } catch (err) {
+      setNotice(apiErrorMessage(err, t('parking.submitFailed')));
+    } finally {
+      setCancelling(false);
+    }
+  };
 
-    //4.IntelligentPhilippineLTOPlateAndInductionStickerValidation
-    const validatePhilippinePlate = (val) => {
-        if (!val.trim()) return t('parking.errPlateRequired');
+  const dateText = (iso) => new Date(iso).toLocaleDateString(dateLocale(lang), { month: 'short', day: 'numeric', year: 'numeric' });
+  const statusWord = (status) => { const key = `parking.status${status}`; const text = t(key); return text === key ? status.toLowerCase() : text; };
 
-        //StripHyphensForCleanAlphanumericValidation
-        const raw = val.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return (
+    <div className="parking-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
+      <div className="page-enter w-full max-w-6xl space-y-6 text-left">
+        <header>
+          <h1 className="parking-heading text-3xl sm:text-4xl font-extrabold m-0 tracking-tight text-brand">{t('parking.heading')}</h1>
+          <p className="parking-subtext text-slate-500 text-sm mt-1 m-0">{t('parking.subtext')}</p>
+        </header>
 
-        //Motorcycle:3Nums+3Letters(e.g.,123ABC)
-        if (/^\d{3}[A-Z]{3}$/.test(raw)) return "";
-        //Motorcycle:4Nums+2Letters(e.g.,1234AB)
-        if (/^\d{4}[A-Z]{2}$/.test(raw)) return "";
-        //Motorcycle/InductionSticker:2Letters+4Nums(e.g.,AB1234)
-        if (/^[A-Z]{2}\d{4}$/.test(raw)) return "";
-        //Car/OldMotorcycle:3Letters+3Nums(e.g.,ABC123)
-        if (/^[A-Z]{3}\d{3}$/.test(raw)) return "";
-        //Car:3Letters+4Nums(e.g.,NKI3212)
-        if (/^[A-Z]{3}\d{4}$/.test(raw)) return "";
-        //InductionSticker:2Letters+5Nums(e.g.,FA82312)
-        if (/^[A-Z]{2}\d{5}$/.test(raw)) return "";
-        //MVFileNo:10To15Digits
-        if (/^\d{10,15}$/.test(raw)) return "";
+        {loadError && (
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-700 flex items-center gap-2">
+            <FontAwesomeIcon icon={faExclamationTriangle} /> {loadError}
+          </div>
+        )}
+        <InlineAlert tone="info" onDismiss={() => setNotice('')}>{notice}</InlineAlert>
 
-        return t('parking.errPlateFormat');
-    };
-
-    // Keys match parking_reservation.php's form fields.
-    // Admin-editable parking rules (Settings → Parking Rules); agreement is required when any exist.
-    const { rules: parkingRules } = useScopedRules('parking');
-    const [agreeParkingRules, setAgreeParkingRules] = useState(false);
-
-    const form = useFieldErrors({
-        vehicleType: (v) => (allowedVehicleTypes.includes(v) ? '' : t('parking.errVehicleType')),
-        vehicleModel: (v) => checkText(v, { label: t('parking.vehicleModel'), min: 2, max: LIMITS.vehicleModel }),
-        plateNumber: (v) => validatePhilippinePlate(String(v ?? '')),
-        transmission: (v) => (TRANSMISSIONS.includes(v) ? '' : t('parking.errTransmission')),
-        durationMonths: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_PARKING_MONTHS, 'Rental duration'),
-        uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.document) : t('parking.errOrcr')),
-    }, { idPrefix: 'parking-' });
-    const values = { vehicleType, vehicleModel, plateNumber, transmission, durationMonths, uploadedFile };
-
-    //FreeTypingHandlerWithoutForcedHyphenation
-    const handlePlateNumberChange = (e) => {
-        let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-        if (val.length > LIMITS.plate) val = val.substring(0, LIMITS.plate);
-        setPlateNumber(val);
-        form.clearError('plateNumber');
-    };
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = () => {
-        setIsDragging(false);
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            const file = e.dataTransfer.files[0];
-            if (validateFile(file)) setUploadedFile(file);
-        }
-    };
-
-    const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            if (validateFile(file)) setUploadedFile(file);
-        }
-    };
-
-    const validateFile = (file) => {
-        if (!file) return false;
-        const fileError = checkFile(file, FILE_RULES.document);
-        form.setFieldError('uploadedFile', fileError);
-        return !fileError;
-    };
-
-    //5.NumericInputHandler-ValuesOutsideTheLimitAreRefusedWithAMessage
-    const handleNumberInput = (e) => {
-        form.clearError('durationMonths');
-        const value = e.target.value;
-        if (value === '') {
-            setDurationMonths('');
-            return;
-        }
-        const num = parseInt(value, 10);
-        if (isNaN(num)) return;
-        if (num > MAX_PARKING_MONTHS) {
-            form.setFieldError('durationMonths', `You can reserve up to ${MAX_PARKING_MONTHS} months at a time.`);
-        } else if (num < 1) {
-            form.setFieldError('durationMonths', 'Reserve at least 1 month.');
-        } else {
-            setDurationMonths(num);
-        }
-    };
-
-    // Each preview URL is revoked when it is replaced or the page closes.
-    useEffect(() => () => { if (pdfModalUrl) URL.revokeObjectURL(pdfModalUrl); }, [pdfModalUrl]);
-
-    const closePdfModal = () => setPdfModalUrl(null);
-    const pdfDialogRef = useDialog(!!pdfModalUrl, closePdfModal);
-
-    const openPdfPreview = (file, title) => {
-        const url = URL.createObjectURL(file);
-        setPdfModalUrl(url);
-        setPdfModalTitle(title);
-    };
-
-    const handleFormSubmit = async (e) => {
-        e.preventDefault();
-        if (submitting) return;
-        setSubmitError('');
-        // The button stays enabled; an unticked rules box is reported under the box.
-        const rulesMissing = parkingRules.length > 0 && !agreeParkingRules;
-        if (rulesMissing) form.setFieldError('agreeParkingRules', 'Please read and agree to the parking rules before reserving.');
-
-        // Vehicle model, transmission and duration used to rely on `required` alone.
-        const cleanModel = vehicleModel.trim();
-        setVehicleModel(cleanModel);
-        const fieldsOk = form.validateAll({ ...values, vehicleModel: cleanModel });
-        if (!fieldsOk) return;
-        if (rulesMissing) {
-            document.getElementById('parking-agreeParkingRules')?.focus();
-            return;
-        }
-
-        // The reservation is filed under the signed-in account on the server.
-        const formData = new FormData();
-        formData.append('vehicleType', vehicleType);
-        formData.append('vehicleModel', cleanModel);
-        formData.append('plateNumber', plateNumber.trim());
-        formData.append('transmission', transmission);
-        formData.append('durationMonths', durationMonths);
-        formData.append('uploadedFile', uploadedFile);
-
-        setSubmitting(true);
-        try {
-            const res = await api.post("parking_reservation.php", formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            if (res.data.success) {
-                setIsModalOpen(true);
-            } else if (!form.applyServerErrors(res)) {
-                setSubmitError(res.data.message || t('parking.submitFailed'));
-            }
-        } catch (error) {
-            if (!form.applyServerErrors(error)) setSubmitError(apiErrorMessage(error, "A network error occurred."));
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="parking-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
-
-                {/*TopHeaderRowWithDynamicSlotCounter*/}
-                <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1
-                            className="parking-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
-                        >
-                            {t('parking.heading')}
-                        </h1>
-                        <p className="parking-subtext text-slate-500 text-sm mt-1 m-0">
-                            {t('parking.subtext')}
-                        </p>
-                    </div>
-
-                    {/*DynamicAvailableSlotsCounterWidget*/}
-                    <div className="parking-slots-widget bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm flex items-center space-x-3 flex-shrink-0 select-none">
-                        <div className={`w-2.5 h-2.5 rounded-full ${!slotsKnown ? 'bg-slate-400' : availableSlots > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                        <div>
-                            <span className="text-xs text-slate-500 font-bold block">{t('parking.availableSpaces')}</span>
-                            <span className="text-xl font-black text-slate-800 tracking-tight">
-                                {loadingSlots ? 'Checking…' : slotsKnown ? `${availableSlots} / ${totalCapacity} ${t('parking.slotsFree')}` : 'Unavailable'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                {/*LastClosedReservationOutcome*/}
-                {myReservation && !hasOpenReservation && (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 flex items-start gap-3">
-                        <FontAwesomeIcon icon={faBan} className="text-slate-500 mt-0.5" />
-                        <p className="m-0">
-                            {t('parking.lastRequest', { plate: myReservation.plate_number })} <strong>{statusWord(myReservation.status)}</strong>
-                            {(myReservation.rejection_reason || myReservation.release_reason) && `: ${myReservation.rejection_reason || myReservation.release_reason}`}.
-                            {' '}{t('parking.newRequestBelow')}
-                        </p>
-                    </div>
-                )}
-
-                {formError && (
-                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-700 flex items-center gap-2">
-                        <FontAwesomeIcon icon={faExclamationTriangle} /> {formError}
-                    </div>
-                )}
-
-                {/*OpenReservationStatusCard — replaces the form so a second request can't be filed*/}
-                {hasOpenReservation ? (
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 sm:p-10 space-y-5">
-                        <div className="flex items-center gap-4">
-                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${myReservation.status === 'Assigned' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                                <FontAwesomeIcon icon={myReservation.status === 'Assigned' ? faCar : faClock} />
-                            </div>
-                            <div>
-                                <p className="text-xs font-bold text-slate-500 m-0">{t('parking.yourParking')}</p>
-                                <h2 className="text-2xl font-extrabold m-0 text-brand">
-                                    {myReservation.status === 'Assigned' ? t('parking.slotNo', { n: myReservation.slot_number }) : t('parking.awaitingReview')}
-                                </h2>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.vehicle')}</p><p className="font-bold text-slate-800 m-0">{myReservation.vehicle_model}</p></div>
-                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.plate')}</p><p className="font-bold text-slate-800 m-0 font-mono">{myReservation.plate_number}</p></div>
-                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.term')}</p><p className="font-bold text-slate-800 m-0">{t('parking.months', { n: myReservation.duration_months })}{myReservation.term_ends_at ? ` · ${t('parking.until', { date: new Date(myReservation.term_ends_at).toLocaleDateString(dateLocale(lang), { month: 'short', day: 'numeric', year: 'numeric' }) })}` : ''}</p></div>
-                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.monthlyFee')}</p><p className="font-bold text-slate-800 m-0">{peso(monthlyFee)}</p></div>
-                        </div>
-                        {myReservation.status === 'Assigned' ? (
-                            <p className="text-xs text-slate-500 m-0">
-                                {t('parking.feeOnBill')}
-                                {myReservation.billed_periods?.length > 0 && ` ${t('parking.billedSoFar', { periods: myReservation.billed_periods.join(', ') })}`}
-                            </p>
-                        ) : (
-                            <p className="text-xs text-slate-500 m-0">{t('parking.reviewNote')}</p>
-                        )}
-                    </div>
-                ) : (
-                <form className="parking-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start" onSubmit={handleFormSubmit} noValidate>
-
-                    {/*VehicleTypeSelectorRestrictedToMotorcycle*/}
-                    <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-vehicleType" className="text-sm font-bold text-brand">{t('parking.vehicleType')}</label>
-                        <select
-                            {...form.fieldA11y('vehicleType')}
-                            value={vehicleType}
-                            onChange={(e) => { setVehicleType(e.target.value); form.clearError('vehicleType'); }}
-                            className={"parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.vehicleType)}
-                        >
-                            {[
-                                { value: 'motorcycle', label: t('parking.motorcycle') },
-                                { value: 'sedan', label: 'Sedan' },
-                                { value: 'suv', label: 'SUV' },
-                                { value: 'pickup', label: t('parking.pickup') },
-                                { value: 'van', label: 'Van' },
-                                { value: 'ebike', label: 'E-Bike' },
-                            ].map((vt) => {
-                                const isAllowed = allowedVehicleTypes.includes(vt.value);
-                                return (
-                                    <option key={vt.value} value={vt.value} disabled={!isAllowed}>
-                                        {vt.label}{!isAllowed ? ' (Not currently accepted)' : ''}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                        <FieldError id="parking-vehicleType" error={form.errors.vehicleType} className="m-0" />
-                    </div>
-
-                    {/*VehicleModelInput*/}
-                    <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-vehicleModel" className="text-sm font-bold text-brand">{t('parking.vehicleModel')}</label>
-                        <input
-                            type="text"
-                            {...form.fieldA11y('vehicleModel')}
-                            autoComplete="off"
-                            placeholder={t('parking.modelPlaceholder')}
-                            value={vehicleModel}
-                            maxLength={LIMITS.vehicleModel}
-                            required
-                            onChange={(e) => { setVehicleModel(e.target.value); form.clearError('vehicleModel'); }}
-                            onBlur={() => { const v = vehicleModel.trim(); setVehicleModel(v); if (v) form.validateField('vehicleModel', { ...values, vehicleModel: v }); }}
-                            className={"parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.vehicleModel)}
-                        />
-                        <FieldError id="parking-vehicleModel" error={form.errors.vehicleModel} className="m-0" />
-                    </div>
-
-                    {/*PlateNumberInputFieldWithAlignedLabelAndHelperText*/}
-                    <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-plateNumber" className="text-sm font-bold block text-brand">
-                            {t('parking.plateNo')}
-                        </label>
-                        <input
-                            type="text"
-                            {...form.fieldA11y('plateNumber')}
-                            autoComplete="off"
-                            placeholder={getPlatePlaceholder()}
-                            value={plateNumber}
-                            maxLength={LIMITS.plate}
-                            onChange={handlePlateNumberChange}
-                            onBlur={() => plateNumber && form.validateField('plateNumber', values)}
-                            required
-                            className={`parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px]${invalidCls(form.errors.plateNumber)}`}
-                        />
-                        <span className="text-xs font-normal text-slate-500 leading-tight m-0">{getPlateHint()}</span>
-                        <FieldError id="parking-plateNumber" error={form.errors.plateNumber} className="m-0" />
-                    </div>
-
-                    {/*TransmissionTypeSelector*/}
-                    <div className="flex flex-col space-y-2">
-                        <label htmlFor="parking-transmission" className="text-sm font-bold block text-brand">
-                            {t('parking.transmission')}
-                        </label>
-                        <select
-                            {...form.fieldA11y('transmission')}
-                            value={transmission}
-                            onChange={(e) => { setTransmission(e.target.value); form.clearError('transmission'); }}
-                            className={"parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.transmission)}
-                            required
-                        >
-                            <option value="" disabled hidden>{t('parking.selectTransmission')}</option>
-                            <option value="Automatic">{t('parking.automatic')}</option>
-                            <option value="Manual">{t('parking.manual')}</option>
-                        </select>
-                        <FieldError id="parking-transmission" error={form.errors.transmission} className="m-0" />
-                    </div>
-
-                    {/*RentalDurationInputCappedToMax6Months*/}
-                    <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="parking-durationMonths" className="text-sm font-bold flex items-center justify-between text-brand">
-                            <span>{t('parking.duration')}</span>
-                            <span className="text-xs font-normal text-slate-500">{t('parking.maxMonths')}</span>
-                        </label>
-                        <input
-                            type="number"
-                            {...form.fieldA11y('durationMonths')}
-                            inputMode="numeric"
-                            min="1"
-                            max={MAX_PARKING_MONTHS}
-                            step="1"
-                            placeholder={t('parking.durationPlaceholder')}
-                            value={durationMonths}
-                            onKeyDown={blockNonIntegerKeys}
-                            onChange={handleNumberInput}
-                            onBlur={() => form.validateField('durationMonths', values)}
-                            required
-                            className={"parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.durationMonths)}
-                        />
-                        <FieldError id="parking-durationMonths" error={form.errors.durationMonths} className="m-0" />
-                    </div>
-
-                    {/*EnhancedORCRFileUploadContainer*/}
-                    <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="parking-uploadedFile" className="text-sm font-bold text-brand">{t('parking.orcrLabel')}</label>
-                        <div
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
-                            className={`card-interactive w-full border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
-                        >
-                            {!uploadedFile ? (
-                                <>
-                                    <input
-                                        type="file"
-                                        {...form.fieldA11y('uploadedFile')}
-                                        accept={acceptFor(FILE_RULES.document)}
-                                        onChange={handleFileChange}
-                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                    />
-                                    <div className="space-y-2 pointer-events-none">
-                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-500" />
-                                        <p className="text-sm font-medium text-slate-700 m-0">{t('parking.dropHere')} <span className="text-indigo-600 font-bold">{t('parking.browse')}</span></p>
-                                        <p className="text-slate-500 text-xs m-0">{t('parking.supports')}</p>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="space-y-3 flex flex-col items-center w-full z-10 p-2">
-                                    {isImageFile ? (
-                                        <img
-                                            src={previewUrl}
-                                            alt={t('parking.orcrPreview')} 
-                                            className="w-full max-w-[360px] h-40 object-contain rounded-xl border border-slate-200 bg-white shadow-sm"
-                                        />
-                                    ) : (
-                                        <div className="w-full max-w-[360px] h-32 bg-indigo-50 flex flex-col items-center justify-center rounded-xl border border-indigo-200 text-indigo-600 gap-2">
-                                            <FontAwesomeIcon icon={faFilePdf} className="text-4xl text-rose-500" />
-                                            <button
-                                                type="button"
-                                                onClick={() => openPdfPreview(uploadedFile, 'Vehicle Registration OR/CR PDF')}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer transition-colors shadow flex items-center gap-2"
-                                            >
-                                                <FontAwesomeIcon icon={faEye} /> View PDF Document
-                                            </button>
-                                        </div>
-                                    )}
-                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[300px]">{uploadedFile.name} <span className="font-normal text-slate-500">({formatFileSize(uploadedFile.size)})</span></p>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setUploadedFile(null); form.clearError('uploadedFile'); }}
-                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-1.5 rounded-xl border-0 cursor-pointer transition-colors shadow-sm"
-                                    >
-                                        {t('parking.removeRetake')}
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                        <FieldError id="parking-uploadedFile" error={form.errors.uploadedFile} className="m-0" />
-                    </div>
-
-                    {parkingRules.length > 0 && (
-                        <div className="md:col-span-2 space-y-3">
-                            <ScopedRules scope="parking" title={t('parking.rules')} />
-                            <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm font-semibold text-slate-700">
-                                <input
-                                    id="parking-agreeParkingRules"
-                                    type="checkbox"
-                                    checked={agreeParkingRules}
-                                    onChange={(e) => { setAgreeParkingRules(e.target.checked); form.clearError('agreeParkingRules'); }}
-                                    aria-invalid={form.errors.agreeParkingRules ? true : undefined}
-                                    aria-describedby={form.errors.agreeParkingRules ? 'parking-agreeParkingRules-error' : undefined}
-                                    className="mt-0.5 h-6 w-6 shrink-0 cursor-pointer rounded border-slate-300"
-                                />
-                                <span>{t('parking.agreeRules')}</span>
-                            </label>
-                            <FieldError id="parking-agreeParkingRules" error={form.errors.agreeParkingRules} className="m-0" />
-                        </div>
-                    )}
-
-                    {/* A failed submit shows here, next to the button (it used to share the box at the top of the page). */}
-                    <InlineAlert className="md:col-span-2" onDismiss={() => setSubmitError('')}>{submitError}</InlineAlert>
-
-                    {/*PricingOverviewAndSubmitButton*/}
-                    <div className="parking-pricing-row md:col-span-2 border-t border-slate-100 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-6 mt-4">
-                        <div className="parking-pricing-items flex items-center justify-between sm:justify-start gap-6 sm:space-x-12 select-none">
-                            <div>
-                                <span className="text-xs text-slate-500 font-bold block mb-1">{t('parking.monthlyCost')}</span>
-                                <span className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{monthlyFee === null ? '…' : peso(monthlyFee)}</span>
-                            </div>
-                            <div>
-                                <span className="text-xs text-slate-500 font-bold block mb-1">{t('parking.totalCost')}</span>
-                                <span className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">{peso(calculatedTotal)}</span>
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loadingSlots || !slotsKnown || availableSlots <= 0 || submitting}
-                            className="parking-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        >
-                            {submitting ? t('common.submitting') : !slotsKnown ? (loadingSlots ? t('parking.checkingSlots') : t('parking.availabilityUnknown')) : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
-                        </button>
-                    </div>
-
-                </form>
-                )}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
+          {/* ── The spots ── */}
+          <section aria-labelledby="parking-spots-title" className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 id="parking-spots-title" className="m-0 flex items-center gap-2 text-xl font-extrabold text-slate-900">
+                  <FontAwesomeIcon icon={faSquareParking} className="text-indigo-500" /> {t('parking.selectSpot')}
+                </h2>
+                <p className="m-0 mt-1 text-sm text-slate-500">{t('parking.tapSpot')}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${freeCount > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                {loading ? '…' : freeCount > 0 ? t('parking.nAvailable', { n: freeCount }) : t('parking.full')}
+              </span>
             </div>
 
-            {/*PDFPreviewModalOverlay*/}
-            {pdfModalUrl && (
-                <div
-                    onClick={closePdfModal}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in modal-overlay-anim"
-                >
-                    <div
-                        ref={pdfDialogRef}
-                        tabIndex={-1}
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="parking-pdf-title"
-                        onClick={(e) => e.stopPropagation()}
-                        className="parking-pdf-modal modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden outline-none"
-                    >
-                        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                            <h3 id="parking-pdf-title" className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
-                                <FontAwesomeIcon icon={faFilePdf} className="text-rose-500" aria-hidden="true" />
-                                {pdfModalTitle}
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={closePdfModal}
-                                aria-label={t('parking.closePdf')}
-                                className="parking-pdf-modal-close-btn flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer text-lg"
-                            >
-                                <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
-                            </button>
-                        </div>
-                        <div className="flex-1 w-full bg-slate-100 p-2">
-                            <iframe 
-                                src={pdfModalUrl} 
-                                title={pdfModalTitle} 
-                                className="w-full h-full border-0 rounded-xl bg-white"
-                            ></iframe>
-                        </div>
-                        <div className="p-3 border-t border-slate-200 flex justify-end bg-slate-50">
-                            <button
-                                type="button"
-                                onClick={closePdfModal}
-                                className="min-h-[44px] bg-slate-800 hover:bg-slate-900 text-white font-bold px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
-                            >
-                                Close PDF
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {typesOnSite.length > 1 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label={t('parking.showFor')}>
+                <span className="text-xs font-bold text-slate-500">{t('parking.showFor')}</span>
+                {[{ value: 'all', label: t('parking.allVehicles') }, ...typesOnSite].map((vt) => (
+                  <button key={vt.value} type="button" onClick={() => setFilter(vt.value)} aria-pressed={filter === vt.value}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${filter === vt.value ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                    {vt.icon && <FontAwesomeIcon icon={vt.icon} />} {vt.label}
+                  </button>
+                ))}
+              </div>
             )}
 
-            {/*StandaloneSuccessModal*/}
-            <SuccessModal
-                isOpen={isModalOpen}
-                onClose={() => {
-                    setIsModalOpen(false);
-                    navigate('/services');
-                }}
-                message={t('parking.success')}
-            />
+            {atLimit && (
+              <p className="m-0 mt-4 rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800">{t('parking.limitReached', { n: data.max_per_tenant })}</p>
+            )}
+
+            <div className="mt-5">
+              {loading && !data ? (
+                <div role="status" className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                  <span className="sr-only">{t('parking.checkingSlots')}</span>
+                  {Array.from({ length: 10 }, (_, i) => <Bone key={i} className="h-28 rounded-2xl" />)}
+                </div>
+              ) : slots.length === 0 ? (
+                <p className="m-0 py-10 text-center text-sm text-slate-500">{t('parking.noSlots')}</p>
+              ) : (
+                <ul /* column counts are !important: .stagger-children collapses grids to one column on phones */ className="stagger-children m-0 grid list-none grid-cols-3! gap-3 p-0 sm:grid-cols-4! md:grid-cols-5!">
+                  {slots.map((s) => {
+                    const state = shownState(s);
+                    const style = STATE_STYLE[state];
+                    const canPick = state === 'free' && !atLimit;
+                    return (
+                      <li key={s.id}>
+                        <button type="button" disabled={!canPick} onClick={() => openSlot(s)}
+                          aria-label={`${t('parking.slotLabel', { label: s.label })}: ${t(STATE_WORD[state])}. ${t('parking.slotTakes', { types: typesText(s.vehicle_types) })}`}
+                          className={`relative flex w-full flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-3 transition-all disabled:cursor-default ${style.tile}`}>
+                          <span className={`flex h-12 w-12 items-center justify-center rounded-xl text-xl ${style.icon}`}>
+                            <FontAwesomeIcon icon={slotIcon(s.icon)} aria-hidden="true" />
+                          </span>
+                          <span className="text-sm font-black text-slate-800">{s.label}</span>
+                          <span className={`text-[11px] font-bold leading-tight ${style.word}`}>{t(STATE_WORD[state])}</span>
+                          {s.requires_registration && state === 'free' && <FontAwesomeIcon icon={faIdCard} title="OR/CR" className="absolute top-2 right-2.5 text-[11px] text-slate-400" />}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
+
+          {/* ── My reservations ── */}
+          <aside aria-labelledby="parking-status-title" className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 lg:sticky lg:top-24">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <h2 id="parking-status-title" className="m-0 text-base font-extrabold text-slate-900">{t('parking.statusTitle')}</h2>
+              <button type="button" onClick={() => { setLoading(true); load(); }} aria-label="Refresh"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 cursor-pointer">
+                <FontAwesomeIcon icon={faRotate} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+
+            {loading && !data ? (
+              <div className="mt-4 space-y-3" aria-hidden="true">
+                <Bone className="h-20 rounded-2xl" /><Bone className="h-20 rounded-2xl" />
+              </div>
+            ) : (
+              <div className="stagger-children mt-4 space-y-3">
+                {openOnes.length === 0 && <p className="m-0 text-sm text-slate-500">{t('parking.noReservations')}</p>}
+                {openOnes.map((r) => {
+                  const active = r.status === 'Assigned';
+                  return (
+                    <article key={r.id} className={`rounded-2xl border p-4 ${active ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/70'}`}>
+                      <div className="flex items-start gap-3">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-600'}`}>
+                          <FontAwesomeIcon icon={active ? faCircleCheck : faClock} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-1">
+                            <p className={`m-0 text-sm font-extrabold ${active ? 'text-emerald-800' : 'text-amber-800'}`}>{active ? t('parking.activeLabel') : t('parking.pendingApproval')}</p>
+                            {r.slot_label && <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-black text-slate-600">{t('parking.slotLabel', { label: r.slot_label })}</span>}
+                          </div>
+                          <p className="m-0 mt-0.5 text-xs text-slate-600">{active ? t('parking.activeText') : t('parking.pendingText')}</p>
+                          <p className="m-0 mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                            <FontAwesomeIcon icon={vehicleIcon(r.vehicle_type)} className="text-slate-400" />
+                            {r.vehicle_model}{r.plate_number ? ` · ${r.plate_number}` : ''}
+                          </p>
+                          <p className="m-0 mt-0.5 text-xs text-slate-500">
+                            {t('parking.months', { n: r.duration_months })}
+                            {r.term_ends_at ? ` · ${t('parking.until', { date: dateText(r.term_ends_at) })}` : ''}
+                            {' · '}{r.monthly_fee > 0 ? `${peso(r.monthly_fee)}/mo` : t('parking.free')}
+                          </p>
+                          {!active && (confirmCancel === r.id ? (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-700">{t('parking.cancelConfirm')}</span>
+                              <button type="button" disabled={cancelling} onClick={() => cancelRequest(r)} className="rounded-lg border-0 bg-rose-600 px-3 py-1.5 text-xs font-bold text-white cursor-pointer disabled:opacity-60">{t('parking.cancelRequest')}</button>
+                              <button type="button" disabled={cancelling} onClick={() => setConfirmCancel(null)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 cursor-pointer">{t('parking.keepRequest')}</button>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => setConfirmCancel(r.id)} className="mt-2 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 cursor-pointer hover:bg-amber-100">
+                              {t('parking.cancelRequest')}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+
+                {closed.length > 0 && (
+                  <div className="pt-1">
+                    <p className="m-0 mb-2 text-xs font-bold text-slate-500">{t('parking.earlier')}</p>
+                    <ul className="m-0 list-none space-y-1.5 p-0">
+                      {closed.map((r) => (
+                        <li key={r.id} className="flex items-start gap-2 text-xs text-slate-500">
+                          <FontAwesomeIcon icon={faBan} className="mt-0.5 text-slate-400" />
+                          <span>{r.vehicle_model}{r.plate_number ? ` (${r.plate_number})` : ''}: <strong className="text-slate-700">{statusWord(r.status)}</strong>{(r.rejection_reason || r.release_reason) ? ` · ${r.rejection_reason || r.release_reason}` : ''}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <dl className="m-0 mt-2 space-y-2 rounded-2xl bg-slate-50 p-4 text-sm">
+                  <div className="flex justify-between gap-3"><dt className="text-slate-500">{t('parking.activeCount')}</dt><dd className="m-0 font-black text-slate-800">{openOnes.filter((r) => r.status === 'Assigned').length}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-slate-500">{t('parking.monthlyTotal')}</dt><dd className="m-0 font-black text-emerald-700">{peso(openOnes.filter((r) => r.status === 'Assigned').reduce((sum, r) => sum + Number(r.monthly_fee || 0), 0))}</dd></div>
+                </dl>
+              </div>
+            )}
+          </aside>
         </div>
-    );
+      </div>
+
+      {/* ── The request form ── */}
+      {slot && (
+        <div onClick={closeForm} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <form ref={formRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="parking-form-title" onClick={(e) => e.stopPropagation()} onSubmit={submit} noValidate
+            className="parking-form-card outline-none modal-card-anim sheet-mobile bg-white rounded-[2rem] shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh] animate-scale-in overflow-hidden">
+            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-xl text-emerald-700"><FontAwesomeIcon icon={slotIcon(slot.icon)} /></span>
+                <div className="min-w-0">
+                  <h3 id="parking-form-title" className="m-0 text-lg font-black text-slate-900">{t('parking.reserveSlot', { label: slot.label })}</h3>
+                  <p className="m-0 text-xs text-slate-500">{t('parking.slotTakes', { types: typesText(slot.vehicle_types) })}</p>
+                </div>
+              </div>
+              <button type="button" aria-label={t('common.close')} onClick={closeForm} className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
+                <FontAwesomeIcon icon={faTimes} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+              <fieldset className="mx-0 mt-0 p-0 border-0 min-w-0">
+                <legend className="mb-2 p-0 text-sm font-bold text-brand">{t('parking.vehicleType')}</legend>
+                <div className="flex flex-wrap gap-2" id="parking-vehicleType" tabIndex={-1}>
+                  {slot.vehicle_types.map((v) => (
+                    <button key={v} type="button" onClick={() => { setVehicleType(v); form.clearError('vehicleType'); }} aria-pressed={vehicleType === v}
+                      className={`inline-flex items-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-bold cursor-pointer transition-colors ${vehicleType === v ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                      <FontAwesomeIcon icon={vehicleIcon(v)} /> {vehicleLabel(v)}
+                    </button>
+                  ))}
+                </div>
+                <FieldError id="parking-vehicleType" error={form.errors.vehicleType} className="m-0 mt-1" />
+              </fieldset>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="parking-vehicleModel" className="text-sm font-bold text-brand">{t('parking.vehicleModel')}</label>
+                  <input type="text" {...form.fieldA11y('vehicleModel')} autoComplete="off" placeholder={t('parking.modelPlaceholder')}
+                    value={vehicleModel} maxLength={LIMITS.vehicleModel}
+                    onChange={(e) => { setVehicleModel(e.target.value); form.clearError('vehicleModel'); }}
+                    className={INPUT + invalidCls(form.errors.vehicleModel)} />
+                  <FieldError id="parking-vehicleModel" error={form.errors.vehicleModel} className="m-0" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="parking-plateNumber" className="text-sm font-bold text-brand">
+                    {t('parking.plateNo')} {noPlate && <span className="font-normal text-slate-500">({t('parking.plateOptional')})</span>}
+                  </label>
+                  <input type="text" {...form.fieldA11y('plateNumber')} autoComplete="off" placeholder="123-ABC / NKI-3212"
+                    value={plateNumber} maxLength={LIMITS.plate}
+                    onChange={(e) => { setPlateNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9 -]/g, '')); form.clearError('plateNumber'); }}
+                    onBlur={() => plateNumber && form.validateField('plateNumber', values)}
+                    className={`${INPUT} uppercase${invalidCls(form.errors.plateNumber)}`} />
+                  <FieldError id="parking-plateNumber" error={form.errors.plateNumber} className="m-0" />
+                </div>
+                {!noPlate && (
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="parking-transmission" className="text-sm font-bold text-brand">{t('parking.transmission')}</label>
+                    <select {...form.fieldA11y('transmission')} value={transmission}
+                      onChange={(e) => { setTransmission(e.target.value); form.clearError('transmission'); }}
+                      className={`parking-select ${INPUT} cursor-pointer${invalidCls(form.errors.transmission)}`}>
+                      <option value="" disabled>{t('parking.selectTransmission')}</option>
+                      <option value="Automatic">{t('parking.automatic')}</option>
+                      <option value="Manual">{t('parking.manual')}</option>
+                    </select>
+                    <FieldError id="parking-transmission" error={form.errors.transmission} className="m-0" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="parking-durationMonths" className="text-sm font-bold text-brand">{t('parking.duration')}</label>
+                  <select {...form.fieldA11y('durationMonths')} value={durationMonths}
+                    onChange={(e) => { setDurationMonths(e.target.value); form.clearError('durationMonths'); }}
+                    className={`parking-select ${INPUT} cursor-pointer${invalidCls(form.errors.durationMonths)}`}>
+                    <option value="" disabled>{t('parking.maxMonthsN', { n: data?.max_duration_months ?? 6 })}</option>
+                    {Array.from({ length: data?.max_duration_months ?? 6 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>{t('parking.months', { n })}</option>
+                    ))}
+                  </select>
+                  <FieldError id="parking-durationMonths" error={form.errors.durationMonths} className="m-0" />
+                </div>
+              </div>
+
+              {slot.requires_registration && (
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="parking-uploadedFile" className="text-sm font-bold text-brand">{t('parking.orcrLabel')}</label>
+                  <p className="m-0 text-xs text-slate-500">{t('parking.orcrRequired')}</p>
+                  {!file ? (
+                    <div className={`relative flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed bg-slate-50 p-4 text-center transition-colors hover:border-indigo-400 ${form.errors.uploadedFile ? 'border-rose-300' : 'border-slate-200'}`}>
+                      <input type="file" {...form.fieldA11y('uploadedFile')} accept={acceptFor(FILE_RULES.document)}
+                        onChange={(e) => { const f = e.target.files?.[0] || null; const err = f ? checkFile(f, FILE_RULES.document) : ''; form.setFieldError('uploadedFile', err); if (!err) setFile(f); e.target.value = ''; }}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                      <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                      <p className="m-0 text-sm text-slate-600">{t('parking.dropHere')} <span className="font-bold text-indigo-600">{t('parking.browse')}</span></p>
+                      <p className="m-0 text-xs text-slate-500">{t('parking.supports')}</p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      {isImage ? <img src={previewUrl} alt={t('parking.orcrPreview')} className="h-14 w-14 rounded-lg object-cover" />
+                        : <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-white text-2xl text-rose-500"><FontAwesomeIcon icon={faFilePdf} /></span>}
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">{file.name} <span className="font-normal text-slate-500">({formatFileSize(file.size)})</span></span>
+                      <button type="button" onClick={() => setFile(null)} className="rounded-lg border-0 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 cursor-pointer hover:bg-rose-100">{t('parking.removeRetake')}</button>
+                    </div>
+                  )}
+                  <FieldError id="parking-uploadedFile" error={form.errors.uploadedFile} className="m-0" />
+                </div>
+              )}
+
+              {rules.length > 0 && (
+                <div>
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input type="checkbox" id="parking-agree" checked={agree}
+                      onChange={(e) => { setAgree(e.target.checked); form.clearError('agree'); }}
+                      aria-invalid={form.errors.agree ? true : undefined} aria-describedby={form.errors.agree ? 'parking-agree-error' : undefined}
+                      className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 accent-indigo-600" />
+                    <span className="text-sm font-semibold text-slate-700 leading-snug">
+                      {t('parking.agreePrefix')}{' '}
+                      <button type="button" onClick={() => setShowRules(true)} className="inline cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 underline underline-offset-2 hover:text-indigo-800">{t('parking.rulesLink')}</button>
+                    </span>
+                  </label>
+                  <FieldError id="parking-agree" error={form.errors.agree} className="m-0 mt-1 pl-8" />
+                </div>
+              )}
+
+              <InlineAlert onDismiss={() => setSubmitError('')}>{submitError}</InlineAlert>
+            </div>
+
+            <div className="p-5 sm:p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-6">
+                {free ? (
+                  <p className="m-0 text-sm font-bold text-emerald-700">{t('parking.freeNote')}</p>
+                ) : (
+                  <>
+                    <div><span className="block text-xs font-bold text-slate-500">{t('parking.monthlyCost')}</span><span className="text-lg font-black text-slate-800">{peso(fee)}</span></div>
+                    <div><span className="block text-xs font-bold text-slate-500">{t('parking.totalCost')}</span><span className="text-lg font-black text-indigo-600">{peso(fee * Number(durationMonths || 0))}</span></div>
+                  </>
+                )}
+              </div>
+              <button type="submit" disabled={submitting}
+                className="btn-interactive min-h-[48px] rounded-xl border-0 bg-[#10b981] px-8 py-3 text-base font-bold text-white shadow-md transition-all hover:bg-[#059669] active:scale-[0.97] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                {submitting ? t('common.submitting') : t('parking.sendRequest')}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showRules && (
+        <RulesModal rules={rules} t={t} pick={pick} onClose={() => setShowRules(false)}
+          onAccept={() => { setAgree(true); form.clearError('agree'); setShowRules(false); }} />
+      )}
+
+      <SuccessModal isOpen={success} onClose={() => setSuccess(false)} message={t('parking.success')} subtext={t('parking.successBody')} />
+    </div>
+  );
 }

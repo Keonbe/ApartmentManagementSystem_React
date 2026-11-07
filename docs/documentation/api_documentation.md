@@ -879,28 +879,44 @@ Registers a visitor. A **tenant** registration goes to `pending_approval`, and t
 
 ## 11. Parking Management
 
+Slots are rows of `parking_slots`; `slot_number` / `slotNumber` everywhere is the slot's id (2026-11-07).
+
 ### `POST` [parking_reservation.php](../../backend/api/parking_reservation.php)
-Tenant reserves a parking slot for a specific date range.
+A tenant asks for a slot (multipart form), or cancels a pending request.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `require_user()` |
-| **Validation** | Checks slot availability, prevents overlapping reservations |
+| **Auth** | `require_user()`; a tenant with an active rental; 403 while the parking service is switched off |
+| **Fields** | `slotId` (the slot tapped; without it the first free slot for the type), `vehicleType` (one the slot takes), `vehicleModel` (2-100), `plateNumber` (required except for an e-bike; checked when given), `transmission` (`Automatic` / `Manual`, not asked for an e-bike), `durationMonths` (1 to `parking_max_duration_months`), `uploadedFile` (OR/CR, JPG/PNG/PDF ≤ 10 MB, required when the slot requires it) |
+| **Errors** | 422 `{errors: {field: message}}` per field; 409 slot taken / under maintenance / none free for the type, `parking_max_per_tenant` open reservations reached, or the same plate already open |
+| **Cancel** | `action=cancel`, `id`: the tenant's own Pending request becomes Cancelled (409 otherwise) |
+| **Effects** | Pending row with `monthly_fee` = the current fee (0 while parking is free), admin queue item, activity log. A request does not hold the slot. |
 
 ---
 
 ### `GET` [get_parking_reservations.php](../../backend/api/get_parking_reservations.php)
-Returns parking reservations — admin sees all, tenant sees own.
+Admin only. `{reservations[] (with slotLabel, monthlyFee), slots[] (each with occupant {tenant, unit, vehicle, plate, term_ends_at} and requests = pending requests for it), capacity {max_slots, taken_slots, occupied_count, available_slots, maintenance_slots, free_by_type}, monthly_fee, monthly_total, free, billing_mode, max_duration_months, max_per_tenant, current_period}`.
 
 ---
 
 ### `GET` [get_available_parking_slots.php](../../backend/api/get_available_parking_slots.php)
-Returns `{occupied_count, max_slots, available_slots}` — reservations in `Pending`/`Assigned`/`Approved`/`Active` against the `max_parking_slots` setting. `require_user()`.
+`require_user()`. The tenant page: `slots[]` (`id, label, icon, vehicle_types, requires_registration, state`), where `state` is `free`, `taken` (someone else's), `mine`, `requested` (the caller's pending request) or `maintenance`; who parks where is never sent. Plus `monthly_fee`, `free`, `billing_mode`, `max_duration_months`, `max_per_tenant`, `open_count`, `free_by_type`, `my_reservations[]` (open first, up to 20, with `slot_label`, `monthly_fee`, `term_ends_at`, `billed_periods`), and for older pages `max_slots`, `available_slots`, `occupied_count`, `my_reservation`. Admin callers also get `taken_slots`.
+
+---
+
+### `GET` / `POST` [parking_slots.php](../../backend/api/parking_slots.php)
+Admin only (2026-11-07). GET `{slots[] (with assigned), capacity}`. POST JSON:
+
+| Action | Body | Notes |
+|--------|------|-------|
+| `create` | `label`, `quantity` (1-20), `icon`, `vehicle_types[]`, `requires_registration` (bool), `status` | Quantity 2-20: `label` is a prefix and slots are numbered after the highest with it (`M` → `M1, M2, M3`). Name 1-20 letters, digits, spaces or dashes; at most 200 slots; 409 duplicate name |
+| `update` | `id` + the same fields | 409 when a parked slot would go under maintenance or stop taking the parked vehicle's type |
+| `remove` | `id` | Archived; 409 while a vehicle is parked; pending requests for it keep waiting with no slot chosen |
 
 ---
 
 ### `POST` [update_parking_status.php](../../backend/api/update_parking_status.php)
-Admin approves/rejects/cancels parking reservations.
+Admin assigns (`slotNumber` / `slotId` = a slot's id), rejects or releases a reservation. After an assignment, pending requests that no free slot can take any more are closed ("Parking is full") and their tenants notified; their ids are in `closed_full`.
 
 ---
 
@@ -1203,7 +1219,7 @@ Behaviour that the sections above no longer describe fully. The code wins; endpo
 | cancel_request.php | Body `{id, type}` with `type` Maintenance, CCTV, Parking or Service. Only `Pending` rows cancel directly; an `In Progress` maintenance ticket and a service that is not free to cancel become a cancel request (`requested:true`). |
 | update_service_status.php | Also takes `assignedTo`, `scheduledDate` + `scheduledWindow`, `finalQuantity`, `declineCancel`. Transitions follow `SERVICE_TRANSITIONS` (Approved -> Rejected is allowed). |
 | update_maintenance_status.php | Also takes `scheduledDate` + `scheduledWindow`, `workNotes`, `tenantResponsible`, `estimatedCost`, `actualCost` (required to complete a tenant-billed ticket), `declineCancel`. `In Progress -> Cancelled` is allowed; Cancelled and Rejected are terminal. |
-| update_parking_status.php | Statuses `Assigned` (needs `slotNumber` 1..max; legacy `Approved` maps to it), `Rejected` (reason) and `Released` (reason). Only Pending can be assigned or rejected; only Assigned can be released. 409 when the slot is taken, the lot is full or the tenant has no active tenancy. |
+| update_parking_status.php | Statuses `Assigned` (needs `slotNumber` = an active slot that takes the vehicle type, 422 otherwise; legacy `Approved` maps to it), `Rejected` (reason) and `Released` (reason). Only Pending can be assigned or rejected; only Assigned can be released. 409 when the slot is taken or under maintenance, or the tenant has no active tenancy. A free permit (`monthly_fee` 0) is never billed. |
 | create_announcement.php | `require_admin`. In-app is always on; `sms` / `email` only when requested (SMS body <= 160, else 422). Extra fields: `unit` (for "Specific unit"), `draft`, `scheduledAt`, `draftId`, `removeAttachment`, `attachment` (JPG/PNG/PDF, 10 MB), `action` `unschedule` / `sendNow`. Recipients are current tenants (`Approved`, `active`, `pending-move-out`). |
 | cctv_request.php / update_cctv_status.php | Request: `incidentDate` (not in the future, within `lookbackDays`), `incidentTime`, `locationDetails` (from the settings list), `incidentType`, `reasonRequest` (settings minimum, >= 20 for `other`), `privacyConsent: true`; 403 when the service is off. Decision: only `Approved` / `Rejected`, `note` required (<= 500), only on Pending. |
 | get_notifications.php | Admins also receive notifications addressed to them, not only the action queue. Max 100; includes `unread_count`. Runs the notification sweep, lapsed-payment voiding, scheduled announcements, CCTV purge and visitor overstay checks at most once a minute. |

@@ -271,6 +271,7 @@ const AdminServicePage = () => {
           totalCost: parseFloat(r.totalCost || 0),
           status: r.status,
           slotNumber: r.slotNumber,
+          slotLabel: r.slotLabel,
           documentPath: r.documentPath,
         })));
       }
@@ -992,8 +993,8 @@ const AdminServicePage = () => {
                                       <br />
                                       <span className="text-caption text-slate-500 capitalize">{req.vehicleType} • {req.transmission}</span>
                                     </td>
-                                    <td className="px-4 py-3 uppercase font-mono text-label text-slate-600">{req.plate}</td>
-                                    <td className="px-4 py-3 text-slate-600">{req.slotNumber ? `#${req.slotNumber}` : '—'}</td>
+                                    <td className="px-4 py-3 uppercase font-mono text-label text-slate-600">{req.plate || '—'}</td>
+                                    <td className="px-4 py-3 text-slate-600">{req.status === 'Assigned' && req.slotNumber ? `Slot ${req.slotLabel ?? req.slotNumber}` : '—'}</td>
                                     <td className="px-4 py-3 font-semibold text-indigo-600">₱{Number(req.totalCost || 0).toLocaleString()}</td>
                                     <td className="px-4 py-3 text-center">
                                       {req.documentPath && req.documentPath !== 'placeholder' ? (

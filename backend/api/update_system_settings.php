@@ -67,7 +67,10 @@ $SETTING_RULES = [
     'min_household_age'        => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The minimum household age must be a whole number from 0 to 17.'],
     'child_restricted_below_age' => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The child age limit must be a whole number from 0 to 17.'],
     'parking_billing_mode'     => ['type' => 'enum', 'values' => ['manual', 'auto'], 'message' => 'Parking billing mode must be manual or auto.'],
-    'parking_monthly_fee'      => ['type' => 'num', 'min' => 0, 'min_exclusive' => true, 'max' => 100000, 'message' => 'Parking monthly fee must be a positive amount.'],
+    'parking_monthly_fee'      => ['type' => 'num', 'min' => 0, 'min_exclusive' => true, 'max' => 100000, 'message' => 'Parking monthly fee must be a positive amount.', 'field' => 'Enter an amount above 0 (use Free parking for no fee).'],
+    // Parking settings (Admin → Parking → gear): permit length and open reservations per tenant.
+    'parking_max_duration_months' => ['type' => 'int', 'min' => 1, 'max' => 12, 'message' => 'The longest parking permit must be 1 to 12 months.', 'field' => 'Enter 1 to 12 months.'],
+    'parking_max_per_tenant'   => ['type' => 'int', 'min' => 1, 'max' => 5, 'message' => 'Parking reservations per tenant must be 1 to 5.', 'field' => 'Enter 1 to 5.'],
     // The UI's slider goes 1-168 hours (one week).
     'visitor_overstay_hours'   => ['type' => 'int', 'min' => 1, 'max' => 168, 'message' => 'Visitor overstay threshold must be a whole number between 1 and 168 hours.'],
     'qrph_active_slot'         => ['type' => 'int', 'min' => 1, 'max' => QRPH_SLOT_COUNT, 'message' => 'Active QR Ph slot must be between 1 and ' . QRPH_SLOT_COUNT . '.'],
@@ -131,17 +134,9 @@ foreach ($input as $key => $value) {
         $refuse($rule['message'], isset($rule['field']) ? [$field => $rule['field']] : null);
     }
 
-    // Parking settings drive capacity and billing, so a bad value is refused
-    // instead of silently breaking the parking module.
-    if ($key === 'max_parking_slots') {
-        $highest = (int)($conn->query("SELECT COALESCE(MAX(slot_number), 0) AS m FROM parking_reservations WHERE status = 'Assigned'")->fetch_assoc()['m'] ?? 0);
-        if (!ctype_digit($value) || (int)$value < 1 || (int)$value > 500) {
-            $refuse("Parking slots must be a whole number between 1 and 500.");
-        }
-        if ((int)$value < $highest) {
-            $refuse("Slot #$highest is still assigned. Release it before reducing parking slots below $highest.");
-        }
-    }
+    // The parking slots themselves are managed in parking_slots.php; the old
+    // slot count and vehicle-type list are no longer settings.
+    if (in_array($key, ['max_parking_slots', 'parking_allowed_vehicle_types'], true)) continue;
     // Floor → monthly rent table. Stored as a JSON object {"1F": 5000}.
     if ($key === 'floor_rates') {
         $decoded = json_decode($value, true);
@@ -311,7 +306,8 @@ foreach ($input as $key => $value) {
 
     // Contract End (Other Settings): on/off switches are stored as '1' / '0'.
     // Language (Other Settings): language_switch_enabled shows the EN / FIL switch to tenants and guests.
-    if (in_array($key, ['lease_end_reminders_enabled', 'lease_end_reminder_email', 'lease_end_reminder_sms', 'upcoming_rooms_enabled', 'language_switch_enabled'], true)) {
+    // Parking: parking_free makes new requests free (no fee, never billed).
+    if (in_array($key, ['lease_end_reminders_enabled', 'lease_end_reminder_email', 'lease_end_reminder_sms', 'upcoming_rooms_enabled', 'language_switch_enabled', 'parking_free'], true)) {
         if (!in_array($value, ['1', '0', 'true', 'false'], true)) {
             $refuse("Choose on or off for $key.");
         }

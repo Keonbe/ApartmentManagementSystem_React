@@ -294,30 +294,64 @@ CREATE TABLE `parking_reservations` (
   `user_id` int(11) DEFAULT NULL,
   `vehicle_type` varchar(50) NOT NULL,
   `vehicle_model` varchar(100) NOT NULL,
-  `plate_number` varchar(20) NOT NULL,
+  -- Optional for an e-bike (no plate).
+  `plate_number` varchar(20) DEFAULT NULL,
   `status` varchar(50) DEFAULT 'Pending',
   -- Pending -> Assigned | Rejected | Cancelled; Assigned -> Released (PARKING_TRANSITIONS in config.php)
+  -- parking_slots.id: the slot asked for while Pending, the slot held once Assigned.
   `slot_number` int(11) DEFAULT NULL,
   `assigned_at` datetime DEFAULT NULL,
   `released_at` datetime DEFAULT NULL,
   `release_reason` varchar(255) DEFAULT NULL,
   `rejection_reason` varchar(255) DEFAULT NULL,
-  `transmission` varchar(50) NOT NULL,
+  -- NULL for an e-bike.
+  `transmission` varchar(50) DEFAULT NULL,
   `duration_months` int(11) NOT NULL,
   `total_cost` decimal(10,2) NOT NULL,
-  `document_path` varchar(255) NOT NULL,
+  -- The fee per month when the request was made (0 = free parking); billed months use it.
+  `monthly_fee` decimal(10,2) DEFAULT NULL,
+  -- OR/CR; NULL when the slot does not require one.
+  `document_path` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  -- The database refuses two active reservations on one slot and two open
-  -- reservations for one tenant, so concurrent requests cannot overbook.
+  -- The database refuses two active reservations on one slot, so concurrent
+  -- assignments cannot overbook. How many open reservations a tenant may hold
+  -- is the parking_max_per_tenant setting (parking_reservation.php).
   `active_slot` int(11) GENERATED ALWAYS AS (IF(`status` = 'Assigned', `slot_number`, NULL)) VIRTUAL,
-  `open_user` int(11) GENERATED ALWAYS AS (IF(`status` IN ('Pending', 'Assigned'), `user_id`, NULL)) VIRTUAL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_active_slot` (`active_slot`),
-  UNIQUE KEY `uniq_open_user` (`open_user`),
   KEY `fk_parking_user` (`user_id`),
   CONSTRAINT `fk_parking_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `parking_slots`
+--
+-- One row per parking slot (Admin → Parking → Slots): the vehicle types it
+-- takes, its icon, whether an OR/CR is required, active | maintenance.
+-- A removed slot is archived so old reservations keep its label; a label is
+-- unique among the slots not archived.
+
+DROP TABLE IF EXISTS `parking_slots`;
+CREATE TABLE `parking_slots` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `label` varchar(20) NOT NULL,
+  `icon` varchar(20) NOT NULL DEFAULT 'motorcycle',
+  `vehicle_types` varchar(255) NOT NULL DEFAULT '["motorcycle"]',
+  `requires_registration` tinyint(1) NOT NULL DEFAULT 1,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `archived_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `live_label` varchar(20) GENERATED ALWAYS AS (IF(`archived_at` IS NULL, `label`, NULL)) VIRTUAL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_live_label` (`live_label`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `parking_slots` (`id`, `label`, `icon`, `vehicle_types`, `requires_registration`, `status`, `sort_order`) VALUES
+(1, '1', 'motorcycle', '["motorcycle"]', 1, 'active', 1),
+(2, '2', 'motorcycle', '["motorcycle"]', 1, 'active', 2),
+(3, '3', 'motorcycle', '["motorcycle"]', 1, 'active', 3);
 
 --
 -- Table structure for table `rent_applications`
@@ -1512,12 +1546,13 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('service_laundry_active', 'true'),
 ('service_other_active', 'true'),
 ('reservation_hold_days', '7'),
-('max_parking_slots', '3'),
-('parking_allowed_vehicle_types', '["motorcycle"]'),
 -- Parking fee per month of the permit term, and whether it is posted to invoices
 -- automatically ('auto') or by the admin's "Bill this month" button ('manual').
 ('parking_monthly_fee', '300'),
 ('parking_billing_mode', 'manual'),
+('parking_free', '0'),
+('parking_max_per_tenant', '1'),
+('parking_max_duration_months', '6'),
 ('lease_end_reminder_days', '30'),
 ('move_out_min_notice_days', '15'),
 ('move_out_max_notice_days', '30'),

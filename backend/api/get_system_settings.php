@@ -50,11 +50,6 @@ if(isset($settings['move_in_min_days'])) $settings['move_in_min_days'] = (int)$s
 if(isset($settings['move_in_max_days'])) $settings['move_in_max_days'] = (int)$settings['move_in_max_days'];
 if(isset($settings['reservation_hold_days'])) $settings['reservation_hold_days'] = (int)$settings['reservation_hold_days'];
 if(isset($settings['maintenance_monthly_budget'])) $settings['maintenance_monthly_budget'] = (float)$settings['maintenance_monthly_budget'];
-if(isset($settings['max_parking_slots'])) $settings['max_parking_slots'] = (int)$settings['max_parking_slots'];
-if(isset($settings['parking_allowed_vehicle_types'])) {
-    $decoded = json_decode($settings['parking_allowed_vehicle_types'], true);
-    $settings['parking_allowed_vehicle_types'] = is_array($decoded) ? $decoded : ['motorcycle'];
-}
 
 if (isset($settings['min_household_age'])) $settings['min_household_age'] = (int)$settings['min_household_age'];
 if (isset($settings['child_restricted_below_age'])) $settings['child_restricted_below_age'] = (int)$settings['child_restricted_below_age'];

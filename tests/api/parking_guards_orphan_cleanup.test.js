@@ -36,8 +36,10 @@ describe('parking_reservations guard columns', () => {
     await expect(reserve(userB, 'Assigned', 9901)).rejects.toThrow(/Duplicate entry/);
   });
 
-  it('refuses a second open reservation for one tenant', async () => {
-    await expect(reserve(userA, 'Pending', null)).rejects.toThrow(/Duplicate entry/);
+  // A tenant may now hold several open reservations (parking_max_per_tenant,
+  // checked in parking_reservation.php), so the database no longer refuses one.
+  it('a tenant may hold a second open reservation at the database level', async () => {
+    await expect(reserve(userA, 'Pending', null)).resolves.toBeTruthy();
   });
 
   it('a released reservation frees the slot and the tenant', async () => {

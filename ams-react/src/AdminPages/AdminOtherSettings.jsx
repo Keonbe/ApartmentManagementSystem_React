@@ -14,7 +14,6 @@ import {
   SELF_SAVING_TAB_IDS,
 } from './settings/tabs';
 import LeasingPanel from './settings/LeasingPanel';
-import ParkingPanel from './settings/ParkingPanel';
 import NotificationsPanel from './settings/NotificationsPanel';
 import MaintenancePanel from './settings/MaintenancePanel';
 import HouseRulesPanel from './settings/HouseRulesPanel';
@@ -191,7 +190,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure rent policies, contract end, parking, contact and payment details, notifications, maintenance, the Home and Preview pages, Glass theme and language switch, floor rates, and building rules.
+                Configure rent policies, contract end, contact and payment details, notifications, maintenance, the Home and Preview pages, Glass theme and language switch, floor rates, and building rules.
               </p>
             </div>
 
@@ -270,7 +269,6 @@ const AdminOtherSettings = () => {
             {activeTab === 'floor-rent' && <FloorRentPanel />}
             {activeTab === 'utility-types' && <UtilityTypesPanel />}
             {activeTab === 'cctv' && <CctvPanel />}
-            {activeTab === 'parking-rules' && <HouseRulesPanel scope="parking" />}
             {activeTab === 'minors' && <MinorsPanel />}
             {activeTab === 'sign-in-codes' && <LoginOtpPanel />}
 
@@ -292,9 +290,6 @@ const AdminOtherSettings = () => {
               >
                 <div data-tab="leasing" hidden={activeTab !== 'leasing'} className="space-y-6">
                   <LeasingPanel {...panelProps} />
-                </div>
-                <div data-tab="parking" hidden={activeTab !== 'parking'} className="space-y-6">
-                  <ParkingPanel {...panelProps} />
                 </div>
                 <div data-tab="notifications" hidden={activeTab !== 'notifications'} className="space-y-6">
                   <NotificationsPanel
