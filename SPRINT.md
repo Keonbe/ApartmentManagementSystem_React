@@ -112,6 +112,8 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 | 108 | Admin notification dialog and page width | UI/UX | Notification dialog redesigned (type colour strip, Needs action / Handled chip, exact time, message panel, next-step line, Close instead of Ignore, stacked buttons on phones); Notifications page widened to the Dashboard's max-w-7xl | In progress | Low | 2026-11-07 | — |
 | 109 | Pay Bills layout tidy-up | UI/UX | The Pay in advance card sits right under the bill (row 1 no longer stretched by the Payment Settings card); the duplicate Pay ahead box in Payment Settings removed (the Pay in advance card lists prepaid months); step 2 heading spaced from its box | In progress | Low | 2026-11-07 | — |
 | 110 | Suffix in names, Welcome on first sign-in | Fix | Display names include the suffix ("Jose Reyes Jr.") in the top bar, account menu and admin pages (`person_name()` in config.php, its SQL form, `utils/personName.js`); `users.last_login_at` (`2026_11_last_login.sql`) so the first sign-in says "Welcome", later ones "Welcome back" | In progress | Medium | 2026-11-07 | — |
+| 111 | My Room mobile hero | UI/UX | Compact priority/action rows without redundant Important info header; miniature centered punch-hole luggage tag on phones with transparent circular room-letter badge (desktop size capped at 7xl); tighter mobile section spacing and safe-area clearance from the fixed chat launcher | In progress | Medium | 2026-11-07 | — |
+| 112 | Mobile navigation drawer polish | UI/UX | Keep unread notification bell beside menu/close control; remove redundant Notifications profile action; retain full-width Settings and strengthen Sign Out with a tinted red background and border | In progress | Low | 2026-11-07 | — |
 
 ## Open
 

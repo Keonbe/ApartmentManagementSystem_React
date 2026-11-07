@@ -619,12 +619,13 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         </button>
                     )}
 
-                    {/* Notification Icon for Mobile if logged in */}
+                    {/* Keep quick notification access beside the drawer close control. */}
                     {isLoggedIn && (
                         <button
+                            type="button"
                             onClick={() => navigate('/notifications')}
-                            className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center border-0 cursor-pointer relative"
-                            aria-label={t('nav.notifications')}
+                            className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border-0 cursor-pointer relative transition-colors"
+                            aria-label={unreadCount > 0 ? t('topbar.notifUnread', { n: unreadCount }) : t('nav.notifications')}
                         >
                             <FontAwesomeIcon key={bellRing} icon={faBell} className={`text-base ${bellRing ? 'topbar-bell-ring' : ''}`} aria-hidden="true" />
                             <UnreadBadge count={unreadCount} />
@@ -729,28 +730,20 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     </div>
                                 </div>
 
-                                {/* An odd one out at the end spans the row. */}
-                                <div className="grid grid-cols-2 gap-2 pt-1 [&>*:last-child:nth-child(odd)]:col-span-2">
+                                <div className="flex w-full flex-col gap-2 pt-1">
                                     <button
                                         onClick={() => { setIsMobileMenuOpen(false); navigate('/profile-settings'); }}
-                                        className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
+                                        className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
                                     >
                                         <FontAwesomeIcon icon={faCog} className="text-xs" />
                                         <span>{t('nav.settings')}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => { setIsMobileMenuOpen(false); navigate('/notifications'); }}
-                                        className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
-                                    >
-                                        <FontAwesomeIcon icon={faBell} className="text-xs" />
-                                        <span>Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
                                     </button>
                                     {/* Payment History and My Refunds are in the Profile Settings side menu. */}
                                 </div>
 
                                 <button
                                     onClick={closeMenusThenLogout}
-                                    className="w-full bg-rose-600 hover:bg-rose-700 active:scale-98 text-white py-3 rounded-xl font-bold text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-sm transition-all mt-1"
+                                    className="w-full bg-rose-500/15 hover:bg-rose-500/25 active:scale-98 text-red-300 py-3 rounded-xl font-medium text-center border border-rose-500/40 cursor-pointer flex items-center justify-center space-x-2 text-sm transition-all mt-1"
                                 >
                                     <FontAwesomeIcon icon={faSignOutAlt} />
                                     <span>{t('nav.logout')}</span>

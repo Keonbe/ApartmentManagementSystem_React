@@ -19,7 +19,7 @@ import { addDays, checkDate, checkIntRange } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
-import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
+import { invalidCls } from '../Components/form/formHelpers';
 
 // Defaults for the move-out notice window; the live values come from Settings → Rental (record_move_out.php enforces them too).
 const DEFAULT_MOVE_OUT_MIN_DAYS = 15;
@@ -37,7 +37,7 @@ export default function MyRoom() {
     // bill, a scheduled move-out or an inactive contract blocks extending.
     const [extension, setExtension] = useState(null);
     const extensionBlocked = extension && !extension.allowed;
-    const [additionalMonths, setAdditionalMonths] = useState(1);
+    const [additionalMonths, setAdditionalMonths] = useState('');
     const { t } = useLang();
     // Move-out notice window in days from today (Settings → Rental).
     const [moveOutNotice, setMoveOutNotice] = useState({ min: DEFAULT_MOVE_OUT_MIN_DAYS, max: DEFAULT_MOVE_OUT_MAX_DAYS });
@@ -140,7 +140,10 @@ export default function MyRoom() {
                 if (data.extension?.minMonths != null) {
                     const lo = Number(data.extension.minMonths);
                     const hi = Number(data.extension.maxMonths ?? 0);
-                    if (hi >= lo) setAdditionalMonths(prev => (prev === '' || prev < lo ? lo : Math.min(prev, hi)));
+                    if (hi >= lo) setAdditionalMonths(prev => {
+                        const current = Number(prev);
+                        return prev === '' || !Number.isInteger(current) || current < lo ? String(lo) : String(Math.min(current, hi));
+                    });
                 }
                 setError(null);
             } else {
@@ -197,16 +200,40 @@ export default function MyRoom() {
     // Results of the requests below (were alert() + page reload).
     const [notice, setNotice] = useState(null);
 
-    const handleOccupantChange = (e) => {
+    const handleOccupantChange = (rawValue) => {
         fields.clearError('occupants');
-        let val = parseInt(e.target.value);
-        if (isNaN(val)) {
+        const digits = rawValue.replace(/\D/g, '');
+        if (digits === '') {
             setOccupants('');
             return;
         }
-        if (val > maxOccupants) val = maxOccupants;
-        if (val < 1) val = 1;
-        setOccupants(val);
+        const num = parseInt(digits, 10);
+        setOccupants(String(num > maxOccupants ? maxOccupants : num));
+    };
+    const handleExtensionChange = (rawValue) => {
+        const digits = rawValue.replace(/\D/g, '');
+        if (digits === '') {
+            setAdditionalMonths('');
+            fields.validateField('additionalMonths', { ...fieldValues, additionalMonths: '' });
+            return;
+        }
+        const num = parseInt(digits, 10);
+        const clamped = String(num > maxExtension ? maxExtension : num);
+        setAdditionalMonths(clamped);
+        fields.validateField('additionalMonths', { ...fieldValues, additionalMonths: clamped });
+    };
+    const blockNonDigitKeys = (e) => {
+        if (['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Enter', 'Home', 'End'].includes(e.key)
+            || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (!/^\d$/.test(e.key)) e.preventDefault();
+    };
+    const sanitizeDigitPaste = (e, onDigits) => {
+        const pasteData = e.clipboardData.getData('text');
+        if (!/^\d+$/.test(pasteData)) {
+            e.preventDefault();
+            const digitsOnly = pasteData.replace(/\D/g, '');
+            if (digitsOnly) onDigits(digitsOnly);
+        }
     };
     const handleUpdateOccupants = async (e) => {
         if (e) e.preventDefault();
@@ -245,13 +272,23 @@ export default function MyRoom() {
     const minExtension = Number(extension?.minMonths ?? 1);
     const maxExtension = Number(extension?.maxMonths ?? 0);
     const hasExtensionRange = maxExtension >= minExtension;
+    const extensionValueValid = hasExtensionRange
+        && /^\d+$/.test(String(additionalMonths))
+        && Number.isInteger(Number(additionalMonths))
+        && Number(additionalMonths) >= minExtension
+        && Number(additionalMonths) <= maxExtension;
 
     const fields = useFieldErrors({
         occupants: (v, all) => checkIntRange(v === '' ? NaN : v, 1, maxOccupants, 'Number of occupants')
             || (Number(v) === all.currentOccupants ? `Your room is already assigned to ${v} occupant(s).` : ''),
-        additionalMonths: (v) => !hasExtensionRange
-            ? 'No valid rent extension range is currently available.'
-            : checkIntRange(v === '' ? NaN : v, minExtension, maxExtension, 'Additional months'),
+        additionalMonths: (v) => {
+            if (!hasExtensionRange) return 'No valid rent extension range is currently available.';
+            if (v === '') return 'Enter the number of months to add.';
+            if (!/^\d+$/.test(String(v))) return 'Enter a whole number of months.';
+            if (Number(v) < minExtension) return `Minimum extension is ${minExtension} month(s).`;
+            if (Number(v) > maxExtension) return `Maximum extension is ${maxExtension} month(s).`;
+            return '';
+        },
         move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(moveOutNotice.min), max: addDays(moveOutNotice.max) })
             .replace(/cannot be before .*/, `must be at least ${moveOutNotice.min} days from today.`)
             .replace(/cannot be after .*/, `cannot be more than ${moveOutNotice.max} days from today.`),
@@ -267,7 +304,7 @@ export default function MyRoom() {
             return;
         }
         const months = Number(additionalMonths);
-        if (fields.validateField('additionalMonths', fieldValues)) return;
+        if (!extensionValueValid || fields.validateField('additionalMonths', fieldValues)) return;
 
         setBusy('extend');
         try {
@@ -406,8 +443,8 @@ export default function MyRoom() {
         const overdueListed = importantItems.some((i) => i.key === 'overdue');
         importantItems.push({
             key: 'rent-ending', tone: 'action', icon: faCalendarAlt,
-            title: `Your rent ends in ${daysUntilExpiration} day${daysUntilExpiration === 1 ? '' : 's'}`,
-            text: `On ${fmtDay(expectedEnd)}. ${!extensionBlocked ? 'Extend it to keep your room.'
+            title: `Rent ends in ${daysUntilExpiration} day${daysUntilExpiration === 1 ? '' : 's'} (${fmtDay(expectedEnd)})`,
+            text: `${!extensionBlocked ? 'Extend it to keep your room.'
                 : overdueListed && overdueBlock ? 'Pay the overdue bill first, then extend it to keep your room.'
                 : `Extending is not available right now. ${extension.reason}`}`,
             action: !extensionBlocked ? { label: 'Extend rent', onClick: openExtend }
@@ -429,14 +466,14 @@ export default function MyRoom() {
     }
 
     return (
-        <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-8 sm:py-10 px-4 md:px-12">
+        <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-10 sm:pb-10 px-4 md:px-12">
 
-            <div className="page-enter w-full max-w-5xl z-10 flex flex-col gap-8 text-left">
+            <div className="page-enter w-full max-w-5xl z-10 flex flex-col gap-3 md:gap-8 text-left">
                 <header>
-                    <h1 className="m-0 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
+                    <h1 className="m-0 text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
                         {`${loggedInUser?.first_login ? 'Welcome' : 'Welcome back'}${activeFirstName ? `, ${activeFirstName}` : ''}`}
                     </h1>
-                    <p className="m-0 mt-2 flex items-center gap-2 text-sm sm:text-base text-slate-600">
+                    <p className="m-0 mt-1 md:mt-2 flex items-center gap-2 text-sm sm:text-base text-slate-600">
                         <FontAwesomeIcon icon={faMapMarkerAlt} aria-hidden="true" />
                         {t('preview.location')}
                     </p>
@@ -445,7 +482,7 @@ export default function MyRoom() {
                 <ImportantInfo items={importantItems} />
 
                 {/* The key tag, and what the tenant checks most beside it. */}
-                <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-6 items-stretch">
+                <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-3 md:gap-6 items-stretch">
                     <RoomKeyTag
                         room={roomDetails.name}
                         type={roomDetails.type}
@@ -457,7 +494,7 @@ export default function MyRoom() {
                     />
 
                     <div className="flex flex-col gap-4 min-w-0">
-                        <section aria-labelledby="next-bill-heading" className={`${PANEL} p-5 sm:p-6`}>
+                        <section aria-labelledby="next-bill-heading" className={`${PANEL} p-4 sm:p-6`}>
                             <h2 id="next-bill-heading" className="m-0 text-base font-semibold text-slate-700">{t('myRoom.nextBillDue')}</h2>
                             {!invoicesLoaded ? (
                                 <BillSkeleton />
@@ -540,22 +577,23 @@ export default function MyRoom() {
                                     <form onSubmit={handleUpdateOccupants} className="m-0 grid gap-3 sm:max-w-md" noValidate>
                                         <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-800">Number of occupants (1 to {maxOccupants})</label>
                                         <input
-                                            type="number"
+                                            type="text"
                                             {...fields.fieldA11y('occupants')}
                                             inputMode="numeric"
                                             min="1"
                                             max={maxOccupants}
                                             step="1"
                                             value={occupants}
-                                            onKeyDown={blockNonIntegerKeys}
-                                            onChange={handleOccupantChange}
+                                            onKeyDown={blockNonDigitKeys}
+                                            onChange={(e) => handleOccupantChange(e.target.value)}
+                                            onPaste={(e) => sanitizeDigitPaste(e, handleOccupantChange)}
                                             onBlur={() => occupants !== currentOccupants && fields.validateField('occupants', fieldValues)}
                                             className={`${INPUT}${invalidCls(fields.errors.occupants)}`}
                                             required
                                         />
                                         <p className="m-0 text-sm text-slate-600">
                                             {occupancyRuleText(t, occupancy)}
-                                            {occupancyExtraText(t, occupancy, occupants) && <strong className="text-amber-800"> {occupancyExtraText(t, occupancy, occupants)}</strong>}
+                                            {Number.isInteger(Number(occupants)) && Number(occupants) >= 1 && Number(occupants) <= maxOccupants && occupancyExtraText(t, occupancy, occupants) && <strong className="text-amber-800"> {occupancyExtraText(t, occupancy, occupants)}</strong>}
                                         </p>
                                         <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
                                         <button type="submit" disabled={!!busy} className={`${BTN_PRIMARY} justify-self-start`}>
@@ -609,31 +647,26 @@ export default function MyRoom() {
                                             Months to add ({minExtension} to {maxExtension})
                                         </label>
                                         <input
-                                            type="number"
+                                            type="text"
                                             {...fields.fieldA11y('additionalMonths')}
                                             inputMode="numeric"
+                                            pattern="[0-9]*"
                                             min={minExtension}
                                             max={maxExtension}
                                             step="1"
                                             value={additionalMonths}
-                                            onKeyDown={blockNonIntegerKeys}
-                                            onChange={(e) => {
-                                                fields.clearError('additionalMonths');
-                                                const intVal = parseInt(e.target.value, 10);
-                                                // Empty while typing; blur/submit report it.
-                                                if (isNaN(intVal) || intVal < 1) {
-                                                    setAdditionalMonths('');
-                                                    return;
-                                                }
-                                                setAdditionalMonths(intVal);
-                                            }}
+                                            onKeyDown={blockNonDigitKeys}
+                                            onChange={(e) => handleExtensionChange(e.target.value)}
+                                            onPaste={(e) => sanitizeDigitPaste(e, (digitsOnly) => {
+                                                handleExtensionChange(digitsOnly);
+                                            })}
                                             onBlur={() => fields.validateField('additionalMonths', fieldValues)}
                                             disabled={extensionBlocked || !hasExtensionRange}
-                                            className={`${INPUT} disabled:opacity-60${invalidCls(fields.errors.additionalMonths)}`}
+                                            className={`${INPUT} disabled:opacity-60${fields.errors.additionalMonths ? ' !border-rose-500 focus:!border-rose-500 focus:!ring-rose-500/30 text-rose-600' : ' focus:!ring-indigo-500/30'}`}
                                             required
                                         />
                                         <FieldError id="myroom-additionalMonths" error={fields.errors.additionalMonths} className="m-0" />
-                                        <button type="submit" disabled={!!busy || extensionBlocked || !hasExtensionRange} className={`${BTN_PRIMARY} justify-self-start`}>
+                                        <button type="submit" disabled={!!busy || extensionBlocked || !extensionValueValid} className={`${BTN_PRIMARY} justify-self-start disabled:opacity-50 disabled:cursor-not-allowed`}>
                                             {busy === 'extend' ? 'Sending…' : 'Send extension request'}
                                         </button>
                                     </form>

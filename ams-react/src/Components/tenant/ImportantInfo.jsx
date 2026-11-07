@@ -1,5 +1,4 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 
 // My Room's "Important info": what needs the tenant's attention, most urgent
 // first. MyRoom builds the items; each is { key, tone, icon, title, text,
@@ -19,38 +18,30 @@ export default function ImportantInfo({ items }) {
 
   return (
     <section aria-labelledby="important-info-heading" className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-200">
-        <h2 id="important-info-heading" className="m-0 flex items-center gap-2 text-base font-bold text-slate-900">
-          <FontAwesomeIcon icon={faCircleExclamation} className={needAction ? 'text-rose-600' : 'text-indigo-600'} aria-hidden="true" />
-          Important info
-        </h2>
-        <span className={`text-xs font-bold rounded-full border px-2.5 py-1 ${needAction ? TONES.urgent.chip : TONES.info.chip}`}>
-          {needAction ? `${needAction} need${needAction === 1 ? 's' : ''} your attention` : 'Nothing urgent'}
-        </span>
-      </div>
+      <h2 id="important-info-heading" className="sr-only">Important info{needAction ? `, ${needAction} need${needAction === 1 ? 's' : ''} your attention` : ''}</h2>
       <ul className="list-none m-0 p-0 divide-y divide-slate-200 stagger-children">
         {sorted.map((item) => {
           const tone = TONES[item.tone];
           return (
-            <li key={item.key} className="relative flex flex-col sm:flex-row sm:items-center gap-3 pl-6 pr-5 sm:pr-6 py-4">
-              <span aria-hidden="true" className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${tone.bar}`} />
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                <span aria-hidden="true" className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${tone.tile}`}>
+            <li key={item.key} className="relative flex items-center gap-2 pl-3 pr-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+              <span aria-hidden="true" className={`absolute left-0 top-2 bottom-2 w-1 rounded-r-full ${tone.bar}`} />
+              <div className="flex items-center gap-2 flex-1 min-w-0 sm:gap-3">
+                <span aria-hidden="true" className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${tone.tile}`}>
                   <FontAwesomeIcon icon={item.icon} />
                 </span>
                 <div className="min-w-0">
-                  <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <strong className="text-sm text-slate-900">{item.title}</strong>
-                    <span className={`text-[11px] font-bold uppercase tracking-wide rounded-full border px-2 py-0.5 ${tone.chip}`}>{tone.label}</span>
+                  <p className="m-0 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <strong className="text-xs sm:text-sm text-slate-900">{item.title}</strong>
+                    <span className={`text-[9px] sm:text-[11px] font-bold uppercase tracking-wide rounded-full border px-1.5 py-0.5 ${tone.chip}`}>{tone.label}</span>
                   </p>
-                  <p className="m-0 mt-1 text-sm leading-relaxed text-slate-600">{item.text}</p>
+                  {item.key !== 'rent-ending' && <p className="m-0 mt-0.5 text-xs leading-snug text-slate-600">{item.text}</p>}
                 </div>
               </div>
               {item.action && (
                 <button
                   type="button"
                   onClick={item.action.onClick}
-                  className={`self-start sm:self-center inline-flex items-center justify-center min-h-[40px] px-4 rounded-xl text-white text-sm font-bold border-0 cursor-pointer shrink-0 transition-[background-color,transform] active:scale-[0.97] ${tone.btn}`}
+                  className={`inline-flex items-center justify-center min-h-[36px] px-3 rounded-lg text-white text-xs sm:text-sm font-bold border-0 cursor-pointer shrink-0 transition-[background-color,transform] active:scale-[0.97] ${tone.btn}`}
                 >
                   {item.action.label}
                 </button>
