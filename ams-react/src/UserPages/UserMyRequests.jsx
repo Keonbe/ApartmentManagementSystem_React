@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner, faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { fileUrl, cctvFootageLinkUrl } from '../api/fileUrl';
 import { useLang, dateLocale } from '../config/i18n';
@@ -370,6 +370,13 @@ export default function UserMyRequests() {
             <div className="w-full max-w-[1000px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
 
                 <header className="border-b border-slate-200 pb-4">
+                    <Link
+                        to="/my-room"
+                        className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                    >
+                        <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+                        <span>Back to My Room</span>
+                    </Link>
                     <h1 className="my-requests-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
                         {t('myRequests.heading')}
                     </h1>

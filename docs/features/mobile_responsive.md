@@ -167,7 +167,7 @@ Multi-column forms should always collapse down to single columns on small viewpo
 | **`xl`** | `1280px` | Standard desktop displays |
 | **`2xl`** | `1536px` | Wide screen displays |
 ## Account area and floating controls (2026-11)
-- `AccountLayout` (Profile Settings, Payment History, My Refunds): side menu with a sticky user card on large screens, a horizontally scrollable tab strip on phones and tablets.
+- `AccountLayout` (Profile Settings, Payment History, My Refunds): side menu with a sticky user card on large screens, a horizontally scrollable tab strip on phones and tablets. A touch-sized “Back to My Room” link stays above the navigation on every account tab.
 - `BackToTop` appears after about 1.5 screens of scroll, sits left of the chat launcher, is hidden from assistive tech while invisible and uses instant scroll under `prefers-reduced-motion`.
-- Pay Bills stacks its two columns below the `lg` breakpoint; the visitor log table uses `data-label` cells on phones.
+- Pay Bills stacks its two columns below the `lg` breakpoint and uses a compact payment-method dropdown to keep amount and proof steps nearer the top on phones; the visitor log table uses `data-label` cells on phones.
 - Elastic overscroll bounce is disabled past the page edges.

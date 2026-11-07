@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserCog, faHistory, faMoneyBillTransfer } from '@fortawesome/free-solid-svg-icons';
+import { faUserCog, faHistory, faMoneyBillTransfer, faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import { useLang } from '../config/i18n';
 import { fileUrl } from '../api/fileUrl';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
@@ -43,6 +43,15 @@ export default function AccountLayout({ hasRentedRoom, children }) {
 
     return (
         <div className="account-root w-full min-h-[calc(100vh-76px)] bg-slate-50 px-4 py-6 sm:py-10 md:px-8 box-border">
+            <div className="w-full max-w-7xl mx-auto text-left">
+                <Link
+                    to="/my-room"
+                    className="group mb-3 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                >
+                    <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+                    <span>Back to My Room</span>
+                </Link>
+            </div>
             <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start text-left">
                 <aside className="lg:col-span-3 lg:sticky lg:top-24 min-w-0">
                     {/* Who is signed in (large screens) */}

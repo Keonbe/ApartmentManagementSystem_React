@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
@@ -7,8 +7,8 @@ import { apiErrorMessage } from '../utils/apiError';
 import { useLang, dateLocale } from '../config/i18n';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faTint, faBolt, faCheckCircle, faClock, faArrowLeft,
-  faCalendarAlt, faInfoCircle, faReceipt
+  faTint, faBolt, faCheckCircle, faClock, faChevronLeft,
+  faCalendarAlt, faInfoCircle, faReceipt, faUpload
 } from '@fortawesome/free-solid-svg-icons';
 import '../assets/styles/responsive/user/user-utilities.responsive.css';
 
@@ -75,34 +75,23 @@ export default function UserUtilities() {
         
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="h-11 w-11 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
-                title={t('common.goBack')}
-                aria-label={t('common.goBack')}
-              >
-                <FontAwesomeIcon icon={faArrowLeft} className="text-sm" aria-hidden="true" />
-              </button>
-              <h1 className="text-2xl sm:text-3xl font-black m-0 tracking-tight text-brand">
-                {t('utilities.title')}
-              </h1>
-            </div>
+          <div className="min-w-0">
+            <Link
+              to="/my-room"
+              className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+              <span>Back to My Room</span>
+            </Link>
+            <h1 className="text-2xl sm:text-3xl font-black m-0 tracking-tight text-brand">
+              {t('utilities.title')}
+            </h1>
             <p className="text-slate-500 text-xs sm:text-sm mt-1.5 m-0">
               {t('utilities.subtitle')}
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => navigate('/my-room')}
-              className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs px-3.5 py-2.5 transition-all shadow-sm cursor-pointer"
-            >
-              <span>{t('nav.myRoom')}</span>
-            </button>
+          <div className="flex items-center self-start sm:self-auto">
             <button
               type="button"
               onClick={() => navigate('/pay-bills')}
@@ -165,9 +154,6 @@ export default function UserUtilities() {
                   {/* Top Bar of Card */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-sm">
-                        {r.room_name}
-                      </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-extrabold text-slate-900 m-0">
                           {t('utilities.billingCycle', { period: r.billing_period_label || r.billing_period })}
@@ -323,16 +309,16 @@ export default function UserUtilities() {
                     </>)}
 
                     {/* Total Combined Summary Block */}
-                    <div className="ut-native md:col-span-4 p-5 rounded-2xl bg-slate-900 text-white flex flex-col justify-between space-y-3">
+                    <div className="md:col-span-4 flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm backdrop-blur-md">
                       <div>
-                        <span className="text-xs font-bold text-slate-300 block">
+                        <span className="block text-xs font-bold uppercase tracking-wider text-slate-500">
                           {t('utilities.totalSubtotal')}
                         </span>
-                        <span className="text-2xl lg:text-3xl font-black text-emerald-400 mt-1 block">
+                        <span className="mt-1 block text-2xl font-black text-indigo-600">
                           ₱{totalAmount.toFixed(2)}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-300 m-0 leading-tight">
+                      <p className="mt-2 text-xs leading-relaxed text-slate-500 m-0">
                         {isInvoiced 
                           ? t('utilities.billedNote')
                           : t('utilities.notBilledNote')}
@@ -418,16 +404,22 @@ function ReadingPayment({ r, onChanged }) {
   if (!r.bill_file_path && !r.invoice_id) return null;
 
   return (
-    <div className="pt-2 text-xs text-slate-600 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 space-y-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+    <div className="mt-2 border-t border-slate-100/80 px-4 py-3 text-xs text-slate-600 dark:border-slate-800/60">
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
         {r.bill_file_path && (
           <a href={fileUrl(r.bill_file_path)} target="_blank" rel="noreferrer" className="font-bold text-indigo-600 hover:underline">{t('utilities.viewBill')}</a>
         )}
-        {status === 'paid' && <span className="font-bold text-emerald-700">{t('common.paid')}</span>}
+        {status === 'paid' && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+            <FontAwesomeIcon icon={faCheckCircle} aria-hidden="true" />
+            {t('common.paid')}{r.paid_at ? ` · ${new Date(r.paid_at).toLocaleDateString()}` : ''}
+          </span>
+        )}
         {status === 'pending-verification' && <span className="font-bold text-sky-700">{t('utilities.awaitingVerify')}</span>}
         {canUpload && !open && (
-          <button type="button" onClick={() => setOpen(true)} className="cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 hover:underline">
-            {t('utilities.uploadOutside')}
+          <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 border-0 bg-transparent text-sm font-medium text-slate-500 transition-colors hover:text-indigo-600">
+            <FontAwesomeIcon icon={faUpload} aria-hidden="true" />
+            Upload offline payment proof
           </button>
         )}
       </div>

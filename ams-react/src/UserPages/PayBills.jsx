@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faExclamationTriangle, faClock, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins, faQrcode, faHome, faShieldAlt, faTint, faBolt, faCar, faConciergeBell, faWrench, faTachometerAlt, faReceipt, faLayerGroup, faArrowLeft, faArrowRight, faCheck, faLock } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faExclamationTriangle, faClock, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins, faQrcode, faHome, faShieldAlt, faTint, faBolt, faCar, faConciergeBell, faWrench, faTachometerAlt, faReceipt, faLayerGroup, faArrowLeft, faArrowRight, faCheck, faLock, faChevronDown, faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useLang, dateLocale } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import InlineAlert from '../Components/InlineAlert';
@@ -94,6 +94,8 @@ export default function PayBills() {
     const navigate = useNavigate();
     const { t } = useLang();
     const [selectedMethod, setSelectedMethod] = useState('');
+    const [methodMenuOpen, setMethodMenuOpen] = useState(false);
+    const methodMenuRef = useRef(null);
     const [paymentChannels, setPaymentChannels] = useState([]);
     const [channelsLoading, setChannelsLoading] = useState(true);
     const [scheduledDate, setScheduledDate] = useState('');
@@ -489,9 +491,25 @@ export default function PayBills() {
     const partError = partAmount === '' ? '' : checkAmount(partAmount, { label: 'Amount', min: 0.01, max: balanceDue, allowZero: false });
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
+    useEffect(() => {
+        if (!methodMenuOpen) return undefined;
+        const closeOnOutsidePointer = (event) => {
+            if (!methodMenuRef.current?.contains(event.target)) setMethodMenuOpen(false);
+        };
+        const closeOnEscape = (event) => {
+            if (event.key === 'Escape') setMethodMenuOpen(false);
+        };
+        document.addEventListener('pointerdown', closeOnOutsidePointer);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('pointerdown', closeOnOutsidePointer);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [methodMenuOpen]);
 
     const handleMethodSelect = (methodId) => {
         setSelectedMethod(methodId);
+        setMethodMenuOpen(false);
         setSplitAttempted(false);
         setPayError('');
         payForm.setErrors({});
@@ -653,6 +671,13 @@ export default function PayBills() {
                 {/* Named after the bill on screen, not today's month: an overdue bill is from an earlier one. */}
                 <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pb-2">
                     <div className="min-w-0">
+                        <Link
+                            to="/my-room"
+                            className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                        >
+                            <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
+                            <span>Back to My Room</span>
+                        </Link>
                         <h1 className="pay-bills-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-slate-900">
                             {payingGroup ? groupWord : t('payBills.heading')}
                         </h1>
@@ -949,8 +974,6 @@ export default function PayBills() {
                             <h2 className="text-lg font-bold m-0 text-slate-900">{t('payBills.paymentSettings')}</h2>
                         </div>
 
-                        {/* Native radios (visually hidden) inside selectable tiles: keyboard
-                            and screen readers still get a radio group, arrow keys move. */}
                         <fieldset className="space-y-3 mx-0 mt-0 p-0 border-0 min-w-0">
                             <legend className="p-0 mb-3"><StepTitle n={1}>{t('payBills.selectMethod')}</StepTitle></legend>
                             {channelsLoading ? (
@@ -964,38 +987,49 @@ export default function PayBills() {
                                     <p className="m-0 text-slate-600">All payment channels are currently disabled by apartment management. Online checkouts and proof uploads cannot be processed at this time.</p>
                                 </div>
                             ) : null}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5">
-                            {paymentChannels.map((method) => {
-                                const checked = (currentMethodObj.id ?? selectedMethod) === method.id;
-                                return (
-                                    <label
-                                        key={method.id}
-                                        className={`pay-bills-method-option relative flex items-center gap-3 w-full min-h-[56px] px-3.5 py-3 rounded-2xl border-2 cursor-pointer transition-all box-border focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-1 ${checked ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="pay-method"
-                                            value={method.id}
-                                            checked={checked}
-                                            onChange={() => handleMethodSelect(method.id)}
-                                            className="sr-only"
-                                        />
-                                        <span aria-hidden="true" className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                                            {method.isGcash ? (
-                                                <span className="px-1 rounded bg-blue-600 text-white font-black text-[9px] tracking-tighter select-none leading-4">GCash</span>
-                                            ) : method.isQr ? (
-                                                <span className="px-1 rounded bg-indigo-600 text-white font-black text-[8px] tracking-tight select-none leading-4">QR PH</span>
-                                            ) : (
-                                                <FontAwesomeIcon icon={method.icon} className={`text-base ${method.color}`} />
-                                            )}
-                                        </span>
-                                        <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800 leading-tight">{method.family === 'split' ? t('payBills.splitPayment') : method.label}</span>
-                                        <span aria-hidden="true" className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${checked ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
-                                            {checked && <FontAwesomeIcon icon={faCheck} className="text-[10px]" />}
-                                        </span>
-                                    </label>
-                                );
-                            })}
+                            <div ref={methodMenuRef} className="relative">
+                                <button
+                                    type="button"
+                                    aria-expanded={methodMenuOpen}
+                                    aria-controls="pay-method-options"
+                                    aria-label={t('payBills.selectMethod')}
+                                    disabled={channelsLoading || paymentChannels.length === 0}
+                                    onClick={() => setMethodMenuOpen(open => !open)}
+                                    className="flex h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 text-left text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white">
+                                        {currentMethodObj.isGcash ? <span className="rounded bg-blue-600 px-1 text-[9px] font-black leading-4 tracking-tighter text-white">GCash</span>
+                                            : currentMethodObj.isQr ? <span className="rounded bg-indigo-600 px-1 text-[8px] font-black leading-4 tracking-tight text-white">QR PH</span>
+                                                : <FontAwesomeIcon icon={currentMethodObj.icon || faWallet} className={`text-base ${currentMethodObj.color || 'text-slate-500'}`} />}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate">{currentMethodObj.family === 'split' ? t('payBills.splitPayment') : currentMethodObj.label || 'Select a payment method'}</span>
+                                    <FontAwesomeIcon icon={faChevronDown} className={`text-xs text-slate-400 transition-transform ${methodMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                                </button>
+                                {methodMenuOpen && (
+                                    <ul id="pay-method-options" aria-label={t('payBills.selectMethod')} className="absolute z-30 mt-1.5 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+                                        {paymentChannels.map((method) => {
+                                            const checked = (currentMethodObj.id ?? selectedMethod) === method.id;
+                                            return (
+                                                <li key={method.id}>
+                                                    <button
+                                                        type="button"
+                                                        aria-pressed={checked}
+                                                        onClick={() => handleMethodSelect(method.id)}
+                                                        className={`flex min-h-12 w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none ${checked ? 'bg-indigo-50 text-indigo-800' : 'text-slate-800'}`}
+                                                    >
+                                                        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white">
+                                                            {method.isGcash ? <span className="rounded bg-blue-600 px-1 text-[9px] font-black leading-4 tracking-tighter text-white">GCash</span>
+                                                                : method.isQr ? <span className="rounded bg-indigo-600 px-1 text-[8px] font-black leading-4 tracking-tight text-white">QR PH</span>
+                                                                    : <FontAwesomeIcon icon={method.icon} className={`text-base ${method.color}`} />}
+                                                        </span>
+                                                        <span className="min-w-0 flex-1 text-sm font-semibold">{method.family === 'split' ? t('payBills.splitPayment') : method.label}</span>
+                                                        {checked && <FontAwesomeIcon icon={faCheck} className="text-xs text-indigo-600" aria-hidden="true" />}
+                                                    </button>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                )}
                             </div>
                         </fieldset>
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
@@ -163,6 +163,10 @@ export default function Services() {
             <div className="w-full max-w-[1400px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
                 {/* 1. Page Header with Compact Search Bar */}
                 <div className="relative pb-6 border-b border-slate-200">
+                    <Link className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors mb-2 py-1 -ml-0.5 group" to="/my-room">
+                        <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                        <span>Back to My Room</span>
+                    </Link>
                     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
                         <div className="space-y-2">
                             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
