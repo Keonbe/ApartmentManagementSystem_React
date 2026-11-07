@@ -16,6 +16,7 @@ import { TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, formatRelativeTi
 import { LIMITS } from '../utils/validation';
 import '../assets/styles/responsive/user/user-notifications.responsive.css';
 import fileUrl from '../api/fileUrl';
+import { SkeletonList } from '../Components/tenant/Skeleton';
 
 // One entry per type the backend writes. Unlisted types used to all show as "Info".
 const typeConfig = {
@@ -306,7 +307,7 @@ export default function UserNotifications() {
 
             <div className="stagger-children flex flex-col gap-3">
               {loading ? (
-                <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center text-xs text-slate-500">{t('notifications.loading')}</div>
+                <SkeletonList label={t('notifications.loading')} count={5} />
               ) : filteredNotifications.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center shadow-sm flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 text-brand/30">

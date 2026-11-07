@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faFileImage, faFilePdf } from '@fortawesome/free-solid-svg-icons';
 import DocumentPreviewModal from './DocumentPreviewModal';
+import { SkeletonList } from './tenant/Skeleton';
 
 // The documents on the signed-in tenant's latest application
 // (Settings → Application Requirements decides which ones are asked for).
@@ -70,7 +71,7 @@ export default function DocumentsModal({ isOpen, onClose }) {
 
                 <div className="p-6 overflow-y-auto space-y-4 grow">
                     {loading && (
-                        <p className="text-center text-sm font-semibold text-slate-400 m-0 py-8 animate-pulse">Loading your documents…</p>
+                        <SkeletonList label="Loading your documents…" count={3} />
                     )}
 
                     {errorMsg && !loading && (

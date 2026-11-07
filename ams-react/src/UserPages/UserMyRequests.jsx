@@ -9,6 +9,7 @@ import InlineAlert from '../Components/InlineAlert';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import Collapsible from '../Components/tenant/Collapsible';
 import '../assets/styles/responsive/user/user-my-requests.responsive.css';
+import { SkeletonList } from '../Components/tenant/Skeleton';
 
 // A request is closed once it has an outcome; everything else is still in play.
 const SECTION = 'm-0 list-none divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-sm';
@@ -390,7 +391,7 @@ export default function UserMyRequests() {
                 {actionNotice && <InlineAlert tone="info" onDismiss={() => setActionNotice('')}>{actionNotice}</InlineAlert>}
 
                 {loading ? (
-                    <p className="m-0 rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-600" role="status">{t('myRequests.loading')}</p>
+                    <SkeletonList label={t('myRequests.loading')} count={4} />
                 ) : loadFailed && requests.length === 0 ? (
                     <InlineAlert>
                         {t('common.loadFailed')}{' '}

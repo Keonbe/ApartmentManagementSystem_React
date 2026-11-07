@@ -11,6 +11,7 @@ import AccountLayout from './Components/AccountLayout';
 import TopBar from './Components/TopBar';
 import ServiceRouteGuard from './Components/ServiceRouteGuard';
 import { UserThemeScope, ThemePicker, FloatingLangSwitch } from './Components/UserTheme';
+import { SkeletonPage } from './Components/tenant/Skeleton';
 import { useTheme } from './config/theme';
 import { readRoomCache, writeRoomCache, roomKindFor, ROOM_RECHECK_MS, RoomStatusContext } from './config/tenantHome';
 
@@ -201,10 +202,13 @@ function HomeRoute({ hasRentedRoom, isCheckingRoom, children }) {
 
 const currentUser = () => JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "null");
 
+// While the room check runs: the top bar's strip and a page skeleton, in the
+// tenant's own theme (was a dark "Loading session..." screen).
 const SessionLoading = () => (
-  <div className="w-full h-screen flex items-center justify-center bg-slate-900 text-white font-bold">
-    Loading session...
-  </div>
+  <UserThemeScope className="w-full min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-[76px] w-full shrink-0 bg-brand" aria-hidden="true" />
+    <SkeletonPage label="Loading your session…" />
+  </UserThemeScope>
 );
 
 function AppContent() {

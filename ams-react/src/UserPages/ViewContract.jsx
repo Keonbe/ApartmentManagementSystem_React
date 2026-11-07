@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPrint, faArrowLeft, faHourglassHalf, faFileSignature, faDownload } from '@fortawesome/free-solid-svg-icons';
+import { faPrint, faArrowLeft, faFileSignature, faDownload } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
@@ -11,6 +11,7 @@ import { printElement } from '../utils/print';
 import { FILE_RULES, checkFile } from '../utils/fileLimits';
 import InlineAlert from '../Components/InlineAlert';
 import { personName } from '../utils/personName';
+import { Bone, SkeletonPage } from '../Components/tenant/Skeleton';
 
 const formatPeso = (value) => {
     const num = Number(value);
@@ -217,12 +218,19 @@ export default function ViewContract() {
 
     if (loading) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4 text-slate-800">
-                <div className="flex flex-col items-center space-y-4">
-                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-600 animate-spin" aria-hidden="true" />
-                    <h2 className="text-xl font-bold">{t('contract.loading')}</h2>
+            <SkeletonPage label={t('contract.loading')} maxWidth="max-w-4xl">
+                <div aria-hidden="true" className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 space-y-4">
+                    <Bone className="mx-auto h-6 w-64 max-w-full" />
+                    <Bone className="mx-auto h-3 w-40" />
+                    <div className="space-y-2.5 pt-4">
+                        {['w-full', 'w-11/12', 'w-full', 'w-4/5', 'w-full', 'w-3/4', 'w-full', 'w-2/3'].map((w, i) => <Bone key={i} className={`h-3 ${w}`} />)}
+                    </div>
+                    <div className="grid grid-cols-2 gap-8 pt-8">
+                        <div className="space-y-2"><Bone className="h-12 w-full rounded-xl" /><Bone className="h-3 w-24" /></div>
+                        <div className="space-y-2"><Bone className="h-12 w-full rounded-xl" /><Bone className="h-3 w-24" /></div>
+                    </div>
                 </div>
-            </div>
+            </SkeletonPage>
         );
     }
 

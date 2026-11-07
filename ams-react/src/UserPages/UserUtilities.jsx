@@ -11,6 +11,7 @@ import {
   faCalendarAlt, faInfoCircle, faReceipt, faUpload
 } from '@fortawesome/free-solid-svg-icons';
 import '../assets/styles/responsive/user/user-utilities.responsive.css';
+import { SkeletonList } from '../Components/tenant/Skeleton';
 
 // What one reading costs: a total-only record is its total_amount; otherwise
 // water + electricity with their other fees, plus any extra items (what the
@@ -105,10 +106,7 @@ export default function UserUtilities() {
 
         {/* Content Body */}
         {loading ? (
-          <div className="p-12 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-500" style={{ textAlign: 'center' }}>
-            <FontAwesomeIcon icon={faTint} className="animate-pulse text-3xl mb-3 text-indigo-400" />
-            <p className="text-sm font-semibold m-0 text-center" style={{ textAlign: 'center' }}>{t('utilities.loading')}</p>
-          </div>
+          <SkeletonList label={t('utilities.loading')} count={3} />
         ) : error ? (
           <div className="p-8 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-rose-200 shadow-sm text-rose-600" style={{ textAlign: 'center' }}>
             <p className="text-sm font-semibold m-0 text-center" style={{ textAlign: 'center' }}>{error}</p>

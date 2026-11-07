@@ -48,6 +48,19 @@ export default function Home({ onCardClick, username, firstLogin = false }) {
 
             {/*Clean Floating Content Panel Layout*/}
             <div className="home-content-container w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">
+                {!content && (
+                    // Shimmer bars on the dark panel (Bone is for light cards).
+                    <div role="status" aria-busy="true" className="home-content-panel max-w-2xl space-y-5 bg-slate-950/70 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl shadow-black/50 animate-fade-in">
+                        <span className="sr-only">{t('common.loading')}</span>
+                        {['h-6 w-36 rounded-full', 'h-12 w-4/5', 'h-12 w-3/5', 'h-4 w-1/2', 'h-3 w-full', 'h-3 w-5/6'].map((cls) => (
+                            <span key={cls} aria-hidden="true" className={`block rounded-lg bg-white/10 skeleton-shimmer ${cls}`} />
+                        ))}
+                        <div className="flex gap-3 pt-5 border-t border-white/10" aria-hidden="true">
+                            <span className="block h-11 w-40 rounded-xl bg-white/10 skeleton-shimmer" />
+                            <span className="block h-11 w-40 rounded-xl bg-white/10 skeleton-shimmer" />
+                        </div>
+                    </div>
+                )}
                 {content && <div className="home-content-panel max-w-2xl space-y-6 bg-slate-950/70 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl shadow-black/50 animate-slide-up">
 
                     <HomeIntro

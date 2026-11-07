@@ -24,6 +24,7 @@ const TIME_SLOTS = ['morning', 'afternoon'];
 
 import { invoiceOwed } from '../utils/invoiceBalance';
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
+import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 
 // One look for every notice on the page (awaiting, returned, overdue, combine…).
 // Full class strings so Tailwind sees them; the user themes remap these shades.
@@ -824,10 +825,20 @@ export default function PayBills() {
 
                 {/* Still loading: placeholders instead of a ₱0.00 statement. */}
                 {!loaded && (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-pulse" aria-hidden="true">
-                        <div className="lg:col-span-7 h-80 rounded-3xl bg-white border border-slate-200" />
-                        <div className="lg:col-span-5 h-96 rounded-3xl bg-white border border-slate-200" />
-                    </div>
+                    <SkeletonGroup label={t('common.loading')} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div className="lg:col-span-7 rounded-3xl bg-white border border-slate-200 overflow-hidden">
+                            <div className="p-6 sm:p-8 space-y-3 bg-slate-50/70"><Bone className="h-3 w-40" /><Bone className="h-10 w-48" /><Bone className="h-3 w-56" /></div>
+                            <div className="p-6 sm:p-8 space-y-4">
+                                {[0, 1, 2].map((i) => <div key={i} className="flex items-center justify-between gap-4"><div className="flex items-center gap-3"><Bone className="h-9 w-9 rounded-xl" /><Bone className="h-4 w-32" /></div><Bone className="h-4 w-20" /></div>)}
+                                <Bone className="h-14 w-full rounded-2xl" />
+                            </div>
+                        </div>
+                        <div className="lg:col-span-5 rounded-3xl bg-white border border-slate-200 p-6 sm:p-7 space-y-5">
+                            <div className="flex items-center gap-3"><Bone className="h-10 w-10 rounded-xl" /><Bone className="h-5 w-40" /></div>
+                            <div className="grid grid-cols-2 gap-3">{[0, 1, 2, 3, 4, 5].map((i) => <Bone key={i} className="h-16 rounded-2xl" />)}</div>
+                            <Bone className="h-14 w-full rounded-2xl" />
+                        </div>
+                    </SkeletonGroup>
                 )}
 
                 {/*Main Workspace: the bill (left) and how to pay it (right)*/}

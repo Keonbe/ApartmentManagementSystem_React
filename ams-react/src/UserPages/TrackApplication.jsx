@@ -23,6 +23,7 @@ import { getSystemSettings } from '../config/systemSettings';
 import ApplicationStepper from '../Components/tenant/ApplicationStepper';
 import { APPLICATION_STATUS_CHIP, applicationSteps, normalizeApplicationStatus } from '../utils/applicationSteps';
 import '../assets/styles/responsive/user/track-application.responsive.css';
+import { Bone, SkeletonPage } from '../Components/tenant/Skeleton';
 
 export default function TrackApplication() {
     const navigate = useNavigate();
@@ -375,12 +376,22 @@ export default function TrackApplication() {
 
     if (loading) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 text-slate-900">
-                <div className="flex flex-col items-center gap-4" role="status">
-                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-700 animate-spin" aria-hidden="true" />
-                    <p className="m-0 text-lg font-semibold">Loading your application…</p>
+            <SkeletonPage label="Loading your application…" maxWidth="max-w-4xl">
+                <div aria-hidden="true" className="space-y-6">
+                    <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-2"><Bone className="h-5 w-48" /><Bone className="h-3 w-32" /></div>
+                            <Bone className="h-7 w-28 rounded-full" />
+                        </div>
+                        <div className="grid grid-cols-4 gap-3">
+                            {[0, 1, 2, 3].map((i) => <div key={i} className="space-y-2"><Bone className="h-10 w-10 rounded-full" /><Bone className="h-3 w-3/4" /></div>)}
+                        </div>
+                    </div>
+                    <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 space-y-3">
+                        <Bone className="h-4 w-40" /><Bone className="h-3 w-full" /><Bone className="h-3 w-5/6" /><Bone className="h-11 w-44 rounded-xl" />
+                    </div>
                 </div>
-            </div>
+            </SkeletonPage>
         );
     }
 

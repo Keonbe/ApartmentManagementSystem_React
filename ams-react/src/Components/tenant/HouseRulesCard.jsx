@@ -1,5 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBookOpen, faClock, faBanSmoking, faCar, faUsers, faPaw, faHouse } from '@fortawesome/free-solid-svg-icons';
+import { Bone, SkeletonGroup } from './Skeleton';
 
 const iconForRule = (rule) => {
   const text = `${rule.category || ''} ${rule.title || ''}`.toLowerCase();
@@ -34,9 +35,9 @@ export default function HouseRulesCard({ rules = [], loading = false, error = fa
         </button>
       </div>
       {loading ? (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Loading house rules" aria-busy="true">
-          {[0, 1].map((item) => <div key={item} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}
-        </div>
+        <SkeletonGroup label="Loading house rules" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {[0, 1].map((item) => <Bone key={item} className="h-10" />)}
+        </SkeletonGroup>
       ) : error ? (
         <p role="alert" className="mb-0 mt-4 text-sm text-rose-700">House rules could not be loaded.</p>
       ) : activeRules.length === 0 ? (

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { isServiceSwitchOn } from '../config/settingsSchema';
+import { SkeletonPage } from '../Components/tenant/Skeleton';
 
 let cachedSettings = null;
 let cacheTime = 0;
@@ -81,12 +80,7 @@ export default function ServiceRouteGuard({ settingKey, fallbackPath = '/service
 
   if (loading) {
     return (
-      <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center space-y-3 text-slate-500">
-          <FontAwesomeIcon icon={faHourglassHalf} className="text-3xl text-indigo-500 animate-spin" />
-          <p className="text-sm font-semibold m-0">Checking service status...</p>
-        </div>
-      </div>
+      <SkeletonPage label="Checking service status…" />
     );
   }
 

@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { BookOpen, LoaderCircle, X } from 'lucide-react';
+import { BookOpen, X } from 'lucide-react';
 import useAllRules from '../hooks/useAllRules';
 import RulesGroups from './RulesGroups';
 import { useLang } from '../config/i18n';
+import { SkeletonList } from './tenant/Skeleton';
 
 export default function HouseRulesModal({ isOpen, onClose, rules: providedRules, loading: providedLoading, error: providedError }) {
   const { t } = useLang();
@@ -29,7 +30,7 @@ export default function HouseRulesModal({ isOpen, onClose, rules: providedRules,
           <button type="button" onClick={onClose} aria-label={t('houseRules.closeAria')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-white/15 text-white hover:bg-white/25"><X className="h-5 w-5" /></button>
         </header>
         <div className="max-h-[65vh] space-y-5 overflow-y-auto p-4 sm:p-6">
-          {loading && <div className="flex items-center justify-center gap-2 py-12 text-slate-500"><LoaderCircle className="h-5 w-5 animate-spin" /> {t('houseRules.loading')}</div>}
+          {loading && <SkeletonList label={t('houseRules.loading')} count={4} />}
           {!loading && error && <p role="alert" className="m-0 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{t('houseRules.loadError')}</p>}
           {!loading && !error && <RulesGroups rules={rules} />}
           {!loading && !error && rules.length === 0 && <p className="m-0 py-10 text-center text-sm text-slate-500">{t('houseRules.empty')}</p>}

@@ -40,6 +40,7 @@ const DEPARTURE_NOTE_OPTIONS = [
 ];
 import { useLang, dateLocale } from '../config/i18n';
 import '../assets/styles/responsive/user/user-visitors.responsive.css';
+import { Bone } from '../Components/tenant/Skeleton';
 
 export default function UserVisitors() {
   const { t } = useLang();
@@ -427,9 +428,16 @@ export default function UserVisitors() {
               </thead>
               <tbody className="block sm:table-row-group divide-y divide-slate-100">
                 {loading ? (
-                  <tr>
-                    <td colSpan="6" className="px-5 py-10 text-center text-slate-500">{t('visitors.loading')}</td>
-                  </tr>
+                  [0, 1, 2, 3].map((r) => (
+                    <tr key={r} className="block sm:table-row">
+                      {[0, 1, 2, 3, 4, 5].map((c) => (
+                        <td key={c} className="block sm:table-cell px-5 py-3 sm:py-4">
+                          {r === 0 && c === 0 && <span role="status" className="sr-only">{t('visitors.loading')}</span>}
+                          <Bone className={`h-3.5 ${['w-3/4', 'w-1/2', 'w-2/3', 'w-5/12', 'w-7/12', 'w-1/3'][(r + c) % 6]}`} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
                 ) : error ? (
                   <tr>
                     <td colSpan="6" className="px-5 py-10 text-center text-rose-600 text-sm">{error}</td>

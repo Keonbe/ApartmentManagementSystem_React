@@ -19,6 +19,7 @@ import { useRoomStatus } from '../config/tenantHome';
 import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
 import { occupancyFrom, occupancyExtra, occupancyRuleText } from '../utils/occupancy';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
+import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 
 const GENDERS = ['Male', 'Female', 'Other'];
 const MAX_MONTHS = 24;
@@ -974,7 +975,9 @@ export default function RentApplication() {
                                 </div>
                             ) : (
                                 requirementsState === 'loading' ? (
-                                    <p className="m-0 text-sm font-semibold text-slate-500 animate-pulse">{t('rent.docsLoading')}</p>
+                                    <SkeletonGroup label={t('rent.docsLoading')} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        {[0, 1, 2, 3].map((i) => <div key={i} className="space-y-2"><Bone className="h-4 w-40" /><Bone className="h-24 w-full rounded-2xl" /></div>)}
+                                    </SkeletonGroup>
                                 ) : requirementsState === 'error' ? (
                                     <p role="alert" className="m-0 rounded-xl bg-rose-50 p-4 text-sm font-semibold text-rose-700">{t('rent.docsLoadFailed')}</p>
                                 ) : requirements.length === 0 ? (

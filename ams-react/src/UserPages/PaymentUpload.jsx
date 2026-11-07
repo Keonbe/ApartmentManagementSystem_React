@@ -17,6 +17,7 @@ import FieldError from '../Components/form/FieldError';
 import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
 import { fetchContractTemplate, accountsForMethod } from '../Components/contract/contractTemplate';
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
+import { Bone, SkeletonPage } from '../Components/tenant/Skeleton';
 
 const INPUT_CLS = "focus-glow w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base sm:text-sm outline-none text-slate-800 focus:border-indigo-500 transition-colors box-border shadow-sm";
 const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
@@ -149,12 +150,20 @@ export default function PaymentUpload() {
 
     if (channelChecking) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4">
-                <div className="flex flex-col items-center space-y-3 text-slate-500">
-                    <FontAwesomeIcon icon={faHourglassHalf} className="text-3xl text-indigo-500 animate-spin" />
-                    <p className="text-sm font-semibold m-0">Verifying payment method...</p>
+            <SkeletonPage label="Verifying payment method…" maxWidth="max-w-2xl">
+                <div aria-hidden="true" className="rounded-3xl border border-slate-200 bg-white p-6 md:p-10 space-y-6">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-4">
+                        <div className="flex items-center justify-between"><Bone className="h-4 w-32" /><Bone className="h-7 w-28" /></div>
+                        <Bone className="mx-auto h-52 w-52 rounded-2xl" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2"><Bone className="h-3 w-24" /><Bone className="h-12 w-full rounded-xl" /></div>
+                        <div className="space-y-2"><Bone className="h-3 w-24" /><Bone className="h-12 w-full rounded-xl" /></div>
+                    </div>
+                    <Bone className="h-40 w-full rounded-2xl" />
+                    <Bone className="h-14 w-full rounded-xl" />
                 </div>
-            </div>
+            </SkeletonPage>
         );
     }
 

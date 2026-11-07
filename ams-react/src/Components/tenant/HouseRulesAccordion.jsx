@@ -1,5 +1,6 @@
 import { faBookOpen } from '@fortawesome/free-solid-svg-icons';
 import Disclosure from './Disclosure';
+import { Bone, SkeletonGroup } from './Skeleton';
 
 const GROUP_LABELS = {
   house: 'HOUSE RULES',
@@ -29,9 +30,9 @@ export default function HouseRulesAccordion({ rules = [], loading = false, error
       >
         <div className="flex flex-col gap-4">
           {loading ? (
-            <div className="space-y-3" aria-label="Loading house rules" aria-busy="true">
-              {[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}
-            </div>
+            <SkeletonGroup label="Loading house rules" className="space-y-3">
+              {[0, 1, 2].map((item) => <Bone key={item} className="h-16 rounded-xl" />)}
+            </SkeletonGroup>
           ) : error ? (
             <p role="alert" className="m-0 text-sm text-rose-700">House rules could not be loaded.</p>
           ) : activeRules.length === 0 ? (

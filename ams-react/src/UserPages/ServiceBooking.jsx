@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faUndo, faHourglassHalf, faBroom, faTshirt, faConciergeBell, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faUndo, faBroom, faTshirt, faConciergeBell, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
@@ -22,6 +22,7 @@ const QUANTITY_FALLBACK_MAX = 1000;
 // How many days of dates the picker offers (from today, or from the lead time).
 const BOOKING_WINDOW_DAYS = 60; // service_request.php allows the same (SERVICE_MAX_ADVANCE_DAYS)
 import '../assets/styles/responsive/user/service-booking.responsive.css';
+import { SkeletonPage } from '../Components/tenant/Skeleton';
 
 //MapsTheCatalogIconColumnOntoRealFontAwesomeIcons
 const ICONS = {
@@ -217,12 +218,7 @@ export default function ServiceBooking() {
 
     if (loading) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50">
-                <div className="flex flex-col items-center space-y-3 text-slate-500">
-                    <FontAwesomeIcon icon={faHourglassHalf} className="text-3xl text-indigo-500 animate-spin" />
-                    <p className="text-sm font-semibold m-0">{t('serviceBooking.loading')}</p>
-                </div>
-            </div>
+            <SkeletonPage label={t('serviceBooking.loading')} maxWidth="max-w-4xl" />
         );
     }
 

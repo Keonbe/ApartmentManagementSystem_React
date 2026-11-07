@@ -11,6 +11,7 @@ import { usePublicSettings } from '../config/publicSettings';
 import { previewText, previewFeatures } from '../config/previewHero';
 import { formatAvailable } from '../utils/availableDate';
 import '../assets/styles/responsive/user/preview.responsive.css';
+import { Bone, SkeletonGrid } from '../Components/tenant/Skeleton';
 
 const toCard = (r) => ({
     id: r.id,
@@ -112,7 +113,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                             features={previewFeatures(hero, lang)}
                         />
                     ) : (
-                        <div className="ut-native rounded-[2rem] bg-brand shadow-xl flex-shrink-0 w-full h-[190px] animate-pulse" aria-hidden="true" />
+                        <div className="ut-native rounded-[2rem] bg-brand shadow-xl flex-shrink-0 w-full h-[190px] skeleton-shimmer" aria-hidden="true" />
                     )}
 
                     {/* Apartment rules: one line that pages through on its own. */}
@@ -143,7 +144,9 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                     </button>
                                 </div>
                             ) : (
-                                <span className="text-sm font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{t('preview.units').replace('{n}', rooms.length)}</span>
+                                loading
+                                    ? <Bone className="h-7 w-20 rounded-full" />
+                                    : <span className="text-sm font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{t('preview.units').replace('{n}', rooms.length)}</span>
                             )}
                             {list.length > 1 && (
                                 <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -168,10 +171,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                         {showingUpcoming && <p className="m-0 mb-3 text-sm text-slate-500">{t('preview.upcomingNote')}</p>}
 
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-16 space-y-4">
-                                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                                <span className="text-slate-500 font-medium text-sm">{t('preview.loading')}</span>
-                            </div>
+                            <SkeletonGrid label={t('preview.loading')} count={4} image="h-44" className="grid grid-cols-1 sm:grid-cols-2 gap-4" />
                         ) : sortedList.length === 0 ? (
                             <div className="bg-white rounded-[2rem] p-12 border border-dashed border-slate-300 text-center shadow-sm">
                                 <p className="text-slate-500 font-medium m-0">{t('preview.noRooms')}</p>

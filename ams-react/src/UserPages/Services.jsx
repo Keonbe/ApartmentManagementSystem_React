@@ -10,6 +10,7 @@ import { getServiceAppearance } from '../config/serviceAppearance';
 import { SERVICE_HUB_CARDS } from '../config/serviceHubCards';
 import { isServiceSwitchOn } from '../config/settingsSchema';
 import '../assets/styles/responsive/user/services.responsive.css';
+import { Bone, SkeletonGroup, SkeletonHeading } from '../Components/tenant/Skeleton';
 
 export default function Services() {
     const navigate = useNavigate();
@@ -122,38 +123,33 @@ export default function Services() {
     if (loading) {
         return (
             <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50/70 py-8 sm:py-12 px-4 sm:px-6 lg:px-12 flex justify-center">
-                <div className="w-full max-w-[1400px] space-y-8 animate-pulse">
+                <SkeletonGroup label={t('common.loading')} className="w-full max-w-[1400px] space-y-8">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-200/80">
-                        <div className="space-y-3">
-                            <div className="h-6 w-32 bg-slate-200 rounded-full" />
-                            <div className="h-9 w-64 bg-slate-200 rounded-xl" />
-                            <div className="h-4 w-96 max-w-full bg-slate-200 rounded-lg" />
-                        </div>
-                        <div className="h-11 w-full sm:w-80 bg-slate-200 rounded-xl" />
+                        <SkeletonHeading />
+                        <Bone className="h-11 w-full sm:w-80 rounded-xl" />
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {[1, 2, 3, 4, 5, 6].map((i) => (
                             <div key={i} className="min-h-[240px] bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between">
                                 <div className="space-y-4">
                                     <div className="flex items-start justify-between">
-                                        <div className="w-16 h-16 bg-slate-200 rounded-2xl" />
-                                        <div className="w-24 h-6 bg-slate-100 rounded-full" />
+                                        <Bone className="w-16 h-16 rounded-2xl" />
+                                        <Bone className="w-24 h-6 rounded-full" />
                                     </div>
                                     <div className="space-y-2 pt-2">
-                                        <div className="h-6 w-44 bg-slate-200 rounded-md" />
-                                        <div className="h-4 w-full bg-slate-100 rounded-md" />
-                                        <div className="h-4 w-3/4 bg-slate-100 rounded-md" />
+                                        <Bone className="h-6 w-44 rounded-md" />
+                                        <Bone className="h-4 w-full rounded-md" />
+                                        <Bone className="h-4 w-3/4 rounded-md" />
                                     </div>
                                 </div>
                                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                                    <div className="h-4 w-20 bg-slate-100 rounded" />
-                                    <div className="h-9 w-28 bg-slate-200 rounded-xl" />
+                                    <Bone className="h-4 w-20 rounded" />
+                                    <Bone className="h-9 w-28 rounded-xl" />
                                 </div>
                             </div>
                         ))}
                     </div>
-                </div>
+                </SkeletonGroup>
             </div>
         );
     }

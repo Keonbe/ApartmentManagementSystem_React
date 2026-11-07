@@ -6,6 +6,7 @@ import { fileUrl } from '../api/fileUrl';
 import { useLang, dateLocale } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
 import '../assets/styles/responsive/user/user-announcements.responsive.css';
+import { SkeletonList } from '../Components/tenant/Skeleton';
 
 // The three types the admin composer offers. The type sets the icon, colour and
 // label, so an urgent notice is told apart without reading it.
@@ -181,9 +182,7 @@ export default function UserAnnouncements() {
                 </header>
 
                 {loading ? (
-                    <p className="m-0 rounded-xl border border-slate-200 bg-white py-12 text-center font-medium text-slate-600 shadow-sm" role="status">
-                        {t('announcements.loading')}
-                    </p>
+                    <SkeletonList label={t('announcements.loading')} count={3} />
                 ) : loadFailed && announcements.length === 0 ? (
                     <InlineAlert>
                         {t('common.loadFailed')}{' '}
