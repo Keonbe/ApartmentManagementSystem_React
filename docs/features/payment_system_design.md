@@ -2,13 +2,15 @@
 
 > **Stack context:** React 19 + Vite 8 → PHP 8 (XAMPP) → MySQL/MariaDB  
 > **Core Principle:** Admin-controlled channel activation. One toggle decides whether the tenant sees sandbox (PayMongo) options, manual options, or both.  
-> **Last Updated:** August 2026
+> **Last Updated:** November 7, 2026
 
 ---
 
 ## 1. Overview
 
 The payment system is **modular** — each payment channel is an independent unit that can be enabled or disabled by the admin without code changes. Channels are grouped into two families:
+
+The Pay Bills advance-rent preview keeps a detailed date-range row for one month. When multiple months are selected, it consolidates them into one row showing the covered range and total; an equal monthly rent is additionally expressed as a per-month multiplier.
 
 | Family | Provider | Requires Internet Gateway? | Status |
 |---|---|---|---|

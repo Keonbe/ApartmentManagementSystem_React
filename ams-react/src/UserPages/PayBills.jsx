@@ -1230,18 +1230,31 @@ export default function PayBills() {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    {advance.months.slice(0, Math.min(advanceCount, advance.months.length)).map(m => (
-                                        <div key={m.period_start} className="flex justify-between text-sm text-slate-600">
-                                            <span>Rent — {m.billing_period} <span className="text-xs text-slate-500">({formatPeriodRange(m.period_start, m.period_end)})</span></span>
-                                            <span className="font-bold text-slate-900">{fmtMoney(m.amount)}</span>
-                                        </div>
-                                    ))}
-                                    <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-extrabold text-slate-800">
-                                        <span>Total</span>
-                                        <span className="text-indigo-600">
-                                            {fmtMoney(advance.months.slice(0, Math.min(advanceCount, advance.months.length)).reduce((s, m) => s + m.amount, 0))}
-                                        </span>
-                                    </div>
+                                    {(() => {
+                                        const selectedMonths = advance.months.slice(0, Math.min(advanceCount, advance.months.length));
+                                        const total = selectedMonths.reduce((sum, month) => sum + month.amount, 0);
+                                        if (selectedMonths.length === 1) {
+                                            const [month] = selectedMonths;
+                                            return (
+                                                <div className="flex justify-between text-sm text-slate-600">
+                                                    <span>Rent — {month.billing_period} <span className="text-xs text-slate-500">({formatPeriodRange(month.period_start, month.period_end)})</span></span>
+                                                    <span className="font-bold text-slate-900">{fmtMoney(month.amount)}</span>
+                                                </div>
+                                            );
+                                        }
+                                        const firstMonth = selectedMonths[0];
+                                        const lastMonth = selectedMonths[selectedMonths.length - 1];
+                                        const sameMonthlyAmount = selectedMonths.every(month => month.amount === firstMonth.amount);
+                                        return (
+                                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-600">
+                                                <span>Rent Advance ({selectedMonths.length} months: {formatDay(firstMonth.period_start)} – {formatDay(lastMonth.period_end)})</span>
+                                                <span className="font-bold text-slate-900">
+                                                    {sameMonthlyAmount && <span>{fmtMoney(firstMonth.amount)} × {selectedMonths.length} months = </span>}
+                                                    <span className="text-indigo-600">{fmtMoney(total)} total</span>
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <button
                                     type="button"
