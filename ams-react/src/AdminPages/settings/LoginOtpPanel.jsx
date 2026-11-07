@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faKey, faMagnifyingGlass, faUsers, faCircleInfo, faChevronLeft, faChevronRight, faRotateLeft, faLaptop } from '@fortawesome/free-solid-svg-icons';
+import { faKey, faMagnifyingGlass, faUsers, faCircleInfo, faChevronLeft, faChevronRight, faRotateLeft, faLaptop, faEnvelopeCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import api from '../../api/axiosConfig';
 import { apiErrorMessage } from '../../utils/apiError';
 import FilterTabs from '../../Components/admin/ui/FilterTabs';
@@ -10,8 +10,9 @@ import { SkeletonRows } from '../../Components/admin/ui/Skeleton';
 import { badge, btn } from '../../Components/admin/ui/styles';
 import { SettingsSection, Switch, Callout } from './SettingsSection';
 
-// Settings → Sign-in Codes (login_otp_settings.php): the emailed 6-digit code a
-// tenant gets when signing in on a device it has not seen. One switch for
+// Settings → Sign-in & Verification (login_otp_settings.php): whether a new
+// account must open the emailed verification link before signing in, and the
+// emailed 6-digit code a tenant gets when signing in on a device it has not seen. One switch for
 // everyone, and a per-account choice that overrides it. The rule itself is in
 // backend/api/services/login_otp_policy.php. Saves on each change.
 const ENDPOINT = 'login_otp_settings.php';
@@ -33,6 +34,9 @@ const GROUP_BADGE = {
 export default function LoginOtpPanel() {
   const [enabled, setEnabled] = useState(null);
   const [globalBusy, setGlobalBusy] = useState(false);
+  const [emailVerification, setEmailVerification] = useState(null);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyNotice, setVerifyNotice] = useState(null); // { tone: 'ok' | 'error', text }
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState(''); // the query after a short pause in typing
   const [filter, setFilter] = useState('all');
@@ -54,6 +58,7 @@ export default function LoginOtpPanel() {
       if (id !== requestId.current) return; // a newer search or page was asked for
       setData(res.data);
       setEnabled(!!res.data.enabled);
+      setEmailVerification(res.data.email_verification !== false);
     } catch {
       if (id === requestId.current) setLoadError(true);
     } finally {
@@ -90,6 +95,22 @@ export default function LoginOtpPanel() {
       setNotice({ tone: 'error', text: apiErrorMessage(e, 'Could not save the setting.') });
     } finally {
       setGlobalBusy(false);
+    }
+  };
+
+  const saveEmailVerification = async (next) => {
+    setVerifyBusy(true);
+    setVerifyNotice(null);
+    const before = emailVerification;
+    setEmailVerification(next);
+    try {
+      await api.post(ENDPOINT, { action: 'set_email_verification', enabled: next });
+      setVerifyNotice({ tone: 'ok', text: next ? 'New accounts must verify their email before signing in.' : 'New accounts can sign in right after signing up.' });
+    } catch (e) {
+      setEmailVerification(before);
+      setVerifyNotice({ tone: 'error', text: apiErrorMessage(e, 'Could not save the setting.') });
+    } finally {
+      setVerifyBusy(false);
     }
   };
 
@@ -139,6 +160,39 @@ export default function LoginOtpPanel() {
 
   return (
     <div className="space-y-6">
+      <SettingsSection
+        icon={faEnvelopeCircleCheck}
+        tone="emerald"
+        title="Email verification"
+        description="A link emailed to a new account, which it opens before its first sign-in."
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="m-0 text-body font-semibold text-slate-800">Require email verification for new accounts</p>
+            <p className="m-0 mt-1 text-label text-slate-500">
+              When off, no link is sent: a new account can sign in right after signing up, and an account still waiting for its link can sign in too.
+            </p>
+          </div>
+          {emailVerification === null ? (
+            <span className="text-label text-slate-400">…</span>
+          ) : (
+            <div className={`flex items-center gap-2 ${verifyBusy ? 'opacity-60 pointer-events-none' : ''}`}>
+              <span className={`text-label font-semibold ${emailVerification ? 'text-indigo-700' : 'text-slate-500'}`}>{emailVerification ? 'On' : 'Off'}</span>
+              <Switch checked={emailVerification} onChange={saveEmailVerification} label="Require email verification for new accounts" />
+            </div>
+          )}
+        </div>
+        <Callout tone="slate" icon={faCircleInfo}>
+          Accounts created while this is off count as verified, so turning it back on does not lock them out.
+          Keep it on unless verification emails are not reaching people: it confirms each account belongs to a real, reachable address.
+        </Callout>
+        {verifyNotice && (
+          <p role={verifyNotice.tone === 'error' ? 'alert' : 'status'} className={`m-0 text-label ${verifyNotice.tone === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>
+            {verifyNotice.text}
+          </p>
+        )}
+      </SettingsSection>
+
       <SettingsSection
         icon={faKey}
         tone="amber"

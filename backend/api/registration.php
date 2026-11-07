@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "../config.php";
+require_once __DIR__ . '/services/login_otp_policy.php';
 
 function fail($message) {
     echo json_encode(["success" => false, "message" => $message]);
@@ -54,10 +55,14 @@ $checkStmt->close();
 if ($exists) fail("Email address is already registered");
 
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-$verification_token = bin2hex(random_bytes(32));
+// Email verification off (Other Settings → Sign-in Codes): the account is
+// verified now and no link is sent.
+$needs_verification = email_verification_enabled($conn);
+$verification_token = $needs_verification ? bin2hex(random_bytes(32)) : null;
+$verified_sql = $needs_verification ? 'NULL' : 'NOW()';
 
 // No role column is written: every self-registered account is a tenant ('user' default).
-$stmt = $conn->prepare("INSERT INTO users (first_name, middle_name, last_name, suffix, email_address, password, verification_token) VALUES (?, ?, ?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO users (first_name, middle_name, last_name, suffix, email_address, password, verification_token, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, $verified_sql)");
 $stmt->bind_param("sssssss", $first_name, $middle_name, $last_name, $suffix, $email_address, $hashed_password, $verification_token);
 
 if ($stmt->execute()) {
@@ -66,11 +71,19 @@ if ($stmt->execute()) {
     // Best effort: the account already exists, so a notification problem must not fail the sign-up.
     try {
         create_notification($conn, $new_user_id, 'welcome', 'Welcome to AMS',
-            "Hi $first_name, your account is ready. Verify your email, then browse the available units and send a rent application.");
+            $needs_verification
+                ? "Hi $first_name, your account is ready. Verify your email, then browse the available units and send a rent application."
+                : "Hi $first_name, your account is ready. Browse the available units and send a rent application.");
         notify_admins_info($conn, 'new_user', 'New Tenant Account',
             trim("$first_name $last_name") . " ($email_address) created an account.", "new_user:$new_user_id");
     } catch (Throwable $e) {
         error_log('[AMS] registration notifications failed: ' . $e->getMessage());
+    }
+    if (!$needs_verification) {
+        echo json_encode(["message" => "Account created. You can now sign in.", "success" => true, "verification_required" => false]);
+        $stmt->close();
+        $conn->close();
+        exit;
     }
     require_once __DIR__ . '/auth_email.php';
     $frontend_url = rtrim($_SERVER['HTTP_ORIGIN'] ?? 'https://www.angcanan-ams.com', '/');
@@ -86,7 +99,7 @@ if ($stmt->execute()) {
         . '</div></div></body></html>';
     $mailError = null;
     $sent = send_auth_email($conn, $email_address, 'Verify your AMS email address', $html, $mailError);
-    $response = ["message" => $sent ? "Account created. Check your email to verify your address." : "Account created, but the verification email could not be sent. Please contact support.", "success" => true, "email_delivery_failed" => !$sent];
+    $response = ["message" => $sent ? "Account created. Check your email to verify your address." : "Account created, but the verification email could not be sent. Please contact support.", "success" => true, "verification_required" => true, "email_delivery_failed" => !$sent];
     if (!$sent) $response['debug_error'] = $mailError ?: 'Unknown email delivery error';
     echo json_encode($response);
 } else {

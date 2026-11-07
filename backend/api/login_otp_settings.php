@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit();
 // gets when signing in on a new device (services/login_otp_policy.php).
 //
 // GET  ?q=&filter=all|active|past|non_tenant|custom&page=N
-//      → { enabled, counts{…}, users[], total, page, per_page }
+//      → { enabled, email_verification, counts{…}, users[], total, page, per_page }
 //      Tenant accounts only (role user, not archived: archived ones cannot sign in).
 //      active = a current tenancy (active / pending-move-out); past = a tenancy
 //      that ended (moved-out, or archived after one) and none now; non_tenant =
@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit();
 // POST { action: 'set_global', enabled: bool }
 //      { action: 'set_user', user_id, mode: 'default'|'on'|'off' }
 //      { action: 'clear_overrides' }   every account back to the default
+//      { action: 'set_email_verification', enabled: bool }   new accounts must
+//        open the emailed link before signing in (email_verification_enabled)
 
 $admin_id = require_admin($conn);
 
@@ -129,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     echo json_encode([
         'success' => true,
         'enabled' => login_otp_globally_enabled($conn),
+        'email_verification' => email_verification_enabled($conn),
         'counts' => $counts,
         'users' => $users,
         'total' => $counts[$filter],
@@ -155,6 +158,20 @@ if ($action === 'set_global') {
     log_activity($conn, $admin_id, 'auth', 'Updated Sign-in Code Setting',
         'Sign-in codes on new devices ' . ($in['enabled'] ? 'turned on' : 'turned off') . ' for every account that follows the default');
     echo json_encode(['success' => true, 'enabled' => $in['enabled']]);
+    $conn->close();
+    exit;
+}
+
+if ($action === 'set_email_verification') {
+    if (!array_key_exists('enabled', $in) || !is_bool($in['enabled'])) otp_fail(422, 'Enabled must be true or false.', 'enabled');
+    $value = $in['enabled'] ? '1' : '0';
+    $stmt = $conn->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('email_verification_enabled', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    $stmt->bind_param('s', $value);
+    if (!$stmt->execute()) otp_fail(500, 'Could not save the setting.');
+    $stmt->close();
+    log_activity($conn, $admin_id, 'auth', 'Updated Email Verification Setting',
+        'Email verification for new accounts ' . ($in['enabled'] ? 'turned on' : 'turned off'));
+    echo json_encode(['success' => true, 'email_verification' => $in['enabled']]);
     $conn->close();
     exit;
 }

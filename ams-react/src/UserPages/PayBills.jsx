@@ -1,48 +1,29 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faExclamationTriangle, faClock, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins, faQrcode, faExpand, faDownload, faHome, faShieldAlt, faTint, faBolt, faCar, faConciergeBell, faWrench, faTachometerAlt, faReceipt, faLayerGroup, faArrowLeft, faCheck, faLock } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faExclamationTriangle, faClock, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins, faQrcode, faHome, faShieldAlt, faTint, faBolt, faCar, faConciergeBell, faWrench, faTachometerAlt, faReceipt, faLayerGroup, faArrowLeft, faArrowRight, faCheck, faLock } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { publicAssetUrl } from '../api/fileUrl';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang, dateLocale } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
-import QrPreviewModal from '../Components/QrPreviewModal';
 import InlineAlert from '../Components/InlineAlert';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
-import { addDays, checkAmount, checkDate, checkPaymentReference, isBankMethod, localDateString, LIMITS } from '../utils/validation';
-import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { addDays, checkAmount, checkDate, localDateString } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import { daysPastDue, formatCoveredPeriod, formatDay, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
-import FileChip from '../Components/form/FileChip';
 import SplitPaymentForm from '../Components/SplitPaymentForm';
 import { checkSplit, emptyPortion } from '../utils/splitPayment';
 import { invalidCls } from '../Components/form/formHelpers';
-import { fetchContractTemplate, accountsForMethod } from '../Components/contract/contractTemplate';
 
 // schedule_payment.php accepts today up to 60 days ahead, morning/afternoon.
 const SCHEDULE_MAX_DAYS = 60;
 const TIME_SLOTS = ['morning', 'afternoon'];
 
-// Per-method reference rules (same as PaymentUpload / checkPaymentReference).
-const referenceInputProps = (label = '') => {
-    const m = label.toLowerCase();
-    if (m.includes('gcash')) return { maxLength: 13, inputMode: 'numeric', placeholder: '13-digit GCash reference' };
-    if (isBankMethod(m)) return { maxLength: 55, inputMode: 'text', placeholder: m.includes('bpi') ? 'e.g. BPI-2026-000123' : 'e.g. BDO-2026-000123' };
-    return { maxLength: LIMITS.paymentReference, inputMode: 'text', placeholder: 'e.g. 1002 9382 1823' };
-};
 import { invoiceOwed } from '../utils/invoiceBalance';
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
-
-const getQrTitle = (label) => {
-    if (!label || /^qr\s*ph(\s*slot\s*\d+)?$/i.test(label.trim()) || /^slot\s*\d+$/i.test(label.trim())) {
-        return 'QR Ph (Scan to Pay)';
-    }
-    return label.replace(/\s*\(?slot\s*\d+\)?/i, '').trim() || 'QR Ph (Scan to Pay)';
-};
 
 // One look for every notice on the page (awaiting, returned, overdue, combine…).
 // Full class strings so Tailwind sees them; the user themes remap these shades.
@@ -113,7 +94,6 @@ export default function PayBills() {
     const navigate = useNavigate();
     const { t } = useLang();
     const [selectedMethod, setSelectedMethod] = useState('');
-    const [showQrModal, setShowQrModal] = useState(false);
     const [paymentChannels, setPaymentChannels] = useState([]);
     const [channelsLoading, setChannelsLoading] = useState(true);
     const [scheduledDate, setScheduledDate] = useState('');
@@ -422,14 +402,6 @@ export default function PayBills() {
         };
     })();
 
-    // The landlord's GCash and bank accounts (Settings → Site Maintenance).
-    const [paymentAccounts, setPaymentAccounts] = useState([]);
-    useEffect(() => {
-        fetchContractTemplate()
-            .then((res) => setPaymentAccounts(res?.template?.payment_accounts || []))
-            .catch((err) => console.error('Failed to load payment accounts:', err));
-    }, []);
-
     useEffect(() => {
         const fetchChannels = async () => {
             setChannelsLoading(true);
@@ -518,7 +490,6 @@ export default function PayBills() {
     const partError = partAmount === '' ? '' : checkAmount(partAmount, { label: 'Amount', min: 0.01, max: balanceDue, allowZero: false });
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
-    const methodAccounts = accountsForMethod(paymentAccounts, currentMethodObj.label);
 
     const handleMethodSelect = (methodId) => {
         setSelectedMethod(methodId);
@@ -532,29 +503,19 @@ export default function PayBills() {
     const [splitParts, setSplitParts] = useState(() => [emptyPortion('cash'), emptyPortion('gcash')]);
     const [splitAttempted, setSplitAttempted] = useState(false);
     const splitTotal = payingGroup ? (parseFloat(activeGroup.total) || 0) : (partAmount !== '' && !partError ? Number(partAmount) : balanceDue);
-    const [paymentReference, setPaymentReference] = useState('');
-    const [proofFile, setProofFile] = useState(null);
     const [isPaying, setIsPaying] = useState(false);
-    const [proofInputKey, setProofInputKey] = useState(0);
 
-    // Only the fields of the chosen method are checked.
+    // Only the fields of the chosen method are checked. Manual methods (QR Ph,
+    // GCash, bank) take the reference and receipt on the next page.
     const family = currentMethodObj.family;
     const payForm = useFieldErrors(
-        family === 'manual' ? {
-            payment_reference: (v) => checkPaymentReference(v, currentMethodObj.label),
-            proof: (f) => (f ? checkFile(f, FILE_RULES.paymentProof) : 'Please attach your proof of payment.'),
-        } : family === 'in_person' ? {
+        family === 'in_person' ? {
             scheduled_date: (v) => checkDate(v, { min: localDateString(), max: addDays(SCHEDULE_MAX_DAYS), label: 'Schedule date' }),
             scheduled_time_slot: (v) => (TIME_SLOTS.includes(v) ? '' : 'Please choose a time slot.'),
         } : {},
         { idPrefix: 'pay-' }
     );
-    const payValues = { payment_reference: paymentReference, proof: proofFile, scheduled_date: scheduledDate, scheduled_time_slot: scheduledTimeSlot };
-
-    const clearProof = () => {
-        setProofFile(null);
-        setProofInputKey(k => k + 1); // remounts the file input, clearing it
-    };
+    const payValues = { scheduled_date: scheduledDate, scheduled_time_slot: scheduledTimeSlot };
 
     const handlePaymentExecution = async (e) => {
         e.preventDefault();
@@ -664,63 +625,22 @@ export default function PayBills() {
             return;
         }
 
-        // Manual (GCash / bank) payments need a reference and a proof: pay_bill.php
-        // refuses a non-cash payment until upload_payment_proof.php has stored one.
-        const reference = paymentReference.trim();
-        setPaymentReference(reference);
-        if (!payForm.validateAll({ ...payValues, payment_reference: reference }) || partError) return;
-
-        let proofPath;
-        const formData = new FormData();
-        formData.append('invoice_id', payKey);
-        formData.append('payment_reference', reference);
-        formData.append('payment_method', currentMethodObj.label);
-        formData.append('proof', proofFile);
-        // Paying only part of the bill now (installments); empty = the whole balance.
-        if (!payingGroup && partAmount !== '') formData.append('amount', String(Number(partAmount)));
-
-        try {
-            const uploadRes = await api.post('/upload_payment_proof.php', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            if (!uploadRes.data.success) {
-                if (!payForm.applyServerErrors(uploadRes)) payForm.setFieldError('proof', apiErrorMessage(uploadRes, "Payment proof could not be uploaded."));
-                return;
-            }
-            proofPath = uploadRes.data.proof_path;
-        } catch (err) {
-            // Without a stored proof pay_bill.php would refuse anyway, so stop
-            // here and say why instead of sending a request that must fail (L8).
-            console.error("Proof upload failed:", err);
-            if (!payForm.applyServerErrors(err)) payForm.setFieldError('proof', apiErrorMessage(err, "Payment proof could not be uploaded."));
-            return;
-        }
-
-        try {
-            const res = await api.post("/pay_bill.php", {
+        // Manual (QR Ph / GCash / bank): the account details, the reference and
+        // the receipt are on their own page (PaymentUpload), as from Track
+        // Application. upload_payment_proof.php takes the part amount and a
+        // combined or advance payment's key as they were sent from here.
+        if (partError) return;
+        const part = !payingGroup && partAmount !== '' ? Number(partAmount) : null;
+        navigate('/upload-payment', {
+            state: {
                 invoiceId: payKey,
+                amount: part ?? (payingGroup ? (parseFloat(activeGroup.total) || 0) : balanceDue),
+                partAmount: part,
                 paymentMethod: currentMethodObj.label,
-                paymentReference: reference,
-                proofOfPaymentPath: proofPath
-            });
-
-            if (res.data.success) {
-                setPaymentReference('');
-                setPartAmount('');
-                clearProof();
-                window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
-                setNotice({
-                    message: payingGroup ? `${groupWord} submitted` : 'Payment submitted',
-                    subtext: `Your ${currentMethodObj.label} payment for ${payLabel} is awaiting verification by management. This page updates by itself, and you will be notified once it is confirmed.`,
-                });
-            } else {
-                console.error("Server Error:", res.data.message);
-                setPayError(res.data.message);
-            }
-        } catch (error) {
-            console.error("Error submitting payment:", error);
-            setPayError(apiErrorMessage(error, "Payment failed."));
-        }
+                billLabel: payLabel,
+                returnUrl: '/pay-bills',
+            },
+        });
     };
 
     // The statement and payment form only when there is something to pay (was a
@@ -1032,7 +952,7 @@ export default function PayBills() {
 
                         {/* Native radios (visually hidden) inside selectable tiles: keyboard
                             and screen readers still get a radio group, arrow keys move. */}
-                        <fieldset className="space-y-3 m-0 p-0 border-0 min-w-0">
+                        <fieldset className="space-y-3 mx-0 mt-0 p-0 border-0 min-w-0">
                             <legend className="p-0 mb-3"><StepTitle n={1}>{t('payBills.selectMethod')}</StepTitle></legend>
                             {channelsLoading ? (
                                 <p className="m-0 text-sm text-slate-500">Loading payment methods…</p>
@@ -1080,13 +1000,13 @@ export default function PayBills() {
                             </div>
                         </fieldset>
 
-                        {['manual', 'split', 'in_person'].includes(currentMethodObj.family) && (
-                            <StepTitle n={2}>Payment details</StepTitle>
+                        {(['split', 'in_person'].includes(currentMethodObj.family) || (currentMethodObj.family === 'manual' && !payingGroup && balanceDue > 0)) && (
+                            <StepTitle n={2}>{currentMethodObj.family === 'manual' ? 'Amount you are paying now' : 'Payment details'}</StepTitle>
                         )}
 
                         {!payingGroup && ['manual', 'split'].includes(currentMethodObj.family) && balanceDue > 0 && (
                             <div className="flex flex-col gap-2 text-left">
-                                <label htmlFor="pay-part_amount" className="text-xs font-bold text-slate-700 block">Amount you are paying now (₱)</label>
+                                <label htmlFor="pay-part_amount" className={currentMethodObj.family === 'manual' ? 'sr-only' : 'text-xs font-bold text-slate-700 block'}>Amount you are paying now (₱)</label>
                                 {/* Text, not type="number" (which took 1e6, -5 and any size): digits
                                     and one point, 2 decimals, and never more than the balance. */}
                                 <input id="pay-part_amount" type="text" inputMode="decimal" autoComplete="off" value={partAmount}
@@ -1109,176 +1029,14 @@ export default function PayBills() {
                         )}
 
                         {currentMethodObj.family === 'manual' && (
-                            <div className="space-y-4 p-4 sm:p-5 bg-slate-50/80 rounded-2xl border border-slate-200 text-left">
-                                {(currentMethodObj.isQr || currentMethodObj.id === 'qrph_manual') && (
-                                    <div className="bg-white rounded-xl p-4 border border-indigo-100 shadow-xs space-y-3">
-                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                                            <div className="flex items-center gap-2">
-                                                <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold">
-                                                    <FontAwesomeIcon icon={faQrcode} />
-                                                </span>
-                                                <div>
-                                                    <span className="text-xs font-bold text-slate-800 block">QR Ph Payment</span>
-                                                    <span className="text-[10px] text-slate-500">Scan via GCash, Maya, BDO, BPI, or any bank app</span>
-                                                </div>
-                                            </div>
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 uppercase tracking-wider">
-                                                InstaPay / PESONet
-                                            </span>
-                                        </div>
-
-                                        {currentMethodObj.qr_data?.image_path ? (
-                                            <div className="flex flex-col items-center text-center py-2 space-y-4">
-                                                {/* Title & subtitle (Never say 'QR Ph Slot 1') */}
-                                                <div className="space-y-1">
-                                                    <h4 className="m-0 text-sm font-extrabold text-indigo-700">
-                                                        {getQrTitle(currentMethodObj.qr_data.label)}
-                                                    </h4>
-                                                    <p className="m-0 text-xs text-slate-500">
-                                                        Interoperable across GCash, Maya, BDO, BPI, and all Philippine bank apps
-                                                    </p>
-                                                </div>
-
-                                                {/* Larger, centered QR card with hover-to-enlarge */}
-                                                <div
-                                                    onClick={() => setShowQrModal(true)}
-                                                    className="group relative cursor-pointer inline-block rounded-2xl p-3 bg-white border-2 border-indigo-100 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all"
-                                                    title="Click to enlarge QR Code"
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowQrModal(true); }}
-                                                >
-                                                    <img
-                                                        src={publicAssetUrl(currentMethodObj.qr_data.image_path)}
-                                                        alt={getQrTitle(currentMethodObj.qr_data.label)}
-                                                        className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl bg-white select-none block"
-                                                    />
-                                                    <div className="absolute inset-0 rounded-2xl bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1.5 font-bold text-xs backdrop-blur-[2px]">
-                                                        <FontAwesomeIcon icon={faExpand} className="text-xl" />
-                                                        <span>Click to Enlarge</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Action buttons: Enlarge modal & Save image */}
-                                                <div className="flex items-center justify-center gap-3">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowQrModal(true)}
-                                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold border border-indigo-200 cursor-pointer transition-colors"
-                                                    >
-                                                        <FontAwesomeIcon icon={faExpand} className="text-[11px]" />
-                                                        <span>Enlarge QR</span>
-                                                    </button>
-                                                    <a
-                                                        href={publicAssetUrl(currentMethodObj.qr_data.image_path)}
-                                                        download="qr_ph_payment.png"
-                                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold border border-slate-200 no-underline cursor-pointer transition-colors"
-                                                    >
-                                                        <FontAwesomeIcon icon={faDownload} className="text-[11px]" />
-                                                        <span>Save Image</span>
-                                                    </a>
-                                                </div>
-
-                                                {/* Account Details if provided */}
-                                                {(currentMethodObj.qr_data.account_name || currentMethodObj.qr_data.account_number) && (
-                                                    <div className="w-full max-w-sm p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 shadow-xs text-left">
-                                                        {currentMethodObj.qr_data.account_name && (
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="text-slate-500 font-medium">Account Name:</span>
-                                                                <span className="font-bold text-slate-800 truncate max-w-[200px]">{currentMethodObj.qr_data.account_name}</span>
-                                                            </div>
-                                                        )}
-                                                        {currentMethodObj.qr_data.account_number && (
-                                                            <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                                                                <span className="text-slate-500 font-medium">Account / Mobile No:</span>
-                                                                <span className="font-mono font-bold text-indigo-600">{currentMethodObj.qr_data.account_number}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                <div className="pt-2 text-[11px] text-slate-500 space-y-1 text-left max-w-sm">
-                                                    <p className="m-0 font-semibold text-slate-700">How to pay:</p>
-                                                    <ol className="m-0 pl-4 space-y-0.5 list-decimal text-slate-600">
-                                                        <li>Scan this QR code with any QR Ph-supported banking or e-wallet app.</li>
-                                                        <li>Transfer the exact amount due (or installment amount).</li>
-                                                        <li>Save the transfer receipt screenshot and note the Reference Number.</li>
-                                                        <li>Enter the Reference Number and upload the receipt below.</li>
-                                                    </ol>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800">
-                                                <strong>No active QR Ph code uploaded.</strong> The landlord has not uploaded a QR code for this slot yet. Please choose another payment method or contact management.
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                {!(currentMethodObj.isQr || currentMethodObj.id === 'qrph_manual') && (
-                                    // Where to send the money: Settings → Site Maintenance.
-                                    <div className="bg-white rounded-xl p-4 border border-slate-200 text-sm space-y-3">
-                                        <p className="m-0 text-xs font-bold text-slate-700">Send your payment to</p>
-                                        {methodAccounts.length === 0 && (
-                                            <p className="m-0 text-xs text-slate-500">Account details are not set up yet. Please contact management before paying.</p>
-                                        )}
-                                        {methodAccounts.map((acct) => (
-                                            <div key={acct.id} className="flex flex-col gap-0.5 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-100">
-                                                {methodAccounts.length > 1 && <span className="text-xs font-bold text-slate-500">{acct.label}</span>}
-                                                {acct.account_name && <span className="text-xs text-slate-600">Account name: <strong>{acct.account_name}</strong></span>}
-                                                <span className="text-base font-black tracking-wider text-indigo-600">{acct.account_number}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <div>
-                                    <label htmlFor="pay-payment_reference" className="block text-xs font-bold text-slate-700 mb-1">
-                                        {t('payBills.refNo')} <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        {...payForm.fieldA11y('payment_reference')}
-                                        {...referenceInputProps(currentMethodObj.label)}
-                                        autoComplete="off"
-                                        value={paymentReference}
-                                        onChange={e => {
-                                            const gcash = (currentMethodObj.label || '').toLowerCase().includes('gcash');
-                                            setPaymentReference(gcash ? e.target.value.replace(/\D/g, '') : e.target.value);
-                                            payForm.clearError('payment_reference');
-                                        }}
-                                        onBlur={() => {
-                                            const v = paymentReference.trim();
-                                            setPaymentReference(v);
-                                            if (v) payForm.validateField('payment_reference', { ...payValues, payment_reference: v });
-                                        }}
-                                        required
-                                        className={`pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500${invalidCls(payForm.errors.payment_reference)}`}
-                                    />
-                                    <FieldError id="pay-payment_reference" error={payForm.errors.payment_reference} />
-                                </div>
-                                <div>
-                                    <label htmlFor="pay-proof" className="block text-xs font-bold text-slate-700 mb-1">
-                                        {t('payBills.proofOfPayment')} <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        key={proofInputKey}
-                                        type="file"
-                                        {...payForm.fieldA11y('proof')}
-                                        accept={acceptFor(FILE_RULES.paymentProof)}
-                                        required
-                                        onChange={e => {
-                                            const file = e.target.files[0] || null;
-                                            const fileError = checkFile(file, FILE_RULES.paymentProof);
-                                            payForm.setFieldError('proof', fileError);
-                                            if (fileError) { e.target.value = ''; setProofFile(null); return; }
-                                            setProofFile(file);
-                                        }}
-                                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 min-h-[44px]"
-                                    />
-                                    <p className="text-xs text-slate-500 m-0 mt-1">{FILE_RULES.paymentProof.label}, up to {FILE_RULES.paymentProof.maxMB} MB.</p>
-                                    <FieldError id="pay-proof" error={payForm.errors.proof} />
-                                    <FileChip file={proofFile} onRemove={clearProof} />
-                                </div>
-                            </div>
+                            <p className="m-0 flex items-start gap-2.5 p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-900 leading-relaxed text-left">
+                                <FontAwesomeIcon icon={currentMethodObj.isQr ? faQrcode : faReceipt} className="mt-0.5 text-indigo-500" aria-hidden="true" />
+                                <span>
+                                    {currentMethodObj.isQr
+                                        ? 'Next, scan the QR code to pay, then enter the reference number and upload your receipt.'
+                                        : `Next, you'll see the ${(currentMethodObj.label || '').replace(/\s*\(manual\)/i, '')} account to send to, then enter the reference number and upload your receipt.`}
+                                </span>
+                            </p>
                         )}
 
                         {currentMethodObj.family === 'split' && (
@@ -1359,13 +1117,16 @@ export default function PayBills() {
                                 disabled={isPaying || paymentChannels.length === 0 || (currentMethodObj.family === 'split' && !checkSplit(splitParts, splitTotal, scheduledDate).valid) || (payingGroup ? false : (!activeInv || isAwaiting))}
                                 className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[52px] bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-extrabold py-3.5 rounded-2xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed"
                             >
-                                <FontAwesomeIcon icon={faLock} className="text-sm opacity-80" aria-hidden="true" />
-                                {isPaying ? 'Processing…' : payingGroup
+                                {!(currentMethodObj.family === 'manual' && !isAwaiting) && <FontAwesomeIcon icon={faLock} className="text-sm opacity-80" aria-hidden="true" />}
+                                {isPaying ? 'Processing…' : currentMethodObj.family === 'manual' && (payingGroup || (activeInv && !isAwaiting))
+                                    ? `Continue to payment (${fmtMoney(payingGroup ? activeGroup.total : (partAmount !== '' && !partError ? Number(partAmount) : balanceDue))})`
+                                    : payingGroup
                                     ? `${activeGroup.kind === 'bundle' ? 'Pay all' : 'Pay advance'} (${fmtMoney(activeGroup.total)})`
                                     : isAwaiting ? 'Awaiting confirmation'
                                     // A part amount is sent only with manual and split payments.
                                     : activeInv ? `${t('payBills.proceedToPay')} (${fmtMoney(['manual', 'split'].includes(currentMethodObj.family) && partAmount !== '' && !partError ? Number(partAmount) : balanceDue)})`
                                     : t('payBills.proceedToPay')}
+                                {currentMethodObj.family === 'manual' && !isPaying && (payingGroup || (activeInv && !isAwaiting)) && <FontAwesomeIcon icon={faArrowRight} className="text-sm" aria-hidden="true" />}
                             </button>
                             {currentMethodObj.family !== 'sandbox' && (
                                 <p className="m-0 text-center text-xs text-slate-500">You will be notified once management confirms your payment.</p>
@@ -1527,17 +1288,6 @@ export default function PayBills() {
                 action={notice?.action}
             />
 
-            {/* QR Ph Enlarge Modal */}
-            {currentMethodObj?.qr_data?.image_path && (
-                <QrPreviewModal
-                    isOpen={showQrModal}
-                    onClose={() => setShowQrModal(false)}
-                    imagePath={currentMethodObj.qr_data.image_path}
-                    title={getQrTitle(currentMethodObj.qr_data.label)}
-                    accountName={currentMethodObj.qr_data.account_name}
-                    accountNumber={currentMethodObj.qr_data.account_number}
-                />
-            )}
         </div>
     );
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye, faExpand, faDownload } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye, faExpand, faDownload, faFilePdf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { publicAssetUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
@@ -47,7 +47,9 @@ export default function PaymentUpload() {
         }
         return readSession();
     });
-    const { invoiceId, amount, paymentMethod, returnUrl } = state;
+    // From Pay Bills also: partAmount (paying part of one bill now; null = the
+    // whole balance) and billLabel (what is being paid, e.g. "Rent — December 2026").
+    const { invoiceId, amount, paymentMethod, returnUrl, partAmount, billLabel } = state;
     // paymentMethod is the channel label, e.g. 'GCash (Manual)' or 'BPI (Manual)'.
     const isGcash = /gcash/i.test(paymentMethod || '');
     const isBankTransfer = isBankMethod(paymentMethod);
@@ -75,7 +77,7 @@ export default function PaymentUpload() {
         // Account names can be joint or business names, so free text, not a person-name check.
         sender_name: (v) => checkText(v, { label: t('paymentUpload.senderNameLabel'), max: LIMITS.senderName }),
         payment_reference: (v) => checkPaymentReference(v, paymentMethod),
-        proof: (f) => (f ? checkFile(f, FILE_RULES.receiptImage) : t('paymentUpload.errProof')),
+        proof: (f) => (f ? checkFile(f, FILE_RULES.paymentProof) : t('paymentUpload.errProof')),
     }, { idPrefix: 'upload-' });
 
     useEffect(() => {
@@ -184,7 +186,7 @@ export default function PaymentUpload() {
     const handleImageChange = (e) => {
         const file = e.target.files?.[0];
         if (file) {
-            const fileError = checkFile(file, FILE_RULES.receiptImage);
+            const fileError = checkFile(file, FILE_RULES.paymentProof);
             if (fileError) {
                 e.target.value = '';
                 setFileAlert(fileError);
@@ -217,6 +219,7 @@ export default function PaymentUpload() {
         form.clearError('payment_reference');
     };
 
+    const isPdf = !!proofImage && (proofImage.type === 'application/pdf' || /\.pdf$/i.test(proofImage.name || ''));
     const values = { sender_name: senderName, payment_reference: referenceNo, proof: proofImage, bank_name: bankName };
 
     const handleSubmit = async (e) => {
@@ -251,6 +254,8 @@ export default function PaymentUpload() {
         formData.append('payment_reference', clean.payment_reference);
         formData.append('proofImage', proofImage);
         formData.append('proof', proofImage);
+        // Part of one bill (installments); without it the whole balance is paid.
+        if (partAmount) formData.append('amount', String(partAmount));
 
         try {
             const res = await api.post("/upload_payment_proof.php", formData, {
@@ -293,8 +298,11 @@ export default function PaymentUpload() {
 
                 <div className="payment-info-box bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 shadow-inner">
                     <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-500 ">{t('paymentUpload.totalDue')}</span>
-                        <span className="text-2xl font-black text-indigo-600 ">₱{(Number(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        <span className="min-w-0">
+                            <span className="block text-xs font-bold text-slate-500 ">{partAmount ? t('paymentUpload.payingNow') : t('paymentUpload.totalDue')}</span>
+                            {billLabel && <span className="block mt-0.5 text-sm font-semibold text-slate-700 truncate">{billLabel}</span>}
+                        </span>
+                        <span className="text-2xl font-black text-indigo-600 shrink-0">₱{(Number(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="border-t border-slate-200 pt-4 mt-4">
                         <span className="text-xs font-bold text-slate-500 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
@@ -473,17 +481,23 @@ export default function PaymentUpload() {
                                 <input
                                     type="file"
                                     {...form.fieldA11y('proof')}
-                                    accept={acceptFor(FILE_RULES.receiptImage)}
+                                    accept={acceptFor(FILE_RULES.paymentProof)}
                                     onChange={handleImageChange}
                                     required
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                 />
                                 <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 mb-3 group-hover:scale-110 transition-transform" />
                                 <p className="text-sm font-semibold text-slate-600 m-0">{t('paymentUpload.dropHere')}</p>
-                                <p className="text-xs text-slate-500 mt-1 m-0 font-medium">{FILE_RULES.receiptImage.label} (Max {FILE_RULES.receiptImage.maxMB} MB)</p>
+                                <p className="text-xs text-slate-500 mt-1 m-0 font-medium">{FILE_RULES.paymentProof.label} (Max {FILE_RULES.paymentProof.maxMB} MB)</p>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center space-y-3 p-4 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
+                                {isPdf ? (
+                                    <div className="w-full flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200">
+                                        <FontAwesomeIcon icon={faFilePdf} className="text-3xl text-rose-500" aria-hidden="true" />
+                                        <span className="min-w-0 text-sm font-semibold text-slate-700 truncate">{proofImage?.name}</span>
+                                    </div>
+                                ) : (
                                 <button
  type="button"
  onClick={() => setShowPreviewModal(true)}
@@ -502,6 +516,7 @@ export default function PaymentUpload() {
                                         </span>
                                     </span>
                                 </button>
+                                )}
                                 {proofImage && (
                                     <p className="text-xs text-slate-600 m-0 truncate w-full text-center">
                                         {proofImage.name} ({formatFileSize(proofImage.size)})
@@ -513,7 +528,7 @@ export default function PaymentUpload() {
                                         <span>{t('paymentUpload.changePhoto')}</span>
                                         <input
                                             type="file"
-                                            accept={acceptFor(FILE_RULES.receiptImage)}
+                                            accept={acceptFor(FILE_RULES.paymentProof)}
                                             onChange={handleImageChange}
                                             className="sr-only"
                                         />

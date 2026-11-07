@@ -41,7 +41,7 @@ These are already implemented and working.
 
 | Channel | Tenant Action | Admin Action | Key Files |
 |---|---|---|---|
-| **Manual GCash** | Upload proof screenshot + 13-digit reference number | Verify proof → approve payment | `upload_payment_proof.php`, `PayBills.jsx` |
+| **Manual GCash** | Upload proof screenshot + 13-digit reference number (Pay Bills continues to the upload page for QR Ph, GCash and bank, 2026-11-07) | Verify proof → approve payment | `upload_payment_proof.php`, `PayBills.jsx` → `PaymentUpload.jsx` |
 | **Manual Bank Transfer** | Upload deposit slip/screenshot + reference number | Verify proof → approve payment | Same files as above |
 
 Current flow:

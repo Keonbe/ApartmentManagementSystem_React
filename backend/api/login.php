@@ -128,7 +128,8 @@ if ((int)$user["is_archived"] === 1) {
     exit;
 }
 
-if (empty($user['email_verified_at'])) {
+// Skipped while email verification is off (Other Settings → Sign-in Codes).
+if (empty($user['email_verified_at']) && email_verification_enabled($conn)) {
     echo json_encode(["message" => "Please verify your email address before signing in.", "valid" => false, "email_verification_required" => true]);
     $conn->close(); exit;
 }

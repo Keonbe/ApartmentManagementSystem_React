@@ -140,9 +140,9 @@ export const SETTINGS_TABS = [
   },
   {
     id: 'sign-in-codes',
-    label: 'Sign-in Codes',
+    label: 'Sign-in & Verification',
     icon: faKey,
-    description: 'The emailed code a tenant enters when signing in on a new device: on or off for everyone, and per account.',
+    description: 'Whether new accounts verify their email before signing in, and the emailed code a tenant enters when signing in on a new device: on or off for everyone, and per account.',
   },
   {
     id: 'house-rules',

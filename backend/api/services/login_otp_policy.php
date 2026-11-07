@@ -9,6 +9,14 @@
 
 const LOGIN_OTP_MODES = ['default', 'on', 'off'];
 
+// Admin → Other Settings → Sign-in Codes → Email verification. On (the
+// default, also when the row is missing): a new account must open the emailed
+// link before it can sign in. Off: new accounts are verified at sign-up and no
+// link is sent, and an account still waiting for its link can sign in.
+function email_verification_enabled($conn) {
+    return (string)get_setting($conn, 'email_verification_enabled', '1') !== '0';
+}
+
 function login_otp_globally_enabled($conn) {
     return (string)get_setting($conn, 'login_otp_enabled', '1') !== '0';
 }
