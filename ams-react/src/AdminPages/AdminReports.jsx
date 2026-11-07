@@ -34,6 +34,7 @@ import Modal from '../Components/admin/Modal';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import LoadError from '../Components/admin/ui/LoadError';
 import { Skeleton, SkeletonBlock } from '../Components/admin/ui/Skeleton';
+import { personName } from '../utils/personName';
 
 const monthsList = [
   { value: 1, label: 'January' },
@@ -145,7 +146,7 @@ const AdminReports = () => {
     setInvoiceForm(prev => ({
       ...prev,
       invoiceNumber: inv.id,
-      tenant: `${inv.first_name || ''} ${inv.last_name || ''}`.trim() || prev.tenant,
+      tenant: personName(inv) || prev.tenant,
       unit: inv.room_name || prev.unit,
       userId: inv.user_id,
       rent: inv.base_rent || 0,
@@ -627,7 +628,7 @@ const AdminReports = () => {
                   <p><strong>Date Generated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                   <p><strong>Prepared by:</strong> {(() => {
                     const u = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
-                    return [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Administrator';
+                    return personName(u) || 'Administrator';
                   })()}</p>
                 </div>
               </div>
@@ -2400,7 +2401,7 @@ const AdminReports = () => {
                       <option value="">{adjustInvoicesLoading ? 'Loading invoices…' : '-- Select Open Invoice --'}</option>
                       {adjustableInvoices.map(inv => (
                         <option key={inv.id} value={inv.id}>
-                          {inv.id} — {inv.first_name} {inv.last_name} (Unit {inv.room_name}) — {inv.billing_period} — {formatCurrency(inv.total_amount)}
+                          {inv.id} — {personName(inv)} (Unit {inv.room_name}) — {inv.billing_period} — {formatCurrency(inv.total_amount)}
                         </option>
                       ))}
                     </select>

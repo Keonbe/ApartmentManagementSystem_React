@@ -430,7 +430,7 @@ export default function MyRoom() {
             <div className="page-enter w-full max-w-5xl z-10 flex flex-col gap-8 text-left">
                 <header>
                     <h1 className="m-0 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-                        {activeFirstName ? `Welcome back, ${activeFirstName}` : 'Welcome back'}
+                        {`${loggedInUser?.first_login ? 'Welcome' : 'Welcome back'}${activeFirstName ? `, ${activeFirstName}` : ''}`}
                     </h1>
                     <p className="m-0 mt-2 flex items-center gap-2 text-sm sm:text-base text-slate-600">
                         <FontAwesomeIcon icon={faMapMarkerAlt} aria-hidden="true" />

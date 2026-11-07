@@ -441,6 +441,8 @@ CREATE TABLE `users` (
   `login_otp_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
   -- 'default' follows the login_otp_enabled setting; 'on' / 'off' override it for this account.
   `login_otp_mode` enum('default','on','off') NOT NULL DEFAULT 'default',
+  -- When the account last signed in; NULL = never (the first sign-in says "Welcome", later ones "Welcome back").
+  `last_login_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email_address` (`email_address`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

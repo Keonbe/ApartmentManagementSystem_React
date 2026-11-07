@@ -55,7 +55,7 @@ if ($search !== '') {
     // ends, so "LOG-0100" searched for id 1.
     $like = '%' . addcslashes($search, '\\%_') . '%';
     $log_id = preg_match('/^(?:LOG-)?0*(\d+)$/i', $search, $m) ? (int)$m[1] : 0;
-    $where[] = "(a.action LIKE ? OR a.details LIKE ? OR CONCAT_WS(' ', u.first_name, u.last_name) LIKE ? OR u.email_address LIKE ? OR a.id = ?)";
+    $where[] = "(a.action LIKE ? OR a.details LIKE ? OR TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) LIKE ? OR u.email_address LIKE ? OR a.id = ?)";
     $types .= "ssssi";
     array_push($params, $like, $like, $like, $like, $log_id);
 }
@@ -80,7 +80,7 @@ $stmt->close();
 
 $offset = ($page - 1) * $limit;
 $stmt = $conn->prepare("SELECT a.id, a.category, a.action, a.details, a.created_at, a.performed_by,
-                               u.first_name, u.last_name, u.email_address, u.role
+                               u.first_name, u.last_name, u.suffix, u.email_address, u.role
                         $from_sql
                         ORDER BY a.created_at DESC, a.id DESC
                         LIMIT ? OFFSET ?");
@@ -90,7 +90,7 @@ $res = $stmt->get_result();
 
 $logs = [];
 while ($row = $res->fetch_assoc()) {
-    $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+    $name = person_name($row);
     $logs[] = [
         'id' => (int)$row['id'],
         'category' => $row['category'],

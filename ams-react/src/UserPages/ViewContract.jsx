@@ -10,6 +10,7 @@ import { fetchContractTemplate } from '../Components/contract/contractTemplate';
 import { printElement } from '../utils/print';
 import { FILE_RULES, checkFile } from '../utils/fileLimits';
 import InlineAlert from '../Components/InlineAlert';
+import { personName } from '../utils/personName';
 
 const formatPeso = (value) => {
     const num = Number(value);
@@ -101,7 +102,7 @@ export default function ViewContract() {
                     const monthlyRent = formatPeso(data.monthly_rent);
 
                     setContractData({
-                        tenantName: `${data.first_name || ""} ${data.last_name || ""}`.trim() || `${loggedInUser?.first_name || ""} ${loggedInUser?.last_name || ""}`.trim(),
+                        tenantName: personName(data) || personName(loggedInUser),
                         tenantEmail: activeEmail,
                         tenantPhone: data.contact_no || null,
                         tenantPreviousAddress: data.previous_address || null,

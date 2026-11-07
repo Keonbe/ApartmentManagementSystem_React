@@ -22,7 +22,7 @@ try {
         throw new Exception("Invalid request: Extension must be between 1 and " . MAX_RENT_AHEAD_MONTHS_CEILING . " months.");
     }
 
-    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.id AS app_id, ra.room_name, ra.status, ra.user_id, ra.requested_move_out_date FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out') WHERE u.id = ? ORDER BY ra.id DESC LIMIT 1");
+    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, u.suffix, ra.id AS app_id, ra.room_name, ra.status, ra.user_id, ra.requested_move_out_date FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out') WHERE u.id = ? ORDER BY ra.id DESC LIMIT 1");
     $userQuery->bind_param("i", $user_id);
     $userQuery->execute();
     $user = $userQuery->get_result()->fetch_assoc();
@@ -30,7 +30,7 @@ try {
 
     if ($user) {
         $userId = $user['id'];
-        $tenantName = $user['first_name'] . ' ' . $user['last_name'];
+        $tenantName = person_name($user);
         $roomName = $user['room_name'] ?? 'Unassigned';
 
         // Any still-open request blocks a new one, regardless of age — a

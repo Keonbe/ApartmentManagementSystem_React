@@ -30,6 +30,7 @@ import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
+import { personName } from '../utils/personName';
 
 const MAX_LEASE_MONTHS = 24;
 const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500';
@@ -117,7 +118,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
         const fetched = res.data.contracts.map(c => ({
           id: c.id,
           rentApplicationId: c.rent_application_id,
-          tenant: `${c.first_name} ${c.last_name}`,
+          tenant: personName(c),
           tenantPhone: c.contact_no || '',
           tenantPreviousAddress: c.previous_address || '',
           tenantEmail: c.email,

@@ -81,9 +81,9 @@ const PILL_LINK = 'inline-flex items-center gap-2 min-h-[40px] px-4 rounded-full
 const BTN_SOLID_ROSE = 'min-h-[40px] px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50';
 const BTN_GHOST = 'min-h-[40px] px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50';
 
-function StepTitle({ n, children }) {
+function StepTitle({ n, children, className = '' }) {
     return (
-        <h3 className="flex items-center gap-2.5 text-sm font-bold text-slate-800 m-0">
+        <h3 className={`flex items-center gap-2.5 text-sm font-bold text-slate-800 m-0 ${className}`}>
             <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-black flex items-center justify-center shrink-0">{n}</span>
             {children}
         </h3>
@@ -258,7 +258,6 @@ export default function PayBills() {
     })();
     const advanceMonthsText = openAdvance ? openAdvance.months.map(m => m.label).join(', ') : '';
     // Prepaid months still waiting for their month (paid automatically when billed).
-    const prepaidCount = (advance?.credits || []).filter(c => c.status === 'available').length;
 
     // ── Combined payment of overdue bills (bundle_payment.php) ──
     // With two or more unpaid bills, at least one overdue, the tenant pays them
@@ -807,7 +806,7 @@ export default function PayBills() {
                 )}
 
                 {/*Main Workspace: the bill (left) and how to pay it (right)*/}
-                <div className="stagger-children grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <div className="stagger-children grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[auto_1fr] gap-6 items-start">
                     {showWorkspace && (<>
 
                     {/*Left Grid Parameter Block: Billing Items Statement Breakdown Ledger*/}
@@ -1001,7 +1000,7 @@ export default function PayBills() {
                         </fieldset>
 
                         {(['split', 'in_person'].includes(currentMethodObj.family) || (currentMethodObj.family === 'manual' && !payingGroup && balanceDue > 0)) && (
-                            <StepTitle n={2}>{currentMethodObj.family === 'manual' ? 'Amount you are paying now' : 'Payment details'}</StepTitle>
+                            <StepTitle n={2} className="mb-3">{currentMethodObj.family === 'manual' ? 'Amount you are paying now' : 'Payment details'}</StepTitle>
                         )}
 
                         {!payingGroup && ['manual', 'split'].includes(currentMethodObj.family) && balanceDue > 0 && (
@@ -1078,33 +1077,6 @@ export default function PayBills() {
                                     </select>
                                     <FieldError id="pay-scheduled_time_slot" error={payForm.errors.scheduled_time_slot} />
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Paying ahead is the one automatic payment there is:
-                            prepaid months are paid from the advance when billed.
-                            (Replaces an "Automatic Payment" checkbox that was
-                            never saved or acted on.) */}
-                        {(advance?.available || advance?.credits?.length > 0) && (
-                            // Stacked at every width: the box sits in a narrow column, where a
-                            // side-by-side button squeezed the text to a few words a line.
-                            <div className="p-4 rounded-2xl border bg-slate-50/50 border-slate-100 flex flex-col items-start gap-3 text-left">
-                                <div className="space-y-0.5">
-                                    <div className="flex items-center space-x-2 text-slate-800 font-bold text-sm">
-                                        <FontAwesomeIcon icon={faCalendarPlus} className="text-indigo-400 text-xs" />
-                                        <span>{prepaidCount > 0 ? t('payBills.prepaidCount').replace('{n}', prepaidCount) : t('payBills.payAhead')}</span>
-                                    </div>
-                                    <p className="text-slate-500 text-xs m-0 leading-relaxed font-medium">
-                                        {prepaidCount > 0 ? t('payBills.prepaidDesc') : t('payBills.payAheadDesc')}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => document.getElementById('pay-in-advance')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="min-h-[36px] px-4 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-bold cursor-pointer hover:bg-indigo-50"
-                                >
-                                    {prepaidCount > 0 ? t('payBills.viewPrepaid') : t('payBills.payAheadBtn')}
-                                </button>
                             </div>
                         )}
 

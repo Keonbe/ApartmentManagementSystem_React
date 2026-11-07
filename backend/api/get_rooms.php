@@ -48,7 +48,7 @@ try {
         }
 
         $res = $conn->query("
-            SELECT ra.id AS application_id, ra.room_name, ra.first_name, ra.last_name, ra.status, ra.monthly_rent, ra.archive_reason,
+            SELECT ra.id AS application_id, ra.room_name, ra.first_name, ra.last_name, ra.suffix, ra.status, ra.monthly_rent, ra.archive_reason,
                    lc.id AS contract_id, lc.status AS contract_status, lc.lease_start, lc.lease_end,
                    lc.deposit_amount, lc.deposit_status, lc.damage_deduction, lc.utility_deduction,
                    lc.refund_date, lc.termination_reason
@@ -131,7 +131,7 @@ try {
         // backing the "Occupancy History" tab.
         $occupancyHistory = [];
         foreach ($occByRoom[$roomId] ?? [] as $row) {
-            $tenantFullName = trim($row['first_name'] . ' ' . $row['last_name']);
+            $tenantFullName = person_name($row);
             $isCurrent = in_array($row['status'], ['Approved', 'active', 'pending-move-out'], true) && $room['tenant_name'] === $tenantFullName;
             $ended = in_array($row['status'], ['moved-out', 'archived'], true);
             $appId = (int)$row['application_id'];

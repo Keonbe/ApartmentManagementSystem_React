@@ -13,6 +13,7 @@ import { invoiceOwed } from '../utils/invoiceBalance';
 import Collapsible from '../Components/tenant/Collapsible';
 import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
+import { personName } from '../utils/personName';
 
 // Badge per invoice status. Anything awaiting management or the gateway is
 // shown as such rather than as "Unpaid", and only a payable bill gets Pay Now.
@@ -93,7 +94,7 @@ export default function UserPaymentHistory() {
         return {
             rctId: `RCT-${inv.id}`,
             date: formatDate(inv.paid_at),
-            tenant: `${loggedInUser.first_name || ''} ${loggedInUser.last_name || ''}`.trim() || 'Tenant',
+            tenant: personName(loggedInUser) || 'Tenant',
             unit: inv.room_name || 'N/A',
             period: inv.billing_period,
             coveredPeriod: formatPeriodRange(inv.period_start, inv.period_end),

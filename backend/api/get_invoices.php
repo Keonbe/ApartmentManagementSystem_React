@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $stmt = $conn->prepare("SELECT
                         i.*, 
                         u.first_name, 
-                        u.last_name, 
+                        u.last_name, u.suffix, 
                         ra.room_name,
                         ra.status AS application_status, " . INVOICE_PERIOD_COLUMNS . "
                       FROM invoices i
@@ -142,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $query = "SELECT 
                         i.*, 
                         u.first_name, 
-                        u.last_name, 
+                        u.last_name, u.suffix, 
                         ra.room_name,
                         ra.status AS application_status, " . INVOICE_PERIOD_COLUMNS . "
                       FROM invoices i
@@ -219,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'user_id' => $row['user_id'],
                 'first_name' => $row['first_name'] ?? '',
                 'last_name' => $row['last_name'] ?? '',
+                'suffix' => $row['suffix'] ?? '',
                 'room_name' => $row['room_name'] ?? 'Unassigned',
                 'application_status' => $row['application_status'] ?? null,
                 'base_rent' => $row['base_rent'],

@@ -109,7 +109,7 @@ try {
 
     $sql = "SELECT 
                 v.*,
-                CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS host_name,
+                TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS host_name,
                 u.email_address AS host_email,
                 $visit_at_sql AS visit_at,
                 TIMESTAMPDIFF(HOUR, v.check_in_at, COALESCE(v.check_out_at, NOW())) AS elapsed_hours,

@@ -198,7 +198,7 @@ if ($id > 0 && !empty($status)) {
         if ($status === 'Approved') {
             // Get application details to update the room and generate invoice
             $missing_docs_sql = application_missing_required_docs_sql('ra');
-            $app_stmt = $conn->prepare("SELECT ra.first_name, ra.last_name, ra.room_name, ra.months_of_rent, ra.user_id, ra.monthly_rent, ra.occupants, ra.terms_agreed_at, $missing_docs_sql AS missing_documents FROM rent_applications ra WHERE ra.id = ?");
+            $app_stmt = $conn->prepare("SELECT ra.first_name, ra.last_name, ra.suffix, ra.room_name, ra.months_of_rent, ra.user_id, ra.monthly_rent, ra.occupants, ra.terms_agreed_at, $missing_docs_sql AS missing_documents FROM rent_applications ra WHERE ra.id = ?");
             $app_stmt->bind_param("i", $id);
             $app_stmt->execute();
             $app_res = $app_stmt->get_result();
@@ -216,7 +216,7 @@ if ($id > 0 && !empty($status)) {
                     throw new Exception("Cannot approve: the applicant has not agreed to the Terms & Conditions.");
                 }
 
-                $tenant_name = $app['first_name'] . ' ' . $app['last_name'];
+                $tenant_name = person_name($app);
                 $room_name = $app['room_name'];
                 $months = (int)$app['months_of_rent'];
                 $user_id = $app['user_id'];
@@ -289,7 +289,7 @@ if ($id > 0 && !empty($status)) {
             // lease dates, contract and invoices are left as they were.
             resolve_admin_queue($conn, 'move_out_request', $id);
         } elseif ($status === 'active') {
-            $move_in_q = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, occupants, move_in_date FROM rent_applications WHERE id = ? AND status = 'active'");
+            $move_in_q = $conn->prepare("SELECT first_name, last_name, suffix, room_name, months_of_rent, occupants, move_in_date FROM rent_applications WHERE id = ? AND status = 'active'");
             $move_in_q->bind_param("i", $id);
             $move_in_q->execute();
             $move_in_app = $move_in_q->get_result()->fetch_assoc();
@@ -301,7 +301,7 @@ if ($id > 0 && !empty($status)) {
 
             $lease_start = $move_in_app['move_in_date'];
             $lease_end = date('Y-m-d', strtotime("+" . (int)$move_in_app['months_of_rent'] . " months", strtotime($lease_start)));
-            $tenant_name = $move_in_app['first_name'] . ' ' . $move_in_app['last_name'];
+            $tenant_name = person_name($move_in_app);
             $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND (status IN ('reserved', 'vacant') OR tenant_name = ?)");
             $room_stmt->bind_param("sssiss", $tenant_name, $lease_start, $lease_end, $move_in_app['occupants'], $move_in_app['room_name'], $tenant_name);
             $room_stmt->execute();

@@ -26,6 +26,7 @@ import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 // Until the settings arrive (Settings → Rental; the shipped default).
 const DEFAULT_MOVE_IN_MONTHS = 6;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
+import { personName } from '../utils/personName';
 
 // Reads the stored session so the form can prefill for a logged-in visitor.
 // Guests get an empty object and type their details in themselves.
@@ -35,7 +36,7 @@ function sessionPrefill() {
     try {
         const user = JSON.parse(stored);
         return {
-            name: [user.first_name, user.last_name].filter(Boolean).join(' ').trim(),
+            name: personName(user),
             email: user.email_address || user.email || '',
             contact: toPhLocal10(user.contact_no),
         };

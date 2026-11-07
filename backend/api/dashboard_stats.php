@@ -448,7 +448,7 @@ try {
 
     // 8. Newest Approved Tenants
     $stmt = $conn->prepare("
-        SELECT u.first_name, u.last_name, ra.room_name, ra.created_at 
+        SELECT u.first_name, u.last_name, u.suffix, ra.room_name, ra.created_at 
         FROM rent_applications ra 
         JOIN users u ON ra.user_id = u.id
         WHERE ra.status IN ('Approved', 'active', 'pending-move-out')
@@ -459,7 +459,7 @@ try {
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
         $response['new_tenants'][] = [
-            'name' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'name' => person_name($row),
             'unit' => $row['room_name'] ?? 'N/A',
             'date' => date('M d, Y', strtotime($row['created_at']))
         ];
@@ -475,7 +475,7 @@ try {
 
     // 9a. Pending Applications
     $stmt = $conn->prepare("
-        SELECT id, first_name, last_name, room_name, monthly_rent, created_at 
+        SELECT id, first_name, last_name, suffix, room_name, monthly_rent, created_at 
         FROM rent_applications 
         WHERE LOWER(status) IN ('pending review', 'pending', 'pending deposit', 'action required') 
         ORDER BY created_at DESC 
@@ -486,7 +486,7 @@ try {
     while ($row = $res->fetch_assoc()) {
         $response['pending_actions']['applications'][] = [
             'id' => $row['id'],
-            'name' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'name' => person_name($row),
             'unit' => $row['room_name'] ?? 'Unassigned',
             'rent' => (float)($row['monthly_rent'] ?? 0),
             'date' => date('M d, Y', strtotime($row['created_at']))
@@ -496,7 +496,7 @@ try {
 
     // 9b. Pending / Unverified Invoices
     $stmt = $conn->prepare("
-        SELECT i.id, u.first_name, u.last_name, COALESCE(ra.room_name, 'N/A') as room_name, i.total_amount, i.status, i.due_date, i.billing_period 
+        SELECT i.id, u.first_name, u.last_name, u.suffix, COALESCE(ra.room_name, 'N/A') as room_name, i.total_amount, i.status, i.due_date, i.billing_period 
         FROM invoices i
         LEFT JOIN users u ON i.user_id = u.id
         LEFT JOIN rent_applications ra ON (i.rent_application_id = ra.id OR (i.rent_application_id IS NULL AND u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')))
@@ -509,7 +509,7 @@ try {
     while ($row = $res->fetch_assoc()) {
         $response['pending_actions']['invoices'][] = [
             'id' => $row['id'],
-            'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'tenant' => person_name($row),
             'unit' => $row['room_name'] ?? 'N/A',
             'amount' => (float)($row['total_amount'] ?? 0),
             'status' => $row['status'],
@@ -522,7 +522,7 @@ try {
 
     // 9c. Active Maintenance Tickets
     $stmt = $conn->prepare("
-        SELECT m.id, u.first_name, u.last_name, ra.room_name, m.issue_category, m.urgency, m.status, m.created_at 
+        SELECT m.id, u.first_name, u.last_name, u.suffix, ra.room_name, m.issue_category, m.urgency, m.status, m.created_at 
         FROM maintenance_requests m
         LEFT JOIN users u ON m.user_id = u.id
         LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
@@ -535,7 +535,7 @@ try {
     while ($row = $res->fetch_assoc()) {
         $response['pending_actions']['maintenance'][] = [
             'id' => $row['id'],
-            'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'tenant' => person_name($row),
             'unit' => $row['room_name'] ?? 'N/A',
             'category' => $row['issue_category'],
             'urgency' => $row['urgency'],
@@ -581,7 +581,7 @@ try {
             a.category,
             a.performed_by,
             u.first_name,
-            u.last_name,
+            u.last_name, u.suffix,
             u.role AS performer_role
         FROM activity_logs a
         LEFT JOIN users u ON a.performed_by = u.id

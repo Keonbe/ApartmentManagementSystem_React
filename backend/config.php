@@ -441,7 +441,7 @@ class ExtensionRefused extends Exception {
 // move in before the extended rent would end (or "as soon as it is free").
 // Reservations cannot exist on an occupied unit and the waitlist is not a claim.
 function extension_competing_applications($conn, $room_name, $tenant_user_id, $proposed_end) {
-    $stmt = $conn->prepare("SELECT id, user_id, first_name, last_name, status, preferred_move_in_date
+    $stmt = $conn->prepare("SELECT id, user_id, first_name, last_name, suffix, status, preferred_move_in_date
                             FROM rent_applications
                             WHERE room_name = ? AND user_id <> ?
                               AND status IN ('Pending Review', 'Action Required', 'Approved')
@@ -848,14 +848,14 @@ function release_application_holds($conn, $app_id, $user_id, $cancel_reason, arr
 // 'parking_released' => int,
 // 'visitors_cancelled' => int].
 function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
-    $stmt = $conn->prepare("SELECT first_name, last_name, room_name, user_id FROM rent_applications WHERE id = ?");
+    $stmt = $conn->prepare("SELECT first_name, last_name, suffix, room_name, user_id FROM rent_applications WHERE id = ?");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
     $app = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if (!$app) return null;
 
-    $full_name = trim($app['first_name'] . ' ' . $app['last_name']);
+    $full_name = person_name($app);
     $room_name = $app['room_name'];
     $user_id = $app['user_id'] ? (int)$app['user_id'] : null;
 
@@ -1599,7 +1599,7 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         // (schedule_move_in.php), whichever channel settled it.
         if ($inv_res && !empty($inv_res['rent_application_id']) && (float)($inv_res['security_deposit'] ?? 0) > 0) {
             $app_id = (int)$inv_res['rent_application_id'];
-            $app_q = $conn->prepare("SELECT first_name, last_name, room_name FROM rent_applications WHERE id = ? AND status = 'Approved'");
+            $app_q = $conn->prepare("SELECT first_name, last_name, suffix, room_name FROM rent_applications WHERE id = ? AND status = 'Approved'");
             $app_q->bind_param("i", $app_id);
             $app_q->execute();
             $app_row = $app_q->get_result()->fetch_assoc();
@@ -1607,7 +1607,7 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             if ($app_row) {
                 resolve_admin_queue($conn, 'rent_application', $app_id);
                 notify_admins_queue($conn, 'rent_application', $app_id, 'Move-In Payment Received',
-                    "{$app_row['first_name']} {$app_row['last_name']} paid the move-in invoice $invoice_id for Unit {$app_row['room_name']} ($payment_method). Schedule their move-in date.");
+                    person_name($app_row) . " paid the move-in invoice $invoice_id for Unit {$app_row['room_name']} ($payment_method). Schedule their move-in date.");
             }
         }
 
@@ -2381,7 +2381,7 @@ function reference_channel_sql($method_col, $bank_col) {
 // reference three times). $pending a SELECT of (key_id, key_grp, ref, ch): the
 // rows matching each of its rows, prefixed with key_id, key_grp, key_ch.
 function reference_rows_sql($pending = null) {
-    $tenant = "TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')))";
+    $tenant = "TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), '')))";
     $keys = $pending === null ? '' : 'p.key_id, p.key_grp, p.ch AS key_ch, ';
     // STRAIGHT_JOIN: read the (few) pending references first and seek each
     // table by them, instead of scanning the table on a small dataset.
@@ -2400,8 +2400,8 @@ function reference_rows_sql($pending = null) {
             UNION ALL
             SELECT {$keys}pp.payment_key, pp.payment_key, pp.reference_norm,
                    " . reference_channel_sql('pp.method', 'pp.bank_name') . ", 'pending-verification',
-                   COALESCE((SELECT TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) FROM invoices i JOIN users u ON u.id = i.user_id WHERE i.id = pp.payment_key),
-                            (SELECT TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) FROM invoices i JOIN users u ON u.id = i.user_id WHERE i.payment_group = pp.payment_key LIMIT 1)),
+                   COALESCE((SELECT TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) FROM invoices i JOIN users u ON u.id = i.user_id WHERE i.id = pp.payment_key),
+                            (SELECT TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) FROM invoices i JOIN users u ON u.id = i.user_id WHERE i.payment_group = pp.payment_key LIMIT 1)),
                    pp.amount, 'split', pp.id
               FROM " . $from('payment_proof_parts', 'pp') . "
              WHERE " . $match('pp');
@@ -2893,26 +2893,26 @@ function store_room_image($file) {
 
 function followup_overdue_tenants($conn) {
     $rows = [];
-    $res = $conn->query("SELECT i.user_id, u.first_name, u.last_name, MAX(ra.room_name) AS room_name,
+    $res = $conn->query("SELECT i.user_id, u.first_name, u.last_name, u.suffix, MAX(ra.room_name) AS room_name,
             COUNT(*) AS bills, SUM(i.total_amount - i.amount_paid) AS amount, MIN(i.due_date) AS oldest_due,
             GREATEST(DATEDIFF(CURDATE(), MIN(i.due_date)), 0) AS days_overdue
         FROM invoices i
         JOIN users u ON u.id = i.user_id
         LEFT JOIN rent_applications ra ON ra.id = i.rent_application_id
         WHERE i.status = 'overdue' AND u.is_archived = 0
-        GROUP BY i.user_id, u.first_name, u.last_name
+        GROUP BY i.user_id, u.first_name, u.last_name, u.suffix
         ORDER BY days_overdue DESC");
     while ($res && ($r = $res->fetch_assoc())) {
         $rows[] = [
             'kind' => 'payment', 'userId' => (int)$r['user_id'], 'id' => (int)$r['user_id'],
-            'name' => trim($r['first_name'] . ' ' . $r['last_name']), 'room' => $r['room_name'],
+            'name' => person_name($r), 'room' => $r['room_name'],
             'issue' => 'Overdue payment', 'bills' => (int)$r['bills'], 'amount' => round((float)$r['amount'], 2),
             'dueDate' => $r['oldest_due'], 'daysLate' => (int)$r['days_overdue'],
             'detail' => (int)$r['bills'] . ' overdue bill' . ((int)$r['bills'] === 1 ? '' : 's') . ', ₱' . number_format((float)$r['amount'], 2),
         ];
     }
     // Applicants whose move-in payment lapsed (cancelled by the payment window).
-    $res = $conn->query("SELECT ra.id, ra.user_id, ra.room_name, ra.first_name, ra.last_name, ra.cancelled_at
+    $res = $conn->query("SELECT ra.id, ra.user_id, ra.room_name, ra.first_name, ra.last_name, ra.suffix, ra.cancelled_at
         FROM rent_applications ra
         WHERE ra.status = 'Cancelled' AND ra.rejection_reason LIKE 'Move-in payment was not made%'
           AND ra.cancelled_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
@@ -2920,7 +2920,7 @@ function followup_overdue_tenants($conn) {
     while ($res && ($r = $res->fetch_assoc())) {
         $rows[] = [
             'kind' => 'lapsed', 'userId' => (int)$r['user_id'], 'id' => (int)$r['id'],
-            'name' => trim($r['first_name'] . ' ' . $r['last_name']), 'room' => $r['room_name'],
+            'name' => person_name($r), 'room' => $r['room_name'],
             'issue' => 'Payment window lapsed', 'bills' => 0, 'amount' => 0, 'dueDate' => substr((string)$r['cancelled_at'], 0, 10), 'daysLate' => 0,
             'detail' => 'Move-in payment not made in time; application cancelled.',
         ];
@@ -2997,25 +2997,25 @@ function followup_missing_documents($conn) {
     $add = function ($r, $issue, $detail, $due) use (&$rows) {
         $rows[] = [
             'kind' => 'document', 'userId' => (int)$r['user_id'], 'id' => (int)$r['id'],
-            'name' => trim(($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? '')), 'room' => $r['room_name'],
+            'name' => person_name($r), 'room' => $r['room_name'],
             'issue' => $issue, 'detail' => $detail, 'dueDate' => $due, 'bills' => 0, 'amount' => 0, 'daysLate' => 0,
         ];
     };
     // The office asked for something and the applicant has not answered.
-    $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name, rejection_reason FROM rent_applications WHERE status = 'Action Required'");
+    $res = $conn->query("SELECT id, user_id, first_name, last_name, suffix, room_name, rejection_reason FROM rent_applications WHERE status = 'Action Required'");
     while ($res && ($r = $res->fetch_assoc())) $add($r, 'Action required', $r['rejection_reason'] ?: 'The office is waiting for more information.', null);
     // Approved but a required document or the terms agreement is missing. A
     // tenant the admin assigned in person (documents_verified_at) has no files.
     $missing_docs = application_missing_required_docs_sql('ra');
-    $res = $conn->query("SELECT ra.id, ra.user_id, ra.first_name, ra.last_name, ra.room_name FROM rent_applications ra
+    $res = $conn->query("SELECT ra.id, ra.user_id, ra.first_name, ra.last_name, ra.suffix, ra.room_name FROM rent_applications ra
         WHERE ra.status = 'Approved' AND (ra.terms_agreed_at IS NULL OR (ra.documents_verified_at IS NULL AND $missing_docs))");
     while ($res && ($r = $res->fetch_assoc())) $add($r, 'Missing documents', 'A required application document or the terms agreement is missing.', null);
     // Move-in date passed and the tenant never moved in.
-    $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name, move_in_date FROM rent_applications
+    $res = $conn->query("SELECT id, user_id, first_name, last_name, suffix, room_name, move_in_date FROM rent_applications
         WHERE status = 'Approved' AND move_in_date IS NOT NULL AND move_in_date < CURDATE()");
     while ($res && ($r = $res->fetch_assoc())) $add($r, 'Move-in deadline passed', 'The scheduled move-in date has passed without a confirmed move-in.', $r['move_in_date']);
     // Contract still has no signed copy once the rent period has begun.
-    $res = $conn->query("SELECT ra.id, ra.user_id, ra.first_name, ra.last_name, ra.room_name, lc.lease_start
+    $res = $conn->query("SELECT ra.id, ra.user_id, ra.first_name, ra.last_name, ra.suffix, ra.room_name, lc.lease_start
         FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id
         WHERE ra.status IN ('Approved', 'active') AND lc.status IN ('draft', 'active')
           AND COALESCE(lc.signed_lease_path,'') = '' AND lc.lease_start IS NOT NULL AND lc.lease_start < CURDATE()");
@@ -3647,7 +3647,7 @@ function deposit_deductions_for($conn, array $app_ids) {
 // newest first. $user_id limits it to one tenant's invoices (null = all).
 function invoice_adjustments_for($conn, $user_id = null) {
     $sql = "SELECT a.id, a.invoice_id, a.reason, a.old_total, a.new_total, a.changes, a.created_at,
-                   TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS admin_name
+                   TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS admin_name
               FROM invoice_adjustments a
               LEFT JOIN users u ON u.id = a.admin_id" .
            ($user_id !== null ? " JOIN invoices i ON i.id = a.invoice_id WHERE i.user_id = ?" : "") .
@@ -4689,6 +4689,19 @@ function claim_invoice_reminder($conn, $invoice_id, $min_days_between = 1) {
     $claimed = $stmt->affected_rows > 0;
     $stmt->close();
     return $claimed;
+}
+
+// A person's display name: first name, last name and suffix ("Juan Dela Cruz
+// Jr."), blanks skipped. $row is a users or rent_applications row; $prefix reads
+// prefixed keys (e.g. 'tenant_' for tenant_first_name). In SQL the same is
+// TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))).
+function person_name($row, $prefix = '') {
+    $parts = [];
+    foreach (['first_name', 'last_name', 'suffix'] as $key) {
+        $value = trim((string)($row[$prefix . $key] ?? ''));
+        if ($value !== '') $parts[] = $value;
+    }
+    return implode(' ', $parts);
 }
 
 function get_setting($conn, $key, $default = null) {

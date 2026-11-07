@@ -30,6 +30,6 @@ try {
 } catch (Throwable $e) { $conn->rollback(); error_log('Device verification failed: ' . $e->getMessage()); http_response_code(500); echo json_encode(['valid'=>false,'message'=>'Could not complete verification.']); exit; }
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 setcookie('ams_trusted_device', $rawToken, ['expires'=>time()+31536000,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
-$userData = ['id'=>(int)$user['id'],'first_name'=>$user['first_name'],'middle_name'=>$user['middle_name'],'last_name'=>$user['last_name'],'suffix'=>$user['suffix'],'contact_no'=>$user['contact_no'],'gender'=>$user['gender'],'email_address'=>$user['email_address'],'role'=>$user['role']];
+$userData = ['id'=>(int)$user['id'],'first_name'=>$user['first_name'],'middle_name'=>$user['middle_name'],'last_name'=>$user['last_name'],'suffix'=>$user['suffix'],'contact_no'=>$user['contact_no'],'gender'=>$user['gender'],'email_address'=>$user['email_address'],'role'=>$user['role'],'first_login'=>record_sign_in($conn, (int)$user['id'])];
 echo json_encode(['valid'=>true,'message'=>'Login successful','role'=>$user['role'],'user'=>$userData,'sessionToken'=>$sessionToken]);
 $conn->close();

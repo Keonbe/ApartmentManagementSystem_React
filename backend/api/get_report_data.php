@@ -729,7 +729,7 @@ $stmt = $conn->prepare("SELECT
     ra.id as application_id,
     ra.user_id,
     COALESCE(ra.room_name, r.id, 'Unassigned') as unit,
-    COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), TRIM(CONCAT(COALESCE(ra.first_name, ''), ' ', COALESCE(ra.last_name, ''))), 'Active Tenant') as tenant_name,
+    COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))), ''), TRIM(CONCAT_WS(' ', ra.first_name, ra.last_name, NULLIF(TRIM(ra.suffix), ''))), 'Active Tenant') as tenant_name,
     COALESCE(u.email_address, ra.email, '') as email_address,
     COALESCE(u.contact_no, ra.contact_no, '') as contact_no,
     COALESCE(lc.lease_start, ra.created_at) as created_at,
@@ -765,11 +765,11 @@ $stmt->close();
 
 // Fallback if rent_applications had no approved entries yet: check occupied rooms
 if (empty($data['tenantList'])) {
-    $stmt = $conn->prepare("SELECT r.id as unit, u.id as user_id, u.first_name, u.last_name, u.email_address, u.contact_no, r.monthly_rent, r.lease_end FROM rooms r LEFT JOIN rent_applications ra ON r.id = ra.room_name LEFT JOIN users u ON ra.user_id = u.id WHERE r.status = 'Occupied'");
+    $stmt = $conn->prepare("SELECT r.id as unit, u.id as user_id, u.first_name, u.last_name, u.suffix, u.email_address, u.contact_no, r.monthly_rent, r.lease_end FROM rooms r LEFT JOIN rent_applications ra ON r.id = ra.room_name LEFT JOIN users u ON ra.user_id = u.id WHERE r.status = 'Occupied'");
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
-        $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+        $name = person_name($row);
         $data['tenantList'][] = [
             'unit' => $row['unit'],
             'name' => !empty($name) ? $name : "Unit {$row['unit']} Tenant",
@@ -789,7 +789,7 @@ if (empty($data['tenantList'])) {
 // 2. methodsBreakdown & payment records
 $data['methodsBreakdown'] = ['Cash' => 0, 'GCash' => 0, 'BDO' => 0, 'BPI' => 0];
 $data['paymentRecords'] = [];
-$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity, i.parking, i.services, i.late_fee, i.security_deposit FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND i.advance_months IS NULL AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, u.suffix, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity, i.parking, i.services, i.late_fee, i.security_deposit FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND i.advance_months IS NULL AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
@@ -802,7 +802,7 @@ while ($row = $res->fetch_assoc()) {
     
     $data['paymentRecords'][] = [
         'id' => $row['id'],
-        'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+        'tenant' => person_name($row),
         'unit' => $row['unit'] ?? 'N/A',
         'period' => $row['billing_period'],
         'amount' => (float)$row['total_amount'],
@@ -815,14 +815,14 @@ $stmt->close();
 
 // 3. outstandingBalances
 $data['outstandingBalances'] = [];
-$stmt = $conn->prepare("SELECT i.id, i.status, u.first_name, u.last_name, COALESCE(r.id, ra.room_name) as unit, " . invoice_balance_sql('i') . " AS balance, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE " . invoice_owed_where_sql('i', true) . " ORDER BY i.due_date ASC");
+$stmt = $conn->prepare("SELECT i.id, i.status, u.first_name, u.last_name, u.suffix, COALESCE(r.id, ra.room_name) as unit, " . invoice_balance_sql('i') . " AS balance, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE " . invoice_owed_where_sql('i', true) . " ORDER BY i.due_date ASC");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     $data['outstandingBalances'][] = [
         'invoiceId' => $row['id'],
         'status' => $row['status'],
-        'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+        'tenant' => person_name($row),
         'unit' => $row['unit'] ?? 'N/A',
         'balance' => (float)$row['balance'],
         'daysOverdue' => max(1, (int)$row['days_overdue'])
@@ -834,14 +834,14 @@ $stmt->close();
 $data['maintenanceRecords'] = [];
 // The unit is the one snapshotted on the ticket; joining through an 'Approved'
 // application lost it for 'active' tenants. Cost is the actual cost where recorded.
-$stmt = $conn->prepare("SELECT m.id, u.first_name, u.last_name, m.room_name as unit, m.issue_category, m.urgency, m.created_at, m.status, m.description, COALESCE(m.actual_cost, m.estimated_cost) as estimated_cost FROM maintenance_requests m LEFT JOIN users u ON m.user_id = u.id WHERE $maintDateCondition ORDER BY m.created_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT m.id, u.first_name, u.last_name, u.suffix, m.room_name as unit, m.issue_category, m.urgency, m.created_at, m.status, m.description, COALESCE(m.actual_cost, m.estimated_cost) as estimated_cost FROM maintenance_requests m LEFT JOIN users u ON m.user_id = u.id WHERE $maintDateCondition ORDER BY m.created_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     $data['maintenanceRecords'][] = [
         'id' => 'MR-'.str_pad($row['id'], 4, '0', STR_PAD_LEFT),
         'unit' => $row['unit'] ?? 'N/A',
-        'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+        'tenant' => person_name($row),
         'category' => $row['issue_category'],
         'urgency' => $row['urgency'],
         'dateSubmitted' => date('Y-m-d', strtotime($row['created_at'])),
@@ -854,13 +854,13 @@ $stmt->close();
 
 // 5. roomList
 $data['roomList'] = [];
-$stmt = $conn->prepare("SELECT id, first_name, last_name, room_name, monthly_rent, months_of_rent, created_at, status FROM rent_applications WHERE $dateCondition ORDER BY created_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT id, first_name, last_name, suffix, room_name, monthly_rent, months_of_rent, created_at, status FROM rent_applications WHERE $dateCondition ORDER BY created_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     $data['roomList'][] = [
         'id' => 'APP-'.str_pad($row['id'], 4, '0', STR_PAD_LEFT),
-        'name' => trim($row['first_name'] . ' ' . $row['last_name']),
+        'name' => person_name($row),
         'unit' => $row['room_name'] ?? 'N/A',
         'rent' => (float)$row['monthly_rent'],
         'duration' => $row['months_of_rent'],
@@ -872,13 +872,13 @@ $stmt->close();
 
 // 6. parkingList
 $data['parkingList'] = [];
-$stmt = $conn->prepare("SELECT p.id, u.first_name, u.last_name, p.vehicle_model, p.vehicle_type, p.plate_number, p.total_cost, p.duration_months, p.created_at, p.status FROM parking_reservations p LEFT JOIN users u ON p.user_id = u.id WHERE $parkingDateCondition ORDER BY p.created_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT p.id, u.first_name, u.last_name, u.suffix, p.vehicle_model, p.vehicle_type, p.plate_number, p.total_cost, p.duration_months, p.created_at, p.status FROM parking_reservations p LEFT JOIN users u ON p.user_id = u.id WHERE $parkingDateCondition ORDER BY p.created_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     $data['parkingList'][] = [
         'id' => 'PKG-'.str_pad($row['id'], 4, '0', STR_PAD_LEFT),
-        'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+        'tenant' => person_name($row),
         'vehicleModel' => $row['vehicle_model'],
         'vehicleType' => $row['vehicle_type'],
         'plateNumber' => $row['plate_number'],

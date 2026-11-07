@@ -15,7 +15,7 @@ $sql = "SELECT r.*,
         COALESCE(r.paymongo_payment_id,
                  (SELECT inv.paymongo_payment_id FROM invoices inv WHERE inv.id = r.invoice_id),
                  (SELECT ai.paymongo_payment_id FROM advance_credits c JOIN invoices ai ON ai.id = c.advance_invoice_id WHERE c.refund_request_id = r.id LIMIT 1)) AS source_payment_id,
-        CONCAT(u.first_name,' ',u.last_name) AS tenant_name, u.email_address AS tenant_email, ra.room_name
+        TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS tenant_name, u.email_address AS tenant_email, ra.room_name
         FROM refund_requests r
         JOIN users u ON u.id = r.user_id
         LEFT JOIN rent_applications ra ON ra.id = r.rent_application_id";
@@ -78,7 +78,7 @@ $stmt->close();
 
 if ($ids) {
     $in = implode(',', $ids); // ints only
-    $ev = $conn->query("SELECT e.refund_request_id, e.actor_role, e.action, e.message, e.created_at, CONCAT(u.first_name,' ',u.last_name) AS actor_name
+    $ev = $conn->query("SELECT e.refund_request_id, e.actor_role, e.action, e.message, e.created_at, TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS actor_name
         FROM refund_request_events e LEFT JOIN users u ON u.id = e.actor_id
         WHERE e.refund_request_id IN ($in) ORDER BY e.id");
     while ($e = $ev->fetch_assoc()) {

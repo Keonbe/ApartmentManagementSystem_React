@@ -69,7 +69,7 @@ foreach ($rows as $row) {
 
     $tenants[] = [
         'id' => $row['id'],
-        'name' => $row['first_name'] . ' ' . $row['last_name'],
+        'name' => person_name($row),
         'email' => $row['email'],
         'phone' => $row['contact_no'],
         'unit' => $row['room_name'],

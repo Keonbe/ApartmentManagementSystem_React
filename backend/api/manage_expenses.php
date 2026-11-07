@@ -31,7 +31,7 @@ function format_expense($row) {
         'amount'      => (float)$row['amount'],
         'expenseDate' => $row['expense_date'],
         'description' => $row['description'],
-        'createdBy'   => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: null,
+        'createdBy'   => person_name($row) ?: null,
         'createdAt'   => $row['created_at'],
     ];
 }
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $month = $_GET['month'] ?? '';
     if ($month !== '' && !preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) fail(422, "Month must be YYYY-MM.");
 
-    $sql = "SELECT e.*, u.first_name, u.last_name FROM expenses e LEFT JOIN users u ON u.id = e.created_by";
+    $sql = "SELECT e.*, u.first_name, u.last_name, u.suffix FROM expenses e LEFT JOIN users u ON u.id = e.created_by";
     if ($month !== '') {
         $sql .= " WHERE DATE_FORMAT(e.expense_date, '%Y-%m') = ?";
     }

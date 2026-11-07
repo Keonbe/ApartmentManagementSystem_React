@@ -223,7 +223,7 @@ function contract_template_default($conn) {
 
 function contract_template_row($conn, $version_id = null) {
     $sql = "SELECT v.id, v.version, v.content, v.note, v.created_at, v.created_by,
-                   TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS created_by_name
+                   TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS created_by_name
             FROM contract_template_versions v LEFT JOIN users u ON u.id = v.created_by ";
     if ($version_id !== null) {
         $stmt = $conn->prepare($sql . "WHERE v.id = ?");

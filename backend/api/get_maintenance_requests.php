@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_admin($conn);
 
 // Unit comes from the snapshot taken at ticket creation; the tenancy lookup only covers older rows.
-$query = "SELECT m.*, u.first_name, u.last_name,
+$query = "SELECT m.*, u.first_name, u.last_name, u.suffix,
                  COALESCE(m.room_name, (SELECT ra.room_name FROM rent_applications ra
                                         WHERE ra.user_id = m.user_id
                                           AND ra.status IN ('Approved', 'active', 'pending-move-out')
@@ -44,7 +44,7 @@ while ($row = $result->fetch_assoc()) {
     $requests[] = [
         'id' => (int)$row['id'],
         'title' => $row['title'],
-        'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+        'tenant' => person_name($row),
         'unit' => $row['unit_name'],
         'category' => $row['issue_category'],
         'urgency' => $row['urgency'],

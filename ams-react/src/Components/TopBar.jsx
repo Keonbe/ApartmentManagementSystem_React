@@ -21,6 +21,7 @@ import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import { useLanguageSwitch } from '../config/publicSettings';
 import { clearRoomCache, useRoomStatus } from '../config/tenantHome';
 import '../assets/styles/responsive/components/navbar.responsive.css';
+import { personName } from '../utils/personName';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
 const NO_HIGHLIGHT = new Set();
@@ -187,7 +188,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         const onProfileUpdated = () => {
             const u = JSON.parse(sessionStorage.getItem('loggedInUser') || '{}');
             setDbAvatarUrl(u.avatar_url || '');
-            const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+            const fullName = personName(u);
             if (fullName) setNameOverride(fullName);
         };
         window.addEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);

@@ -101,7 +101,7 @@ try {
 
     $stmt = $conn->prepare("
         SELECT i.id, i.user_id, i.total_amount - i.amount_paid AS total_amount, i.amount_paid, i.due_date, i.billing_period, i.status, i.reminder_count, " . INVOICE_PERIOD_COLUMNS . ",
-               u.first_name, u.last_name, ra.room_name, ra.status AS application_status
+               u.first_name, u.last_name, u.suffix, ra.room_name, ra.status AS application_status
         FROM invoices i
         LEFT JOIN users u ON i.user_id = u.id
         LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
@@ -138,7 +138,7 @@ try {
     $event = $overdue ? 'overdue' : 'rent_due';
     create_notification($conn, $inv['user_id'], $event, $title, $message);
 
-    $tenantName = trim(($inv['first_name'] ?? '') . ' ' . ($inv['last_name'] ?? '')) ?: 'Tenant';
+    $tenantName = person_name($inv) ?: 'Tenant';
     $unit = $inv['room_name'] ?: 'no unit';
 
     try {

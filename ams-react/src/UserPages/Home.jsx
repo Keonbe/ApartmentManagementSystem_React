@@ -8,7 +8,7 @@ import { homeText } from '../config/homeContent';
 import HomeIntro from '../Components/HomeIntro';
 import '../assets/styles/responsive/user/home.responsive.css';
 
-export default function Home({ onCardClick, username }) {
+export default function Home({ onCardClick, username, firstLogin = false }) {
     // null until the real counts arrive; they stay hidden if the request fails
     // (made-up 14 / 4 used to show instead).
     const [counts, setCounts] = useState(null);
@@ -53,7 +53,7 @@ export default function Home({ onCardClick, username }) {
                     <HomeIntro
                         badge={homeText(content, 'badge', lang)}
                         // Signed in: the greeting always shows; the heading switch is for visitors.
-                        heading={username ? `${t('home.welcomeBack')} ${username}` : homeText(content, 'heading', lang)}
+                        heading={username ? `${t(firstLogin ? 'home.welcome' : 'home.welcomeBack')} ${username}` : homeText(content, 'heading', lang)}
                         location={homeText(content, 'location', lang)}
                         description={homeText(content, 'description', lang)}
                     />

@@ -17,6 +17,30 @@ function email_verification_enabled($conn) {
     return (string)get_setting($conn, 'email_verification_enabled', '1') !== '0';
 }
 
+// Records this sign-in on users.last_login_at and says whether it was the
+// account's first (the column was NULL). The NULL check and the stamp are one
+// UPDATE, so two sign-ins at once cannot both count as the first. A server
+// without the 2026_11_last_login migration yet treats every sign-in as a
+// return visit instead of failing it.
+function record_sign_in($conn, $userId) {
+    $userId = (int)$userId;
+    $first = $conn->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ? AND last_login_at IS NULL');
+    if (!$first) return false;
+    $first->bind_param('i', $userId);
+    $first->execute();
+    $isFirst = $first->affected_rows === 1;
+    $first->close();
+    if (!$isFirst) {
+        $again = $conn->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
+        if ($again) {
+            $again->bind_param('i', $userId);
+            $again->execute();
+            $again->close();
+        }
+    }
+    return $isFirst;
+}
+
 function login_otp_globally_enabled($conn) {
     return (string)get_setting($conn, 'login_otp_enabled', '1') !== '0';
 }

@@ -20,6 +20,7 @@ import { TH, btn } from '../Components/admin/ui/styles';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import { personName } from '../utils/personName';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
@@ -111,7 +112,7 @@ const AdminUsers = () => {
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(u =>
-        `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) ||
+        personName(u).toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
         (u.contact_no || '').includes(q)
       );
@@ -194,7 +195,7 @@ const AdminUsers = () => {
 
   const handleSetRole = async (user, newRole) => {
     const verb = newRole === 'admin' ? 'grant admin access to' : 'revoke admin access from';
-    if (!window.confirm(`Are you sure you want to ${verb} ${user.first_name} ${user.last_name}? They will be signed out and must sign in again.`)) return;
+    if (!window.confirm(`Are you sure you want to ${verb} ${personName(user)}? They will be signed out and must sign in again.`)) return;
     try {
       const res = await api.post('/manage_users.php', { action: 'set_role', user_id: user.id, role: newRole });
       if (res.data.success) {
@@ -413,9 +414,9 @@ const AdminUsers = () => {
 
       {/* Edit Modal */}
       {editUser && (
-        <Modal busy={saving} title={`Edit User — ${editUser.first_name} ${editUser.last_name}`} onClose={() => setEditUser(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 overflow-hidden">
+        <Modal busy={saving} title={`Edit User — ${personName(editUser)}`} onClose={() => setEditUser(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="text-title font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
+              <h3 className="text-title font-bold text-slate-800 m-0">Edit User — {personName(editUser)}</h3>
               <button aria-label="Close" onClick={() => setEditUser(null)} className="text-slate-500 hover:text-slate-600 p-1 rounded-control border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
@@ -525,7 +526,7 @@ const AdminUsers = () => {
               </h3>
             </div>
             <div className="p-6">
-              <p className="text-body text-slate-600 m-0">Are you sure you want to archive <strong>{archiveTarget.first_name} {archiveTarget.last_name}</strong>? This user will no longer be able to log in.</p>
+              <p className="text-body text-slate-600 m-0">Are you sure you want to archive <strong>{personName(archiveTarget)}</strong>? This user will no longer be able to log in.</p>
               <div className="mt-4 bg-amber-50 border border-amber-100 rounded-control p-3 text-label text-amber-700">
                 You can restore this account at any time from the "Archived" tab.
               </div>

@@ -19,7 +19,7 @@ try {
                 p.id,
                 p.id AS rawId,
                 p.user_id,
-                CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS tenant,
+                TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS tenant,
                 COALESCE((SELECT ra.room_name FROM rent_applications ra
                           WHERE ra.user_id = p.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
                           ORDER BY ra.id DESC LIMIT 1), '—') AS unit,

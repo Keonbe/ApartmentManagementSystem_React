@@ -26,7 +26,7 @@ if (isset($_GET['history'])) {
     }
     $versions = [];
     $res = $conn->query("SELECT v.id, v.version, v.note, v.created_at,
-                                TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS created_by_name
+                                TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS created_by_name
                          FROM contract_template_versions v LEFT JOIN users u ON u.id = v.created_by
                          ORDER BY v.version DESC LIMIT 50");
     if ($res) {

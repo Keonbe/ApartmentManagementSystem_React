@@ -16,6 +16,7 @@ import { PANEL, PANEL_HEADER, PANEL_TITLE, btn } from '../Components/admin/ui/st
 import LoadError from '../Components/admin/ui/LoadError';
 import EmptyState from '../Components/admin/ui/EmptyState';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
+import { personName } from '../utils/personName';
 
 // Keyed on the 12 activity-log categories (LOG_CATEGORIES in config.php).
 const LOG_CATEGORY_STYLE = {
@@ -299,7 +300,7 @@ const AdminDashboard = () => {
                                   <span className="text-caption text-slate-500 whitespace-nowrap shrink-0">{formatLogDate(log.created_at)}</span>
                                 </div>
                                 <p className="text-caption text-slate-500 m-0 mt-0.5 break-words">
-                                  {log.details || `By ${log.first_name ? `${log.first_name} ${log.last_name || ''}`.trim() : 'the system'}`}
+                                  {log.details || `By ${log.first_name ? personName(log) : 'the system'}`}
                                 </p>
                               </div>
                             </li>

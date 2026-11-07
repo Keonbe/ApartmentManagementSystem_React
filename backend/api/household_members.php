@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['userId']) && $auth['rol
     $target_user_id = (int)$_GET['userId'];
 }
 
-$stmt = $conn->prepare("SELECT id, room_name, occupants, first_name, last_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT id, room_name, occupants, first_name, last_name, suffix FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
 $stmt->bind_param("i", $target_user_id);
 $stmt->execute();
 $app = $stmt->get_result()->fetch_assoc();
@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     echo json_encode([
         "success"       => true,
         "hasLease"      => true,
-        "leaseHolder"   => trim($app['first_name'] . ' ' . $app['last_name']),
+        "leaseHolder"   => person_name($app),
         "roomName"      => $app['room_name'],
         "occupants"     => (int)$app['occupants'],
         "maxOccupants"  => max_occupants_per_unit($conn),
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($auth['role'] === 'admin') fail(403, "Household changes are requested by the tenant and approved in Notifications.");
 if (!$app) fail(403, "No active rental found for this account.");
 $app_id = (int)$app['id'];
-$holder = trim($app['first_name'] . ' ' . $app['last_name']);
+$holder = person_name($app);
 $room = $app['room_name'];
 
 $input = json_decode(file_get_contents("php://input"), true) ?? [];

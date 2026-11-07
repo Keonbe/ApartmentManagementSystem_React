@@ -21,7 +21,7 @@ if (!$user_id) {
 try {
     $query = "SELECT
                 u.id AS other_user_id,
-                CONCAT(u.first_name, ' ', u.last_name) AS other_user_name,
+                TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS other_user_name,
                 u.avatar_url AS other_user_avatar,
                 u.email_address AS other_user_email,
                 (
@@ -88,7 +88,7 @@ try {
                 ) AS is_active_tenant
               FROM users u
               WHERE u.id != ?
-                AND (? = '' OR CONCAT(u.first_name, ' ', u.last_name) LIKE ? OR u.email_address LIKE ? OR EXISTS (
+                AND (? = '' OR TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) LIKE ? OR u.email_address LIKE ? OR EXISTS (
                     SELECT 1 FROM messages sm
                     WHERE ((sm.sender_id = ? AND sm.receiver_id = u.id)
                        OR (sm.sender_id = u.id AND sm.receiver_id = ?))

@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $limit = OTP_PER_PAGE;
     $offset = ($page - 1) * OTP_PER_PAGE;
     $listStmt = $conn->prepare("
-        SELECT u.id, u.first_name, u.last_name, u.email_address, u.login_otp_mode,
+        SELECT u.id, u.first_name, u.last_name, u.suffix, u.email_address, u.login_otp_mode,
                COALESCE(t.is_active, 0) AS is_active, COALESCE(t.was_tenant, 0) AS was_tenant,
                t.unit, t.past_unit,
                (SELECT COUNT(*) FROM trusted_devices d WHERE d.user_id = u.id) AS devices
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $group = $row['is_active'] ? 'active' : ($row['was_tenant'] ? 'past' : 'non_tenant');
         $users[] = [
             'id' => (int)$row['id'],
-            'name' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'name' => person_name($row),
             'email' => $row['email_address'],
             'group' => $group,
             'unit' => $group === 'active' ? $row['unit'] : ($group === 'past' ? $row['past_unit'] : null),

@@ -180,7 +180,9 @@ $userData = [
     "contact_no" => $user["contact_no"],
     "gender" => $user["gender"],
     "email_address" => $user["email_address"],
-    "role" => $user["role"]
+    "role" => $user["role"],
+    // The account's first sign-in: Home says "Welcome" instead of "Welcome back".
+    "first_login" => record_sign_in($conn, (int)$user["id"])
 ];
 
 // The session token — not the X-User-Id / X-Admin-Id headers — is the only

@@ -3,6 +3,7 @@ import api from '../api/axiosConfig';
 import { io } from 'socket.io-client';
 import useLoadState from '../hooks/useLoadState';
 import { CHAT_SOCKET_URL } from '../api/env';
+import { personName } from '../utils/personName';
 
 const ChatContext = createContext();
 
@@ -250,7 +251,7 @@ export const ChatProvider = ({ children }) => {
         const admin = await fetchAdminUser();
         if (!admin) return;
 
-        const adminName = `${admin.first_name || ''} ${admin.last_name || ''}`.trim();
+        const adminName = personName(admin);
         const conversation = {
             other_user_id: admin.id,
             other_user_name: adminName || 'Admin',

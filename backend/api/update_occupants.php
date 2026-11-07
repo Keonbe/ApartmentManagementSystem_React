@@ -23,7 +23,7 @@ if ($occupants < 1) {
 
 // Fetch current active occupancy count from rent_applications
 $userQuery = $conn->prepare("
-    SELECT u.id, u.first_name, u.last_name, ra.room_name, ra.occupants as current_occupants
+    SELECT u.id, u.first_name, u.last_name, u.suffix, ra.room_name, ra.occupants as current_occupants
     FROM users u
     LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out')
     WHERE u.id = ?
@@ -35,7 +35,7 @@ $userQuery->close();
 
 if ($user && $user['room_name']) {
     $userId = $user['id'];
-    $tenantName = $user['first_name'] . ' ' . $user['last_name'];
+    $tenantName = person_name($user);
     $roomName = $user['room_name'];
     $currentOccupants = (int)($user['current_occupants'] ?? 0);
 

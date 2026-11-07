@@ -134,7 +134,7 @@ Authenticates a user and issues a session token.
 |-------|------|-------------|
 | `valid` | boolean | `true` |
 | `sessionToken` | string | 64-char hex session token |
-| `user` | object | `{id, first_name, middle_name, last_name, suffix, email_address, role}` |
+| `user` | object | `{id, first_name, middle_name, last_name, suffix, email_address, role, first_login}`; `first_login` is `true` on the account's first sign-in only (`users.last_login_at` was NULL; 2026-11-07), for "Welcome" vs "Welcome back" |
 | `role` | string | `"user"` or `"admin"` |
 
 **Error Codes:** `429` (locked out), `200` with `valid: false` (bad credentials; "archived" is only reported after a correct password)
@@ -1170,7 +1170,7 @@ Endpoints added or split out after the modules above were written (verified agai
 
 | Endpoint | Auth | Request | Response / errors | Effects |
 |---|---|---|---|---|
-| `POST` [verify_device.php](../../backend/api/verify_device.php) | public (login flow) | `email_address`, `otp` (6 digits) | `{valid:true, role, user, sessionToken}` + `ams_trusted_device` cookie (1 year); wrong / expired code is HTTP 200 `valid:false`; 400 malformed | Clears the code, inserts `trusted_devices`, creates the session; 3 wrong tries lock the code |
+| `POST` [verify_device.php](../../backend/api/verify_device.php) | public (login flow) | `email_address`, `otp` (6 digits) | `{valid:true, role, user, sessionToken}` (`user.first_login` as in `login.php`: the sign-in is recorded here, not when the code is sent) + `ams_trusted_device` cookie (1 year); wrong / expired code is HTTP 200 `valid:false`; 400 malformed | Clears the code, inserts `trusted_devices`, creates the session; 3 wrong tries lock the code |
 | `GET` / `POST` [login_otp_settings.php](../../backend/api/login_otp_settings.php) | admin | GET `?q`, `?filter=all|active|past|non_tenant|custom`, `?page` (20 per page); POST `set_global` (`enabled`), `set_user` (`user_id`, `mode` `default` / `on` / `off`), `clear_overrides`, `set_email_verification` (`enabled` bool: new accounts must open the emailed link before signing in) | `{enabled, email_verification, counts, users[], total, page, per_page}`; 404; 422 | `system_settings.login_otp_enabled`, `email_verification_enabled`, `users.login_otp_mode`; log `auth` |
 | `POST` [verify_email.php](../../backend/api/verify_email.php) | public | `token` (64 hex) | `{success}`; unknown / used token is HTTP 200 `success:false`; 400 malformed | Sets `email_verified_at`, clears the token |
 | `GET` [get_glass_backgrounds.php](../../backend/api/get_glass_backgrounds.php) | admin | `kind` `glass` / `preview` | `{backgrounds, limit}` | none |
@@ -1187,7 +1187,7 @@ Behaviour that the sections above no longer describe fully. The code wins; endpo
 
 | Endpoint | Current behaviour |
 |---|---|
-| login.php | Unverified e-mail: HTTP 200 `valid:false`, `email_verification_required:true`. A non-admin on an untrusted device gets `{status:'device_verification_required', valid:false}` and a 6-digit code by e-mail (finish with `verify_device.php`); skipped for admins, demo domains (non-production), accounts with codes off and a valid `ams_trusted_device` cookie. Lockout: 5 failures per account + IP, 25 per account across IPs, 20 per IP, 15-minute window. `user` also returns `contact_no`, `gender`. Optional `guest_token` adopts a guest chat. |
+| login.php | Unverified e-mail: HTTP 200 `valid:false`, `email_verification_required:true`. A successful sign-in stamps `users.last_login_at` (`record_sign_in()`, one UPDATE so two at once give one `first_login:true`). A non-admin on an untrusted device gets `{status:'device_verification_required', valid:false}` and a 6-digit code by e-mail (finish with `verify_device.php`); skipped for admins, demo domains (non-production), accounts with codes off and a valid `ams_trusted_device` cookie. Lockout: 5 failures per account + IP, 25 per account across IPs, 20 per IP, 15-minute window. `user` also returns `contact_no`, `gender`. Optional `guest_token` adopts a guest chat. |
 | registration.php | Stores a `verification_token` and e-mails a link (`email_delivery_failed` in the response if it could not be sent); sign-in is refused until verified. With `email_verification_enabled` = `0` (2026-11-07) the account is verified at sign-up, no link is sent, and the response has `verification_required: false` (`true` otherwise); `login.php` and `verify_device.php` then also let an unverified account through. Max lengths 30 / 50 / 30 / 20 / 190, `password_policy_error()`, IP rate limit (429). Validation errors are HTTP 200 with `success:false`. |
 | rent_application.php | Session auth, tenant role only. Extra fields: `previousAddress` (5-255, required), `isAsap`, `preferredMoveInDate`. `occupants` <= `max_occupants_per_unit`; `monthsOfRent` from `min_lease_duration` to 24; `monthlyRent` is ignored (re-read from the room). Resubmit only from Rejected / Declined (else 409). |
 | get_rooms.php | Guests and tenants get `id, type, floor, rent, status, roomCondition, furnishingStatus, images, availableDate, availableFrom`. Admins also get `tenant`, `leaseStart`, `leaseEnd`, `lastTenant`, `maintenanceFlag`, `occupants`, `lastInspectionDate`, `extensionRange`, `maintenanceHistory`, `occupancyHistory`, `leaseHistory`. Expired reservations are released at most once a minute. |

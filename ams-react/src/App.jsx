@@ -43,6 +43,7 @@ const UserUtilities = lazy(() => import('./UserPages/UserUtilities'));
 const ServiceBooking = lazy(() => import('./UserPages/ServiceBooking'));
 const ServiceCatalog = lazy(() => import('./UserPages/ServiceCatalog'));
 import NotFound from './UserPages/NotFound';
+import { personName } from './utils/personName';
 
 // Admin Pages
 const AdminDashboard = lazy(() => import('./AdminPages/AdminDashboard'));
@@ -142,7 +143,7 @@ function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
   const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   const loggedInUser = JSON.parse(loggedInUserStr || "null");
   const isLoggedIn = loggedInUser !== null;
-  const username = isLoggedIn ? `${loggedInUser.first_name || ""} ${loggedInUser.last_name || ""}`.trim() : null;
+  const username = isLoggedIn ? personName(loggedInUser) : null;
 
   return (
     <UserThemeScope force={forceTheme} className="w-full min-h-screen bg-slate-50 flex flex-col text-slate-600 selection:bg-indigo-500 selection:text-white">
@@ -296,7 +297,7 @@ function AppContent() {
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<HomeRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={user?.first_name} /></BaseAppLayout></HomeRoute>} />
+        <Route path="/home" element={<HomeRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={user?.first_name} firstLogin={!!user?.first_login} /></BaseAppLayout></HomeRoute>} />
         <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} onInquireClick={handleInquireTrigger} /></BaseAppLayout>} />
         <Route path="/inquire" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout>} />
         

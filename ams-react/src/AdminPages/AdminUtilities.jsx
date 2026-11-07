@@ -23,6 +23,7 @@ import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import { personName } from '../utils/personName';
 
 // sync_utility_to_invoice.php: a separate invoice's due date is today to +10 days.
 const SYNC_DUE_MAX_DAYS = 10;
@@ -577,7 +578,7 @@ export default function AdminUtilities() {
                                   <p className="text-label font-bold text-slate-900 m-0">Unit {r.room_name}</p>
                                   {r.tenant_first_name ? (
                                     <p className="text-caption text-indigo-600 font-medium m-0">
-                                      {r.tenant_first_name} {r.tenant_last_name} <span className="text-slate-500 font-normal">(User #{r.user_id})</span>
+                                      {personName(r, 'tenant_')} <span className="text-slate-500 font-normal">(User #{r.user_id})</span>
                                     </p>
                                   ) : r.user_id ? (
                                     <p className="text-caption text-indigo-600 font-medium m-0">

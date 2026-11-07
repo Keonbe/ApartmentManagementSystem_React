@@ -6,6 +6,7 @@ import { useLang } from '../config/i18n';
 import { fileUrl } from '../api/fileUrl';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import '../assets/styles/account.css';
+import { personName } from '../utils/personName';
 
 const readUser = () => {
     try {
@@ -37,7 +38,7 @@ export default function AccountLayout({ hasRentedRoom, children }) {
         { to: '/my-refunds', label: t('topbar.myRefunds'), icon: faMoneyBillTransfer },
     ].filter(Boolean);
 
-    const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+    const name = personName(user);
     const initials = `${(user.first_name || '').charAt(0)}${(user.last_name || '').charAt(0)}`.toUpperCase() || '?';
 
     return (

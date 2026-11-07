@@ -19,7 +19,7 @@ if (!$user_id) {
 }
 
 try {
-    $stmt = $conn->prepare("SELECT id, first_name, last_name, avatar_url, role FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1");
+    $stmt = $conn->prepare("SELECT id, first_name, last_name, suffix, avatar_url, role FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1");
     if (!$stmt) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
@@ -39,6 +39,7 @@ try {
             'id' => (int) $admin['id'],
             'first_name' => $admin['first_name'],
             'last_name' => $admin['last_name'],
+            'suffix' => $admin['suffix'],
             'avatar_url' => $admin['avatar_url'],
             'role' => $admin['role'],
         ]

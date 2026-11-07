@@ -38,7 +38,7 @@ if ($category !== '' && strtolower($category) !== 'all') {
 $where = $conditions ? "WHERE " . implode(" AND ", $conditions) : "";
 
 $sql = "SELECT sr.id, sr.id AS rawId, sr.user_id AS userId,
-               TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS tenant,
+               TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS tenant,
                COALESCE(NULLIF(sr.room_name, ''), (
                    SELECT ra.room_name
                    FROM rent_applications ra

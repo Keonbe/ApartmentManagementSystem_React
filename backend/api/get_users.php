@@ -18,12 +18,12 @@ if (!verify_admin($conn, $admin_id)) {
 }
 
 try {
-    $result = $conn->query("SELECT id, first_name, last_name, email_address FROM users WHERE role = 'user' ORDER BY first_name, last_name");
+    $result = $conn->query("SELECT id, first_name, last_name, suffix, email_address FROM users WHERE role = 'user' ORDER BY first_name, last_name");
     $users = [];
     while ($row = $result->fetch_assoc()) {
         $users[] = [
             'id' => (int) $row['id'],
-            'name' => trim($row['first_name'] . ' ' . $row['last_name']),
+            'name' => person_name($row),
             'email' => $row['email_address']
         ];
     }

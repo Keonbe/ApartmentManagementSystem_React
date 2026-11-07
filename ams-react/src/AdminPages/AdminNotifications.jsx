@@ -273,11 +273,11 @@ const AdminNotifications = () => {
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50 min-w-0">
         <Header title="Notifications & Verifications" />
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
 
             {notice && (
               <div className={`mb-4 rounded-card border px-4 py-3 text-body font-semibold flex justify-between gap-3 ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>

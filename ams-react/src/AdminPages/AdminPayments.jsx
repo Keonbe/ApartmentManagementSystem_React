@@ -28,6 +28,7 @@ import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import { Skeleton, SkeletonBlock, SkeletonList, SkeletonRows } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
 import { invoiceOwed } from '../utils/invoiceBalance';
+import { personName } from '../utils/personName';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -184,7 +185,7 @@ const AdminPayments = () => {
             grouped[inv.user_id] = {
               id: inv.user_id,
               // Null-safe name creation protects the component tree from throwing TypeErrors
-              name: inv.first_name ? `${inv.first_name} ${inv.last_name}` : "Unknown User",
+              name: inv.first_name ? personName(inv) : "Unknown User",
               unit: inv.room_name ?? "Unassigned",
               status: inv.status ?? "pending",
               account: accounts[inv.user_id] || null,
@@ -533,7 +534,7 @@ const AdminPayments = () => {
     const utl = parseFloat(c.utility_deduction || 0);
     const fmtMonth = (d) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A');
     return {
-      tenantName: c.tenant || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Tenant',
+      tenantName: c.tenant || personName(c) || 'Tenant',
       unit: c.unit || c.room_name,
       leaseStart: fmtMonth(c.leaseStart || c.lease_start),
       leaseEnd: fmtMonth(c.leaseEnd || c.lease_end),
