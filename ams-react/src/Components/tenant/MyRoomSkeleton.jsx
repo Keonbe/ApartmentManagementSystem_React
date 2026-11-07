@@ -49,7 +49,7 @@ export default function MyRoomSkeleton() {
   return (
     <div role="status" aria-busy="true" className="my-room-root w-full min-h-[calc(100vh-76px)] flex flex-col items-center box-border py-8 sm:py-10 px-4 md:px-12 animate-fade-in">
       <span className="sr-only">Loading your room…</span>
-      <div className="w-full max-w-5xl flex flex-col gap-8">
+      <div className="w-full max-w-5xl lg:max-w-[1400px] flex flex-col gap-8">
         <div className="space-y-3">
           <Bone className="h-10 w-full max-w-sm" />
           <Bone className="h-4 w-48" />

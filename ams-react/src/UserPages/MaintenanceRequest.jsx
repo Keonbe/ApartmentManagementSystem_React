@@ -130,7 +130,7 @@ export default function MaintenanceRequest() {
 
     return (
         <div className="maintenance-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
+            <div className="w-full max-w-4xl lg:max-w-[1400px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
 
                 {/*Top Header Row*/}
                 <div className="border-b border-slate-200 pb-4">

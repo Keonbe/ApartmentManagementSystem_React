@@ -169,7 +169,7 @@ export default function UserAnnouncements() {
 
     return (
         <div className="user-announcements-root flex min-h-[calc(100vh-76px)] w-full flex-col items-center bg-slate-50 px-4 py-6 sm:py-10 md:px-12 box-border">
-            <div className="flex w-full max-w-[900px] flex-col justify-start gap-6 text-left">
+            <div className="flex w-full max-w-[900px] lg:max-w-[1400px] flex-col justify-start gap-6 text-left">
 
                 <header className="border-b border-slate-200 pb-4">
                     <h1 className="user-announcements-heading m-0 flex items-center gap-3 text-3xl font-extrabold tracking-tight text-brand sm:text-4xl">

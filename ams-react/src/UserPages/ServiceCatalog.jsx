@@ -80,7 +80,7 @@ export default function ServiceCatalog() {
 
     if (loading) {
         return (
-            <SkeletonPage label={t('serviceCatalog.loading')} maxWidth="max-w-6xl">
+            <SkeletonPage label={t('serviceCatalog.loading')} maxWidth="max-w-6xl lg:max-w-[1400px]">
                 <SkeletonGrid image="h-24" />
             </SkeletonPage>
         );

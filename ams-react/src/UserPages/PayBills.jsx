@@ -667,7 +667,7 @@ export default function PayBills() {
 
     return (
         <div className="pay-bills-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-8 lg:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-6xl space-y-5 sm:space-y-6 flex flex-col justify-start text-left">
+            <div className="w-full max-w-6xl lg:max-w-[1400px] space-y-5 sm:space-y-6 flex flex-col justify-start text-left">
 
                 {/* Named after the bill on screen, not today's month: an overdue bill is from an earlier one. */}
                 <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 pb-2">

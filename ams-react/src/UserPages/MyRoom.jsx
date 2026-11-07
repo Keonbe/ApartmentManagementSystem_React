@@ -468,7 +468,7 @@ export default function MyRoom() {
     return (
         <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-10 sm:pb-10 px-4 md:px-12">
 
-            <div className="page-enter w-full max-w-5xl z-10 flex flex-col gap-3 md:gap-8 text-left">
+            <div className="page-enter w-full max-w-5xl lg:max-w-[1400px] z-10 flex flex-col gap-3 md:gap-8 text-left">
                 <header>
                     <h1 className="m-0 text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
                         {`${loggedInUser?.first_login ? 'Welcome' : 'Welcome back'}${activeFirstName ? `, ${activeFirstName}` : ''}`}

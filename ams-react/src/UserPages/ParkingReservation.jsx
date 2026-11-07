@@ -214,7 +214,7 @@ export default function ParkingReservation() {
 
   return (
     <div className="parking-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
-      <div className="page-enter w-full max-w-6xl space-y-6 text-left">
+      <div className="page-enter w-full max-w-6xl lg:max-w-[1400px] space-y-6 text-left">
         <header>
           <Link to="/services" className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
             <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />

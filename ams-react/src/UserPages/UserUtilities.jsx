@@ -72,7 +72,7 @@ export default function UserUtilities() {
 
   return (
     <div className="user-utilities-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center text-slate-800">
-      <div className="w-full max-w-5xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
+      <div className="w-full max-w-5xl lg:max-w-[1400px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
         
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">

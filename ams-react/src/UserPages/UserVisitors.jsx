@@ -276,7 +276,7 @@ export default function UserVisitors() {
 
   return (
     <div className="user-visitors-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
-      <div className="w-full max-w-[1050px] space-y-6 text-left">
+      <div className="w-full max-w-[1050px] lg:max-w-[1400px] space-y-6 text-left">
 
         {/* Back Link & Header */}
         <div>
