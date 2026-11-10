@@ -12,8 +12,15 @@ const nudges = async () => (await one("SELECT COUNT(*) AS c FROM notifications W
 beforeAll(async () => {
   admin = await loginAs('admin');
   // An overdue bill for Maria (application 1), so the payment list is not empty.
+  // One rent invoice per tenant and period is enforced (uq_invoice_rent_period),
+  // and the seed holds fixed periods: "40 days ago" can land on one of them (it
+  // did on 2026-11-10), so walk back to the first free day.
+  let age = 40;
+  while ((await one(
+    "SELECT 1 AS taken FROM invoices WHERE user_id = 2 AND rent_period_key = DATE_SUB(CURDATE(), INTERVAL ? DAY)", [age],
+  ))) age += 1;
   await q(`INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, rent_period_start, status, due_date)
-           VALUES ('INV-FOLLOWUP-1', 2, 1, 4000, 4000, 'Follow-up test', DATE_SUB(CURDATE(), INTERVAL 40 DAY), 'overdue', DATE_SUB(CURDATE(), INTERVAL 40 DAY))`);
+           VALUES ('INV-FOLLOWUP-1', 2, 1, 4000, 4000, 'Follow-up test', DATE_SUB(CURDATE(), INTERVAL ? DAY), 'overdue', DATE_SUB(CURDATE(), INTERVAL ? DAY))`, [age, age]);
 });
 
 describe('remind all', () => {
