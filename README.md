@@ -127,9 +127,11 @@ git clone https://github.com/Keonbe/ApartmentManagementSystem_React.git Apartmen
    2. *(Optional)* [seed_mock_data.sql](backend/api/migrations/seeds/seed_mock_data.sql) — sample tenants, applications, invoices and logs.
 
    ```bash
-   /c/xampp/mysql/bin/mysql -u root < backend/api/migrations/SetupDB.sql
-   /c/xampp/mysql/bin/mysql -u root ams_db < backend/api/migrations/seeds/seed_mock_data.sql
+   /c/xampp/mysql/bin/mysql -u root --default-character-set=utf8mb4 < backend/api/migrations/SetupDB.sql
+   /c/xampp/mysql/bin/mysql -u root --default-character-set=utf8mb4 ams_db < backend/api/migrations/seeds/seed_mock_data.sql
    ```
+
+   Keep `--default-character-set=utf8mb4`: without it the Windows client stores the peso sign (₱) and other non-ASCII text corrupted.
 
    > ⚠️ `SetupDB.sql` drops and recreates tables and hardcodes `USE ams_db`. Re-import both files together to reset. Never run the demo seed on a deployed system.
 

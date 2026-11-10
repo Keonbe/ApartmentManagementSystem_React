@@ -14,8 +14,9 @@ DB="ams_db"
 USER_ARGS=(-u "${DB_USER:-root}")
 [ -n "${DB_PASS:-}" ] && USER_ARGS+=("-p$DB_PASS")
 
-mysql() { "$BIN/mysql.exe" "${USER_ARGS[@]}" "$@"; }
-dump() { "$BIN/mysqldump.exe" "${USER_ARGS[@]}" --single-transaction --routines --triggers "$@"; }
+# utf8mb4 on every call: the Windows client default mangles non-ASCII text on import (the peso sign came out as "Ôé▒").
+mysql() { "$BIN/mysql.exe" "${USER_ARGS[@]}" --default-character-set=utf8mb4 "$@"; }
+dump() { "$BIN/mysqldump.exe" "${USER_ARGS[@]}" --default-character-set=utf8mb4 --single-transaction --routines --triggers "$@"; }
 
 save() {
   mkdir -p "$DIR"
