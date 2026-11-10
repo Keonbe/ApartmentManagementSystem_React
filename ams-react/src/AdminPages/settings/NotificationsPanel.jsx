@@ -95,7 +95,7 @@ export default function NotificationsPanel({
               <Field label="Semaphore API Key" htmlFor="setting-smsApiKey">
                 <input
                   id="setting-smsApiKey" name="smsApiKey"
-                  type="password" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}
+                  type="password" autoComplete="new-password" spellCheck={false} maxLength={LIMITS.smtpField}
                   value={settings.smsApiKey || ''}
                   onChange={(e) => updateSetting('smsApiKey', e.target.value)}
                   className={INPUT_MONO}

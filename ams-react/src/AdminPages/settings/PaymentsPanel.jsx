@@ -388,7 +388,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                     <div>
                       <label className="text-[11px] font-bold text-slate-700 block mb-1">Slot Label / Description</label>
                       <input
-                        type="text"
+                        type="text" autoComplete="off"
                         placeholder="e.g. GCash Merchant QR"
                         value={slot.label || ''}
                         onChange={(e) => handleSlotFieldChange(slot.slot, 'label', e.target.value)}
@@ -398,7 +398,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                     <div>
                       <label className="text-[11px] font-bold text-slate-700 block mb-1">Account Name (optional)</label>
                       <input
-                        type="text"
+                        type="text" autoComplete="off"
                         placeholder="e.g. Juan Dela Cruz"
                         value={slot.account_name || ''}
                         onChange={(e) => handleSlotFieldChange(slot.slot, 'account_name', e.target.value)}
@@ -408,7 +408,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                     <div>
                       <label className="text-[11px] font-bold text-slate-700 block mb-1">Account / Mobile No. (optional)</label>
                       <input
-                        type="text"
+                        type="text" autoComplete="off"
                         placeholder="e.g. 0917-123-4567"
                         value={slot.account_number || ''}
                         onChange={(e) => handleSlotFieldChange(slot.slot, 'account_number', e.target.value)}
@@ -462,7 +462,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           <Field label="Sandbox Secret Key" htmlFor="setting-paymongoSecretKey">
             <input
               id="setting-paymongoSecretKey" name="paymongoSecretKey"
-              type="password" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}
+              type="password" autoComplete="new-password" spellCheck={false} maxLength={LIMITS.smtpField}
               value={settings.paymongoSecretKey || ''}
               onChange={(e) => updateSetting('paymongoSecretKey', e.target.value)}
               placeholder="sk_test_..."
@@ -482,7 +482,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           <Field label="Webhook Secret Key" htmlFor="setting-paymongoWebhookSecret" hint="Required for signature verification. Obtain this from the PayMongo Webhooks dashboard.">
             <input
               id="setting-paymongoWebhookSecret" name="paymongoWebhookSecret"
-              type="password" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}
+              type="password" autoComplete="new-password" spellCheck={false} maxLength={LIMITS.smtpField}
               value={settings.paymongoWebhookSecret || ''}
               onChange={(e) => updateSetting('paymongoWebhookSecret', e.target.value)}
               placeholder="whsk_..."
