@@ -22,6 +22,9 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [password, setPassword] = useState('');
     const [otp, setOtp] = useState('');
     const otpInputRefs = useRef([]);
+    // The submit button is disabled while the request runs, which drops keyboard
+    // focus to <body>; after a failed sign-in focus goes back to the password.
+    const passwordRef = useRef(null);
     const [showOtpStep, setShowOtpStep] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     // Set when axiosConfig bounced a request whose session had ended.
@@ -107,10 +110,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 // login.php says valid: false for a wrong email or password; the
                 // page used to recognise it by comparing the English message.
                 setMessage(res.data.valid === false ? t('login.invalidCredentials') : (res.data.message || t('login.error')));
+                passwordRef.current?.focus();
             }
         } catch (error) {
             // 429 carries the lockout message; anything else is a generic failure.
             if (!login.applyServerErrors(error)) setMessage(apiErrorMessage(error, t('login.error')));
+            passwordRef.current?.focus();
         } finally {
             setIsSubmitting(false);
         }
@@ -338,6 +343,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         {...login.fieldA11y('password')}
+                                        ref={passwordRef}
                                         autoComplete="current-password"
                                         maxLength={128}
                                         className={`block px-4 pb-2.5 pt-6 w-full text-base sm:text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-12 box-border${invalidCls(login.errors.password)}`}
@@ -369,7 +375,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             </div>
 
                             {message && (
-                                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-center font-semibold text-center shadow-sm">
+                                <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-center font-semibold text-center shadow-sm">
                                     <span>{message}</span>
                                 </div>
                             )}
