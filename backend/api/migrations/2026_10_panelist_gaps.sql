@@ -6,7 +6,8 @@
 -- Refund approval workflow: a tenant or admin raises a refund request for
 -- advance rent or an overpayment; the admin approves, rejects (reason) or asks
 -- for more info; the tenant replies or cancels; the admin records the payout.
--- Security deposits are deliberately not refundable here.
+-- Move-out security deposits are not refundable through this workflow; a deposit
+-- paid on an application that never moved in is included in cancellation review.
 
 CREATE TABLE IF NOT EXISTS `refund_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

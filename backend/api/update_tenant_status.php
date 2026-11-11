@@ -137,8 +137,10 @@ if ($id > 0 && !empty($status)) {
             exit;
         }
 
-        // Cancelling an approved application can mean money goes back: a reason is required.
-        $refund_on_cancel = $current_status === 'Approved' && in_array($status, ['Rejected', 'Declined', 'Cancelled'], true);
+        // Rejecting an approved application can trigger its own admin-origin refund.
+        // Admin cancellation remains a distinct action; tenant cancellation review
+        // creates its ticket through request_application_cancellation.php.
+        $refund_on_cancel = $current_status === 'Approved' && in_array($status, ['Rejected', 'Declined'], true);
         if ($refund_on_cancel && trim((string)$rejection_reason) === '') {
             http_response_code(422);
             echo json_encode(["success" => false, "message" => "A reason is required to reject or cancel an approved application.", "errors" => ["rejection_reason" => "A reason is required."]]);
@@ -188,8 +190,8 @@ if ($id > 0 && !empty($status)) {
                 'room_name' => $cur_row['room_name'], 'vacate_held_room' => $current_status === 'Approved',
             ]);
 
-            // Money already paid on an approved application goes back through
-            // a refund request per paid invoice (the admin decides at /admin-refunds).
+            // Money paid on an approved application rejected by management goes
+            // back through one admin-origin refund request per paid invoice.
             if ($refund_on_cancel && !empty($cur_row['user_id'])) {
                 $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, trim((string)$rejection_reason), $admin_id);
             }

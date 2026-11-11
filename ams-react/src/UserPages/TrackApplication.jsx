@@ -58,6 +58,10 @@ export default function TrackApplication() {
     const [contractInputKey, setContractInputKey] = useState(0);
     const [cancelApplication, setCancelApplication] = useState(false);
     const [cancellationReviewOpen, setCancellationReviewOpen] = useState(false);
+    const [cancellationReason, setCancellationReason] = useState('');
+    const [payoutDestination, setPayoutDestination] = useState('');
+    const [requestingCancellation, setRequestingCancellation] = useState(false);
+    const [cancellationError, setCancellationError] = useState('');
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const activeEmail = loggedInUser.email_address || '';
 
@@ -425,6 +429,26 @@ export default function TrackApplication() {
     const openCancellationReview = async () => {
         setCancellationReviewOpen(false);
         await openSupportChat?.();
+    };
+    const submitCancellationReview = async (e) => {
+        e.preventDefault();
+        if (requestingCancellation) return;
+        setRequestingCancellation(true);
+        setCancellationError('');
+        try {
+            const res = await api.post('/request_application_cancellation.php', {
+                id: application.id, reason: cancellationReason, payout_destination: payoutDestination,
+            });
+            if (!res.data.success) throw new Error(apiErrorMessage(res, 'Could not send the cancellation request.'));
+            setCancellationReviewOpen(false);
+            setNotice({ message: 'Cancellation request sent', subtext: 'Management will review the cancellation and refund. Your application remains active until management makes a decision.' });
+            setCancellationReason('');
+            setPayoutDestination('');
+        } catch (err) {
+            setCancellationError(apiErrorMessage(err, 'Could not send the cancellation request.'));
+        } finally {
+            setRequestingCancellation(false);
+        }
     };
     // Cancelling is allowed only before moving in (cancel_application.php checks too).
     const canCancel = ['pending', 'action', 'approved'].includes(status);
@@ -864,14 +888,21 @@ export default function TrackApplication() {
                     className="w-full max-w-lg mx-4 overflow-hidden rounded-2xl bg-white p-6 shadow-2xl outline-none"
                 >
                     <h2 className="m-0 text-lg font-bold text-slate-900">Cancellation Requires Management Review</h2>
-                    <p className="m-0 mt-3 text-sm leading-relaxed text-slate-700">
-                        Because a payment has already been recorded/submitted for this reservation, your contract terms and refund eligibility must be reviewed by management. Please contact management directly to initiate a cancellation and refund request.
-                    </p>
-                    <p className="m-0 mt-3 text-sm text-slate-600">Use the support chat to contact management about your request.</p>
-                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                        <button type="button" onClick={() => setCancellationReviewOpen(false)} className={BTN_QUIET}>Close</button>
-                        <button type="button" onClick={openCancellationReview} className={BTN_PRIMARY}>Contact management through support chat</button>
-                    </div>
+                    <p className="m-0 mt-3 text-sm leading-relaxed text-slate-700">Because payment has been recorded or submitted, this sends a cancellation and refund request for management review; it does not cancel your application. The security deposit portion is included in the refund review because you have not moved in.</p>
+                    <form onSubmit={submitCancellationReview} className="mt-4 space-y-3">
+                        <label className="block text-sm font-bold text-slate-700">Reason for cancellation
+                            <textarea required minLength={3} maxLength={255} value={cancellationReason} onChange={(e) => setCancellationReason(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-sm font-normal" />
+                        </label>
+                        <label className="block text-sm font-bold text-slate-700">Preferred payout account
+                            <input required maxLength={255} value={payoutDestination} onChange={(e) => setPayoutDestination(e.target.value)} placeholder="GCash number and account name, or bank name, account number and account name" className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-sm font-normal" />
+                        </label>
+                        {cancellationError && <p role="alert" className="m-0 text-sm font-semibold text-rose-700">{cancellationError}</p>}
+                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <button type="button" onClick={() => setCancellationReviewOpen(false)} className={BTN_QUIET}>Close</button>
+                            <button type="submit" disabled={requestingCancellation} className={BTN_PRIMARY}>{requestingCancellation ? 'Sending…' : 'Send cancellation request'}</button>
+                        </div>
+                        <button type="button" onClick={openCancellationReview} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-indigo-700 underline">Or contact management through support chat</button>
+                    </form>
                 </Modal>
             )}
 

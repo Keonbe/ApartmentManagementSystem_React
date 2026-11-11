@@ -1362,7 +1362,8 @@ CREATE TABLE IF NOT EXISTS `rate_limit_events` (
   KEY `idx_rate_limit_lookup` (`action`, `rate_key`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Refund approval workflow (2026_10_panelist_gaps.sql). Security deposits are not refundable here.
+-- Refund workflow: move-out deposits are not refunded here; deposits paid on
+-- applications that never moved in can be included in cancellation review.
 CREATE TABLE IF NOT EXISTS `refund_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
@@ -1375,6 +1376,9 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   `decision_reason` text DEFAULT NULL,
   `payout_method` varchar(50) DEFAULT NULL,
   `payout_reference` varchar(100) DEFAULT NULL,
+  `payout_destination` varchar(255) DEFAULT NULL,
+  `paid_amount` decimal(10,2) DEFAULT NULL,
+  `deposit_amount` decimal(10,2) DEFAULT NULL,
   `paymongo_payment_id` varchar(64) DEFAULT NULL,
   `gateway_refund_id` varchar(64) DEFAULT NULL,
   `gateway_status` varchar(20) DEFAULT NULL,
@@ -1391,6 +1395,13 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   KEY `idx_refund_gateway` (`gateway_refund_id`),
   CONSTRAINT `fk_refund_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Cancellation refund details (2026_11_cctv_auth_chat_billing.sql).
+ALTER TABLE `refund_requests` ADD COLUMN IF NOT EXISTS `payout_destination` varchar(255) DEFAULT NULL;
+ALTER TABLE `refund_requests` ADD COLUMN IF NOT EXISTS `paid_amount` decimal(10,2) DEFAULT NULL;
+ALTER TABLE `refund_requests` ADD COLUMN IF NOT EXISTS `deposit_amount` decimal(10,2) DEFAULT NULL;
+UPDATE `refund_requests` SET `reason` = REPLACE(`reason`, 'Application rejected after payment:', 'Application rejected by admin after payment:')
+WHERE `type` = 'rejected_application' AND `raised_by_role` = 'admin' AND `reason` LIKE 'Application rejected after payment:%';
 
 CREATE TABLE IF NOT EXISTS `refund_request_events` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

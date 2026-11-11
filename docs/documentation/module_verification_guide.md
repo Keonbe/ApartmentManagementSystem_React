@@ -3228,7 +3228,9 @@ Seed: `seeds/seed_defense_scenarios.sql` (checklist in `docs/documentation/date_
 | ID | Type | Step | Expected |
 |---|---|---|---|
 | **M21-01** | Negative | `update_tenant_status.php` `Rejected` on an Approved application with no reason | 422 "A reason is required…" |
-| **M21-02** | Happy | Reject an Approved application whose move-in invoice is paid (reason given) | One `refund_requests` row per paid invoice, `type='rejected_application'`, amount = recorded payments; response `refunds_raised`; admin queue `refund_request`; tenant told; open invoices cancelled; unit freed |
+| **M21-02** | Happy | Reject an Approved application whose move-in invoice is paid (reason given) | One admin-origin `refund_requests` row per paid invoice, `type='rejected_application'`, amount = recorded payments; response `refunds_raised`; admin queue `refund_request`; tenant told; open invoices cancelled; unit freed |
+| **M21-05** | Happy | Tenant submits cancellation review for a paid, not-yet-occupied application with payout details | `request_application_cancellation.php` creates one tenant-origin Pending Review refund; `paid_amount` and `deposit_amount` snapshot the invoice, payout destination is visible to admin, origin is `cancelled_by_tenant`; application and room stay unchanged; duplicate ticket refused; admin may adjust approval amount up to paid amount |
+| **M21-11** | Happy | Admin cancels (not rejects) an Approved application | Application cancellation is processed without creating an admin-rejection refund ticket; tenant-origin cancellation review remains a separate flow |
 | **M21-03** | Happy | Reject an Approved application with nothing paid | No refund row |
 | **M21-04** | Happy | `update_service_status.php` Cancelled on a Completed booking whose invoice is paid, with `adminNotes` | `rejected_charge` refund request, charge detached, 200 |
 | **M21-05** | Negative | Same without `adminNotes` (or Rejected/Cancelled from Approved) | 422 with `errors.adminNotes` |

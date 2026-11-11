@@ -3733,7 +3733,9 @@ function floor_rate_for($conn, $floor) {
 }
 
 // ── Refund requests ──
-// Advance rent and overpayments only; the security deposit is not refundable.
+// Advance rent, overpayments and cancelled never-occupied move-in invoices.
+// The security deposit is not refundable at move-out; a deposit paid before
+// move-in can be included in an application-cancellation refund review.
 // Admin actions: approve / reject / request_info / mark_refunded. Tenant
 // actions: reply (answers an info request) / cancel.
 const REFUND_TRANSITIONS = [
@@ -3805,23 +3807,24 @@ function notify_refund_raised($conn, $rid, $amount, $label) {
 // approval: [['invoiceId','label','amount']] (what the payments recorded, or
 // the invoice total when none were itemised), minus anything a refund request
 // already holds. Invoices settled from an advance credit are not new money.
-function paid_invoices_for_application($conn, $app_id) {
+function paid_invoices_for_application($conn, $app_id, $include_existing = false) {
     $app_id = (int)$app_id;
     $out = [];
     // Paid invoices, and any invoice with parts received (installments) whatever
     // its status now: those parts are refunded too.
-    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount, i.status, i.amount_paid,
+    $existing_filter = $include_existing ? "" : "AND NOT EXISTS (SELECT 1 FROM refund_requests r WHERE r.invoice_id = i.id AND r.status IN ('Pending Review','Info Requested','Approved','Refunded'))";
+    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount, i.status, i.amount_paid, i.security_deposit,
             (SELECT COALESCE(SUM(t.amount),0) FROM payment_transactions t WHERE t.invoice_id = i.id) AS tx_paid
         FROM invoices i
         WHERE i.rent_application_id = ? AND (i.status = 'paid' OR i.amount_paid > 0)
-          AND NOT EXISTS (SELECT 1 FROM refund_requests r WHERE r.invoice_id = i.id AND r.status IN ('Pending Review','Info Requested','Approved','Refunded'))
+          $existing_filter
           AND (i.payment_method IS NULL OR i.payment_method <> 'Advance credit')");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) {
         $amt = $r['status'] !== 'paid' ? (float)$r['amount_paid'] : ((float)$r['tx_paid'] > 0 ? (float)$r['tx_paid'] : (float)$r['total_amount']);
-        if ($amt > 0) $out[] = ['invoiceId' => $r['id'], 'label' => $r['billing_period'], 'amount' => round($amt, 2)];
+        if ($amt > 0) $out[] = ['invoiceId' => $r['id'], 'label' => $r['billing_period'], 'amount' => round($amt, 2), 'depositAmount' => min((float)$r['security_deposit'], $amt)];
     }
     $stmt->close();
     return $out;
@@ -3833,8 +3836,10 @@ function paid_invoices_for_application($conn, $app_id) {
 function raise_rejection_refunds($conn, $user_id, $app_id, $reason, $actor_id) {
     $raised = [];
     foreach (paid_invoices_for_application($conn, $app_id) as $p) {
-        $why = "Application rejected after payment: " . $reason;
+        $why = "Application rejected by admin after payment: " . $reason;
         $rid = insert_refund_request($conn, (int)$user_id, (int)$app_id, 'rejected_application', $p['invoiceId'], $p['amount'], $why, (int)$actor_id, 'admin');
+        $meta = $conn->prepare("UPDATE refund_requests SET paid_amount = ?, deposit_amount = ? WHERE id = ?");
+        $meta->bind_param('ddi', $p['amount'], $p['depositAmount'], $rid); $meta->execute(); $meta->close();
         $raised[] = ['id' => $rid, 'amount' => $p['amount']];
     }
     return $raised;

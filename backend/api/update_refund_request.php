@@ -36,7 +36,7 @@ if (in_array($action, ['reject', 'request_info'], true) && $message === '') {
 }
 if (mb_strlen($message) > 1000) refund_fail(400, "Keep the message under 1000 characters.");
 
-$stmt = $conn->prepare("SELECT id, user_id, type, invoice_id, amount, status, paymongo_payment_id, gateway_status FROM refund_requests WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, user_id, type, invoice_id, amount, status, paymongo_payment_id, gateway_status, paid_amount FROM refund_requests WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $req = $stmt->get_result()->fetch_assoc();
@@ -47,6 +47,16 @@ $to = $targets[$action];
 $from = $req['status'];
 if (!in_array($to, REFUND_TRANSITIONS[$from] ?? [], true)) {
     refund_fail(409, "This request is $from and cannot be moved to $to.");
+}
+
+$adjusted_amount = null;
+if ($action === 'approve' && array_key_exists('amount', $input)) {
+    if (!is_scalar($input['amount']) || !is_numeric($input['amount'])) refund_fail(422, 'Enter a valid refund amount.');
+    $adjusted_amount = round((float)$input['amount'], 2);
+    $ceiling = $req['paid_amount'] !== null ? (float)$req['paid_amount'] : (float)$req['amount'];
+    if ($adjusted_amount <= 0 || $adjusted_amount > $ceiling + 0.001) {
+        refund_fail(422, 'The approved refund must be greater than zero and no more than the verified amount paid (₱' . number_format($ceiling, 2) . ').');
+    }
 }
 
 $method = null;
@@ -100,8 +110,14 @@ try {
         $u = $conn->prepare("UPDATE refund_requests SET status='Refunded', payout_method=?, payout_reference=?, refunded_at=NOW() WHERE id=? AND status=?");
         $u->bind_param("ssis", $method, $reference, $id, $from);
     } elseif ($action === 'approve') {
-        $u = $conn->prepare("UPDATE refund_requests SET status='Approved', decided_by=?, decided_at=NOW(), decision_reason=NULLIF(?, '') WHERE id=? AND status=?");
-        $u->bind_param("isis", $admin_id, $message, $id, $from);
+        if ($adjusted_amount !== null) {
+            $u = $conn->prepare("UPDATE refund_requests SET amount=?, status='Approved', decided_by=?, decided_at=NOW(), decision_reason=NULLIF(?, '') WHERE id=? AND status=? AND amount=?");
+            $original_amount = (float)$req['amount'];
+            $u->bind_param("disisd", $adjusted_amount, $admin_id, $message, $id, $from, $original_amount);
+        } else {
+            $u = $conn->prepare("UPDATE refund_requests SET status='Approved', decided_by=?, decided_at=NOW(), decision_reason=NULLIF(?, '') WHERE id=? AND status=?");
+            $u->bind_param("isis", $admin_id, $message, $id, $from);
+        }
     } elseif ($action === 'reject') {
         $u = $conn->prepare("UPDATE refund_requests SET status='Rejected', decided_by=?, decided_at=NOW(), decision_reason=? WHERE id=? AND status=?");
         $u->bind_param("isis", $admin_id, $message, $id, $from);
