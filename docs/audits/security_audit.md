@@ -264,6 +264,20 @@ All upload handlers now use `finfo_file()` for server-side MIME detection instea
 
 ---
 
+### R-7. Settings Read by Anyone, and Data-Changing Sweeps Open to Anyone (fixed 2026-11-11)
+Found by the AI-assisted audit (`2026-11-10_iso25010_evidence_map.md`, §3.4).
+- **`get_system_settings.php`** returned about 90 keys to a caller with no login, including `smtp_host`, `email_driver`, the SMS and notification schedule, sweep timestamps and the QR payment account numbers. Only five credentials were stripped.
+- **Fix:** answer by caller. `PUBLIC_SETTING_KEYS` (config.php) is an allowlist for visitors: only what Home, Preview, the inquiry form, the Glass theme and the language switch read. Tenants get everything except `ADMIN_ONLY_SETTING_KEYS` (mail and SMS delivery, notification schedule, sweep timestamps, sign-in code and email-verification switches, landlord details, maintenance budget). Admins get everything, credentials masked. A new setting is hidden from visitors until it is added to the allowlist.
+- **`expire_contracts.php` / `expire_reservations.php`** answered with no session (as cron targets) and changed data. Nothing scheduled calls them, and the same sweeps run inside `get_contracts.php`, `get_inquiries.php`, `get_rooms.php` and the daily sweep, so both now use `require_admin` (401 / 403).
+- **Verified:** `tests/api/settings_visibility.test.js` (11 tests; 5 fail against the old endpoint), `reservations_waitlist.test.js` (admin gate cases) and `role_matrix.test.js` (both endpoints now classified admin-only); browser pass over Home, Preview, Inquire, Login, Register, tenant and admin pages.
+
+### R-8. Security deposit refunds, waiver and reviews (2026-11-11)
+- **A tenant cannot open a deposit refund.** `create_refund_request.php` still accepts only `advance` and `overpayment`; a `deposit` request is created only by `settle_deposit()` (move-out clearance or termination, both admin-only) or by an admin answering a review. A tenant cannot cancel one (`respond_refund_request.php` returns 409).
+- **The forfeiture waiver is admin-only and logged.** `waive_forfeiture_reason` is read as text only (an array or object counts as empty, so it cannot waive by accident), and the reason goes into the activity log.
+- **Reviews only touch the caller's own settlement.** `request_deposit_review.php` and `get_deposit_statement.php` take the user from the session, never from the request; `resolve_deposit_review.php` / `get_deposit_reviews.php` are `require_admin`. Two tabs cannot open two reviews (the settlement row is locked first) and an answer is claimed with `WHERE status = 'Open'`, so a double submit opens one refund.
+- **Money guards:** an adjustment is capped at what was not returned; a restored tenancy cancels open deposit refunds and is refused once one was paid out (`restore_tenant.php`); the cancellation fee can never exceed what was paid.
+- **Verified:** `deposit_refund.test.js`, `deposit_review.test.js`, `cancellation_fee.test.js`.
+
 ## 6b. Billing & Payments Hardening (2026-09)
 
 Findings from the Module 3 (Rental Payment & Billing) audit, all since fixed.

@@ -32,8 +32,6 @@ const PUBLIC = {
   auth_email: 'helper endpoint',
   submit_inquiry: 'public inquiry form',
   logout: 'idempotent: nothing to revoke without a token',
-  expire_contracts: 'idempotent date sweep, also run by cron',
-  expire_reservations: 'idempotent date sweep, also run by cron',
 };
 
 // Not endpoints for a browser: deploy or maintenance scripts. They must refuse an

@@ -3909,6 +3909,36 @@ const SECRET_SETTING_KEYS = [
     'sms_api_key',
 ];
 
+// ── Who may read which settings (get_system_settings.php) ──
+// Three tiers. A logged-out caller gets only PUBLIC_SETTING_KEYS: what Home,
+// Preview, the inquiry form, the theme and the language switch read. A tenant
+// gets every setting except ADMIN_ONLY_SETTING_KEYS (mail and SMS delivery, the
+// notification schedule, sweep timestamps). An admin gets everything, with the
+// credentials in SECRET_SETTING_KEYS masked. A key in neither list reaches
+// tenants and admins but stays hidden from logged-out callers, so a new setting
+// is private until someone decides it is public.
+const PUBLIC_SETTING_KEYS = [
+    'system_name', 'contact_email', 'contact_phone', 'currency_symbol', 'property_address',
+    'home_content', 'preview_hero', 'room_preview_mode', 'upcoming_rooms_enabled',
+    'glass_bg_image', 'glass_overlay_opacity', 'glass_blur', 'glass_tint',
+    'language_switch_enabled',
+    'floor_rates', 'min_household_age', 'child_restricted_floors', 'child_restricted_below_age', 'age_categories',
+    'max_occupants_per_unit', 'included_occupants', 'occupant_surcharge_per_person',
+    'inquiry_move_in_max_months', 'move_in_min_days', 'move_in_max_days',
+];
+
+const ADMIN_ONLY_SETTING_KEYS = [
+    'smtp_host', 'smtp_port', 'smtp_from_name', 'smtp_from_email', 'email_driver',
+    'sms_provider', 'sms_sender_name', 'sms_sender_approved', 'sms_daily_cap', 'sms_unit_cost',
+    'notifications_email_enabled', 'notifications_sms_enabled', 'notifications_dispatch_mode',
+    'notifications_quiet_start', 'notifications_quiet_end', 'notification_log_retention_days',
+    'notification_sweep_last_run', 'notification_queue_last_run',
+    'billing_checks_last_run', 'poll_checks_last_run', 'room_hold_check_last_run',
+    'login_otp_enabled', 'email_verification_enabled',
+    'paymongo_public_key', 'maintenance_monthly_budget',
+    'landlord_name', 'landlord_address', 'landlord_contact',
+];
+
 const SECRET_MASK_PREFIX = '••••';
 
 // What an admin's browser receives instead of the real credential. The last

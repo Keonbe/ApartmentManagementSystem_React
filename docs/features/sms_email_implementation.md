@@ -1517,7 +1517,7 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-20 | `POST update_notification_preferences.php` with the **legacy** flat payload | Still 200; in-app updated; SMS/email flags unchanged (C9 back-compat) |
 | M6-21 | Same with the new object payload | 200; all three flags updated; `activity_log` row written |
 | M6-22 | Same with `{"announcements": {"sms": "yes"}}` | 422, "Preference values must be true or false." |
-| M6-23 | Non-admin `GET get_system_settings.php` | No `smtp_password`, no `sms_*` secret in the response (C3) |
+| M6-23 | Non-admin `GET get_system_settings.php` | No `smtp_password`, no `sms_*` secret in the response (C3). Since 2026-11-11 a tenant or visitor also gets none of `smtp_host`, `email_driver`, `sms_provider`, the notification schedule or sweep timestamps (`settings_visibility.test.js`) |
 | M6-24 | Admin saves SMTP settings | `activity_log` details contain no cleartext secret |
 | M6-25 | Register a tenant with a 40-character email address | Accepted and stored intact (C4) |
 | M6-26 | `php backend/cron/check_environment.php` | Passes; no new warnings |

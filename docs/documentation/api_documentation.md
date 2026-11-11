@@ -983,7 +983,7 @@ The audit trail, filtered and paged on the server. `require_admin()`.
 ---
 
 ### `GET` / `POST` [get_system_settings.php](../../backend/api/get_system_settings.php) / [update_system_settings.php](../../backend/api/update_system_settings.php)
-Read/write system-wide configuration. `update_system_settings.php` is `require_admin()`: keys must match `[A-Za-z0-9_]`, arrays are stored as JSON, only changed values are written, and the activity-log entry names the keys that changed (secret keys shown as "value hidden"). Response includes `changed`.
+Read/write system-wide configuration. **`get_system_settings.php` answers by caller** (since 2026-11-11; `PUBLIC_SETTING_KEYS` and `ADMIN_ONLY_SETTING_KEYS` in `backend/config.php`): a logged-out visitor gets only the public allowlist (system name, contact details, currency, Home and Preview content, Glass theme, language switch, floor rates, age and occupancy rules, inquiry and move-in limits); a tenant gets everything except the operational keys (SMTP, email driver, SMS, notification schedule and dispatch, sweep timestamps, sign-in code and email-verification switches, landlord details, maintenance budget); an admin gets everything with credentials masked. A key in neither list reaches tenants and admins but stays hidden from visitors until it is added to the allowlist. `update_system_settings.php` is `require_admin()`: keys must match `[A-Za-z0-9_]`, arrays are stored as JSON, only changed values are written, and the activity-log entry names the keys that changed (secret keys shown as "value hidden"). Response includes `changed`.
 
 **Known Settings:**
 | Key | Type | Description |
@@ -1076,10 +1076,10 @@ Admin cancels or converts a reservation. Releasing a reservation returns the roo
 These endpoints are designed to be called periodically (cron job or admin-triggered):
 
 ### `GET`/`POST` [expire_contracts.php](../../backend/api/expire_contracts.php)
-Calls `expire_lapsed_contracts()` — marks active contracts with `lease_end < today` as `expired`.
+Calls `expire_lapsed_contracts()` — marks active contracts with `lease_end < today` as `expired`. **Admin session required** since 2026-11-11 (`require_admin`: 401 without a token, 403 for a tenant). Nothing has to call it: `get_contracts.php` and the daily notification sweep run the same sweep.
 
 ### `GET`/`POST` [expire_reservations.php](../../backend/api/expire_reservations.php)
-Calls `release_expired_reservations()` — marks lapsed unit holds as `Expired`, returns rooms to `vacant`.
+Calls `release_expired_reservations()` — marks lapsed unit holds as `Expired`, returns rooms to `vacant`. **Admin session required** since 2026-11-11 (401 without a token, 403 for a tenant); the admin Inquiries page sends one, and `get_inquiries.php` / `get_rooms.php` run the same sweep.
 
 ### `GET`/`POST` [check_due_date_reminders.php](../../backend/api/check_due_date_reminders.php)
 Automated reminder sweep — sends notifications to tenants with invoices due within configurable days.
@@ -1223,7 +1223,7 @@ Behaviour that the sections above no longer describe fully. The code wins; endpo
 | create_announcement.php | `require_admin`. In-app is always on; `sms` / `email` only when requested (SMS body <= 160, else 422). Extra fields: `unit` (for "Specific unit"), `draft`, `scheduledAt`, `draftId`, `removeAttachment`, `attachment` (JPG/PNG/PDF, 10 MB), `action` `unschedule` / `sendNow`. Recipients are current tenants (`Approved`, `active`, `pending-move-out`). |
 | cctv_request.php / update_cctv_status.php | Request: `incidentDate` (not in the future, within `lookbackDays`), `incidentTime`, `locationDetails` (from the settings list), `incidentType`, `reasonRequest` (settings minimum, >= 20 for `other`), `privacyConsent: true`; 403 when the service is off. Decision: only `Approved` / `Rejected`, `note` required (<= 500), only on Pending. |
 | get_notifications.php | Admins also receive notifications addressed to them, not only the action queue. Max 100; includes `unread_count`. Runs the notification sweep, lapsed-payment voiding, scheduled announcements, CCTV purge and visitor overstay checks at most once a minute. |
-| get_system_settings.php / update_system_settings.php | Reading needs no login (secret keys removed for non-admins, masked for admins). Saving is all-or-nothing in one transaction with per-key `$SETTING_RULES` bounds (for example `min_lease_duration` 1-24, `payment_window_days` 1-30, `visitor_overstay_hours` 1-168); the late-fee keys have no rule and are stored as posted. |
+| get_system_settings.php / update_system_settings.php | Reading needs no login but is limited by caller (visitors: public allowlist; tenants: without operational keys; admins: everything; secret keys removed for non-admins, masked for admins). Saving is all-or-nothing in one transaction with per-key `$SETTING_RULES` bounds (for example `min_lease_duration` 1-24, `payment_window_days` 1-30, `visitor_overstay_hours` 1-168); the late-fee keys have no rule and are stored as posted. |
 | update_tenant_status.php | Accepted statuses: `Approved`, `Rejected`, `Declined`, `Cancelled`, `active` (confirm move-in), `pending-move-out`, `moved-out`, `Action Required`. Rejected / Declined need a reason and may carry an attachment; `moved-out` accepts itemised `deductions`. The occupant surcharge comes from `occupant_surcharge_per_person` (default 1000). |
 | manage_service_catalog.php | POST only, `action` `create` / `update` / `toggle` / `delete`; categories come from `service_categories`; pricing units `session`, `kg`, `hour`, `item`. Listing is `get_service_catalog.php`. |
 | update_occupants.php | Body `{occupants}`: between 1 + active household members and `max_occupants_per_unit`, and different from the current count. |
@@ -1389,7 +1389,7 @@ All endpoints return JSON with this shape on error:
 | 67 | [mark_notification_read.php](../../backend/api/mark_notification_read.php) | POST | Comms | User | Mark as read |
 | 68 | [delete_notification.php](../../backend/api/delete_notification.php) | POST | Comms | User | Delete notification |
 | 69 | [get_activity_logs.php](../../backend/api/get_activity_logs.php) | GET | System | Admin | Audit trail |
-| 70 | [get_system_settings.php](../../backend/api/get_system_settings.php) | GET | System | Public | Read settings (secret keys removed for non-admins, masked for admins) |
+| 70 | [get_system_settings.php](../../backend/api/get_system_settings.php) | GET | System | Public (filtered by caller) | Read settings (visitors: allowlist; tenants: no operational keys; admins: all, secret keys masked) |
 | 71 | [update_system_settings.php](../../backend/api/update_system_settings.php) | POST | System | Admin | Write settings |
 | 72 | [dashboard_stats.php](../../backend/api/dashboard_stats.php) | GET | System | Admin | Dashboard statistics |
 | 73 | [get_report_data.php](../../backend/api/get_report_data.php) | GET | System | Admin | Export reports |
@@ -1401,8 +1401,8 @@ All endpoints return JSON with this shape on error:
 | 79 | [cctv_request.php](../../backend/api/cctv_request.php) | POST | CCTV | User | Request footage |
 | 80 | [get_cctv_requests.php](../../backend/api/get_cctv_requests.php) | GET | CCTV | User/Admin | List CCTV requests |
 | 81 | [update_cctv_status.php](../../backend/api/update_cctv_status.php) | POST | CCTV | Admin | Process CCTV request |
-| 82 | [expire_contracts.php](../../backend/api/expire_contracts.php) | GET/POST | Cron | — | Auto-expire contracts |
-| 83 | [expire_reservations.php](../../backend/api/expire_reservations.php) | GET/POST | Cron | — | Auto-expire reservations |
+| 82 | [expire_contracts.php](../../backend/api/expire_contracts.php) | GET/POST | Sweep | Admin | Auto-expire contracts |
+| 83 | [expire_reservations.php](../../backend/api/expire_reservations.php) | GET/POST | Sweep | Admin | Auto-expire reservations |
 | 84 | [check_due_date_reminders.php](../../backend/api/check_due_date_reminders.php) | GET/POST | Cron | — | Send due date reminders |
 | 85 | [adjust_invoice.php](../../backend/api/adjust_invoice.php) | POST | Added 2026-09+ | Admin | See §15 |
 | 86 | [reject_payment_proof.php](../../backend/api/reject_payment_proof.php) | POST | Added 2026-09+ | Admin | See §15 |

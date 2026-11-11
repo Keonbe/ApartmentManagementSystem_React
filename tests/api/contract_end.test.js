@@ -40,7 +40,8 @@ beforeAll(async () => {
 
 describe('Contract End settings', () => {
   it('ship with no deadline, reminders on, upcoming rooms on', async () => {
-    const s = (await api('get_system_settings.php')).body.settings;
+    // As the admin who edits them: the deadline and the reminder switches are not part of the public allowlist.
+    const s = (await api('get_system_settings.php', { token: admin })).body.settings;
     expect(s).toMatchObject({
       extension_deadline_days: 0,
       lease_end_reminders_enabled: '1',

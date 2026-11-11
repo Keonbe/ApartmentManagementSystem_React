@@ -2,10 +2,10 @@
 // Sweep for unit reservations whose hold period has lapsed: mark them Expired
 // and return the units to 'vacant'.
 //
-// Safe to call from a scheduled task (Windows Task Scheduler / cron) or from
-// the admin Inquiries page. Same shape as check_due_date_reminders.php.
-// get_inquiries.php and get_rooms.php also run the sweep opportunistically, so
-// holds still lapse without anything scheduled.
+// Admin only: needs an admin session (the admin Inquiries page sends one).
+// Nothing has to call this URL otherwise, because get_inquiries.php and
+// get_rooms.php run the same sweep, so holds still lapse without anything
+// scheduled.
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/../cors.php';
@@ -19,12 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
+// This used to answer anyone with no session (as a cron target). The same sweep
+// already runs from the read paths, so an anonymous caller gains nothing and now
+// gets 401 (403 for a tenant).
+$admin_id = require_admin($conn);
+
 $released = release_expired_reservations($conn);
 
-// Log only when the sweep actually did something, and only when an admin
-// triggered it (a cron run has no admin id to attribute).
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if ($released > 0 && verify_admin($conn, $admin_id)) {
+// Log only when the sweep actually did something.
+if ($released > 0) {
     log_activity($conn, (int)$admin_id, 'inquiry', "Released Expired Reservations", "$released reservation(s) expired and returned to vacant");
 }
 

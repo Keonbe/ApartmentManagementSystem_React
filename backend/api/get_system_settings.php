@@ -92,6 +92,16 @@ if (isset($settings['qrph_slots'])) {
     $settings['qrph_slots'] = is_array($decoded) ? $decoded : [];
 }
 
+// How much of it the caller gets (PUBLIC_SETTING_KEYS / ADMIN_ONLY_SETTING_KEYS in
+// config.php). Done last so the computed and defaulted keys above are filtered
+// too. get_authenticated_user() is cached per request, so this adds no query.
+$caller = get_authenticated_user($conn);
+if (!$caller) {
+    $settings = array_intersect_key($settings, array_flip(PUBLIC_SETTING_KEYS));
+} elseif ($caller['role'] !== 'admin') {
+    $settings = array_diff_key($settings, array_flip(ADMIN_ONLY_SETTING_KEYS));
+}
+
 echo json_encode(["success" => true, "settings" => $settings]);
 $conn->close();
 ?>

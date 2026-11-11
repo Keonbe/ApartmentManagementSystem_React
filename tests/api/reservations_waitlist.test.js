@@ -1,5 +1,6 @@
 // create_reservation.php, update_reservation_status.php, expire_reservations.php,
-// manage_waitlist.php, get_inquiries.php, update_inquiry_status.php.
+// expire_contracts.php (the admin gate), manage_waitlist.php, get_inquiries.php,
+// update_inquiry_status.php.
 // QA guide rows Q2-xx / inquiries. These endpoints answer 200 with success:false for most
 // validation failures, so the tests check the body and the database, not just the status.
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -176,6 +177,28 @@ describe('expire_reservations.php', () => {
     await q('UPDATE unit_reservations SET hold_expires_at = CURDATE() WHERE id = ?', [r.body.reservation_id]);
     await api('expire_reservations.php', { token: admin });
     expect((await one('SELECT status FROM unit_reservations WHERE id = ?', [r.body.reservation_id])).status).toBe('Active');
+  });
+
+  it('needs an admin session: no token is 401, a tenant is 403, and nothing is released', async () => {
+    await addRoom('QAE4');
+    const r = await reserve(admin, { room_name: 'QAE4', reserved_for_name: 'Gate Hold' });
+    await q('UPDATE unit_reservations SET hold_expires_at = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id = ?', [r.body.reservation_id]);
+    expect((await api('expire_reservations.php', {})).status).toBe(401);
+    expect((await api('expire_reservations.php', { token: maria })).status).toBe(403);
+    expect((await one('SELECT status FROM unit_reservations WHERE id = ?', [r.body.reservation_id])).status).toBe('Active');
+    await api('expire_reservations.php', { token: admin }); // an admin run does release it
+    expect((await one('SELECT status FROM unit_reservations WHERE id = ?', [r.body.reservation_id])).status).toBe('Expired');
+  });
+});
+
+describe('expire_contracts.php', () => {
+  it('needs an admin session: no token is 401, a tenant is 403, an admin gets the count', async () => {
+    expect((await api('expire_contracts.php', {})).status).toBe(401);
+    expect((await api('expire_contracts.php', { token: maria })).status).toBe(403);
+    const res = await api('expire_contracts.php', { token: admin });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(typeof res.body.expired).toBe('number');
   });
 });
 

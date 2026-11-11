@@ -394,7 +394,7 @@ Per-page behaviour (panels, forms, validations, actions) is in [tenant_pages.md]
 | `update_inquiry_status.php` | POST | Triage an inquiry (New → Contacted → Scheduled → Reserved → Converted/Closed) | ✅ |
 | `create_reservation.php` | POST | Place a hold on a unit; rejects on room status, active hold, or pending application | ✅ |
 | `update_reservation_status.php` | POST | Cancel / expire / convert a hold; releases the room on cancel and expire | ✅ |
-| `expire_reservations.php` | GET/POST | Cron-style sweep releasing lapsed holds | ✅ |
+| `expire_reservations.php` | GET/POST | Admin-only sweep releasing lapsed holds (the same sweep also runs inside `get_inquiries` / `get_rooms`) | ✅ |
 | `update_tenant_status.php` | POST | Update tenant status; syncs `rooms` + creates initial invoice on Approval | ✅ |
 | `archive_tenant.php` | POST | Archive tenant with reason/notes | ✅ |
 | `my_room.php` | GET | Fetch tenant room info + pending invoice flag | ✅ |
@@ -424,7 +424,7 @@ Per-page behaviour (panels, forms, validations, actions) is in [tenant_pages.md]
 | `dashboard_stats.php` | GET | Aggregate live KPIs + income chart + new tenants | ✅ |
 | `get_report_data.php` | GET | Aggregate report data by timeframe/month/year | ✅ |
 | `get_activity_logs.php` | GET | Fetch system activity logs | ✅ |
-| `get_system_settings.php` | GET | Fetch system settings from DB | ✅ |
+| `get_system_settings.php` | GET | Fetch system settings from DB, filtered by caller (visitors: public allowlist; tenants: no operational keys; admins: all, secrets masked) | ✅ |
 | `update_system_settings.php` | POST | Update system settings in DB | ✅ |
 
 ### 7.2 Endpoints Still Missing

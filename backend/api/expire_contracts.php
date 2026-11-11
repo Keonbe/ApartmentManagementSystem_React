@@ -1,10 +1,10 @@
 <?php
 // Sweep for active lease contracts whose lease_end has passed: mark them Expired.
 //
-// Safe to call from a scheduled task (Windows Task Scheduler / cron) or from
-// the admin Contracts page. Same shape as expire_reservations.php.
-// get_contracts.php also runs the sweep opportunistically, so contracts still
-// expire without anything scheduled.
+// Admin only: needs an admin session. Nothing has to call this URL, because
+// get_contracts.php and the daily notification sweep run the same sweep, so
+// contracts still expire without anything scheduled. Same shape as
+// expire_reservations.php.
 
 header('Content-Type: application/json');
 require_once __DIR__ . '/../cors.php';
@@ -18,18 +18,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
-// Deliberately callable with no session (documented as a cron target
-// in the deployment docs): a scheduled cron job hits this URL directly, the same shape as
-// expire_reservations.php. The mutation is idempotent and deterministic
-// (lease_end has either passed or it hasn't), so there is nothing an
-// unauthenticated caller can do here beyond what would happen anyway the
-// next time an authenticated page reads a lapsed contract.
+// This used to answer anyone with no session (as a cron target). The same sweep
+// already runs from the read paths and the daily sweep, so an anonymous caller
+// gains nothing and now gets 401 (403 for a tenant).
+$admin_id = require_admin($conn);
+
 $expired = expire_lapsed_contracts($conn);
 
-// Log only when the sweep actually did something, and only when an admin
-// triggered it (a cron run has no admin id to attribute).
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if ($expired > 0 && verify_admin($conn, $admin_id)) {
+// Log only when the sweep actually did something.
+if ($expired > 0) {
     log_activity($conn, (int)$admin_id, 'contract', "Expired Lapsed Contracts", "$expired contract(s) auto-expired (lease_end passed)");
 }
 

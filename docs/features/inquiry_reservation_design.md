@@ -134,7 +134,7 @@ ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `metadata_value` varchar(25
 | `update_inquiry_status.php` | `verify_admin` | Triage transitions, notes, viewing date |
 | `create_reservation.php` | `verify_admin` | Places the hold, with all three conflict checks |
 | `update_reservation_status.php` | `verify_admin` | `Cancelled` / `Expired` / `Converted` |
-| `expire_reservations.php` | none (cron-style) | Manual or scheduled sweep |
+| `expire_reservations.php` | `require_admin` (since 2026-11-11) | Manual sweep from the Inquiries page; the same sweep runs in `get_inquiries.php` and `get_rooms.php` |
 
 `release_expired_reservations($conn)` lives in `backend/config.php` next to
 `verify_admin` and `log_activity`. It is UPDATE-only and called explicitly from
