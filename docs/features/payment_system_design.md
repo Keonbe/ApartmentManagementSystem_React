@@ -46,6 +46,8 @@ These are already implemented and working.
 | **Manual GCash** | Upload proof screenshot + 13-digit reference number (Pay Bills continues to the upload page for QR Ph, GCash and bank, 2026-11-07) | Verify proof → approve payment | `upload_payment_proof.php`, `PayBills.jsx` → `PaymentUpload.jsx` |
 | **Manual Bank Transfer** | Upload deposit slip/screenshot + reference number | Verify proof → approve payment | Same files as above |
 
+Bank transfer references accept numeric, alphabetic or mixed alphanumeric trace/transaction IDs up to 55 characters; unlike GCash, they are not required to contain letters. The upload form's originating-bank dropdown uses explicit light/dark colors for both the select and its options.
+
 Current flow:
 
 ```mermaid
@@ -382,3 +384,5 @@ flowchart LR
 
 ## Tenant payment screens (2026-11)
 Details in [tenant_pages.md](tenant_pages.md) §4. Pay Bills lays out the statement and the "how to pay" column side by side and offers: manual (GCash / bank with reference and proof), in person (scheduled date, morning / afternoon), online PayMongo checkout, **split payment** (portions kept in `payment_proof_parts` until the admin confirms; each confirmed portion becomes a `payment_transactions` row), partial amounts capped at the balance, **pay all together** (bundle, `BND-` key, one combined receipt) and **pay in advance** (`advance_payment.php`, `advance_credits`). Payment History groups open, paid (by year) and cancelled bills with printable receipts. Online payments can be refunded through PayMongo (My Refunds, `refund_requests`).
+
+Admin Payments treats proof paths, sender names and references as invoice-scoped data. The selected invoice supplies those values (including nulls), so a previous invoice cannot populate the current bill's verification panel. The e-receipt verification panel is hidden for cash and shown for digital payment proofs only.

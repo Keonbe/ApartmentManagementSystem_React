@@ -177,8 +177,9 @@ export const checkAmount = (value, { min = 0, max = MAX_AMOUNT, label = 'Amount'
 };
 
 // Manual payment references (PaymentUpload's rules, shared with PayBills):
-// GCash is exactly 13 digits; a bank reference is up to 55 characters and not
-// digits only. Anything else fits invoices.payment_reference.
+// GCash is exactly 13 digits; a bank reference is up to 55 characters. Numeric-
+// only trace numbers are valid for bank transfers. Anything else fits
+// invoices.payment_reference.
 // A bank transfer, whatever the bank: 'BDO', 'BPI (Manual)', 'Bank Transfer'…
 export const isBankMethod = (method = '') => /bank|bdo|bpi/i.test(String(method));
 
@@ -191,7 +192,6 @@ export const checkPaymentReference = (reference, method = '') => {
   }
   if (isBankMethod(m)) {
     if (ref.length > 55) return 'Bank transfer reference must be 55 characters or fewer.';
-    if (/^\d+$/.test(ref)) return 'Bank transfer reference cannot be numbers only.';
     return '';
   }
   return checkLength(ref, LIMITS.paymentReference, 'Reference number');

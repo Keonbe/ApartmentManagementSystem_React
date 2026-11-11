@@ -17,6 +17,7 @@ import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import FieldError from '../Components/form/FieldError';
 import { formatFileSize } from '../Components/form/formHelpers';
 import ReasonModal from '../Components/form/ReasonModal';
+import Modal from '../Components/admin/Modal';
 import { apiErrorMessage } from '../utils/apiError';
 import { MOVE_IN_WINDOW_DEFAULT, checkMoveInDate, moveInBounds, moveInRangeText } from '../utils/validation';
 import { getSystemSettings } from '../config/systemSettings';
@@ -24,9 +25,11 @@ import ApplicationStepper from '../Components/tenant/ApplicationStepper';
 import { APPLICATION_STATUS_CHIP, applicationSteps, isMoveInPaymentSettled, normalizeApplicationStatus } from '../utils/applicationSteps';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 import { Bone, SkeletonPage } from '../Components/tenant/Skeleton';
+import { useChat } from '../context/ChatContext';
 
 export default function TrackApplication() {
     const navigate = useNavigate();
+    const { openSupportChat } = useChat();
     const { t } = useLang();
     const [loading, setLoading] = useState(true);
     const [application, setApplication] = useState(null);
@@ -54,6 +57,7 @@ export default function TrackApplication() {
     const [contractError, setContractError] = useState('');
     const [contractInputKey, setContractInputKey] = useState(0);
     const [cancelApplication, setCancelApplication] = useState(false);
+    const [cancellationReviewOpen, setCancellationReviewOpen] = useState(false);
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const activeEmail = loggedInUser.email_address || '';
 
@@ -414,6 +418,14 @@ export default function TrackApplication() {
         : 0;
     const hasPartialMoveInPayment = Number(application?.pending_amount_paid ?? application?.amount_paid ?? 0) > 0
         && !moveInPaymentSettled && moveInBalance > 0;
+    const hasSubmittedPayment = Boolean(application?.payment_submitted)
+        || Number(application?.pending_amount_paid ?? application?.amount_paid ?? 0) > 0
+        || ['pending-verification', 'processing', 'paid'].includes(application?.pending_invoice_status)
+        || moveInPaymentSettled;
+    const openCancellationReview = async () => {
+        setCancellationReviewOpen(false);
+        await openSupportChat?.();
+    };
     // Cancelling is allowed only before moving in (cancel_application.php checks too).
     const canCancel = ['pending', 'action', 'approved'].includes(status);
 
@@ -815,10 +827,12 @@ export default function TrackApplication() {
                             </dl>
                             {canCancel && (
                                 <div className="mt-5 border-t border-slate-200 pt-4">
-                                    <button type="button" onClick={() => setCancelApplication(true)} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-rose-700 hover:text-rose-700 cursor-pointer underline-offset-2 hover:underline">
-                                        Cancel application
+                                    <button type="button" onClick={() => (hasSubmittedPayment ? setCancellationReviewOpen(true) : setCancelApplication(true))} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-rose-700 hover:text-rose-700 cursor-pointer underline-offset-2 hover:underline">
+                                        {hasSubmittedPayment ? 'Request Cancellation' : 'Cancel application'}
                                     </button>
-                                    <p className="m-0 mt-1 text-sm text-slate-600">Possible until you move in.</p>
+                                    <p className="m-0 mt-1 text-sm text-slate-600">
+                                        {hasSubmittedPayment ? 'Subject to lease cancellation terms.' : 'Possible until you move in.'}
+                                    </p>
                                 </div>
                             )}
                         </aside>
@@ -842,6 +856,23 @@ export default function TrackApplication() {
                     onConfirm={confirmCancellation}
                     onClose={() => setCancelApplication(false)}
                 />
+            )}
+            {cancellationReviewOpen && (
+                <Modal
+                    title="Cancellation Requires Management Review"
+                    onClose={() => setCancellationReviewOpen(false)}
+                    className="w-full max-w-lg mx-4 overflow-hidden rounded-2xl bg-white p-6 shadow-2xl outline-none"
+                >
+                    <h2 className="m-0 text-lg font-bold text-slate-900">Cancellation Requires Management Review</h2>
+                    <p className="m-0 mt-3 text-sm leading-relaxed text-slate-700">
+                        Because a payment has already been recorded/submitted for this reservation, your contract terms and refund eligibility must be reviewed by management. Please contact management directly to initiate a cancellation and refund request.
+                    </p>
+                    <p className="m-0 mt-3 text-sm text-slate-600">Use the support chat to contact management about your request.</p>
+                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        <button type="button" onClick={() => setCancellationReviewOpen(false)} className={BTN_QUIET}>Close</button>
+                        <button type="button" onClick={openCancellationReview} className={BTN_PRIMARY}>Contact management through support chat</button>
+                    </div>
+                </Modal>
             )}
 
             {/* Modal Alert for file size / format violations */}

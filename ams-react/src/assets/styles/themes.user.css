@@ -52,6 +52,34 @@
   background-color: var(--ut-page);
 }
 
+/* Native select popups may use the browser's dark color scheme even when the
+   app theme is light. Keep Payment Upload's bank selector explicitly light. */
+.ut-light #upload-bank-name {
+  color-scheme: light;
+  background-color: #fff;
+  border-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.ut-dark #upload-bank-name,
+.ut-glass #upload-bank-name {
+  color-scheme: dark;
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+.ut-light #upload-bank-name option {
+  background-color: #fff;
+  color: #1e293b;
+}
+
+.ut-dark #upload-bank-name option,
+.ut-glass #upload-bank-name option {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
 /* Payment method cards keep the page's light palette in Light mode, while
    explicitly adopting the user theme in Dark/Glass. Tailwind's `dark:` variant
    follows the OS preference, not the selected app theme, so don't use it here. */

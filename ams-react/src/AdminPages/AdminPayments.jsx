@@ -251,11 +251,6 @@ const AdminPayments = () => {
               paymentReference: inv.payment_reference,
               senderName: inv.sender_name
             });
-            if (!t.proofOfPaymentPath && inv.proof_of_payment_path) {
-              t.proofOfPaymentPath = inv.proof_of_payment_path;
-              if (inv.payment_reference) t.paymentReference = inv.payment_reference;
-              if (inv.sender_name) t.senderName = inv.sender_name;
-            }
           }
         });
         
@@ -322,9 +317,11 @@ const AdminPayments = () => {
           // payment that used the same reference (Settings -> Payments).
           t.adjustments = months.flatMap(i => (i.adjustments || []).map(a => ({ ...a, invoiceId: i.id })));
           t.referenceReuse = sel.status === 'pending-verification' ? (months.map(i => i.reference_reuse).find(Boolean) || null) : null;
-          if (sel.proof_of_payment_path) t.proofOfPaymentPath = sel.proof_of_payment_path;
-          if (sel.payment_reference) t.paymentReference = sel.payment_reference;
-          if (sel.sender_name) t.senderName = sel.sender_name;
+          // Proof data is invoice-scoped. Assign nulls too so a previous/paid
+          // invoice can never leak its proof metadata into the selected bill.
+          t.proofOfPaymentPath = sel.proof_of_payment_path || null;
+          t.paymentReference = sel.payment_reference || null;
+          t.senderName = sel.sender_name || null;
           if (sel.split_parts?.length) t.splitParts = sel.split_parts;
           if (sel.payment_gateway) t.paymentGateway = sel.payment_gateway;
           // How the tenant chose to pay this bill. A proof under review locks
@@ -1347,7 +1344,10 @@ const handleMarkAsPaid = async () => {
                         </div>
                       )}
                       
-                      {(activeTenant.status === 'pending-verification' || activeTenant.proofOfPaymentPath) && (
+                      {(activeTenant.declaredMethod !== 'cash' && (
+                        activeTenant.proofOfPaymentPath || activeTenant.senderName || activeTenant.paymentReference ||
+                        activeTenant.splitParts?.some(part => part.proof_path || part.reference_number)
+                      )) && (
                         <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-card space-y-3">
                           <div className="flex items-center justify-between">
                             <h5 className="text-label font-medium text-indigo-900 m-0 flex items-center gap-1.5 capitalize">

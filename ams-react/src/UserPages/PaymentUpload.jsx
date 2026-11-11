@@ -422,7 +422,7 @@ export default function PaymentUpload() {
                                     value={bankName} 
                                     onChange={(e) => { setBankName(e.target.value); setError(''); }} 
                                     required 
-                                    className={`${INPUT_CLS} cursor-pointer`}
+                                    className={`${INPUT_CLS} cursor-pointer bg-white text-slate-800 border-slate-200`}
                                 >
                                     <option value="">{t('paymentUpload.selectBank')}</option>
                                     {BANKS.map((bank) => (
