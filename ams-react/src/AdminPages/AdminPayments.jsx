@@ -261,10 +261,13 @@ const AdminPayments = () => {
         // together — pendingInvoiceId is then its ADV-… group id, which
         // record_payment_admin.php / reject_payment_proof.php accept, and
         // pendingAmount is what that one action settles.
-        const RANK = { 'pending-verification': 0, scheduled: 1, processing: 2 };
+        const RANK = { 'pending-verification': 0, scheduled: 1, processing: 2, 'payment-failed': 3, overdue: 4, pending: 5, unpaid: 6 };
         Object.values(grouped).forEach(t => {
           const open = t.openInvoices || [];
-          if (open.length === 0) return;
+          if (open.length === 0) {
+            if (t.history.length > 0) t.status = 'paid';
+            return;
+          }
           const sel = [...open].sort((a, b) =>
             (RANK[a.status] ?? 3) - (RANK[b.status] ?? 3) || String(a.due_date || '').localeCompare(String(b.due_date || ''))
           )[0];
@@ -273,7 +276,12 @@ const AdminPayments = () => {
             : [sel];
           const sum = (key) => months.reduce((s, i) => s + parseFloat(i[key] || 0), 0);
 
-          t.status = sel.status;
+          t.status = open.some(i => i.status === 'pending-verification') ? 'pending-verification'
+            : open.some(i => i.status === 'scheduled') ? 'scheduled'
+            : open.some(i => i.status === 'processing') ? 'processing'
+            : open.some(i => i.status === 'payment-failed') ? 'payment-failed'
+            : open.some(i => isPastDue(i)) ? 'overdue'
+            : 'pending';
           t.dueDate = sel.due_date;
           t.pastDue = isPastDue(sel);
           t.daysPastDue = daysPastDue(sel);
@@ -470,14 +478,14 @@ const AdminPayments = () => {
   // bills) — not every open invoice, which the button never settled.
   // A part the tenant declared with a proof is confirmed as declared.
   const declaredPart = activeTenant?.proofAmount ?? null;
-  const totalDue = activeTenant ? (declaredPart ?? (activeTenant.pendingAmount || 0)) : 0;
+  const totalDue = activeTenant ? (declaredPart ?? (activeTenant.pendingAmount ?? 0)) : 0;
   // "Record part-payment" (installments): a single bill, below its balance.
   const [partChoice, setPartChoice] = useState({ tenant: null, on: false });
   const adminPart = !!activeTenant?.canPartPay && partChoice.tenant === activeTenant && partChoice.on && declaredPart === null;
   const partMode = adminPart || (declaredPart !== null && declaredPart < (activeTenant?.pendingAmount || 0));
   // Starts at the total due; a typed amount only sticks while that same tenant
   // record is selected (like the method above).
-  const amountTendered = tender.tenant === activeTenant ? tender.value : (totalDue > 0 ? String(totalDue) : '');
+  const amountTendered = tender.tenant === activeTenant && tender.value !== '' ? tender.value : (totalDue > 0 ? String(totalDue) : '');
   const setAmountTendered = (value) => setTender({ tenant: activeTenant, value });
   // Split mode and its portions: a tenant's own split submission opens the desk
   // already split and filled in; otherwise one blank cash portion. Edits stick
@@ -512,7 +520,7 @@ const AdminPayments = () => {
   const overdueInvoiceCount = tenants.reduce((sum, t) => sum + t.overdueInvoices, 0);
   const advanceAwaitingTotal = tenants.reduce((sum, t) => sum + t.advanceAwaiting, 0);
   const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification' || t.status === 'scheduled' || t.status === 'processing').length;
-  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + owedBalance(t), 0);
+  const totalOutstanding = tenants.reduce((sum, t) => sum + owedBalance(t), 0);
 
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
@@ -642,6 +650,9 @@ const AdminPayments = () => {
 
   // Keys match record_payment_admin.php's body.
   const recordValues = { paymentMethod, amountPaid: amountTendered, paymentReference };
+  const canRecordSelectedPayment = !!activeTenant && TENANT_ACTED_STATUSES.includes(activeTenant.status);
+  const canRecordCashAtDesk = !!activeTenant && ['pending', 'unpaid', 'overdue'].includes(activeTenant.status);
+  const canClearPayment = canRecordSelectedPayment || (canRecordCashAtDesk && paymentMethod === 'cash');
   const recordForm = useFieldErrors({
     paymentMethod: (v) => (allowedMethods.includes(v) ? '' : 'Choose a payment method.'),
     // Required for every method: the server settles the bill in full only when
@@ -664,6 +675,7 @@ const AdminPayments = () => {
   const blurRecord = (name) => recordForm.validateField(name, recordValues);
 
   const handleConfirmPayment = () => {
+    if (!canClearPayment) return;
     if (!splitMode && !recordForm.validateAll(recordValues)) return;
     if (splitMode && !splitCanProcess) return;
     if (!splitMode && paymentMethod === 'bank_transfer' && (!paymentParts[0]?.bank_name || (paymentParts[0]?.bank_name === 'Other' && !paymentParts[0]?.other_bank_name?.trim()))) return;
@@ -689,12 +701,12 @@ const handleMarkAsPaid = async () => {
       const res = await api.post('/record_payment_admin.php', {
         invoiceId: activeTenant.pendingInvoiceId,
         payments: splitMode
-          ? paymentParts.map(p => ({ method: p.method, amount: Number(p.amount), bank_name: p.method === 'bank_transfer' ? (p.bank_name === 'Other' ? p.other_bank_name.trim() : p.bank_name) : undefined, reference_number: p.reference_number.trim() || undefined }))
+          ? paymentParts.map(p => ({ method: p.method, amount: Number(p.amount), bank_name: p.method === 'bank_transfer' ? (p.bank_name === 'Other' ? p.other_bank_name.trim() : p.bank_name) : undefined, reference_number: p.method === 'cash' ? null : (p.reference_number.trim() || undefined) }))
           : [{
               method: paymentMethod,
               amount: paymentMethod === 'cash' && !adminPart ? totalDue : Number(amountTendered),
               bank_name: paymentMethod === 'bank_transfer' ? (paymentParts[0]?.bank_name === 'Other' ? paymentParts[0]?.other_bank_name?.trim() : paymentParts[0]?.bank_name) : undefined,
-              reference_number: (paymentMethod !== 'cash' && paymentReference.trim()) || undefined,
+              reference_number: paymentMethod === 'cash' ? null : (paymentReference.trim() || undefined),
             }],
         partial: partMode,
       });
@@ -917,11 +929,11 @@ const handleMarkAsPaid = async () => {
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
+      <main className="flex-1 flex flex-col min-h-screen text-left bg-slate-50">
         <Header title="Payment Management" />
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
             {/* Summary Cards */}
             <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -945,7 +957,7 @@ const handleMarkAsPaid = async () => {
 
             {/* Due Date Indicator Bar with Batch Reminder Button */}
             {(dueWithin5DaysCount > 0 || overdueCount > 0) && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-card text-body flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-card">
+              <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-3 rounded-card text-body flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-card">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-700 text-base" />
                   <span>
@@ -983,9 +995,9 @@ const handleMarkAsPaid = async () => {
 
             {activeTab === 'billing' && (
             <>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Tenant Selector */}
-              <div className="lg:col-span-4 bg-white border border-slate-200 rounded-card flex flex-col overflow-hidden h-[calc(100vh-18rem)] min-h-[500px]">
+              <div className="lg:col-span-4 lg:sticky lg:top-24 max-h-[calc(100vh-250px)] min-h-[300px] overflow-y-auto custom-scrollbar bg-white border border-slate-200 rounded-card flex flex-col">
                 <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-2">
                   <h3 className="text-body font-semibold text-slate-800 m-0">Select Tenant</h3>
                   {/* Search on its own row: beside the two filters it was squeezed to "Searc". */}
@@ -1022,14 +1034,14 @@ const handleMarkAsPaid = async () => {
                     </div>
                   </div>
                 </div>
-                <div ref={tenantListRef} className="relative flex-1 overflow-y-auto">
+                <div ref={tenantListRef} className="relative">
                   {filteredTenants.map(t => {
                     const days = getDaysUntilDue(t.dueDate);
                     const isDueSoon = t.status !== 'paid' && days !== null && days >= 0 && days <= 5;
                     const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance;
                     const tenantTotalDue = t.outstandingBalance > 0 ? t.outstandingBalance : fallbackTotal;
                     return (
-                      <div key={t.id} {...clickable(() => {setSelectedTenantId(t.id); setHistoryPage(1);})} aria-pressed={selectedTenantId === t.id} className={`p-3.5 border-b border-slate-100 border-l-4 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 ${selectedTenantId === t.id ? 'bg-indigo-50 border-l-indigo-600' : 'border-l-transparent hover:bg-slate-50'}`}>
+                      <div key={t.id} {...clickable(() => {setSelectedTenantId(t.id); setHistoryPage(1);})} aria-pressed={selectedTenantId === t.id} className={`p-3.5 border-b border-slate-100 border-l-4 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 ${selectedTenantId === t.id ? 'bg-indigo-50/50 dark:bg-indigo-900/20 border-l-indigo-500' : 'border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-body font-semibold text-slate-800 m-0 flex items-center gap-2 min-w-0 truncate">
                             <span className="truncate">{t.name}</span>
@@ -1041,16 +1053,17 @@ const handleMarkAsPaid = async () => {
                             {isDueSoon && t.status !== 'pending-verification' && t.status !== 'scheduled' && t.status !== 'processing' && t.status !== 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-700" />}
                           </p>
                           <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-center shrink-0 capitalize ${
-                            t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
+                            t.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
                             t.status === 'pending-verification' ? 'bg-indigo-100 text-indigo-800' : 
                             t.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 
                             t.status === 'processing' ? 'bg-amber-100 text-amber-800' :
-                            'bg-red-100 text-red-800'
+                            t.status === 'overdue' || t.pastDue ? 'bg-rose-100 text-rose-700' :
+                            t.status === 'pending' || t.status === 'unpaid' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
                           }`}>{t.status === 'pending-verification' ? 'VERIFY' : t.status}</span>
                         </div>
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <p className="text-label text-slate-600 m-0 min-w-0 truncate">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
-                          {t.status !== 'paid'
+                          {(t.openInvoices || []).length > 0
                             ? <p className="text-body font-bold text-slate-900 m-0 shrink-0">{formatCurrency(tenantTotalDue)}</p>
                             : <p className="text-label font-medium text-slate-600 m-0 shrink-0">No balance</p>}
                         </div>
@@ -1061,7 +1074,7 @@ const handleMarkAsPaid = async () => {
               </div>
 
               {/* Main Detail Area */}
-              <div className="lg:col-span-8 flex flex-col gap-6">
+              <div className="lg:col-span-8 flex flex-col space-y-6">
                 
                 {/* Dynamic Status Notification Banner */}
                 {showBanner && (
@@ -1120,7 +1133,7 @@ const handleMarkAsPaid = async () => {
 
                   {/* Read-only: what the bill says. The period, charges and due
                       date are changed with "Adjust invoice", never at the till. */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-3 mb-2">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
                     <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
                       <p className="text-label text-slate-600 font-medium mb-1 m-0">Period</p>
                       <p className="text-body font-medium text-slate-800 m-0">{activeTenant.billingPeriod || '—'}</p>
@@ -1443,13 +1456,16 @@ const handleMarkAsPaid = async () => {
                     </div>
                   )}
 
-                  {totalDue > 0 && !['paid', 'processing', ...TENANT_ACTED_STATUSES].includes(activeTenant.status) && (
-                    <p className="m-0 mb-3 rounded-control border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-800">Waiting for the tenant to pay or schedule a visit in Pay Bills. You can clear this bill once they do.</p>
+                  {totalDue > 0 && !canClearPayment && activeTenant.status !== 'processing' && (
+                    <p className="m-0 mb-3 rounded-control border border-amber-200 bg-amber-50 px-3 py-2 text-label text-amber-800">Online payments require tenant proof or a scheduled visit first. If cash has already been received at the desk, select Cash to record it.</p>
+                  )}
+                  {canRecordCashAtDesk && paymentMethod === 'cash' && (
+                    <p className="m-0 mb-3 rounded-control border border-emerald-200 bg-emerald-50 px-3 py-2 text-label text-emerald-800">Record only cash physically received by the management office.</p>
                   )}
                   <div className="flex flex-wrap gap-3">
                     <button
                       onClick={handleConfirmPayment}
-                      disabled={recording || totalDue <= 0 || !TENANT_ACTED_STATUSES.includes(activeTenant.status) || (splitMode && !splitCanProcess)}
+                      disabled={recording || totalDue <= 0 || !canClearPayment || (splitMode && !splitCanProcess)}
                       className={btn('success', 'md', 'flex-1 justify-center')}
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment

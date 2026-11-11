@@ -609,7 +609,9 @@ Admin confirms/records a payment — marks invoice as `paid`, activates occupanc
 |----------|--------|
 | **Auth** | `require_admin()` |
 | **Transactional** | Payment + occupancy activation + contract creation |
-| **Guard** | A short amount is refused unless `partial: true` (single invoice), which records an instalment through `record_partial_payment()`; `payments[]` accepts split-method payments; a bill in `processing` returns 409 |
+| **Guard** | A short amount is refused unless `partial: true` (single invoice), which records an instalment through `record_partial_payment()`; `payments[]` accepts split-method payments; a bill in `processing` returns 409. Admins may record a single cash payment received at the desk on `pending`, `unpaid`, or `overdue` invoices without a reference; online methods still require tenant submission/proof or scheduling. |
+
+Tenant schedule dates are selected in `PayBills.jsx` and posted to `schedule_payment.php` by the tenant; Admin Payments displays the scheduled date but does not edit it.
 
 **On First Payment Approval:**
 1. Marks invoice `paid`

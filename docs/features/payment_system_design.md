@@ -65,6 +65,8 @@ flowchart TD
 
 This channel is for tenants who pay at the admin office with cash. It adds a **scheduling step** so the admin knows when to expect the tenant.
 
+If cash has already been physically received at the desk, an admin may record a single cash payment against an open `pending`, `unpaid`, or `overdue` invoice without a tenant schedule or reference number. Online payments continue to require tenant submission/proof or an online payment attempt; the admin cannot clear a `processing` checkout.
+
 ---
 
 ## 3. Admin Configuration

@@ -10,6 +10,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-01. Built from `TASK.md` a
 
 | # | Task | Category | Description | Status | Priority | Start | End |
 |---|------|----------|-------------|--------|----------|-------|-----|
+| 129 | Admin payment desk layout and cash recording | UI/UX · Bug fix | Constrain and balance Payment Management across viewports; let admins record physically received cash on open invoices with a null reference while keeping online proof and checkout guards | In progress | Medium | 2026-11-11 | — |
 | 1 | Project setup | Chore | React + Vite app, Tailwind, global styles, guest/user routing and layouts, base Services page | Done | High | 2026-06-30 | 2026-07-01 |
 | 2 | Accounts and login | Feature | Registration, login API, error handling, profile settings, change password, admin redirect, middle name/suffix | Done | High | 2026-07-01 | 2026-07-07 |
 | 3 | Tenant pages, first build | Feature | Rent application with file uploads, parking, CCTV and maintenance requests, PayBills, MyRoom, room preview modal | Done | High | 2026-07-02 | 2026-07-07 |
