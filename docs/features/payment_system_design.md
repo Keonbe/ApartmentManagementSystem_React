@@ -67,6 +67,13 @@ This channel is for tenants who pay at the admin office with cash. It adds a **s
 
 If cash has already been physically received at the desk, an admin may record a single cash payment against an open `pending`, `unpaid`, or `overdue` invoice without a tenant schedule or reference number. Online payments continue to require tenant submission/proof or an online payment attempt; the admin cannot clear a `processing` checkout.
 
+In Admin Payments, the tenant sidebar defaults to Latest Bill, sorting tenants by the newest active invoice's creation timestamp first. Tenants without an active invoice sort last; Due ↑ and Due ↓ remain available as separate options.
+
+The billing-details column stays empty until the admin explicitly selects a tenant. On first load it shows an instructional placeholder instead of opening the first tenant's account; an explicit selection is preserved during refreshes when that tenant is still present.
+The no-selection placeholder is scoped to the right billing column; summary metrics, the reminder alert, tenant sidebar and payment dashboard stay visible.
+The payment confirmation modal also requires a current tenant selection, so stale modal state cannot dereference a missing tenant.
+For a QR Ph proof under review, Admin Payments offers the supported GCash and Bank Transfer recording methods and prompts the admin to choose the route the funds arrived through; the API does not store a distinct QR Ph transaction method. Non-cash desk payments require a transaction reference, while cash at the desk does not.
+
 ---
 
 ## 3. Admin Configuration

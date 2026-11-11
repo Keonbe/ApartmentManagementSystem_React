@@ -6,7 +6,7 @@ import {
   faSearch, faCheckCircle, faPrint, faCalendarAlt,
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
   faChartBar, faBalanceScale, faShieldAlt, faEye, faExternalLinkAlt,
-  faBell
+  faBell, faUser
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
@@ -32,7 +32,8 @@ import { personName } from '../utils/personName';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
-// separately on each transaction.
+// separately on each transaction. QR Ph proofs are recorded using the supported
+// GCash or bank-transfer method that matches where the funds arrived.
 const METHODS = ['cash', 'gcash', 'bank_transfer'];
 const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
 // Bills the desk may clear: the tenant has acted in Pay Bills. Mirrors ADMIN_RECORDABLE_STATUSES (backend/config.php).
@@ -46,7 +47,7 @@ const deskMethodsFor = (label) => {
   if (l.includes('gcash')) return ['gcash'];
   if (l.includes('bank') || l.includes('bdo') || l.includes('bpi')) return ['bank_transfer'];
   if (l.includes('cash') || l.includes('in-person') || l.includes('in person')) return ['cash'];
-  if (l.includes('qr')) return ['bank_transfer', 'gcash'];
+  if (l.includes('qr')) return ['gcash', 'bank_transfer'];
   return [];
 };
 const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white';
@@ -106,7 +107,7 @@ const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortOption, setSortOption] = useState('name-asc');
+  const [sortOption, setSortOption] = useState('created-desc');
   const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', ['all', 'unpaid', 'paid', 'pending-verification', 'scheduled', 'processing', 'payment-failed', 'overdue']);
   // Security Deposit Ledger controls (client-side over the contracts list).
   const [depositSearch, setDepositSearch] = useState('');
@@ -217,6 +218,9 @@ const AdminPayments = () => {
               if (isPastDue(inv)) t.overdueInvoices += 1;
             }
             (t.openInvoices = t.openInvoices || []).push(inv);
+            if (inv.created_at && (!t.latestInvoiceCreatedAt || inv.created_at > t.latestInvoiceCreatedAt)) {
+              t.latestInvoiceCreatedAt = inv.created_at;
+            }
           } else if (inv.status === 'paid') {
             const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
             const invoiceBreakdown = [
@@ -336,10 +340,9 @@ const AdminPayments = () => {
 
         const tenantArray = Object.values(grouped);
         setTenants(tenantArray);
-        // Keep the admin on the tenant they were working with. This also runs on
-        // background refreshes; jumping to the first tenant there could put a
-        // different tenant under an open Confirm Payment dialog.
-        if (tenantArray.length > 0) setSelectedTenantId(prev => (tenantArray.some(t => t.id === prev) ? prev : tenantArray[0].id));
+        // Preserve an explicit selection across refreshes, but never select a
+        // tenant automatically on the initial load.
+        setSelectedTenantId(prev => tenantArray.some(t => t.id === prev) ? prev : null);
       }
     } catch(err) { 
       console.error(err); 
@@ -414,7 +417,7 @@ const AdminPayments = () => {
 
 
 
-  const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0] || null;
+  const activeTenant = tenants.find(t => t.id === selectedTenantId) || null;
   const filteredTenants = useMemo(() => {
     const filtered = tenants.filter(t => {
       const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -442,15 +445,17 @@ const AdminPayments = () => {
         const valA = a.dueDate || '';
         const valB = b.dueDate || '';
         return valB.localeCompare(valA);
+      } else if (sortOption === 'created-desc') {
+        // Tenants without an open invoice have no active creation date and stay last.
+        const valA = a.latestInvoiceCreatedAt || '';
+        const valB = b.latestInvoiceCreatedAt || '';
+        return valB.localeCompare(valA);
       }
       return 0;
     });
   }, [tenants, searchTerm, sortOption, statusFilter]);
-
-  // Keep the selected tenant's row visible in the list. The first load selects the
-  // first tenant in API order, which can sit far down the name-sorted list. Scrolls
-  // only the list panel, so the page itself does not jump. Runs on selection
-  // change only, so a background refresh never yanks a list the admin scrolled.
+  // Keep an explicitly selected tenant's row visible in the list. Scrolls only
+  // the list panel, so the page itself does not jump or yank a scrolled list.
   const tenantListRef = useRef(null);
   useEffect(() => {
     const list = tenantListRef.current;
@@ -669,8 +674,8 @@ const AdminPayments = () => {
       if (all.paymentMethod !== 'cash' && Number(v) - totalDue > 0.009) return `A ${all.paymentMethod} payment must match the total due (${formatCurrency(totalDue)}).`;
       return '';
     },
-    // Optional for GCash/bank (the tenant's own reference is kept when blank).
-    paymentReference: (v, all) => (all.paymentMethod !== 'cash' && String(v ?? '').trim() ? checkPaymentReference(v, all.paymentMethod) : ''),
+    // Non-cash payments require a reference; cash at the desk does not.
+    paymentReference: (v, all) => (all.paymentMethod !== 'cash' ? checkPaymentReference(v, all.paymentMethod) : ''),
   }, { idPrefix: 'record-' });
   const blurRecord = (name) => recordForm.validateField(name, recordValues);
 
@@ -856,10 +861,9 @@ const handleMarkAsPaid = async () => {
     }
   };
 
-  const filteredHistory = useMemo(() => {
-    if (!activeTenant) return [];
-    return activeTenant.history.filter(h => h.period?.toLowerCase().includes(historySearchPeriod.toLowerCase()));
-  }, [activeTenant, historySearchPeriod]);
+  const filteredHistory = (activeTenant?.history || []).filter(h =>
+    h.period?.toLowerCase().includes(historySearchPeriod.toLowerCase())
+  );
 
   const historyPageCount = Math.ceil(filteredHistory.length / recordsPerPage);
   const paginatedHistory = filteredHistory.slice((historyPage - 1) * recordsPerPage, historyPage * recordsPerPage);
@@ -901,24 +905,6 @@ const handleMarkAsPaid = async () => {
           <Header title="Payment Management" />
           <div className="m-4 md:m-6 bg-white border border-slate-200 rounded-card shadow-card">
             <LoadError title="Couldn't load payments" message="This is not an empty ledger: the invoices did not load." detail={loadError} onRetry={fetchInvoices} />
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (!activeTenant) {
-    return (
-      <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
-        <Sidebar />
-        <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
-          <Header title="Payment Management" />
-          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 text-center bg-white border border-slate-200 rounded-card m-6">
-             <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-page mb-4">
-               <FontAwesomeIcon icon={faInfoCircle} />
-             </div>
-             <h3 className="text-title font-bold text-slate-800 m-0">No Active Tenant Ledgers</h3>
-             <p className="text-slate-500 text-body max-w-sm mt-2">There are currently no active tenant ledgers or invoices in the system. Create invoices or approve a tenant's rent application to view ledgers here.</p>
           </div>
         </main>
       </div>
@@ -1030,6 +1016,7 @@ const handleMarkAsPaid = async () => {
                         <option value="name-desc">Name ↓</option>
                         <option value="due-asc">Due ↑</option>
                         <option value="due-desc">Due ↓</option>
+                        <option value="created-desc">Latest Bill</option>
                       </select>
                     </div>
                   </div>
@@ -1075,6 +1062,18 @@ const handleMarkAsPaid = async () => {
 
               {/* Main Detail Area */}
               <div className="lg:col-span-8 flex flex-col space-y-6">
+                {!activeTenant ? (
+                  <div className="flex min-h-[500px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                      <FontAwesomeIcon className="text-2xl text-slate-400" icon={faUser} aria-hidden="true" />
+                    </div>
+                    <h3 className="m-0 text-lg font-bold text-slate-900">No tenant selected</h3>
+                    <p className="mt-2 max-w-sm text-sm text-slate-500">
+                      Choose a tenant from the list on the left to view their billing details, payment history, and process new payments.
+                    </p>
+                  </div>
+                ) : (
+                  <>
                 
                 {/* Dynamic Status Notification Banner */}
                 {showBanner && (
@@ -1277,9 +1276,11 @@ const handleMarkAsPaid = async () => {
                           </>}
                           {activeTenant.methodLocked ? (
                             <p className="text-caption text-slate-500 m-0 mt-1">Declared by the tenant with their proof ({activeTenant.declaredLabel}). To record another method, reject the proof.</p>
-                          ) : activeTenant.declaredLabel && (
+                          ) : activeTenant.declaredLabel && activeTenant.declaredLabel.toLowerCase().includes('qr') ? (
+                            <p className="text-caption text-slate-500 m-0 mt-1">Tenant chose QR Ph. Record this using GCash or Bank Transfer according to where the funds arrived, and enter the transaction reference.</p>
+                          ) : activeTenant.declaredLabel ? (
                             <p className="text-caption text-slate-500 m-0 mt-1">Tenant chose: {activeTenant.declaredLabel}</p>
-                          )}
+                          ) : null}
                         </div>
                         <div>
                           {!splitMode && <label htmlFor="record-amountPaid" className="block text-label font-medium text-slate-600 mb-1 capitalize">{paymentMethod === 'cash' ? 'Amount Tendered' : 'Amount Received'}</label>}
@@ -1558,6 +1559,8 @@ const handleMarkAsPaid = async () => {
                   )}
 
                 </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1656,21 +1659,21 @@ const handleMarkAsPaid = async () => {
                   <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2">
                       <FontAwesomeIcon icon={faBalanceScale} className="text-violet-600" />
-                      Outstanding Balance — {activeTenant.name}
+                      Outstanding Balance — {activeTenant?.name || 'No tenant selected'}
                     </h3>
                   </div>
                   <div className="p-6 space-y-4">
                     {/* Outstanding Balance Monitor */}
-                    <div className={`rounded-card p-4 border flex items-center justify-between ${(activeTenant.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <div className={`rounded-card p-4 border flex items-center justify-between ${(activeTenant?.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                       <div className="flex items-center gap-3">
-                        <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600 text-xl' : 'text-emerald-700 text-xl'} />
+                        <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant?.outstandingBalance || 0) > 0 ? 'text-red-600 text-xl' : 'text-emerald-700 text-xl'} />
                         <div>
                           <p className="text-body font-bold text-slate-800 m-0">Outstanding Balance</p>
-                          <p className="text-caption text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
+                          <p className="text-caption text-slate-500 m-0 mt-0.5">{activeTenant?.name || 'No tenant selected'} · Unit {activeTenant?.unit || '—'}</p>
                         </div>
                       </div>
-                      <p className={`text-page font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                        {formatCurrency(activeTenant.outstandingBalance || 0)}
+                      <p className={`text-page font-bold m-0 ${(activeTenant?.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                        {formatCurrency(activeTenant?.outstandingBalance || 0)}
                       </p>
                     </div>
                   </div>
@@ -1876,7 +1879,7 @@ const handleMarkAsPaid = async () => {
       )}
 
       {/* Confirmation Modal */}
-      {showConfirmModal && (
+      {showConfirmModal && activeTenant && (
         <Modal title="Confirm Payment" onClose={() => setShowConfirmModal(false)} busy={recording} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-sm mx-4 overflow-hidden">
             <div className="p-6">
               <h3 className="text-title font-bold text-slate-800 mb-2 mt-0">Confirm Payment</h3>

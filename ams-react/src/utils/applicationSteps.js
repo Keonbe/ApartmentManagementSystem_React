@@ -30,6 +30,24 @@ export const APPLICATION_STATUS_CHIP = {
   none: { label: 'No application', tone: 'neutral' },
 };
 
+// Move-in payment is complete only when the invoice has settled, not merely
+// because one or more installments have been received.
+export const isMoveInPaymentSettled = (app) => {
+  if (!app) return false;
+  if (app.initial_payment_paid || app.pending_invoice_status === 'paid' || app.status === 'active') return true;
+
+  const paid = Number(app.pending_amount_paid ?? app.amount_paid ?? 0);
+  if (app.pending_balance !== null && app.pending_balance !== undefined) {
+    const balance = Number(app.pending_balance);
+    return Number.isFinite(balance) && balance <= 0;
+  }
+  if (app.pending_total_amount !== null && app.pending_total_amount !== undefined) {
+    const total = Number(app.pending_total_amount);
+    return Number.isFinite(total) && total - paid <= 0;
+  }
+  return false;
+};
+
 const longDate = (value) => (value
   ? new Date(String(value).length <= 10 ? `${value}T00:00:00` : value)
     .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -46,7 +64,12 @@ export function applicationSteps(app) {
   if (['pending-move-out', 'moved-out', 'none'].includes(status)) return [];
 
   const signed = !!app.signed_lease_path;
-  const paid = !!app.initial_payment_paid;
+  // Cancellation can follow a fully settled move-in invoice, or an invoice
+  // with received installments. Keep the payment state from my_room.php even
+  // when cancellation means there is no longer an open invoice to inspect.
+  const hasPayment = !!app.initial_payment_paid ||
+    Number(app.amount_paid ?? 0) > 0 || Number(app.pending_amount_paid ?? 0) > 0;
+  const paid = isMoveInPaymentSettled(app);
   const housed = status === 'active';
   const approved = status === 'approved' || housed;
 
@@ -57,17 +80,20 @@ export function applicationSteps(app) {
   const reviewState = status === 'rejected' ? 'stopped'
     : stopIf('review', approved || cancelledAt === 'payment' || cancelledAt === 'movein' ? 'done'
       : (status === 'pending' || status === 'action') ? 'current' : 'upcoming');
-  const contractState = cancelledAt ? (signed || paid ? 'done' : 'upcoming')
-    : housed || signed || paid ? 'done' : status === 'approved' ? 'current' : 'upcoming';
+  const contractState = cancelledAt ? (signed || hasPayment ? 'done' : 'upcoming')
+    : housed || signed || hasPayment ? 'done' : status === 'approved' ? 'current' : 'upcoming';
   const paymentState = stopIf('payment', housed || paid ? 'done'
     : status === 'approved' && signed ? 'current' : 'upcoming');
   const moveInState = stopIf('movein', housed ? 'done' : status === 'approved' && paid ? 'current' : 'upcoming');
 
   const verifying = app.pending_invoice_status === 'pending-verification';
-  const balance = parseFloat(app.pending_balance ?? app.pending_total_amount);
+  const amountPaid = Number(app.pending_amount_paid ?? app.amount_paid ?? 0);
+  const rawBalance = app.pending_balance ?? (app.pending_total_amount != null
+    ? Number(app.pending_total_amount) - amountPaid
+    : null);
+  const balance = Number(rawBalance);
   const amount = Number.isFinite(balance) && balance > 0
     ? `₱${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '';
-
   const steps = [
     { key: 'submitted', label: 'Application submitted', state: 'done', date: longDate(app.created_at) },
     {
@@ -117,7 +143,13 @@ export function applicationSteps(app) {
   // The step a cancelled application stopped at says so; the rest are not shown as pending.
   if (cancelledAt) {
     return steps.map((s) => (s.state === 'stopped'
-      ? { ...s, label: 'Application cancelled', note: 'No payment is needed for this application.' }
+      ? {
+        ...s,
+        label: 'Application cancelled',
+        note: paid
+          ? 'Your application was cancelled. A refund request for your move-in payment has been automatically generated.'
+          : 'No payment is needed for this application.',
+      }
       : s));
   }
   return steps;

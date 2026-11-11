@@ -21,7 +21,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import { MOVE_IN_WINDOW_DEFAULT, checkMoveInDate, moveInBounds, moveInRangeText } from '../utils/validation';
 import { getSystemSettings } from '../config/systemSettings';
 import ApplicationStepper from '../Components/tenant/ApplicationStepper';
-import { APPLICATION_STATUS_CHIP, applicationSteps, normalizeApplicationStatus } from '../utils/applicationSteps';
+import { APPLICATION_STATUS_CHIP, applicationSteps, isMoveInPaymentSettled, normalizeApplicationStatus } from '../utils/applicationSteps';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 import { Bone, SkeletonPage } from '../Components/tenant/Skeleton';
 
@@ -396,12 +396,24 @@ export default function TrackApplication() {
     }
 
     const status = normalizeApplicationStatus(application?.status);
-    const chip = APPLICATION_STATUS_CHIP[status];
+    const applicationChip = APPLICATION_STATUS_CHIP[status];
+    const moveInPaymentSettled = isMoveInPaymentSettled(application);
+    const chip = status === 'approved' && application?.signed_lease_path && !moveInPaymentSettled
+        ? { label: 'Pending Payment', tone: 'waiting' }
+        : applicationChip;
     const steps = applicationSteps(application);
+    const hasMoveInPayment = !!application?.initial_payment_paid ||
+        Number(application?.amount_paid ?? 0) > 0 || Number(application?.pending_amount_paid ?? 0) > 0;
     const peso = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
     const dayLabel = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' }) : '');
     const roomLabel = application?.room_name ? `Room ${application.room_name}` : 'your room';
-    const moveInBalance = application ? parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0))) : 0;
+    const moveInBalance = application
+        ? Math.max(0, Number(application.pending_balance ?? (application.pending_total_amount != null
+            ? Number(application.pending_total_amount) - Number(application.pending_amount_paid ?? application.amount_paid ?? 0)
+            : 2 * parseFloat(application.monthly_rent || 0))))
+        : 0;
+    const hasPartialMoveInPayment = Number(application?.pending_amount_paid ?? application?.amount_paid ?? 0) > 0
+        && !moveInPaymentSettled && moveInBalance > 0;
     // Cancelling is allowed only before moving in (cancel_application.php checks too).
     const canCancel = ['pending', 'action', 'approved'].includes(status);
 
@@ -501,8 +513,8 @@ export default function TrackApplication() {
     const cancelledBody = (
         <div className="space-y-4">
             {refundCard}
-            <button type="button" onClick={() => navigate('/preview')} className={BTN_PRIMARY}>
-                Browse available rooms <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+            <button type="button" onClick={() => navigate(hasMoveInPayment ? '/my-refunds' : '/preview')} className={BTN_PRIMARY}>
+                {hasMoveInPayment ? 'View My Refunds' : 'Browse available rooms'} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
             </button>
         </div>
     );
@@ -619,6 +631,12 @@ export default function TrackApplication() {
                 </div>
             </dl>
 
+            {application?.pending_invoice_status !== 'pending-verification' && hasPartialMoveInPayment && (
+                <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-slate-800">
+                    Partial payment received. Please settle your remaining balance of <strong className="text-slate-900">{peso(moveInBalance)}</strong> to confirm your move-in.
+                </p>
+            )}
+
             {application?.pending_invoice_status !== 'pending-verification' && application?.pending_rejection_reason && (
                 <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-relaxed text-slate-800">
                     <strong className="text-rose-800">Payment returned.</strong> Management returned your payment: <strong className="text-slate-900">{application.pending_rejection_reason}</strong>. Please pay again below.
@@ -629,7 +647,7 @@ export default function TrackApplication() {
                 <p className="m-0 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-relaxed text-slate-800">
                     Your payment {application.pending_payment_method ? <>by <strong className="text-slate-900">{application.pending_payment_method}</strong> </> : ''}is being verified by management. This step completes by itself once they confirm it, and you will be notified.
                 </p>
-            ) : application?.pending_payment_method === 'Cash on Hand' ? (
+            ) : application?.pending_payment_method === 'Cash on Hand' && !hasPartialMoveInPayment ? (
                 <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-slate-800">
                     Please pay <strong className="text-slate-900">{peso(moveInBalance)}</strong> in cash at the management office. This step completes once management records it, and you will be notified.
                 </p>
@@ -648,13 +666,15 @@ export default function TrackApplication() {
                                         type="button"
                                         aria-pressed={chosen}
                                         onClick={() => { setSelectedMethod(method.id); setPayError(''); }}
-                                        className={`flex items-center justify-between gap-3 min-h-[48px] px-4 rounded-xl border text-sm font-semibold text-left cursor-pointer transition-colors ${chosen ? 'bg-indigo-50 border-indigo-300 text-white' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                        className={`flex items-center justify-between gap-3 min-h-[48px] px-4 rounded-xl border text-sm text-left cursor-pointer transition-colors ${chosen
+                                            ? 'border-indigo-600 bg-indigo-50/70 font-semibold text-indigo-900'
+                                            : 'border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50'}`}
                                     >
                                         <span className="flex items-center gap-3">
-                                            <FontAwesomeIcon icon={method.icon} className={chosen ? 'text-indigo-800' : 'text-slate-600'} aria-hidden="true" />
+                                            <FontAwesomeIcon icon={method.icon} className={chosen ? 'text-indigo-600' : 'text-slate-500'} aria-hidden="true" />
                                             {method.label}
                                         </span>
-                                        {chosen && <FontAwesomeIcon icon={faCheck} className="text-indigo-800" aria-hidden="true" />}
+                                        {chosen && <FontAwesomeIcon icon={faCheck} className="text-indigo-600" aria-hidden="true" />}
                                     </button>
                                 );
                             }) : (
