@@ -40,6 +40,7 @@ export const ADMIN_NOTIFICATION_LINKS = {
   cash_payment_declared: '/admin-payments',
   payment: '/admin-payments',
   refund_request: '/admin-refunds',
+  deposit_review: '/admin-refunds',
   payment_followup: '/admin-notifications',
   document_followup: '/admin-notifications',
   move_out_request: '/admin-tenants',
@@ -64,6 +65,7 @@ export const ADMIN_NOTIFICATION_TARGETS = {
   cash_payment_declared: { path: '/admin-payments', label: 'Go to Payments' },
   payment: { path: '/admin-payments', label: 'Go to Payments' },
   refund_request: { path: '/admin-refunds', label: 'Go to Refunds' },
+  deposit_review: { path: '/admin-refunds', label: 'Go to Refunds' },
   payment_followup: { path: '/admin-notifications', label: 'Go to Follow-ups' },
   document_followup: { path: '/admin-notifications', label: 'Go to Follow-ups' },
   move_out_request: { path: '/admin-tenants', label: 'Go to Tenants' },
@@ -100,7 +102,7 @@ export const ADMIN_PAYMENT_ALERT_TYPES = ['payment_verification', 'cash_payment_
 
 // All admin queue types that require attention when newly arrived.
 export const ADMIN_ALERT_TYPES = [
-  'payment_verification', 'cash_payment_declared', 'payment', 'refund_request', 'payment_followup', 'document_followup',
+  'payment_verification', 'cash_payment_declared', 'payment', 'refund_request', 'deposit_review', 'payment_followup', 'document_followup',
   'rent_application', 'maintenance_request', 'cctv_request',
   'parking_reservation', 'service_request', 'inquiry',
   'occupancy_request', 'household_request', 'lease_extension_request',

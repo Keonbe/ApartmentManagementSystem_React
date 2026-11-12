@@ -10,6 +10,37 @@ import '../../assets/styles/responsive/user/view-contract.responsive.css';
 
 const BLANK = '____________________';
 
+// The deposit paragraphs depend on the contract (deposit_refundable), not on the
+// template version, so they are put together here: the template's own opening
+// paragraph of the Security Deposit clause stays, what follows it is generated.
+const DEPOSIT_TERMS = {
+  refundable: {
+    en: (days) => `**Return of the Security Deposit:**
+The security deposit is **refundable**. At move-out it is first applied to unpaid rent, unpaid electricity and water bills, and damage to the unit and its fixtures beyond normal wear, each listed with a reason. What remains is returned to the Tenant within ${days} days after the move-out clearance, through a payout method agreed with Management.
+
+**When the deposit is withheld:**
+The remaining deposit is forfeited if the Tenant (a) moves out without the required move-out notice, (b) moves out before the rent end date, or (c) has the contract terminated for a breach or eviction. Management may waive this with a written reason. If the unpaid amounts are more than the deposit, the deposit is used up and the difference stays payable by the Tenant.`,
+    tl: (days) => `**Pagbabalik ng Security Deposit:**
+Ang security deposit ay **ibinabalik**. Sa paglipat, ito ay unang ikinakaltas sa hindi nabayarang upa, singil sa kuryente at tubig, at pinsala sa unit at mga kagamitan nito na lampas sa karaniwang pagkasira, na may nakalistang dahilan. Ang matitira ay ibabalik sa Nangungupahan sa loob ng ${days} araw matapos ang move-out clearance, sa paraan ng payout na napagkasunduan sa Pamunuan.
+
+**Kailan hindi ibabalik ang deposit:**
+Ang natitirang deposit ay mawawala kung ang Nangungupahan ay (a) lilipat nang walang kinakailangang abiso, (b) lilipat bago ang petsa ng pagtatapos ng upa, o (c) matapos ang kontrata dahil sa paglabag o pagpapaalis. Maaari itong alisin ng Pamunuan nang may nakasulat na dahilan. Kung mas malaki ang hindi nabayaran kaysa sa deposit, mauubos ang deposit at ang kulang ay babayaran pa rin ng Nangungupahan.`,
+  },
+  applied: {
+    en: () => `**Use of the Security Deposit:**
+The security deposit is **not refunded in cash**. It is instead **applied against unpaid rent, unpaid electricity and water bills, or damage** to the unit and its fixtures. If nothing is owed at the end of the rent term, it may be applied to the last month's rent.`,
+    tl: () => `**Paggamit ng Security Deposit:**
+Ang security deposit ay **hindi ibinabalik bilang cash**. Sa halip, ito ay **ikinakaltas sa mga hindi nabayarang upa, singil sa kuryente at tubig, o pinsala** sa unit at mga kagamitan nito. Kung wala nang utang sa pagtatapos ng kontrata, maaari itong ipambayad sa huling buwan ng pag-upa.`,
+  },
+};
+function withDepositTerms(body, refundable, lang, days) {
+  const text = body || '';
+  const cut = text.indexOf('\n\n**');
+  const intro = cut === -1 ? text : text.slice(0, cut);
+  const terms = DEPOSIT_TERMS[refundable ? 'refundable' : 'applied'][lang === 'tl' ? 'tl' : 'en'](days);
+  return `${intro}\n\n${terms}`;
+}
+
 const SIGNATURE_PARTIES = ['tenantSignature', 'ownerSignature'];
 
 const LABELS = {
@@ -325,7 +356,9 @@ export default function ContractDocument({
           <strong>{ci + 1}. {clauseTitle ? `${clauseTitle}:` : ''}</strong>
         </p>
         <div className="text-slate-800 text-[14.5px] sm:text-[15px] leading-relaxed print:text-[10pt] print:leading-snug">
-          {renderBody(pick(clause.body, lang))}
+          {renderBody(clause.id === 'cl-deposit'
+            ? withDepositTerms(pick(clause.body, lang), data.depositRefundable === undefined ? true : Boolean(Number(data.depositRefundable)), lang, data.depositRefundDays || 30)
+            : pick(clause.body, lang))}
         </div>
       </div>
     );

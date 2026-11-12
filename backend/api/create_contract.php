@@ -100,8 +100,9 @@ $id = $input['id'] ?? uniqid('CTR-');
 // The contract keeps the clauses in force today, even if the template is edited later.
 $template_version_id = contract_template_pin_version_id($conn);
 
-$stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status, template_version_id) VALUES (?, ?, ?, ?, ?, 'draft', ?)");
-$stmt->bind_param("sidssi", $id, $rent_application_id, $deposit_amount, $lease_start, $lease_end, $template_version_id);
+$stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, deposit_refundable, lease_start, lease_end, status, template_version_id) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?)");
+$dep_refundable = deposit_refundable_default($conn);
+$stmt->bind_param("sidissi", $id, $rent_application_id, $deposit_amount, $dep_refundable, $lease_start, $lease_end, $template_version_id);
 
 if ($stmt->execute()) {
     log_activity($conn, $admin_id, 'contract', "Generated Rent Contract", "Contract ID: $id for Application: $rent_application_id");

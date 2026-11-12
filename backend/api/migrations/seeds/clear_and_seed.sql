@@ -58,6 +58,7 @@ TRUNCATE TABLE `payment_transactions`;
 TRUNCATE TABLE `rate_limit_events`;
 TRUNCATE TABLE `application_documents`;
 TRUNCATE TABLE `deposit_deductions`;
+TRUNCATE TABLE `deposit_reviews`;
 TRUNCATE TABLE `invoice_adjustments`;
 TRUNCATE TABLE `application_requirements`;
 

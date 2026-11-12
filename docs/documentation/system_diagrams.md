@@ -194,7 +194,8 @@ erDiagram
         text termination_reason
         datetime terminated_at
         datetime renewal_reminder_sent_at "claim column"
-        varchar deposit_status "Held | Refunded ..."
+        varchar deposit_status "Pending | Held | Applied ... | Refund Pending | Refunded | Refund Rejected | Forfeited | Not Collected"
+        tinyint deposit_refundable "1 = unused deposit is returned at move-out"
         decimal damage_deduction
         decimal utility_deduction
         decimal refund_amount
@@ -1723,6 +1724,32 @@ flowchart TB
 ```
 
 Notification types that are not in `NOTIFICATION_PREF_CATEGORIES` (e.g. overdue alerts, application decisions, contract notices) ignore the per-category switches in 8.3. Only the global opt-outs and the building-wide switches can stop them.
+
+---
+
+### Security deposit settlement (2026-11-11)
+
+`settle_deposit()` in `backend/config.php`, called by the move-out clearance (`update_tenant_status.php`) and the contract termination (`update_contract_status.php`).
+
+```mermaid
+flowchart TD
+    A([Clearance or termination]) --> B{Deposit paid<br/>and Held?}
+    B -->|No| N["deposit_status = Not Collected"]
+    B -->|Yes| C{"lease_contracts<br/>.deposit_refundable"}
+    C -->|0| D["Applied to Rent / Bills-Damages<br/>(no cash back)"]
+    C -->|1| E["remaining = deposit - deductions - unpaid invoices"]
+    E --> F{"No notice, early exit,<br/>or terminated for cause?"}
+    F -->|Yes, no waiver| G["Forfeited: forfeiture line<br/>in deposit_deductions"]
+    F -->|No, or waived with a reason| H{remaining > 0}
+    H -->|Yes| I["deposit refund request<br/>(due in deposit_refund_days)"]
+    H -->|No| D
+    I --> J["Admin approves and records the payout<br/>deposit_status = Refunded"]
+    G --> K["Tenant may ask for a review<br/>(deposit_reviews)"]
+    I --> K
+    K --> L{Admin answer}
+    L -->|Stands| M([Closed with a reason])
+    L -->|Adjusted| O["Approved deposit refund for the extra amount"]
+```
 
 ---
 

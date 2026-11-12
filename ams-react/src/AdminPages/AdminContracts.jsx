@@ -126,6 +126,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           type: c.type || 'Unit',
           rent: c.monthly_rent,
           deposit: c.deposit_amount,
+          depositRefundable: Number(c.deposit_refundable) === 1,
+          depositStatus: c.deposit_status,
           leaseStart: c.lease_start,
           leaseEnd: c.lease_end,
           status: c.status,
@@ -251,6 +253,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const [generating, setGenerating] = useState(false);
   const [savingDates, setSavingDates] = useState(false);
   const [terminateTarget, setTerminateTarget] = useState(null);
+  // Reason for keeping a refundable deposit refundable when the contract is terminated (per contract id).
+  const [terminateWaive, setTerminateWaive] = useState({});
 
   const setContractField = (key, value) => {
     setForm(p => {
@@ -475,6 +479,20 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     }
   };
 
+  const handleToggleDepositRefundable = async (contractId, depositRefundable) => {
+    try {
+      const res = await api.post('/update_contract_status.php', { contractId, action: 'set_deposit_refundable', depositRefundable });
+      if (res.data.success) {
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to change the deposit terms.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(apiErrorMessage(err, 'Failed to change the deposit terms.'));
+    }
+  };
+
   const handleActivateContract = async (contractId) => {
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'activate' });
@@ -526,12 +544,17 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const handleTerminateContract = (contractId) => setTerminateTarget(contractId);
   const confirmTerminate = async (reason) => {
     const contractId = terminateTarget;
-    if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released. Continue?')) {
+    const target = contracts.find(c => c.id === contractId);
+    const depositAtStake = !!target?.depositRefundable && target?.depositStatus === 'Held';
+    const waive = (terminateWaive[contractId] || '').trim();
+    if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released.'
+      + (depositAtStake ? (waive ? ' What is left of the security deposit stays refundable.' : ' What is left of the security deposit is withheld.') : '')
+      + ' Continue?')) {
       return;
     }
     let res;
     try {
-      res = await api.post('/update_contract_status.php', { contractId, action: 'terminate', reason });
+      res = await api.post('/update_contract_status.php', { contractId, action: 'terminate', reason, waive_forfeiture_reason: (terminateWaive[contractId] || '').trim() });
     } catch (err) {
       console.error(err);
       throw new Error(apiErrorMessage(err, 'Failed to terminate contract.'), { cause: err });
@@ -812,8 +835,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     <p className="text-caption text-slate-500 leading-relaxed m-0">
                       This Rent Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                       The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
-                      will be charged for payments made after the due date. The security deposit shall be refunded upon 
-                      the end of the rent term, subject to property inspection. Both parties agree to the terms herein.
+                      will be charged for payments made after the due date. Whether the security deposit is refunded at move-out
+                      is set in the contract's deposit terms (Settings, then changeable while the contract is a draft). Both parties agree to the terms herein.
                     </p>
                   </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-control p-3 text-label text-amber-800">
@@ -860,7 +883,21 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           confirmLabel="Terminate Rent Contract"
           onConfirm={confirmTerminate}
           onClose={() => setTerminateTarget(null)}
-        />
+        >
+          {(() => {
+            const target = contracts.find(c => c.id === terminateTarget);
+            if (!target?.depositRefundable || target?.depositStatus !== 'Held') return null;
+            return (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="m-0 font-semibold">This contract&apos;s security deposit is refundable.</p>
+                <p className="m-0 mt-1">Terminating for cause withholds what is left of it after unpaid rent and bills. To keep it refundable anyway, give a reason (leave empty to withhold):</p>
+                <input type="text" maxLength={200} value={terminateWaive[terminateTarget] || ''} aria-label="Reason to keep the deposit refundable"
+                  onChange={(e) => setTerminateWaive((p) => ({ ...p, [terminateTarget]: e.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm" />
+              </div>
+            );
+          })()}
+        </ReasonModal>
       )}
 
       {/* Preview Modal — Enhanced with Official Contract Document & File Tracking */}
@@ -954,6 +991,28 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </button>
                 </div>
               )}
+
+              {/* Deposit terms: editable on a draft, fixed once the tenant has signed */}
+              <div className="bg-slate-50 border border-slate-200 rounded-card p-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-body font-bold text-slate-800 m-0">Security deposit: {selectedContract.depositRefundable ? 'refundable' : 'not refunded in cash'}</p>
+                  <p className="text-caption text-slate-500 m-0 mt-0.5">
+                    {selectedContract.depositRefundable
+                      ? 'What is left after deductions is returned at move-out, unless it is withheld (no notice, early exit, or termination for a breach).'
+                      : 'The deposit is applied to unpaid rent, bills and damage, and any remainder to the last month.'}
+                  </p>
+                </div>
+                {String(selectedContract.status).toLowerCase() === 'draft' && (
+                  <label className="flex items-center gap-2 text-label font-medium text-slate-700 shrink-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedContract.depositRefundable}
+                      onChange={(e) => handleToggleDepositRefundable(selectedContract.id, e.target.checked)}
+                    />
+                    Refundable
+                  </label>
+                )}
+              </div>
 
               {/* Terminated contract banner */}
               {selectedContract.status === 'terminated' && (
@@ -1063,6 +1122,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                         unitType: selectedContract.type,
                         monthlyRent: formatCurrency(selectedContract.rent),
                         securityDeposit: formatCurrency(selectedContract.deposit),
+                        depositAmount: formatCurrency(selectedContract.deposit),
+                        depositRefundable: selectedContract.depositRefundable,
                         advanceRent: formatCurrency(selectedContract.rent),
                         leaseStartDate: selectedContract.leaseStart,
                         leaseEndDate: selectedContract.leaseEnd,

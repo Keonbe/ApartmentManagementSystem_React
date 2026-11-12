@@ -50,7 +50,7 @@ try {
         $res = $conn->query("
             SELECT ra.id AS application_id, ra.room_name, ra.first_name, ra.last_name, ra.suffix, ra.status, ra.monthly_rent, ra.archive_reason,
                    lc.id AS contract_id, lc.status AS contract_status, lc.lease_start, lc.lease_end,
-                   lc.deposit_amount, lc.deposit_status, lc.damage_deduction, lc.utility_deduction,
+                   lc.deposit_amount, lc.deposit_status, lc.deposit_refundable, lc.refund_amount, lc.damage_deduction, lc.utility_deduction,
                    lc.refund_date, lc.termination_reason
             FROM rent_applications ra
             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
@@ -143,6 +143,8 @@ try {
                     'damage' => round((float)$row['damage_deduction'], 2),
                     'utility' => round((float)$row['utility_deduction'], 2),
                     'refundDate' => $row['refund_date'],
+                    'refundable' => (bool)$row['deposit_refundable'],
+                    'refundAmount' => round((float)$row['refund_amount'], 2),
                     'items' => array_map(fn($d) => [
                         'label' => $d['label'], 'category' => $d['category'], 'reason' => $d['reason'],
                         'amount' => $d['amount'], 'date' => $d['created_at'] ? substr($d['created_at'], 0, 10) : null,

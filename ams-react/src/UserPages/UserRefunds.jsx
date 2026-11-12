@@ -8,6 +8,7 @@ import ConfirmDialog from '../Components/ConfirmDialog';
 import { TYPE_LABELS, peso, when } from '../utils/refundFormat';
 import { useLang } from '../config/i18n';
 import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
+import DepositStatement from '../Components/DepositStatement';
 
 export default function UserRefunds() {
   const { t } = useLang();
@@ -74,6 +75,8 @@ export default function UserRefunds() {
           <div role="status" className={`animate-fade-in rounded-lg border p-3 text-sm font-semibold ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>{notice.text}</div>
         )}
 
+        <DepositStatement />
+
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="m-0 mb-3 text-lg font-bold text-slate-800">{t('refunds.requestTitle')}</h2>
           {/* The form shows what can be refunded, so it waits for the same read as the list. */}
@@ -122,6 +125,9 @@ export default function UserRefunds() {
                 <StatusBadge status={r.status} />
               </div>
               <p className="m-0 mt-2 whitespace-pre-wrap text-sm text-slate-600">{r.reason}</p>
+              {r.dueDate && ['Pending Review', 'Info Requested', 'Approved'].includes(r.status) && (
+                <p className={`m-0 mt-1 text-xs font-semibold ${r.overdue ? 'text-rose-700' : 'text-slate-500'}`}>{t(r.overdue ? 'refunds.overdue' : 'refunds.dueBy', { date: r.dueDate })}</p>
+              )}
               {r.status === 'Refunded' && <p className="m-0 mt-2 text-sm font-semibold text-emerald-700">{t('refunds.paidOutVia', { method: r.payoutMethod || t('refunds.agreedMethod') })}{r.payoutReference ? ` (${t('refunds.ref', { ref: r.payoutReference })})` : ''}{r.refundedAt ? ` ${t('refunds.on', { date: when(r.refundedAt) })}` : ''}.</p>}
               {r.status === 'Rejected' && <p className="m-0 mt-2 text-sm font-semibold text-rose-700">{r.decisionReason ? t('refunds.reason', { reason: r.decisionReason }) : t('refunds.notApproved')}</p>}
               <RefundTrail events={r.events} />
@@ -136,7 +142,7 @@ export default function UserRefunds() {
                     className="min-h-[44px] cursor-pointer rounded-lg border-0 bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">{t('refunds.sendReply')}</button>
                 </div>
               )}
-              {(r.status === 'Pending Review' || r.status === 'Info Requested') && (
+              {(r.status === 'Pending Review' || r.status === 'Info Requested') && r.type !== 'deposit' && (
                 <button type="button" disabled={busy === r.id}
                   onClick={() => setCancelId(r.id)}
                   className="mt-3 min-h-[44px] cursor-pointer border-0 bg-transparent p-0 text-sm font-bold text-rose-700 hover:underline">{t('refunds.cancelRequest')}</button>

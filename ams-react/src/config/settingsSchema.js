@@ -22,6 +22,10 @@ export const SETTINGS_SCHEMA = [
   { key: 'reservationHoldDays', db: 'reservation_hold_days', type: 'int', default: 7 },             // days a unit reservation holds a room
   { key: 'moveOutMinNoticeDays', db: 'move_out_min_notice_days', type: 'int', default: 15 },        // a move-out date is at least this many days away
   { key: 'moveOutMaxNoticeDays', db: 'move_out_max_notice_days', type: 'int', default: 30 },        // ...and at most this many
+  // Security deposit (Rental tab). The default is copied into each new contract; admins can change it on a draft.
+  { key: 'depositRefundableDefault', db: 'deposit_refundable_default', type: 'bool', default: true, missingIsOn: true }, // new contracts return the unused deposit at move-out
+  { key: 'cancellationFee', db: 'cancellation_fee', type: 'float', default: 0, min: 0 },              // PHP kept when an admin cancels a paid application at the tenant's request
+  { key: 'depositRefundDays', db: 'deposit_refund_days', type: 'int', default: 30, min: 1 },          // days after the clearance within which a deposit refund is due
   { key: 'moveInMinDays', db: 'move_in_min_days', type: 'int', default: 0 },                        // a preferred move-in date is at least this many days away (0 = today)
   { key: 'moveInMaxDays', db: 'move_in_max_days', type: 'int', default: 365 },                      // ...and at most this many
   { key: 'inquiryMoveInMaxMonths', db: 'inquiry_move_in_max_months', type: 'int', default: 6, min: 1 }, // Send an Inquiry: move-in date today to +N months

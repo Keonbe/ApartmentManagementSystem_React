@@ -22,6 +22,8 @@ if (!$input) {
 }
 
 $contract_id = $input['contractId'] ?? '';
+// Why a forfeiture is waived (security deposit): text only, empty = not waived.
+$input['waive_forfeiture_reason'] = is_string($input['waive_forfeiture_reason'] ?? null) ? mb_substr(trim($input['waive_forfeiture_reason']), 0, 200) : '';
 $action = $input['action'] ?? ''; // 'flag', 'clear', 'activate', 'terminate' or 'edit'
 
 if (empty($contract_id) || empty($action)) {
@@ -148,6 +150,20 @@ if ($action === 'edit') {
         http_response_code(500);
         echo json_encode(["success" => false, "message" => "Failed to update contract dates"]);
     }
+} else if ($action === 'set_deposit_refundable') {
+    // Whether the unused deposit is paid back at move-out. Draft only: once the
+    // tenant has signed, the terms they agreed to do not change under them.
+    if ($current_status !== 'draft') {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "The deposit terms can only be changed while the contract is a draft."]);
+        exit;
+    }
+    $flag = !empty($input['depositRefundable']) ? 1 : 0;
+    $stmt = $conn->prepare("UPDATE lease_contracts SET deposit_refundable = ? WHERE id = ? AND status = 'draft'");
+    $stmt->bind_param("is", $flag, $contract_id);
+    $stmt->execute();
+    log_activity($conn, $admin_id, 'contract', "Set Deposit Terms", "Contract: $contract_id, deposit " . ($flag ? "refundable" : "not refundable"));
+    echo json_encode(["success" => true, "message" => $flag ? "The deposit will be refunded at move-out." : "The deposit will not be refunded in cash.", "depositRefundable" => (bool)$flag]);
 } else if ($action === 'activate') {
     // Draft -> Active, after the admin has reviewed the generated contract.
     if (!contract_action_allowed($current_status, 'activate')) {
@@ -291,37 +307,46 @@ if ($action === 'edit') {
             throw new Exception("This tenant has already moved out.");
         }
 
-        // The deposit's disposition, as at an ordinary move-out (non-refundable,
-        // checklist 3.9): a held deposit is applied against whatever is still
-        // owed, else to rent; one never paid is recorded as not collected. Read
+        // The deposit's disposition, through the same settle_deposit() as an
+        // ordinary move-out. A termination is for cause, so a refundable deposit
+        // is forfeited unless the admin keeps it refundable with a reason; a
+        // non-refundable one is applied against whatever is still owed. Read
         // before end_tenancy() cancels any invoice.
-        $open_stmt = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
-        $open_stmt->bind_param("i", $app_id);
-        $open_stmt->execute();
-        $open_total = (float)$open_stmt->get_result()->fetch_assoc()['open_total'];
-        $open_stmt->close();
-        $deposit_status = $open_total > 0 ? 'Applied to Bills/Damages' : 'Applied to Rent';
-        $dep_stmt = $conn->prepare("UPDATE lease_contracts
-            SET deposit_status = CASE WHEN deposit_status = 'Held' THEN ? ELSE 'Not Collected' END,
-                refund_amount = 0.00, refund_date = CURDATE()
-            WHERE id = ? AND deposit_status IN ('Held', 'Pending')");
-        $dep_stmt->bind_param("ss", $deposit_status, $contract_id);
-        $dep_stmt->execute();
-        $dep_stmt->close();
+        $settled = settle_deposit($conn, $app_id, $contract_id, [
+            'kind' => 'terminate', 'waive_reason' => $input['waive_forfeiture_reason'] ?? '',
+            'admin_id' => $admin_id, 'user_id' => $ended['user_id'] ?? 0,
+        ]);
+        $open_total = $settled ? $settled['open_total'] : 0.0;
 
         $vacated = end_tenancy($conn, $app_id, 'Contract Terminated');
         if ($vacated === null) {
             throw new Exception("The application behind this contract no longer exists.");
         }
+        // A refundable deposit that covered what was owed also clears those invoices
+        // (otherwise the tenant would pay them twice: once from the deposit, once again).
+        if ($settled && $settled['refundable'] && $settled['balance'] <= 0 && $settled['open_total'] > 0) {
+            $clear = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Settled from deposit' WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
+            $clear->bind_param("i", $app_id);
+            $clear->execute();
+            $clear->close();
+        }
 
         $conn->commit();
 
+        if ($settled && $settled['refund_id']) {
+            notify_refund_raised($conn, $settled['refund_id'], $settled['refund_amount'], 'a returned security deposit');
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$settled['refund_id']}: ₱" . number_format($settled['refund_amount'], 2) . " (security deposit, contract $contract_id)");
+        }
         if ($vacated['user_id']) {
             create_notification($conn, $vacated['user_id'], 'contract_update', 'Rent Contract Terminated',
-                "Your rent contract ($contract_id) has been terminated: $reason. Your unit has been marked vacant.");
+                "Your rent contract ($contract_id) has been terminated: $reason. Your unit has been marked vacant."
+                . ($settled && $settled['forfeited'] > 0 ? " Your remaining deposit of ₱" . number_format($settled['forfeited'], 2) . " was withheld: " . implode('; ', $settled['forfeit_reasons']) . "." : "")
+                . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : ""));
         }
         $details = "Contract: $contract_id, Reason: $reason"
-            . ($open_total > 0 ? "; ₱" . number_format($open_total, 2) . " still open at termination" : "")
+            . ($settled ? "; deposit " . $settled['status'] . ($settled['refund_amount'] > 0 ? " (refund ₱" . number_format($settled['refund_amount'], 2) . ")" : "") . ($settled['forfeited'] > 0 ? " (forfeited ₱" . number_format($settled['forfeited'], 2) . ")" : "") : "")
+            . ($input['waive_forfeiture_reason'] !== '' ? "; forfeiture waived: " . $input['waive_forfeiture_reason'] : "")
+            . ($open_total > 0 ? "; ₱" . number_format($open_total, 2) . " open at termination" : "")
             . ($vacated['parking_released'] ? "; parking released" : "")
             . ($vacated['visitors_cancelled'] ? "; visitor pre-registrations cancelled" : "");
         log_activity($conn, $admin_id, 'contract', "Terminated Contract & Ended Tenancy", $details);

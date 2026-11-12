@@ -498,7 +498,7 @@ Manually creates a lease contract for a rent application (admin only).
 ---
 
 ### `POST` [update_contract_status.php](../../backend/api/update_contract_status.php)
-Changes contract status (activate, terminate, mark eviction-pending). Admin only.
+Changes contract status (activate, terminate, mark eviction-pending). Admin only. `action: set_deposit_refundable` (+ `depositRefundable` bool) sets whether the unused security deposit is returned at move-out; draft contracts only (422 otherwise). `terminate` and the move-out clearance (`update_tenant_status.php`, `status: moved-out`) both settle the deposit through `settle_deposit()`: on a refundable contract what the deductions and unpaid invoices leave is returned through a `deposit` refund request (`deposit.refund_amount` in the response), unless it is forfeited (no move-out notice, moving out before the rent end date, termination for cause), recorded as a `forfeiture` line in `deposit_deductions`; send `waive_forfeiture_reason` (text) to keep it refundable. `get_refund_requests.php` adds `dueDate` / `overdue` to `deposit` requests (`deposit_refund_days` after the clearance). New settings: `deposit_refundable_default` (`0`/`1`), `deposit_refund_days` (1-90, default 30).
 
 ---
 
@@ -1113,7 +1113,7 @@ Endpoints added or split out after the modules above were written (verified agai
 | `POST` [create_refund_request.php](../../backend/api/create_refund_request.php) | tenant (admin must pass `user_id`) | `type` `advance` / `overpayment`, `reason` (<= 1000), `amount` (> 0), `invoice_id` for overpayment | `{success, message, id}`; 400; 404; 409 concurrent claim or not whole months; 422 nothing refundable / over the maximum | `insert_refund_request()` under a user-row lock; advance credits held (`refund_request_id`); admin queue; log `billing` |
 | `GET` [get_refund_requests.php](../../backend/api/get_refund_requests.php) | user (tenant: own; admin: all, optional `status`, `user_id`) | - | `{requests[{id, type, amount, status, decisionReason, payoutMethod, payoutReference, canRefundOnline, gatewayRefundId, gatewayStatus, raisedByRole, events[] ...}], eligible?}` (max 300) | none |
 | `POST` [respond_refund_request.php](../../backend/api/respond_refund_request.php) | tenant (own) | `id`, `action` `reply` / `cancel`, `message` (reply, <= 1000) | `{status}`; 409 not `Info Requested` or transition not allowed | Updates request + `refund_request_events`; cancel frees the credits; log `billing` |
-| `POST` [update_refund_request.php](../../backend/api/update_refund_request.php) | admin | `id`, `action` `approve` / `reject` / `request_info` / `mark_refunded`, `message` (reject, request_info), for `mark_refunded` either `gateway:true` (PayMongo refund, >= ₱1.00) or `payout_method` + `payout_reference` | `{status}`; 409 illegal transition (`REFUND_TRANSITIONS`) or gateway refund already `requesting`; 422; 502 PayMongo refused; 500 PayMongo accepted but AMS failed to record (do not retry) | Updates request + events, advance credits `refunded` / freed, tenant `refund_update` notice; log `billing` |
+| `POST` [update_refund_request.php](../../backend/api/update_refund_request.php) | admin | (a `deposit` request sets the contract's `deposit_status` only when none of that deposit's requests is still open: `Refunded` if any was paid out, `Refund Rejected` if all were rejected; a review can add a second request, so paying one out leaves the contract at `Refund Pending`) `id`, `action` `approve` / `reject` / `request_info` / `mark_refunded`, `message` (reject, request_info), for `mark_refunded` either `gateway:true` (PayMongo refund, >= ₱1.00) or `payout_method` + `payout_reference` | `{status}`; 409 illegal transition (`REFUND_TRANSITIONS`) or gateway refund already `requesting`; 422; 502 PayMongo refused; 500 PayMongo accepted but AMS failed to record (do not retry) | Updates request + events, advance credits `refunded` / freed, tenant `refund_update` notice; log `billing` |
 | `POST` [sync_maintenance_to_invoice.php](../../backend/api/sync_maintenance_to_invoice.php) | admin | `id` (maintenance request) | `{invoiceId}`; failures are HTTP 200 with `success:false` | `post_invoice_charge('maintenance')`; log `billing` |
 | `POST` [sync_parking_to_invoice.php](../../backend/api/sync_parking_to_invoice.php) | admin | `reservation_id`, `period` (`YYYY-MM`, default current), `action` `post` / `reverse` | `{invoice_id, already_billed}`; 404; 409; 422 | `post_invoice_charge` / `reverse_invoice_charge('parking')`; log `billing` |
 
@@ -1229,6 +1229,17 @@ Behaviour that the sections above no longer describe fully. The code wins; endpo
 | update_occupants.php | Body `{occupants}`: between 1 + active household members and `max_occupants_per_unit`, and different from the current count. |
 
 ----
+
+### 15.8 Security deposit refunds, reviews and cancellation fee (2026-11-11)
+
+| Endpoint | Auth | Input | Output / errors |
+|---|---|---|---|
+| `GET` [get_deposit_statement.php](../../backend/api/get_deposit_statement.php) | `require_user` | none | `{data}`: the caller's latest settled deposit (`deposit`, `status`, `refundable`, `refundAmount`, `forfeited`, `deductions[]`, `settledOn`, `review`, `reviewWindowEnds`, `canRequestReview`) or `null` |
+| `POST` [request_deposit_review.php](../../backend/api/request_deposit_review.php) | `require_user` | `message` (1-1000) | `{id}`; 422 empty or too long; 404 nothing settled; 409 already asked, period over (`deposit_refund_days` after the settlement) or nothing was deducted. Queues a `deposit_review` admin notice |
+| `GET` [get_deposit_reviews.php](../../backend/api/get_deposit_reviews.php) | admin | none | `{data[]}` open first, each with the deposit, `maxAdjustment` and the itemized `deductions[]` |
+| `POST` [resolve_deposit_review.php](../../backend/api/resolve_deposit_review.php) | admin | `id`, `outcome` `upheld`/`adjusted`, `response` (required, 1-1000), `amount` (adjusted: more than 0 and at most what was not returned) | `{refundId}`; 400 bad outcome; 422; 404; 409 already answered. `adjusted` opens a `deposit` refund request that is already `Approved` (only the payout is left) and sets the contract to `Refund Pending` |
+
+Also changed: `update_tenant_status.php` takes `at_tenant_request` (admin; only with `status: Cancelled` on an `Approved` application, else 422): the `cancellation_fee` setting is kept out of the refunds (`cancellation_fee_kept` in the response); a Rejected or Declined application is always refunded in full. `get_refund_requests.php` adds `dueDate` / `overdue` to `deposit` requests. `get_report_data.php` adds `depositsRefunded` and `depositsForfeited` and keeps `forfeiture` out of `depositDeductions.byCategory`. The daily sweep (`check_due_date_reminders.php` / `run_notification_sweep()`) reports `deposit_refunds_overdue`. New settings: `cancellation_fee` (0-100,000, default 0), `deposit_refundable_default` (default `1`), `deposit_refund_days` (1-90, default 30).
 
 ## Shared Constants & Helper Functions
 

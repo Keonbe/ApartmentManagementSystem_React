@@ -508,9 +508,12 @@ $stmt->close();
 // depositCollected: an applied deposit only offsets what the tenant owed.
 // depositDeductions = the itemized lines recorded in the period, by category;
 // depositsApplied = deposits of contracts settled ('Applied…') in the period.
+// depositsRefunded = what refundable contracts settled in the period return (or
+// already returned); depositsForfeited = the 'forfeiture' lines (deposits the
+// owner keeps). Forfeiture is not a deduction category, so it is reported apart.
 $data['depositDeductions'] = ['total' => 0.0, 'byCategory' => []];
 $res = $conn->query("SELECT category, SUM(amount) AS total FROM deposit_deductions
-                     WHERE " . $periodOn('created_at') . " GROUP BY category ORDER BY total DESC");
+                     WHERE category <> 'forfeiture' AND " . $periodOn('created_at') . " GROUP BY category ORDER BY total DESC");
 while ($res && ($row = $res->fetch_assoc())) {
     $amount = round((float)$row['total'], 2);
     $data['depositDeductions']['byCategory'][] = [
@@ -522,6 +525,12 @@ $data['depositDeductions']['total'] = round($data['depositDeductions']['total'],
 $row = $conn->query("SELECT COALESCE(SUM(deposit_amount), 0) AS total FROM lease_contracts
                      WHERE deposit_status LIKE 'Applied%' AND refund_date IS NOT NULL AND " . $periodOn('refund_date'))->fetch_assoc();
 $data['depositsApplied'] = round((float)($row['total'] ?? 0), 2);
+$row = $conn->query("SELECT COALESCE(SUM(refund_amount), 0) AS total FROM lease_contracts
+                     WHERE deposit_status IN ('Refund Pending', 'Refunded') AND refund_date IS NOT NULL AND " . $periodOn('refund_date'))->fetch_assoc();
+$data['depositsRefunded'] = round((float)($row['total'] ?? 0), 2);
+$row = $conn->query("SELECT COALESCE(SUM(amount), 0) AS total FROM deposit_deductions
+                     WHERE category = 'forfeiture' AND " . $periodOn('created_at'))->fetch_assoc();
+$data['depositsForfeited'] = round((float)($row['total'] ?? 0), 2);
 
 // Average lease stay duration
 $stmt = $conn->prepare("SELECT IFNULL(AVG(months_of_rent), 6.0) as avg_duration FROM rent_applications WHERE status IN ('Approved', 'active', 'pending-move-out', 'moved-out')");

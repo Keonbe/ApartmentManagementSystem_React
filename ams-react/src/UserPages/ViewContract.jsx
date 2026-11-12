@@ -113,6 +113,7 @@ export default function ViewContract() {
                         // figure when the contract row has not recorded one yet.
                         depositAmount: formatPeso(data.deposit_amount) || monthlyRent,
                         advanceRent: monthlyRent,
+                        depositRefundable: Number(data.deposit_refundable) === 1,
                         entryDate: hasValidStart ? formatLongDate(startDate) : null,
                         leaseEndDate: formatLongDate(data.lease_end),
                         dueDateDay: hasValidStart ? startDate.getDate() : null,

@@ -15,6 +15,7 @@ import { apiErrorMessage } from '../../utils/apiError';
 // With `options`, the reason is picked from a dropdown of presets; "Other…"
 // reveals the textarea for a typed reason.
 // With `allowAttachment`, optional file/image upload is supported.
+// `children` render under the reason (extra options such as a checkbox the caller reads itself).
 const OTHER = '__other__';
 
 export default function ReasonModal({
@@ -32,6 +33,7 @@ export default function ReasonModal({
   suggestions = [],
   allowAttachment = false,
   attachmentLabel = 'Attach Supporting Document / Image (optional)',
+  children = null,
 }) {
   const hasOptions = options?.length > 0;
   const [choice, setChoice] = useState(hasOptions ? options[0] : OTHER);
@@ -175,6 +177,8 @@ export default function ReasonModal({
           </>
         )}
         {!typing && error && <FieldError id="reason-modal-choice" error={error} />}
+
+        {children}
 
         {allowAttachment && (
           <div className="mt-4">

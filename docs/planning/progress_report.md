@@ -271,6 +271,7 @@ None. Everything goes straight to `main` (the former `WS-Chat-test` chat branch 
 | 2026-10-15 | API test suite | First automated backend tests on a scratch database that cannot touch dev data. |
 | 2026-10-28 | Full-coverage demo seed | Demo accounts and data for every workflow state, safe to load next to real data. |
 | 2026-11-06 | QA guide and 1,598 API tests | Per-module QA method, 67 test files, docs reorganised and refreshed. |
+| 2026-11-11 | Refundable security deposit and refund rules | Adviser feedback: the deposit is refundable per contract (default on for new contracts), settled in one place for move-out and termination, with itemized forfeiture, a 30-day refund, a cancellation fee, a tenant review request and a refund matrix in the Terms. |
 
 ## Paper Track
 

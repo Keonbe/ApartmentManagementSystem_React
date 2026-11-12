@@ -172,6 +172,10 @@ CREATE TABLE `lease_contracts` (
   `id` varchar(50) NOT NULL,
   `rent_application_id` int(11) DEFAULT NULL,
   `deposit_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  -- 1 = the unused deposit is paid back at move-out (refund request type
+  -- 'deposit'); 0 = applied to rent / bills / damage. Set when the contract is
+  -- issued from the deposit_refundable_default setting.
+  `deposit_refundable` tinyint(1) NOT NULL DEFAULT 0,
   `lease_start` date DEFAULT NULL,
   `lease_end` date DEFAULT NULL,
   `status` enum('draft','active','expired','terminated','eviction-pending') NOT NULL DEFAULT 'draft',
@@ -1367,7 +1371,7 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `rent_application_id` int(11) DEFAULT NULL,
-  `type` enum('advance','overpayment','rejected_application','rejected_charge','online_payment') NOT NULL,
+  `type` enum('advance','overpayment','rejected_application','rejected_charge','online_payment','deposit') NOT NULL,
   `invoice_id` varchar(50) DEFAULT NULL,
   `amount` decimal(10,2) NOT NULL,
   `reason` text NOT NULL,
@@ -1383,6 +1387,8 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   `decided_by` int(11) DEFAULT NULL,
   `decided_at` datetime DEFAULT NULL,
   `refunded_at` datetime DEFAULT NULL,
+  -- Claim for the once-only overdue notice (deposit refunds, run_notification_sweep()).
+  `overdue_notified_at` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
@@ -1479,7 +1485,7 @@ CREATE TABLE IF NOT EXISTS `deposit_deductions` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `rent_application_id` int(11) NOT NULL,
   `contract_id` varchar(50) DEFAULT NULL,
-  `category` enum('damage','electricity','water','unpaid_rent','other') NOT NULL,
+  `category` enum('damage','electricity','water','unpaid_rent','other','forfeiture') NOT NULL,
   `reason` varchar(255) NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `recorded_by` int(11) DEFAULT NULL,
@@ -1487,6 +1493,27 @@ CREATE TABLE IF NOT EXISTS `deposit_deductions` (
   PRIMARY KEY (`id`),
   KEY `idx_deposit_deductions_app` (`rent_application_id`),
   CONSTRAINT `fk_deposit_deductions_application` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- A tenant's request to review a deposit deduction or forfeiture, and the
+-- admin's answer (request_deposit_review.php / resolve_deposit_review.php).
+CREATE TABLE IF NOT EXISTS `deposit_reviews` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `message` text NOT NULL,
+  `status` enum('Open','Resolved') NOT NULL DEFAULT 'Open',
+  `outcome` enum('upheld','adjusted') DEFAULT NULL,
+  `adjusted_amount` decimal(10,2) DEFAULT NULL,
+  `admin_response` text DEFAULT NULL,
+  `resolved_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `resolved_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_deposit_review_app` (`rent_application_id`, `status`),
+  KEY `idx_deposit_review_user` (`user_id`),
+  CONSTRAINT `fk_deposit_review_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_deposit_review_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Invoice adjustment history (adjust_invoice.php): the required reason and the
@@ -1526,6 +1553,9 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('min_lease_duration', '3'),
 ('max_rent_ahead_months', '12'),
 ('payment_window_days', '3'),
+('deposit_refundable_default', '1'),
+('deposit_refund_days', '30'),
+('cancellation_fee', '0'),
 ('overdue_threshold_days', '15'),
 ('maintenance_monthly_budget', '50000'),
 ('tenant_responsibility_clause', 'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.'),

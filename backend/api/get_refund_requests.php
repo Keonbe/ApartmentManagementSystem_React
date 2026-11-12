@@ -47,8 +47,10 @@ $stmt->execute();
 $res = $stmt->get_result();
 $requests = [];
 $ids = [];
+$deposit_days = deposit_refund_days($conn); // a returned deposit is due this many days after the clearance
 while ($r = $res->fetch_assoc()) {
     $ids[] = (int)$r['id'];
+    $due_date = $r['type'] === 'deposit' ? date('Y-m-d', strtotime($r['created_at'] . " +$deposit_days days")) : null;
     $requests[(int)$r['id']] = [
         'id' => (int)$r['id'],
         'userId' => (int)$r['user_id'],
@@ -71,6 +73,8 @@ while ($r = $res->fetch_assoc()) {
         'refundedAt' => $r['refunded_at'],
         'createdAt' => $r['created_at'],
         'updatedAt' => $r['updated_at'],
+        'dueDate' => $due_date,
+        'overdue' => $due_date !== null && in_array($r['status'], REFUND_OPEN_STATUSES, true) && $due_date < date('Y-m-d'),
         'events' => [],
     ];
 }

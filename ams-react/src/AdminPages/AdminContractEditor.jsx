@@ -685,6 +685,11 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
                         onChange={(val) => update((d) => { d.terms.sections[si].clauses[ci].title = val; })} onFieldFocus={onFieldFocus} />
                       <BiInput id={`${clause.id}-body`} label="Clause Text" required multiline rows={4} max={LIM.body} value={clause.body}
                         onChange={(val) => update((d) => { d.terms.sections[si].clauses[ci].body = val; })} onFieldFocus={onFieldFocus} />
+                      {clause.id === 'cl-deposit' && (
+                        <p className="m-0 rounded-control bg-indigo-50 px-3 py-2 text-caption text-indigo-800">
+                          Only the first paragraph is used. The refund and withholding terms that follow it are generated for each contract from its Deposit setting (Settings → Rental, changeable on a draft contract), so text typed after the first paragraph does not appear in the contract.
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>

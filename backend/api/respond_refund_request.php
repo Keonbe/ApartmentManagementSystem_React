@@ -30,7 +30,7 @@ if (!in_array($action, ['reply', 'cancel'], true)) refund_fail(400, "Unknown act
 if ($action === 'reply' && ($message === '' || mb_strlen($message) > 1000)) refund_fail(400, "Write your reply (up to 1000 characters).");
 if (mb_strlen($message) > 1000) refund_fail(400, "Keep the message under 1000 characters.");
 
-$stmt = $conn->prepare("SELECT amount, status FROM refund_requests WHERE id = ? AND user_id = ?");
+$stmt = $conn->prepare("SELECT amount, status, type FROM refund_requests WHERE id = ? AND user_id = ?");
 $stmt->bind_param("ii", $id, $uid);
 $stmt->execute();
 $req = $stmt->get_result()->fetch_assoc();
@@ -38,6 +38,7 @@ $stmt->close();
 if (!$req) refund_fail(404, "Refund request not found.");
 
 $from = $req['status'];
+if ($action === 'cancel' && $req['type'] === 'deposit') refund_fail(409, "A security deposit refund cannot be cancelled. Contact Management if something is wrong.");
 $to = $action === 'reply' ? 'Pending Review' : 'Cancelled';
 if ($action === 'reply' && $from !== 'Info Requested') refund_fail(409, "There is no question waiting for your reply.");
 if (!in_array($to, REFUND_TRANSITIONS[$from] ?? [], true)) refund_fail(409, "This request is $from and cannot be changed.");

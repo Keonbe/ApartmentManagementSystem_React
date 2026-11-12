@@ -36,7 +36,7 @@ if (in_array($action, ['reject', 'request_info'], true) && $message === '') {
 }
 if (mb_strlen($message) > 1000) refund_fail(400, "Keep the message under 1000 characters.");
 
-$stmt = $conn->prepare("SELECT id, user_id, type, invoice_id, amount, status, paymongo_payment_id, gateway_status FROM refund_requests WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, user_id, rent_application_id, type, invoice_id, amount, status, paymongo_payment_id, gateway_status FROM refund_requests WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $req = $stmt->get_result()->fetch_assoc();
@@ -119,6 +119,25 @@ try {
     }
     if ($action === 'mark_refunded') {
         $conn->query("UPDATE advance_credits SET status = 'refunded' WHERE refund_request_id = $id");
+    }
+    // A returned security deposit shows its outcome on the contract (Security Deposit Ledger),
+    // once none of its deposit refunds is still open: a review can add a second request, and
+    // paying out one of them must not mark the whole deposit Refunded. Any paid request makes
+    // it Refunded; only when every request was rejected is it Refund Rejected.
+    if ($req['type'] === 'deposit' && $req['rent_application_id'] && in_array($action, ['mark_refunded', 'reject'], true)) {
+        $dep_q = $conn->prepare("SELECT SUM(status IN ('Pending Review', 'Info Requested', 'Approved')) AS open_n, SUM(status = 'Refunded') AS paid_n
+                                 FROM refund_requests WHERE rent_application_id = ? AND type = 'deposit'");
+        $dep_q->bind_param("i", $req['rent_application_id']);
+        $dep_q->execute();
+        $dep_counts = $dep_q->get_result()->fetch_assoc();
+        $dep_q->close();
+        if ((int)$dep_counts['open_n'] === 0) {
+            $dep_status = (int)$dep_counts['paid_n'] > 0 ? 'Refunded' : 'Refund Rejected';
+            $dep_u = $conn->prepare("UPDATE lease_contracts SET deposit_status = ? WHERE rent_application_id = ? AND deposit_status = 'Refund Pending'");
+            $dep_u->bind_param("si", $dep_status, $req['rent_application_id']);
+            $dep_u->execute();
+            $dep_u->close();
+        }
     }
 
     $ev = $conn->prepare("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES (?, ?, 'admin', ?, ?)");

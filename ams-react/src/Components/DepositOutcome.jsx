@@ -11,7 +11,9 @@ export default function DepositOutcome({ deposit, className = 'mt-2' }) {
   const utility = Number(deposit.utility || 0);
   const amount = Number(deposit.amount || 0);
   const applied = String(deposit.status || '').startsWith('Applied');
-  const toRent = Math.max(0, amount - damage - utility);
+  const refundAmount = Number(deposit.refundAmount || 0);
+  // Forfeited and refunded amounts are not "rent": only an applied, non-refundable deposit rolls into the last month.
+  const toRent = deposit.refundable ? 0 : Math.max(0, amount - damage - utility);
 
   return (
     <div className={`${className} bg-white rounded-lg px-2.5 py-2 border border-slate-100 text-[11px] text-slate-600`}>
@@ -36,7 +38,10 @@ export default function DepositOutcome({ deposit, className = 'mt-2' }) {
           <span>Bills/rent owed: <strong className="text-slate-700">{peso(utility)}</strong></span>
         </div>
       )}
-      {applied && (
+      {refundAmount > 0 && (
+        <div className="mt-1 flex justify-between"><span className="text-slate-400">Refund to tenant</span><span className="font-bold text-emerald-700">{peso(refundAmount)}</span></div>
+      )}
+      {applied && !deposit.refundable && (
         <div className="mt-1 flex justify-between"><span className="text-slate-400">Applied to rent</span><span className="font-bold text-indigo-600">{peso(toRent)}</span></div>
       )}
       {deposit.refundDate && <p className="m-0 mt-1 text-[10px] text-slate-400">Settled {deposit.refundDate}</p>}

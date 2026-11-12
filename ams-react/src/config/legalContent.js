@@ -45,7 +45,7 @@ const en = {
         li: [
           'an occupancy limit per unit, with a fee for each person above it;',
           'a move-out notice of 15 days;',
-          'a security deposit of one month\'s rent, applied to unpaid rent, utilities or damage; it is not refunded in cash, and any remainder may be applied to the last month\'s rent;',
+          'a security deposit of one month\'s rent, applied to unpaid rent, utilities or damage. Whether the remainder is returned to you is stated in your contract (see Refunds and your security deposit);',
           'no sublease or transfer without Management\'s written permission;',
           'the owner\'s right to inspect the unit;',
           'termination by either party for a serious violation.',
@@ -92,15 +92,39 @@ const en = {
         ],
       },
       {
-        h: '8. Notifications',
+        h: '8. Refunds and your security deposit',
+        p: ['What is paid back, and when, depends on the case:'],
+        li: [
+          'a rejected application: everything you paid is refunded in full;',
+          'cancelling before move-in with nothing paid: no charge. Once part of the move-in bill is paid, cancellation is handled by Management, who refunds what you paid, less the cancellation fee if Management has set one;',
+          'advance rent for months not yet reached when your tenancy ends: refunded;',
+          'a payment above what you owed, or a charge that was removed after you paid it: refunded in full;',
+          'the security deposit: see below. Your contract states whether it is refundable.',
+        ],
+      },
+      {
+        h: '',
+        p: ['If your contract says the security deposit is refundable, at move-out it first covers unpaid rent, utilities and damage beyond normal wear, each listed with a reason, and the rest is returned to you within the number of days shown on your refund (30 by default), counted from the move-out clearance. You can follow it under My Refunds.'],
+        li: [
+          'the remaining deposit is withheld if you move out without the required notice, move out before the rent end date, or your contract is terminated for a breach or eviction; Management may waive this and must give a reason;',
+          'if what you owe is more than the deposit, the deposit is used up and the difference stays payable;',
+          'if you disagree with a deduction or with a withheld deposit, you can ask Management to review it under My Refunds within the refund period; Management answers with a reason.',
+        ],
+      },
+      {
+        h: '',
+        p: ['If your contract says the deposit is not refundable, it is applied to what you owe, and any remainder to your last month\'s rent.'],
+      },
+      {
+        h: '9. Notifications',
         p: ['The System sends notices in the app and, depending on your preferences, by email and SMS. Notices about bills, overdue accounts, payments, application and rent decisions, maintenance, contracts and move-out cannot be switched off, because they affect your tenancy. Other categories can be turned off in your notification settings.'],
       },
       {
-        h: '9. Acceptable use',
+        h: '10. Acceptable use',
         p: ['You must not misuse the System: no false documents or payment proofs, no attempts to access another person\'s data, no interference with the service, and no uploading of unlawful content. Management may restrict or archive an account that breaches these Terms.'],
       },
       {
-        h: '10. Liability and changes',
+        h: '11. Liability and changes',
         p: [
           'The System is provided to support the management of the property. Management is not liable for losses caused by interruptions, third-party services (such as SMS or email delivery) or events outside its control, to the extent allowed by law.',
           'These Terms may be updated. The date above shows the current version; continued use after an update means you accept it.',
@@ -225,7 +249,7 @@ const fil = {
         li: [
           'limitasyon sa bilang ng nakatira sa bawat unit, na may bayad sa bawat sobra;',
           'abiso sa paglipat-labas na 15 araw;',
-          'security deposit na katumbas ng isang buwang upa, na ginagamit sa hindi nabayarang upa, utilities o pinsala; hindi ito ibinabalik nang cash, at ang matitira ay maaaring ilapat sa huling buwang upa;',
+          'security deposit na katumbas ng isang buwang upa, na ginagamit sa hindi nabayarang upa, utilities o pinsala. Nakasaad sa kontrata mo kung ibinabalik ang matitira (tingnan ang Mga refund at ang iyong security deposit);',
           'bawal ang sublease o paglilipat nang walang nakasulat na pahintulot ng Pamunuan;',
           'karapatan ng may-ari na siyasatin ang unit;',
           'pagwawakas ng alinmang panig dahil sa malubhang paglabag.',
@@ -272,15 +296,39 @@ const fil = {
         ],
       },
       {
-        h: '8. Mga abiso',
+        h: '8. Mga refund at ang iyong security deposit',
+        p: ['Kung ano ang ibabalik at kailan, ay depende sa kaso:'],
+        li: [
+          'tinanggihang aplikasyon: ibabalik nang buo ang lahat ng binayaran mo;',
+          'pagkansela bago lumipat na wala pang bayad: walang singil. Kapag may bahagi nang nabayaran sa move-in bill, ang Pamunuan ang aayos ng pagkansela at ibabalik ang binayaran mo, bawas ang cancellation fee kung may itinakda ang Pamunuan;',
+          'advance na upa para sa mga buwang hindi pa dumarating sa pagtatapos ng paninirahan: ibabalik;',
+          'bayad na lampas sa utang mo, o singil na inalis matapos mong bayaran: ibabalik nang buo;',
+          'ang security deposit: tingnan sa ibaba. Nakasaad sa kontrata mo kung ito ay ibinabalik.',
+        ],
+      },
+      {
+        h: '',
+        p: ['Kung nakasaad sa kontrata mo na ibinabalik ang security deposit, sa paglipat ito ay unang ikinakaltas sa hindi nabayarang upa, utilities at pinsalang lampas sa karaniwang pagkasira, na may nakalistang dahilan, at ang matitira ay ibabalik sa iyo sa loob ng bilang ng araw na nakasaad sa refund mo (30 bilang default), mula sa move-out clearance. Masusubaybayan mo ito sa My Refunds.'],
+        li: [
+          'hindi ibabalik ang natitirang deposit kung lilipat ka nang walang kinakailangang abiso, lilipat bago ang petsa ng pagtatapos ng upa, o tatapusin ang kontrata mo dahil sa paglabag o pagpapaalis; maaari itong alisin ng Pamunuan at kailangan itong magbigay ng dahilan;',
+          'kung mas malaki ang utang mo kaysa sa deposit, mauubos ang deposit at ang kulang ay babayaran mo pa rin;',
+          'kung hindi ka sang-ayon sa isang kaltas o sa hindi ibinalik na deposit, maaari mong hilingin sa Pamunuan na suriin ito sa My Refunds sa loob ng panahon ng refund; sasagot ang Pamunuan na may dahilan.',
+        ],
+      },
+      {
+        h: '',
+        p: ['Kung nakasaad sa kontrata mo na hindi ibinabalik ang deposit, ito ay ikinakaltas sa utang mo, at ang matitira ay sa huling buwang upa.'],
+      },
+      {
+        h: '9. Mga abiso',
         p: ['Nagpapadala ang System ng abiso sa app at, ayon sa iyong kagustuhan, sa email at SMS. Ang mga abiso tungkol sa bill, overdue, bayad, desisyon sa aplikasyon at upa, maintenance, kontrata at paglipat-labas ay hindi maaaring patayin dahil nakaaapekto ito sa iyong paninirahan. Ang ibang kategorya ay maaaring patayin sa notification settings.'],
       },
       {
-        h: '9. Wastong paggamit',
+        h: '10. Wastong paggamit',
         p: ['Huwag abusuhin ang System: walang pekeng dokumento o patunay ng bayad, walang pagtatangkang makuha ang data ng iba, walang panggugulo sa serbisyo, at walang pag-upload ng labag sa batas. Maaaring higpitan o i-archive ng Pamunuan ang account na lumabag sa mga Tuntuning ito.'],
       },
       {
-        h: '10. Pananagutan at mga pagbabago',
+        h: '11. Pananagutan at mga pagbabago',
         p: [
           'Ibinibigay ang System upang suportahan ang pamamahala ng property. Hindi mananagot ang Pamunuan sa pagkalugi dahil sa pagkaantala, third-party services (tulad ng SMS o email) o mga pangyayaring wala sa kontrol nito, hanggang sa pinapayagan ng batas.',
           'Maaaring baguhin ang mga Tuntuning ito. Ang petsa sa itaas ang kasalukuyang bersyon; ang patuloy na paggamit pagkatapos ng pagbabago ay pagsang-ayon dito.',

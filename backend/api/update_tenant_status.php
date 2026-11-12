@@ -18,6 +18,8 @@ $input = $_POST;
 if (empty($input)) $input = json_decode(file_get_contents("php://input"), true) ?: [];
 $id = (int)($input['id'] ?? 0);
 $status = $input['status'] ?? '';
+// Why a forfeiture is waived (security deposit): text only, empty = not waived.
+$input['waive_forfeiture_reason'] = is_string($input['waive_forfeiture_reason'] ?? null) ? mb_substr(trim($input['waive_forfeiture_reason']), 0, 200) : '';
 $rejection_reason = $input['rejection_reason'] ?? null;
 
 if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection_reason) === '') {
@@ -146,7 +148,20 @@ if ($id > 0 && !empty($status)) {
             $conn->close();
             exit;
         }
+        // A cancellation the tenant asked for keeps the cancellation fee (Settings → Rental)
+        // out of the refund; a rejection or decline by Management never does.
+        $at_tenant_request = in_array($input['at_tenant_request'] ?? false, [true, 1, '1', 'true', 'on'], true);
+        if ($at_tenant_request && !($current_status === 'Approved' && $status === 'Cancelled')) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "The cancellation fee only applies when an approved application is cancelled at the tenant's request."]);
+            $conn->rollback();
+            $conn->close();
+            exit;
+        }
+        $cancellation_fee_kept = 0.0;
         $refunds_raised = [];
+        $deposit_refund_raised = null;
+        $settled = null;
 
         $requested_move_out_date = null;
         if ($status === 'pending-move-out') {
@@ -191,7 +206,7 @@ if ($id > 0 && !empty($status)) {
             // Money already paid on an approved application goes back through
             // a refund request per paid invoice (the admin decides at /admin-refunds).
             if ($refund_on_cancel && !empty($cur_row['user_id'])) {
-                $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, trim((string)$rejection_reason), $admin_id);
+                $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, trim((string)$rejection_reason), $admin_id, $at_tenant_request ? cancellation_fee($conn) : 0.0, $cancellation_fee_kept);
             }
         }
 
@@ -342,63 +357,38 @@ if ($id > 0 && !empty($status)) {
             }
             $room_condition = $has_damage_line ? 'Needs Repair' : 'Good';
 
-            // M4: what's left owed after the deposit — every still-open invoice
-            // (whatever its status) plus the damage/utility deductions, less the
-            // deposit itself. Read before end_tenancy() touches any invoice.
-            // The tenancy's contract is 'active', or 'expired' when the lease end
-            // passed before the admin cleared the move-out (expire_lapsed_contracts()),
-            // or 'eviction-pending'. Matching only 'active' used to skip an expired
-            // contract: its deposit stayed "Held", the deductions never reached the
-            // contract (so not the Security Deposit Ledger) and the deposit was
-            // left out of the balance below. A draft or terminated contract is not
-            // settled here, and one already settled (deposit_status Applied…) is not
-            // settled twice.
-            $deposit_stmt = $conn->prepare("SELECT id, deposit_amount, deposit_status FROM lease_contracts
-                                            WHERE rent_application_id = ? AND status IN ('active', 'expired', 'eviction-pending') AND deposit_status IN ('Held', 'Pending')
-                                            ORDER BY generated_at DESC LIMIT 1 FOR UPDATE");
-            $deposit_stmt->bind_param("i", $id);
-            $deposit_stmt->execute();
-            $deposit_row = $deposit_stmt->get_result()->fetch_assoc();
-            $deposit_stmt->close();
-            // Only a deposit that was actually paid ('Held') can cover the balance.
-            $deposit_amount = ($deposit_row && $deposit_row['deposit_status'] === 'Held') ? (float)$deposit_row['deposit_amount'] : 0.0;
-            $settled_contract_id = $deposit_row ? $deposit_row['id'] : null;
-
-            $open_stmt = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
-            $open_stmt->bind_param("i", $id);
-            $open_stmt->execute();
-            $open_total = (float)$open_stmt->get_result()->fetch_assoc()['open_total'];
-            $open_stmt->close();
-
-            $balance = round($open_total + $damage_deduction + $utility_deduction - $deposit_amount, 2);
-
-            // Update lease contract to store the security deposit allocation
-            // (non-refundable: refund_amount is always 0.00). Only settles an
-            // 'active' contract — end_tenancy() below handles the
-            // room/invoices/parking/visitors every move-out shares, whatever
-            // state the contract itself is in (also used by contract
-            // termination, which ends the tenancy the same way).
-            $deposit_status = 'Applied to Rent';
-            if ($damage_deduction > 0 || $utility_deduction > 0) {
-                $deposit_status = 'Applied to Bills/Damages';
+            // The deposit is settled by settle_deposit() (config.php), the same
+            // routine as a contract termination: deductions and unpaid invoices
+            // come off it; on a refundable contract what is left is returned
+            // through a 'deposit' refund request (unless it is forfeited: no
+            // notice, or leaving before the contract end), else it goes to rent.
+            // The contract is 'active', 'expired' (lease end passed before the
+            // clearance) or 'eviction-pending'; a draft or terminated contract, or
+            // one already settled, is not settled twice. Read before end_tenancy()
+            // touches any invoice.
+            $deposit_pre = $conn->prepare("SELECT requested_move_out_date, user_id FROM rent_applications WHERE id = ?");
+            $deposit_pre->bind_param("i", $id);
+            $deposit_pre->execute();
+            $deposit_app = $deposit_pre->get_result()->fetch_assoc() ?: [];
+            $deposit_pre->close();
+            $settled = settle_deposit($conn, $id, null, [
+                'damage' => $damage_deduction, 'utility' => $utility_deduction, 'kind' => 'move_out',
+                'prior_status' => $current_status, 'move_out_date' => $deposit_app['requested_move_out_date'] ?? null,
+                'set_expired' => true, 'waive_reason' => $input['waive_forfeiture_reason'] ?? '',
+                'admin_id' => $admin_id, 'user_id' => $deposit_app['user_id'] ?? 0,
+            ]);
+            $settled_contract_id = $settled ? $settled['contract_id'] : null;
+            if ($settled) {
+                $balance = $settled['balance'];
+            } else {
+                // No deposit to settle (never paid, or settled before): everything owed stays owed.
+                $open_q = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
+                $open_q->bind_param("i", $id);
+                $open_q->execute();
+                $balance = round((float)$open_q->get_result()->fetch_assoc()['open_total'] + $damage_deduction + $utility_deduction, 2);
+                $open_q->close();
             }
-            // Updated by id (the row read above): a paid deposit takes the
-            // disposition, one never paid is recorded as not collected.
-            if ($settled_contract_id !== null) {
-                $ctr_stmt = $conn->prepare("
-                    UPDATE lease_contracts
-                    SET status = 'expired',
-                        deposit_status = CASE WHEN deposit_status = 'Held' THEN ? ELSE 'Not Collected' END,
-                        damage_deduction = ?,
-                        utility_deduction = ?,
-                        refund_amount = 0.00,
-                        refund_date = CURDATE()
-                    WHERE id = ? AND deposit_status IN ('Held', 'Pending')
-                ");
-                $ctr_stmt->bind_param("sdds", $deposit_status, $damage_deduction, $utility_deduction, $settled_contract_id);
-                $ctr_stmt->execute();
-                $ctr_stmt->close();
-            }
+            if ($settled && $settled['refund_id']) $deposit_refund_raised = ['id' => $settled['refund_id'], 'amount' => $settled['refund_amount']];
 
             // One row per deduction, in this same transaction (a failure rolls the clearance back).
             $deduction_summary = [];
@@ -436,11 +426,15 @@ if ($id > 0 && !empty($status)) {
                 create_notification($conn, $vacated['user_id'], 'move_out_update', 'Move-Out Completed',
                     "Your move-out has been completed and your clearance recorded. Thank you for staying with us."
                     . ($deduction_summary ? " Deductions from your deposit: " . implode("; ", $deduction_summary) . "." : "")
+                    . ($settled && $settled['forfeited'] > 0 ? " Your remaining deposit of ₱" . number_format($settled['forfeited'], 2) . " was withheld: " . implode('; ', $settled['forfeit_reasons']) . "." : "")
+                    . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : "")
                     . ($balance > 0 ? " An outstanding balance of ₱" . number_format($balance, 2) . " remains after your deposit." : ""));
             }
 
             log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance",
                 "Application ID: $id, $clearance_notes" . ($deduction_summary ? "; deductions: " . implode("; ", $deduction_summary) : "") . ($vacated && $vacated['parking_released'] ? "; parking released" : "")
+                . ($settled ? "; deposit " . $settled['status'] . ($settled['refund_amount'] > 0 ? " (refund ₱" . number_format($settled['refund_amount'], 2) . ")" : "") . ($settled['forfeited'] > 0 ? " (forfeited ₱" . number_format($settled['forfeited'], 2) . ": " . implode('; ', $settled['forfeit_reasons']) . ")" : "") : "")
+                . (trim((string)($input['waive_forfeiture_reason'] ?? '')) !== '' ? "; forfeiture waived: " . trim((string)$input['waive_forfeiture_reason']) : "")
                 . ($balance > 0 ? "; balance due after deposit: ₱" . number_format($balance, 2) : "; deposit covered the balance in full"));
         } else {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
@@ -477,6 +471,9 @@ if ($id > 0 && !empty($status)) {
                     $refund_total = array_sum(array_column($refunds_raised, 'amount'));
                     $notif_msg .= " A refund request of ₱" . number_format($refund_total, 2) . " was opened for the payments you made. You can follow it under My Refunds.";
                 }
+                if ($cancellation_fee_kept > 0) {
+                    $notif_msg .= " A cancellation fee of ₱" . number_format($cancellation_fee_kept, 2) . " was kept.";
+                }
                 
                 $notif_id = create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
                 if ($notif_id && $attachment_path) {
@@ -492,9 +489,16 @@ if ($id > 0 && !empty($status)) {
         }
 
         $conn->commit();
+        if (empty($refunds_raised) && $cancellation_fee_kept > 0) {
+            log_activity($conn, $admin_id, 'billing', 'Cancellation Fee Kept', "Application #$id: ₱" . number_format($cancellation_fee_kept, 2) . " (nothing left to refund)");
+        }
         foreach ($refunds_raised as $rf) {
             notify_refund_raised($conn, $rf['id'], $rf['amount'], 'a payment on a rejected application');
-            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$rf['id']}: ₱" . number_format($rf['amount'], 2) . " (rejected application #$id)");
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$rf['id']}: ₱" . number_format($rf['amount'], 2) . " (rejected application #$id)" . ($cancellation_fee_kept > 0 ? "; cancellation fee kept: ₱" . number_format($cancellation_fee_kept, 2) : ""));
+        }
+        if ($deposit_refund_raised) {
+            notify_refund_raised($conn, $deposit_refund_raised['id'], $deposit_refund_raised['amount'], 'a returned security deposit');
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$deposit_refund_raised['id']}: ₱" . number_format($deposit_refund_raised['amount'], 2) . " (security deposit, application #$id)");
         }
         // Queue the approval email only after the transaction commits. Notification
         // failures must never roll back a completed application approval.
@@ -519,8 +523,12 @@ if ($id > 0 && !empty($status)) {
         }
         $response = ["success" => true];
         if (!empty($refunds_raised)) $response["refunds_raised"] = count($refunds_raised);
+        if ($cancellation_fee_kept > 0) $response["cancellation_fee_kept"] = $cancellation_fee_kept;
         if ($status === 'moved-out') {
             $response["balance_due"] = $balance > 0 ? round($balance, 2) : 0;
+            if ($settled) {
+                $response["deposit"] = ['status' => $settled['status'], 'refund_amount' => $settled['refund_amount'], 'forfeited' => $settled['forfeited'], 'forfeit_reasons' => $settled['forfeit_reasons']];
+            }
         }
         echo json_encode($response);
 

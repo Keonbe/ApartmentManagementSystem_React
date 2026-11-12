@@ -85,6 +85,7 @@
    - 20.1 Refund Approval · 20.2 Per-Floor Rent · 20.3 Utility Bill and Proof · 20.4 Other Utility Types · 20.5 Parking Rules · 20.6 Children, Minors and Pets
 21. [Defense Gaps (2026-10-13)](#21-defense-gaps-2026-10-13)
 22. [Guest Inquiry Chat Links (2026-10-31)](#22-guest-inquiry-chat-links-2026-10-31)
+23. [Security Deposit, Refund Rules and Reviews (2026-11-11)](#23-security-deposit-refund-rules-and-reviews-2026-11-11)
 
 ---
 
@@ -2557,7 +2558,7 @@ Seed fixtures: reservation **1** (Dante, user 9) Assigned slot 1; reservation **
 |---|---|---|---|---|---|
 | `get_contracts.php` | GET | `require_user` | `?userId=` (self, or admin for anyone), `?email=` (admin-only preview), or neither (admin: full list) | `contract`/`contracts[]` including `status`; admin list also carries `overdueInfo` per tenant and `deposit_items[]` (itemized move-out deductions, shown under each Security Deposit Ledger row) | `403` a tenant naming another user's id or using `?email=` |
 | `create_contract.php` | POST | `require_admin` | `rentApplicationId`, `depositAmount` (defaults to monthly rent), `leaseStart`, `leaseEnd` (≤ 24 months) | `success`, `contractId` (created as `draft`) | `422` application not found, not yet approved, or bad/inverted dates · `409` a contract already exists for this application |
-| `update_contract_status.php` | POST | `require_admin` | `contractId`, `action` = `activate` / `flag` / `clear` / `terminate` (+ `reason`) / `edit` (+ `leaseStart`, `leaseEnd`) | `success` | `404` unknown contract · `422` the action isn't valid from the contract's current status (`CONTRACT_TRANSITIONS`), or bad dates · `409` status changed concurrently, or (`terminate`) the tenant already moved out, or (`activate`, payments audit 2026-09-30) the move-in invoice (advance + deposit) is not paid, or the tenant has not moved in yet — confirming the move-in activates the contract from the real start date. `terminate` also records the deposit's disposition (non-refundable): a `Held` deposit becomes *Applied to Bills/Damages* when anything is still open, else *Applied to Rent*; a never-paid one *Not Collected*; `refund_amount` 0, `refund_date` today |
+| `update_contract_status.php` | POST | `require_admin` | `contractId`, `action` = `activate` / `flag` / `clear` / `terminate` (+ `reason`, `waive_forfeiture_reason`) / `set_deposit_refundable` (+ `depositRefundable`, draft only) / `edit` (+ `leaseStart`, `leaseEnd`) | `success` | `404` unknown contract · `422` the action isn't valid from the contract's current status (`CONTRACT_TRANSITIONS`), or bad dates · `409` status changed concurrently, or (`terminate`) the tenant already moved out, or (`activate`, payments audit 2026-09-30) the move-in invoice (advance + deposit) is not paid, or the tenant has not moved in yet — confirming the move-in activates the contract from the real start date. `terminate` also records the deposit's disposition (non-refundable): a `Held` deposit becomes *Applied to Bills/Damages* when anything is still open, else *Applied to Rent*; a never-paid one *Not Collected*; `refund_amount` 0, `refund_date` today |
 | `upload_lease_document.php` | POST (multipart or form) | `require_user`, owner or admin | `contractId` or `rentApplicationId`, `docType` (`signedLease`/`notarizedLease`), `action` (`upload`/`remove`); file ≤ 10MB, PDF/JPG/PNG | `success`, `filePath`, `contractId` | `403` not your contract · `409` application not yet approved (no contract to attach to), or a tenant removing a document from a non-`draft` contract · `422` bad/oversized/wrong-type file |
 | `expire_contracts.php` | GET/POST | **Admin session** (`require_admin`: 401 without a token, 403 for a tenant; since 2026-11-11, same as `expire_reservations.php`) | — | `success`, `expired` (count) | Idempotent: a lease either has lapsed or it hasn't. The same sweep runs inside `get_contracts.php` and the daily sweep |
 | `extend_lease.php` | POST | `require_user` | `additionalMonths` (1–12; the minimum is `min_lease_duration`, shrunk to the months that fit under `max_rent_ahead_months`, so a tenant with a long term left can still extend up to the limit — `extension_month_range()`, audit N-1/N-2; `my_room.php` returns it as `extension.minMonths`/`maxMonths`, `get_rooms.php` as `extensionRange`) | `success` — files a `lease_extension_request` notification | `400` out of range, an open request already pending, the contract is not `active`/`expired` (`CONTRACT_TRANSITIONS` `extend`), or the new end would be more than `max_rent_ahead_months` (Settings → Rental, default and maximum 12) from today — audit L6 |
@@ -3273,6 +3274,42 @@ Checklist 7.8. Migration: `2026_11_cctv_auth_chat_billing.sql`. Automated: `test
 | **M22-07** | Sec | Request a link for an unknown email | Same response as a known email; no link row |
 | **M22-08** | Sec | Fourth request for one email within an hour | 429 |
 | **M22-09** | Happy | Widget → *End chat on this device* | Key removed, widget gone; conversation still on the server |
+
+---
+
+## 23. Security Deposit, Refund Rules and Reviews (2026-11-11)
+
+**Contract.** `settle_deposit()` (`config.php`) settles the deposit for the move-out clearance (`update_tenant_status.php`) and the termination (`update_contract_status.php`). `lease_contracts.deposit_refundable` (1 = refundable) comes from the `deposit_refundable_default` setting at issue and can change on a draft only (`update_contract_status.php` `set_deposit_refundable`). Refundable: refund = deposit − itemized deductions − unpaid invoices, through a `deposit` refund request due `deposit_refund_days` after the clearance; forfeited when there was no move-out notice, the tenant leaves before the rent end date, or the contract is terminated for cause (an admin waives with `waive_forfeiture_reason`). The tenant sees it on My Refunds (`get_deposit_statement.php`) and can ask for one review (`request_deposit_review.php`); the admin answers (`get_deposit_reviews.php`, `resolve_deposit_review.php`). `at_tenant_request` on a cancellation keeps the `cancellation_fee`. Details: [api_documentation §15.8](api_documentation.md), flow diagram in `system_diagrams.md`.
+
+**Automated tests:** `deposit_refund.test.js` (15), `deposit_review.test.js`, `cancellation_fee.test.js`.
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M23-01** | Happy | Refund after deductions | Refundable contract, clear a move-out with a ₱500 damage line | `deposit` refund request of deposit − 500, `deposit_status` Refund Pending, tenant sees a due date |
+| **M23-02** | Happy | Paid out | Approve and mark the refund paid | Contract `Refunded` |
+| **M23-03** | Boundary | Deductions use up the deposit | Deduction above the deposit | No refund request; `balance_due` returned |
+| **M23-04** | Rule | Early exit | Clear a tenant whose rent end date is in the future | `Forfeited`, one `forfeiture` line with the reason, no refund |
+| **M23-05** | Rule | No notice | Clear an `active` tenant (no move-out notice). The Tenants page cannot do this (its Initiate Move Out form refuses less than the minimum notice and the clearance screen only opens for pending move-outs), so call `update_tenant_status.php` with `status: moved-out`. Run the daily sweep first and cancel the tenant's open invoices, otherwise the new month's unpaid rent uses up the deposit and nothing is left to withhold | `Forfeited`; Moved Out tab shows the withheld line with both reasons |
+| **M23-06** | Rule | Waiver | Same with `waive_forfeiture_reason` | Refund opens; reason in the log |
+| **M23-07** | Rule | Termination | Terminate a refundable contract | Forfeited; waived with a reason opens the refund |
+| **M23-08** | Regression | Non-refundable contract | Clear a contract with `deposit_refundable = 0` | Applied to rent, no refund, no forfeiture line |
+| **M23-09** | Boundary | Deposit never paid | Contract `Pending` | `Not Collected`, no refund |
+| **M23-10** | Negative | Draft-only flag | `set_deposit_refundable` on an active contract | 422 |
+| **M23-11** | Sec | Tenant cannot open or cancel a deposit refund | `create_refund_request` type `deposit`; `respond_refund_request` cancel | 400; 409 |
+| **M23-12** | Happy | Review requested | Tenant sends a message inside the period | One open review, admin queue notice; a second is 409 |
+| **M23-13** | Boundary | Review window | `refund_date` 30 days ago (allowed) and 40 days ago (409) | As stated |
+| **M23-14** | Negative | Review validation | Empty, blank, 1001 characters; nothing deducted | 422; 409 |
+| **M23-15** | Happy | Review answered | `upheld` with a reason; `adjusted` with an amount up to what was kept | Closed with the reason; adjusted opens an approved deposit refund, contract Refund Pending |
+| **M23-16** | Negative | Answer validation and double submit | Missing outcome or reason, amount 0 / negative / text / too high; answer twice | 400 / 422; second answer 409, one refund |
+| **M23-17** | Sec | Roles | Tenant calls `resolve_deposit_review.php` / `get_deposit_reviews.php`; a tenant with no settlement asks a review | 401/403; 404 |
+| **M23-18** | Regression | Restore | Restore an archived tenancy with an open deposit refund / a paid one | Open one cancelled and the review removed; paid one refuses the restore |
+| **M23-19** | Happy | Overdue notice | Deposit refund older than `deposit_refund_days`, run the sweep twice | One admin notice and one tenant notice; not for a paid-out refund |
+| **M23-20** | Rule | Cancellation fee | Cancel an approved application with ₱5,000 paid at the tenant's request, fee ₱0 / ₱1,000 / ₱3,500 / ₱9,000 | Refunds ₱5,000 / ₱4,000 / one request of ₱1,500 / none; Rejected is always full; `at_tenant_request` with a rejection is 422 |
+| **M23-21** | Report | Reports and ledger | Open Reports and the Security Deposit Ledger after a forfeiture and a refund | "Returned" and "Withheld" lines; forfeiture is not a deduction category; badges and filter for the new statuses |
+| **M23-22** | UI | Clearance modal | Clear a refundable tenant with no notice | Preview shows the reasons, the waive box, "Deposit withheld" or "To be refunded" |
+| **M23-23** | UI | Contract text | Open a refundable and a non-refundable contract in EN and TL | The deposit clause shows the matching paragraphs; the template editor shows the hint |
+| **M23-24** | Regression | Two deposit refunds | Clear a refundable move-out, answer its review with "return more", pay out the **second** (adjustment) request first | Contract stays `Refund Pending`; it becomes `Refunded` only when the last open refund is paid (found in the browser pass 2026-11-12) |
+| **M23-25** | UI | Terminate dialog | Terminate a refundable, Held contract in Contracts | The dialog warns the deposit is withheld and offers a "keep it refundable" reason; the confirm text says the rest of the deposit is withheld (or stays refundable when a reason is given); empty reason: `Forfeited` and a "Deposit withheld" line |
 
 ---
 

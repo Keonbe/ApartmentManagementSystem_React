@@ -12,7 +12,7 @@ export const STATUS_STYLES = {
   Cancelled: 'bg-slate-100 text-slate-600',
 };
 
-export const TYPE_LABELS = { advance: 'Advance rent', overpayment: 'Overpayment', rejected_application: 'Rejected application payment', rejected_charge: 'Rejected charge', online_payment: 'Online payment not applied' };
+export const TYPE_LABELS = { advance: 'Advance rent', overpayment: 'Overpayment', rejected_application: 'Rejected application payment', rejected_charge: 'Rejected charge', deposit: 'Security deposit', online_payment: 'Online payment not applied' };
 
 // PayMongo's own refund states, as shown next to a refund paid out online.
 export const GATEWAY_LABELS = {

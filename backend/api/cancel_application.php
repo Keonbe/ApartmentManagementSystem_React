@@ -24,7 +24,7 @@ try {
     // Money already received on an open bill (installments) would be lost by
     // cancelling it here: management cancels it and refunds the parts.
     $pp = $conn->prepare("SELECT COALESCE(SUM(amount_paid), 0) AS paid FROM invoices WHERE (rent_application_id = ? OR (user_id = ? AND security_deposit > 0)) AND status IN " . billing_open_status_sql() . " AND amount_paid > 0 FOR UPDATE"); $pp->bind_param('ii', $id, $auth['id']); $pp->execute(); $part_paid = (float)$pp->get_result()->fetch_assoc()['paid']; $pp->close();
-    if ($part_paid > 0) throw new Exception('You have already paid ₱' . number_format($part_paid, 2) . ' of your move-in bill. Please contact management to cancel, so the amount can be refunded.');
+    if ($part_paid > 0) throw new Exception('You have already paid ₱' . number_format($part_paid, 2) . ' of your move-in bill. Please contact management to cancel, so the amount can be refunded.' . (cancellation_fee($conn) > 0 ? ' A cancellation fee of ₱' . number_format(cancellation_fee($conn), 2) . ' is kept from what you paid.' : ''));
     if (!$moved['ok']) throw new Exception('Application status changed. Refresh and try again.');
     // Frees the room only if no other application or hold still claims it
     // (a Pending Review applicant must not free a unit someone else holds).

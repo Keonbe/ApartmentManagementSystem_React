@@ -207,6 +207,8 @@ const AdminReports = () => {
             parkingCollected: bd.parkingCollected || 0,
             depositCollected: bd.depositCollected || 0,
             depositsApplied: bd.depositsApplied ?? 0,
+            depositsRefunded: bd.depositsRefunded ?? 0,
+            depositsForfeited: bd.depositsForfeited ?? 0,
             depositDeductions: bd.depositDeductions ?? { total: 0, byCategory: [] },
             servicesCollected: bd.servicesCollected || 0,
             lateFeesCollected: bd.lateFeesCollected || 0,
@@ -1146,6 +1148,18 @@ const AdminReports = () => {
                           <div className="flex justify-between text-label py-1 text-slate-500">
                             <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-amber-700 w-3.5" /> Security deposits applied at move-out (not revenue)</span>
                             <span className="font-semibold">{formatCurrency(data.payments.depositsApplied)}</span>
+                          </div>
+                        )}
+                        {data.payments.depositsRefunded > 0 && (
+                          <div className="flex justify-between text-label py-1 text-slate-500">
+                            <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-emerald-700 w-3.5" /> Security deposits returned to tenants (not revenue)</span>
+                            <span className="font-semibold">{formatCurrency(data.payments.depositsRefunded)}</span>
+                          </div>
+                        )}
+                        {data.payments.depositsForfeited > 0 && (
+                          <div className="flex justify-between text-label py-1 text-slate-500">
+                            <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-rose-700 w-3.5" /> Security deposits withheld (kept by the owner)</span>
+                            <span className="font-semibold">{formatCurrency(data.payments.depositsForfeited)}</span>
                           </div>
                         )}
                         {data.payments.depositDeductions.total > 0 && (

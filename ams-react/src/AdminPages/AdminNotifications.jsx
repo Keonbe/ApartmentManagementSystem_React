@@ -63,7 +63,7 @@ const FILTERS = [
   { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'new_user', 'inquiry', 'unit_waitlist'] },
   { key: 'maintenance', label: 'Maintenance', types: ['maintenance_request'] },
   { key: 'services', label: 'Services, CCTV & Parking', types: ['service_request', 'cctv_request', 'parking_reservation'] },
-  { key: 'payments', label: 'Payments', types: ['payment_verification', 'cash_payment_declared', 'payment', 'refund_request', 'payment_followup', 'document_followup'] },
+  { key: 'payments', label: 'Payments', types: ['payment_verification', 'cash_payment_declared', 'payment', 'refund_request', 'deposit_review', 'payment_followup', 'document_followup'] },
 ];
 
 const DECIDED_HERE = ['occupancy_request', 'household_request', 'lease_extension_request'];

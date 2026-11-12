@@ -516,6 +516,9 @@ const AdminPayments = () => {
 
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
+  // Refundable contracts: what is returned (or on its way) and what is withheld.
+  const totalDepositRefunds = contracts.filter(c => ['Refund Pending', 'Refunded'].includes(c.deposit_status)).reduce((sum, c) => sum + parseFloat(c.refund_amount || 0), 0);
+  const totalDepositForfeited = contracts.reduce((sum, c) => sum + (Array.isArray(c.deposit_items) ? c.deposit_items : []).filter(i => i.category === 'forfeiture').reduce((a, i) => a + parseFloat(i.amount || 0), 0), 0);
   const totalDepositDeductions = contracts.reduce((sum, c) => sum + parseFloat(c.damage_deduction || 0) + parseFloat(c.utility_deduction || 0), 0);
   // A deposit is applied once move-out or termination records its disposition
   // (deposit_status 'Applied to …'); 'Pending' means it was never paid.
@@ -550,6 +553,7 @@ const AdminPayments = () => {
   // (any deduction recorded) / 'clean' (applied with none).
   const DEPOSIT_FILTERS = [
     ['all', 'All'], ['Held', 'Held'], ['Applied to Rent', 'Applied to rent'], ['Applied to Bills/Damages', 'Applied to bills/damages'],
+    ['Refund Pending', 'Refund pending'], ['Refunded', 'Refunded'], ['Forfeited', 'Forfeited'], ['Refund Rejected', 'Refund rejected'],
     ['Pending', 'Pending (unpaid)'], ['Not Collected', 'Not collected'], ['deductions', 'With deductions'],
   ];
   const DEPOSIT_SORTS = [
@@ -596,6 +600,8 @@ const AdminPayments = () => {
       status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
       status === 'Applied to Rent' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
       status === 'Not Collected' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+      status === 'Refunded' || status === 'Refund Pending' ? 'bg-sky-50 text-sky-700 border border-sky-200' :
+      status === 'Forfeited' || status === 'Refund Rejected' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
       'bg-amber-50 text-amber-700 border border-amber-200'
     }`}>
       {status}
@@ -1681,6 +1687,8 @@ const handleMarkAsPaid = async () => {
                 {/* Deposit metrics summary cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <StatCard icon={faShieldAlt} color="emerald" title="Total Deposits Held" value={formatCurrency(totalDepositsHeld)} />
+                  <StatCard icon={faCheckCircle} color="blue" title="Deposits Returned / Refund Pending" value={formatCurrency(totalDepositRefunds)} />
+                  <StatCard icon={faExclamationTriangle} color="red" title="Deposits Withheld (Forfeited)" value={formatCurrency(totalDepositForfeited)} />
                   <StatCard icon={faExclamationTriangle} color="amber" title="Total Billing Deductions Applied" value={formatCurrency(totalDepositDeductions)} />
                   <StatCard icon={faCheckCircle} color="indigo" title="Total Applied to Last Rent Month" value={formatCurrency(totalAppliedToRent)} />
                 </div>

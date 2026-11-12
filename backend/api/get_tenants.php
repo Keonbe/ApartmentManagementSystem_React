@@ -24,7 +24,7 @@ $invoice_scope = "(i.rent_application_id = ra.id OR (i.rent_application_id IS NU
 
 $result = $conn->query("
     SELECT ra.*, lc.lease_start, lc.lease_end, lc.status AS contract_status,
-           lc.id AS contract_id, lc.deposit_amount, lc.deposit_status, lc.damage_deduction, lc.utility_deduction, lc.refund_date,
+           lc.id AS contract_id, lc.deposit_amount, lc.deposit_status, lc.deposit_refundable, lc.refund_amount, lc.damage_deduction, lc.utility_deduction, lc.refund_date,
            (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed) AS outstanding,
            (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS overdue_amount,
            (SELECT MIN(i.due_date) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS oldest_overdue_due
@@ -53,6 +53,8 @@ foreach ($rows as $row) {
             'damage' => round((float)$row['damage_deduction'], 2),
             'utility' => round((float)$row['utility_deduction'], 2),
             'refundDate' => $row['refund_date'],
+            'refundable' => (bool)$row['deposit_refundable'],
+            'refundAmount' => round((float)$row['refund_amount'], 2),
             'items' => $deductions_by_app[(int)$row['id']] ?? [],
         ];
     }
@@ -91,6 +93,9 @@ foreach ($rows as $row) {
         'archiveNotes' => $row['archive_notes'] ?? null,
         'requestedMoveOutDate' => $row['requested_move_out_date'] ?? null,
         'depositOutcome' => $deposit_outcome,
+        'depositRefundable' => (bool)($row['deposit_refundable'] ?? 0),
+        'depositAmount' => round((float)($row['deposit_amount'] ?? 0), 2),
+        'depositHeld' => ($row['deposit_status'] ?? '') === 'Held',
         'user_id' => $row['user_id'] ?? null,
     ];
 }

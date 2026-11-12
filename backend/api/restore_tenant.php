@@ -75,6 +75,26 @@ if ($id > 0) {
         // leave the contract exactly as it was.
         $reactivate_tenancy = in_array($restore_status, ['active', 'Approved'], true);
         if ($reactivate_tenancy && !empty($app['contract_id']) && in_array($app['contract_status'], ['expired', 'terminated'], true)) {
+            // A security deposit refund opened at the move-out: once paid out the
+            // tenancy cannot go back (the deposit would be held and returned twice);
+            // an open one is cancelled, since the deposit is held again below.
+            $paid_dep = $conn->prepare("SELECT 1 FROM refund_requests WHERE rent_application_id = ? AND type = 'deposit' AND status = 'Refunded' LIMIT 1");
+            $paid_dep->bind_param("i", $id);
+            $paid_dep->execute();
+            $dep_paid_out = (bool)$paid_dep->get_result()->fetch_assoc();
+            $paid_dep->close();
+            if ($dep_paid_out) throw new Exception("The security deposit was already refunded, so this tenancy cannot be restored.");
+            $open_dep = $conn->prepare("SELECT id FROM refund_requests WHERE rent_application_id = ? AND type = 'deposit' AND status IN ('Pending Review', 'Info Requested', 'Approved')");
+            $open_dep->bind_param("i", $id);
+            $open_dep->execute();
+            $open_dep_rows = $open_dep->get_result()->fetch_all(MYSQLI_ASSOC);
+            $open_dep->close();
+            foreach ($open_dep_rows as $od) {
+                $od_id = (int)$od['id'];
+                $conn->query("UPDATE refund_requests SET status = 'Cancelled' WHERE id = $od_id");
+                $conn->query("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES ($od_id, " . (int)$admin_id . ", 'admin', 'cancel', 'Tenancy restored: the deposit is held again')");
+                resolve_admin_queue($conn, 'refund_request', $od_id);
+            }
             $ctr_stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active', deposit_status = 'Held', damage_deduction = 0.00, utility_deduction = 0.00, refund_amount = 0.00, refund_date = NULL, termination_reason = NULL, terminated_at = NULL WHERE id = ?");
             $ctr_stmt->bind_param("s", $app['contract_id']);
             $ctr_stmt->execute();
@@ -85,6 +105,11 @@ if ($id > 0) {
             $dd_stmt->bind_param("i", $restore_app_id);
             $dd_stmt->execute();
             $dd_stmt->close();
+            // A deposit review belongs to the settlement that is now undone.
+            $dr_stmt = $conn->prepare("DELETE FROM deposit_reviews WHERE rent_application_id = ?");
+            $dr_stmt->bind_param("i", $restore_app_id);
+            $dr_stmt->execute();
+            $dr_stmt->close();
         }
 
         // 4. Restore only the invoices THIS archive cancelled (cancel_reason

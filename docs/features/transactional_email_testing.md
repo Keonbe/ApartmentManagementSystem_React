@@ -26,7 +26,7 @@ Dispatch calls are after commit for transactional endpoints and are wrapped in `
 
 ## Not currently supported by the domain model
 
-Refund requests/statuses are not implemented: deposit handling is explicitly non-refundable (`refund_amount` remains zero), and there is no refund-request lifecycle endpoint. Utility readings are admin-recorded and can be invoiced, but there is no tenant-uploaded utility-payment-proof workflow or review endpoint. Invoice cancellations caused by applicant cancellation send a void notice; other invoice-cancellation paths do not yet share a centralized void event. Direct-chat unread email digests remain optional and are not implemented. These need actual business rules/endpoints before a reliable trigger can be attached.
+Refund requests have a lifecycle (`refund_requests`, in-app notices only; no refund emails yet); the security deposit is refunded per contract (`deposit_refundable`). Utility readings are admin-recorded and can be invoiced, but there is no tenant-uploaded utility-payment-proof workflow or review endpoint. Invoice cancellations caused by applicant cancellation send a void notice; other invoice-cancellation paths do not yet share a centralized void event. Direct-chat unread email digests remain optional and are not implemented. These need actual business rules/endpoints before a reliable trigger can be attached.
 
 ## Quick local XAMPP test
 

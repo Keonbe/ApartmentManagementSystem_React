@@ -13,6 +13,7 @@ import {
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import ReasonModal from '../Components/form/ReasonModal';
+import { getSystemSettings } from '../config/systemSettings';
 import { fileUrl } from '../api/fileUrl';
 import { formatFileSize } from '../Components/form/formHelpers';
 import { LIMITS } from '../utils/validation';
@@ -229,6 +230,12 @@ const AdminApplications = () => {
   };
 
   const [rejectTarget, setRejectTarget] = useState(null);
+  // Revoking an approval at the tenant's request keeps the cancellation fee (Settings → Rental).
+  const [cancellationFee, setCancellationFee] = useState(0);
+  const [tenantRequestId, setTenantRequestId] = useState(null); // application the box is ticked for
+  useEffect(() => {
+    getSystemSettings().then((s) => setCancellationFee(Number(s.cancellationFee) || 0)).catch(() => {});
+  }, []);
   const [preview, setPreview] = useState(null);
   
   const openPreview = (e, target, title) => {
@@ -255,7 +262,9 @@ const AdminApplications = () => {
     try {
       const formData = new FormData();
       formData.append('id', rejectTarget.id);
-      formData.append('status', 'Rejected');
+      const byTenant = tenantRequestId === rejectTarget.id && rejectTarget.status === 'Approved';
+      formData.append('status', byTenant ? 'Cancelled' : 'Rejected');
+      if (byTenant) formData.append('at_tenant_request', '1');
       formData.append('rejection_reason', reason);
       if (file) {
         formData.append('attachment', file);
@@ -268,6 +277,7 @@ const AdminApplications = () => {
       throw new Error(apiErrorMessage(err, 'Failed to update the application.'), { cause: err });
     }
     if (!res.data.success) throw new Error(apiErrorMessage(res, 'Failed to update the application.'));
+    if (res.data.cancellation_fee_kept) alert(`A cancellation fee of ₱${Number(res.data.cancellation_fee_kept).toLocaleString()} was kept from the refund.`);
     if (res.data.refunds_raised) alert(`${res.data.refunds_raised} refund request(s) were opened for payments this applicant already made. Review them under Refunds.`);
     setRejectTarget(null);
     setShowProfileModal(false);
@@ -1171,7 +1181,14 @@ const AdminApplications = () => {
           attachmentLabel="Attach Supporting Document / Image (optional)"
           onConfirm={confirmReject}
           onClose={() => setRejectTarget(null)}
-        />
+        >
+          {rejectTarget.status === 'Approved' && cancellationFee > 0 && (
+            <label className="mt-4 flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
+              <input type="checkbox" className="mt-1" checked={tenantRequestId === rejectTarget.id} onChange={(e) => setTenantRequestId(e.target.checked ? rejectTarget.id : null)} />
+              <span>Cancelled at the tenant&apos;s request. A cancellation fee of ₱{cancellationFee.toLocaleString()} is kept from what they already paid (if anything). Leave this off when Management is rejecting the application.</span>
+            </label>
+          )}
+        </ReasonModal>
       )}
       
       {approveTarget && (

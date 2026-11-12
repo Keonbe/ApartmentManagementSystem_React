@@ -76,7 +76,10 @@ A tenant requesting to end their lease triggers a workflow that flags their inte
    2. INSPECTION & CLEARANCE (ADMIN)
    Admin sees tenant under "Pending Move-Out" tab in AdminTenants.jsx
    ├── Inspects physical room for damages & records damage notes
-   ├── Calculates security deposit deductions (Deposit − Damages − Utilities)
+   ├── Calculates security deposit deductions (Deposit − Damages − Utilities − unpaid invoices)
+   ├── Refundable contract: the rest is returned through a deposit refund request (30 days),
+   │   or withheld when there was no notice, the tenant leaves before the rent end date,
+   │   or the contract is terminated for cause (admin may waive with a reason)
    └── Settles any unpaid utility balances (electricity, water)
               │
               ▼

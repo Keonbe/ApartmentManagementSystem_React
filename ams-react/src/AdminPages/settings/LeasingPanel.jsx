@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { faFileContract, faCalendarAlt, faUsers, faImage, faFileSignature } from '@fortawesome/free-solid-svg-icons';
-import { SettingsSection, Field, WithUnit, Callout, INPUT, INPUT_NUMBER } from './SettingsSection';
+import { SettingsSection, Field, WithUnit, Switch, Callout, INPUT, INPUT_NUMBER } from './SettingsSection';
 import { blockNonIntegerKeys, numberValue } from '../../Components/form/formHelpers';
 
 // Whole-number setting: empty stays empty (required stops the save).
@@ -21,6 +21,34 @@ const intInput = (settings, updateSetting, key, min, max) => ({
 export default function LeasingPanel({ settings, updateSetting }) {
   return (
     <>
+      <SettingsSection
+        icon={faFileSignature}
+        tone="emerald"
+        title="Security Deposit and Cancellation"
+        description="Whether a tenant gets the unused deposit back at move-out (new contracts copy this; you can change it on a draft contract before the tenant signs), and what a cancellation costs."
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="m-0 text-body font-semibold text-slate-700">Refund the unused deposit</p>
+            <p className="m-0 mt-0.5 text-caption text-slate-500 leading-relaxed">
+              On: the deposit first covers unpaid rent, bills and damage, and what is left is returned. It is withheld when the tenant leaves without notice, before the rent end date, or is terminated for a breach (you can waive that with a reason at move-out).
+              Off: the deposit is applied to what is owed and the rest goes to the last month. Contracts already issued keep their terms.
+            </p>
+          </div>
+          <Switch checked={!!settings.depositRefundableDefault} onChange={(v) => updateSetting('depositRefundableDefault', v)} label="Refund the unused deposit" />
+        </div>
+        <Field label="Cancellation Fee" htmlFor="setting-cancellationFee" icon={faCalendarAlt} hint="Kept from what an applicant already paid when you cancel an approved application at their request (the checkbox in the reject dialog). 0 = full refund. A rejection by Management is always refunded in full.">
+          <WithUnit suffix="PHP">
+            <input id="setting-cancellationFee" name="cancellationFee" type="number" inputMode="decimal" min={0} max={100000} step="0.01" value={settings.cancellationFee} onChange={(e) => updateSetting('cancellationFee', e.target.value === '' ? '' : Number(e.target.value))} className={`${INPUT_NUMBER} w-32`} />
+          </WithUnit>
+        </Field>
+        <Field label="Refund Due Within" htmlFor="setting-depositRefundDays" icon={faCalendarAlt} hint="A returned deposit is shown to the tenant with this due date, counted from the move-out clearance. Overdue refunds are flagged on the Refunds page.">
+          <WithUnit suffix="days">
+            <input {...intInput(settings, updateSetting, 'depositRefundDays', 1, 90)} className={`${INPUT_NUMBER} w-24`} />
+          </WithUnit>
+        </Field>
+      </SettingsSection>
+
       <SettingsSection
         icon={faFileContract}
         tone="indigo"

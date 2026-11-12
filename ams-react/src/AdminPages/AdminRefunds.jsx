@@ -8,6 +8,7 @@ import { TYPE_LABELS, GATEWAY_LABELS, peso, when } from '../utils/refundFormat';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
+import DepositReviews from '../Components/admin/DepositReviews';
 
 const FILTERS = ['all', 'Pending Review', 'Info Requested', 'Approved', 'Refunded', 'Rejected', 'Cancelled'];
 
@@ -102,9 +103,11 @@ export default function AdminRefunds() {
         <Header title="Refund Requests" />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-5xl space-y-6">
-            <p className="m-0 text-body text-slate-500">Advance rent and overpayments only; the security deposit is not refundable. Approving a request does not move money. Money paid online can be sent back through PayMongo from here; anything else is paid by hand and the payout recorded.</p>
+            <p className="m-0 text-body text-slate-500">Advance rent, overpayments, rejected charges and returned security deposits (a deposit refund is opened by the move-out clearance and is due within the refund period in Settings). Approving a request does not move money. Money paid online can be sent back through PayMongo from here; anything else is paid by hand and the payout recorded.</p>
 
             {notice && <div role="status" className={`rounded-control border p-3 text-body font-semibold ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>{notice.text}</div>}
+
+            <DepositReviews onChanged={load} />
 
             <div className="flex flex-wrap items-center gap-2">
               <FilterTabs
@@ -143,7 +146,7 @@ export default function AdminRefunds() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="m-0 text-title font-bold text-slate-800">{r.tenantName}{r.roomName ? ` · Unit ${r.roomName}` : ''}</h3>
-                    <p className="m-0 text-label text-slate-500">#{r.id} · {TYPE_LABELS[r.type]}{r.invoiceId ? ` (${r.invoiceId})` : ''} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by admin' : ''}</p>
+                    <p className="m-0 text-label text-slate-500">#{r.id} · {TYPE_LABELS[r.type]}{r.invoiceId ? ` (${r.invoiceId})` : ''} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by admin' : ''}{r.dueDate && ['Pending Review', 'Info Requested', 'Approved'].includes(r.status) ? ` · due ${r.dueDate}${r.overdue ? ' (OVERDUE)' : ''}` : ''}</p>
                   </div>
                   <div className="text-right">
                     <p className="m-0 text-title font-bold text-slate-800">{peso(r.amount)}</p>

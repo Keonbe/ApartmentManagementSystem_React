@@ -1921,6 +1921,7 @@ function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_s
     $check_ctr->close();
     if (!$has_contract) {
         $contract_id = uniqid('CTR-');
+        $dep_refundable = deposit_refundable_default($conn);
         $template_version_id = null;
         if (file_exists(__DIR__ . '/contract_template.php')) {
             require_once __DIR__ . '/contract_template.php';
@@ -1929,11 +1930,11 @@ function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_s
             }
         }
         if ($template_version_id) {
-            $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status, deposit_status, template_version_id) VALUES (?, ?, ?, ?, ?, 'draft', 'Pending', ?)");
-            $ctr_stmt->bind_param("sidssi", $contract_id, $app_id, $monthly_rent, $lease_start, $lease_end, $template_version_id);
+            $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, deposit_refundable, lease_start, lease_end, status, deposit_status, template_version_id) VALUES (?, ?, ?, ?, ?, ?, 'draft', 'Pending', ?)");
+            $ctr_stmt->bind_param("sidissi", $contract_id, $app_id, $monthly_rent, $dep_refundable, $lease_start, $lease_end, $template_version_id);
         } else {
-            $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status, deposit_status) VALUES (?, ?, ?, ?, ?, 'draft', 'Pending')");
-            $ctr_stmt->bind_param("sidss", $contract_id, $app_id, $monthly_rent, $lease_start, $lease_end);
+            $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, deposit_refundable, lease_start, lease_end, status, deposit_status) VALUES (?, ?, ?, ?, ?, ?, 'draft', 'Pending')");
+            $ctr_stmt->bind_param("sidiss", $contract_id, $app_id, $monthly_rent, $dep_refundable, $lease_start, $lease_end);
         }
         if (!$ctr_stmt->execute()) {
             error_log("[AMS] Failed to create rent contract: " . $ctr_stmt->error);
@@ -3578,7 +3579,7 @@ const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     // — neither reached the queue before.
     'move_out_request', 'cash_payment_declared',
     // Refund requests wait for an admin decision.
-    'refund_request',
+    'refund_request', 'deposit_review',
     // Follow-up monitor: an overdue tenant, or an applicant with documents outstanding.
     'payment_followup', 'document_followup'
 ];
@@ -3625,7 +3626,7 @@ function child_floor_restriction($conn) {
 function deposit_deduction_label($category) {
     return [
         'damage' => 'Damage', 'electricity' => 'Electricity', 'water' => 'Water',
-        'unpaid_rent' => 'Unpaid rent', 'other' => 'Other',
+        'unpaid_rent' => 'Unpaid rent', 'other' => 'Other', 'forfeiture' => 'Deposit withheld',
     ][$category] ?? 'Other';
 }
 
@@ -3801,6 +3802,131 @@ function notify_refund_raised($conn, $rid, $amount, $label) {
         "A refund of ₱" . number_format($amount, 2) . " for $label needs review.");
 }
 
+// ── Security deposit settlement ──
+// A contract is deposit_refundable = 1 (copied from the deposit_refundable_default
+// setting when it is issued) or 0 (applied to rent / bills / damage). Both
+// move-out paths (clearance in update_tenant_status.php, termination in
+// update_contract_status.php) settle through settle_deposit(), so they cannot drift.
+
+function deposit_refundable_default($conn) {
+    return in_array((string)get_setting($conn, 'deposit_refundable_default', '1'), ['1', 'true'], true) ? 1 : 0;
+}
+
+// Days after the clearance within which a refundable deposit is paid back.
+function deposit_refund_days($conn) {
+    $n = get_setting($conn, 'deposit_refund_days', '30');
+    return ctype_digit((string)$n) ? max(1, min(90, (int)$n)) : 30;
+}
+
+// Why a refundable deposit is withheld. $ctx: 'terminate' (ended by Management
+// for cause) or 'move_out' with 'prior_status' (the application status before
+// the clearance), 'move_out_date' (requested date, else null) and 'lease_end'.
+function deposit_forfeiture_reasons(array $ctx) {
+    $reasons = [];
+    if (($ctx['kind'] ?? '') === 'terminate') {
+        return ['Contract terminated by Management for a breach'];
+    }
+    if (($ctx['prior_status'] ?? '') === 'active') $reasons[] = 'No move-out notice was given';
+    $left = !empty($ctx['move_out_date']) ? $ctx['move_out_date'] : date('Y-m-d');
+    if (!empty($ctx['lease_end']) && $left < $ctx['lease_end']) {
+        $reasons[] = 'Moved out before the contract end date (' . $ctx['lease_end'] . ')';
+    }
+    return $reasons;
+}
+
+// Settles the held deposit of one contract. The caller owns the transaction.
+//   $opts: damage, utility (deductions entered at clearance), kind
+//   ('move_out' | 'terminate'), prior_status, move_out_date, set_expired
+//   (clearance marks the contract expired), waive_reason (admin keeps the deposit
+//   refundable despite a forfeiture; recorded in the log), admin_id, user_id.
+// Returns ['contract_id', 'deposit', 'open_total', 'balance', 'status', 'refundable',
+//   'refund_amount', 'forfeited', 'forfeit_reasons', 'refund_id'] or null when the
+//   contract is not settled here (none, or already settled). refund_id is set when
+//   a refund request was opened: send notify_refund_raised() after commit.
+function settle_deposit($conn, $app_id, $contract_id, array $opts) {
+    $app_id = (int)$app_id;
+    if ($contract_id !== null) {
+        $q = $conn->prepare("SELECT id, deposit_amount, deposit_status, deposit_refundable, lease_end FROM lease_contracts WHERE id = ? AND deposit_status IN ('Held', 'Pending') FOR UPDATE");
+        $q->bind_param("s", $contract_id);
+    } else {
+        $q = $conn->prepare("SELECT id, deposit_amount, deposit_status, deposit_refundable, lease_end FROM lease_contracts
+                             WHERE rent_application_id = ? AND status IN ('active', 'expired', 'eviction-pending') AND deposit_status IN ('Held', 'Pending')
+                             ORDER BY generated_at DESC LIMIT 1 FOR UPDATE");
+        $q->bind_param("i", $app_id);
+    }
+    $q->execute();
+    $c = $q->get_result()->fetch_assoc();
+    $q->close();
+    if (!$c) return null;
+
+    $damage = round((float)($opts['damage'] ?? 0), 2);
+    $utility = round((float)($opts['utility'] ?? 0), 2);
+    // Only a deposit that was actually paid ('Held') can cover anything or be returned.
+    $deposit = $c['deposit_status'] === 'Held' ? round((float)$c['deposit_amount'], 2) : 0.0;
+    $refundable = (int)$c['deposit_refundable'] === 1 && $deposit > 0;
+
+    $o = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
+    $o->bind_param("i", $app_id);
+    $o->execute();
+    $open_total = round((float)$o->get_result()->fetch_assoc()['open_total'], 2);
+    $o->close();
+
+    $consumed = round($open_total + $damage + $utility, 2);
+    $balance = round($consumed - $deposit, 2);
+    $remaining = max(0.0, round($deposit - $consumed, 2));
+
+    $reasons = [];
+    $refund = 0.0;
+    $forfeited = 0.0;
+    if ($refundable) {
+        $reasons = deposit_forfeiture_reasons([
+            'kind' => $opts['kind'] ?? 'move_out', 'prior_status' => $opts['prior_status'] ?? '',
+            'move_out_date' => $opts['move_out_date'] ?? null, 'lease_end' => $c['lease_end'],
+        ]);
+        if ($reasons && trim((string)($opts['waive_reason'] ?? '')) === '') {
+            $forfeited = $remaining;
+        } else {
+            $refund = $remaining;
+        }
+        $status = $refund > 0 ? 'Refund Pending' : ($forfeited > 0 ? 'Forfeited' : 'Applied to Bills/Damages');
+    } else {
+        $status = ($damage > 0 || $utility > 0 || $open_total > 0) ? 'Applied to Bills/Damages' : 'Applied to Rent';
+    }
+    if ($c['deposit_status'] !== 'Held') $status = 'Not Collected';
+
+    $set_expired = !empty($opts['set_expired']) ? ", status = 'expired'" : '';
+    $u = $conn->prepare("UPDATE lease_contracts SET deposit_status = ?, damage_deduction = ?, utility_deduction = ?, refund_amount = ?, refund_date = CURDATE()$set_expired
+                         WHERE id = ? AND deposit_status IN ('Held', 'Pending')");
+    $u->bind_param("sddds", $status, $damage, $utility, $refund, $c['id']);
+    $u->execute();
+    $won = $u->affected_rows > 0;
+    $u->close();
+    if (!$won) return null;
+
+    if ($forfeited > 0) {
+        $why = mb_substr(implode('; ', $reasons), 0, 255);
+        $f = $conn->prepare("INSERT INTO deposit_deductions (rent_application_id, contract_id, category, reason, amount, recorded_by) VALUES (?, ?, 'forfeiture', ?, ?, ?)");
+        $admin = (int)($opts['admin_id'] ?? 0) ?: null;
+        $f->bind_param("issdi", $app_id, $c['id'], $why, $forfeited, $admin);
+        if (!$f->execute()) throw new Exception("Could not record the forfeited deposit.");
+        $f->close();
+    }
+
+    $refund_id = null;
+    $user_id = (int)($opts['user_id'] ?? 0);
+    if ($refund > 0 && $user_id > 0) {
+        $due = date('M j, Y', strtotime('+' . deposit_refund_days($conn) . ' days'));
+        $why = "Security deposit returned after move-out, less deductions. To be paid back by $due.";
+        $refund_id = insert_refund_request($conn, $user_id, $app_id, 'deposit', null, $refund, $why, (int)($opts['admin_id'] ?? 0), 'admin');
+    }
+
+    return [
+        'contract_id' => $c['id'], 'deposit' => $deposit, 'open_total' => $open_total, 'balance' => $balance,
+        'status' => $status, 'refundable' => $refundable, 'refund_amount' => $refund, 'forfeited' => $forfeited,
+        'forfeit_reasons' => $reasons, 'refund_id' => $refund_id,
+    ];
+}
+
 // Money already paid on a rent application's invoices, for a rejection after
 // approval: [['invoiceId','label','amount']] (what the payments recorded, or
 // the invoice total when none were itemised), minus anything a refund request
@@ -3827,15 +3953,76 @@ function paid_invoices_for_application($conn, $app_id) {
     return $out;
 }
 
+// What happened to a tenant's security deposit at move-out, for the tenant's own
+// "Your security deposit" card and for a review request: their latest settled
+// contract with the itemized deductions, the refund, and whether a review can
+// still be asked for (inside deposit_refund_days of the settlement, something
+// was kept, and none was asked for yet). Null when nothing was settled yet.
+function deposit_statement_for_user($conn, $user_id) {
+    $user_id = (int)$user_id;
+    $q = $conn->prepare("SELECT lc.id AS contract_id, lc.rent_application_id AS app_id, lc.deposit_amount, lc.deposit_status, lc.deposit_refundable,
+                                lc.refund_amount, lc.refund_date, lc.damage_deduction, lc.utility_deduction
+                         FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id
+                         WHERE ra.user_id = ? AND lc.deposit_status NOT IN ('Pending', 'Held', 'Not Collected') AND lc.refund_date IS NOT NULL
+                         ORDER BY lc.refund_date DESC, lc.generated_at DESC LIMIT 1");
+    $q->bind_param("i", $user_id);
+    $q->execute();
+    $c = $q->get_result()->fetch_assoc();
+    $q->close();
+    if (!$c) return null;
+
+    $app_id = (int)$c['app_id'];
+    $items = deposit_deductions_for($conn, [$app_id])[$app_id] ?? [];
+    $deposit = round((float)$c['deposit_amount'], 2);
+    $refund = round((float)$c['refund_amount'], 2);
+    $forfeited = 0.0;
+    foreach ($items as $it) if ($it['category'] === 'forfeiture') $forfeited += (float)$it['amount'];
+
+    $r = $conn->prepare("SELECT id, message, status, outcome, adjusted_amount, admin_response, created_at, resolved_at
+                         FROM deposit_reviews WHERE rent_application_id = ? ORDER BY id DESC LIMIT 1");
+    $r->bind_param("i", $app_id);
+    $r->execute();
+    $review = $r->get_result()->fetch_assoc() ?: null;
+    $r->close();
+
+    $window_end = date('Y-m-d', strtotime($c['refund_date'] . ' +' . deposit_refund_days($conn) . ' days'));
+    $kept = $deposit > 0 && ($items || ((int)$c['deposit_refundable'] === 1 && $refund < $deposit));
+    return [
+        'applicationId' => $app_id, 'contractId' => $c['contract_id'], 'deposit' => $deposit,
+        'status' => $c['deposit_status'], 'refundable' => (int)$c['deposit_refundable'] === 1,
+        'refundAmount' => $refund, 'settledOn' => $c['refund_date'], 'forfeited' => round($forfeited, 2),
+        'deductions' => $items, 'review' => $review, 'reviewWindowEnds' => $window_end,
+        'canRequestReview' => $kept && date('Y-m-d') <= $window_end && !$review, // one review per settlement
+    ];
+}
+
+// Flat fee (₱) kept when an admin cancels a paid application at the tenant's request.
+function cancellation_fee($conn) {
+    $v = get_setting($conn, 'cancellation_fee', '0');
+    return is_numeric($v) ? max(0.0, round((float)$v, 2)) : 0.0;
+}
+
 // Raises one refund request per paid invoice of an application that is being
 // rejected or cancelled after approval. Runs inside the caller's transaction.
 // Returns the list of [rid, amount] raised; the caller notifies after commit.
-function raise_rejection_refunds($conn, $user_id, $app_id, $reason, $actor_id) {
+// $fee (the cancellation fee, for a cancellation the tenant asked for) is kept
+// out of the refunds, taken from the paid invoices in order and never more than
+// was paid; an invoice the fee uses up raises no request. $fee_kept (by
+// reference) is the amount actually kept.
+function raise_rejection_refunds($conn, $user_id, $app_id, $reason, $actor_id, $fee = 0.0, &$fee_kept = 0.0) {
     $raised = [];
+    $fee_left = max(0.0, round((float)$fee, 2));
+    $fee_kept = 0.0;
     foreach (paid_invoices_for_application($conn, $app_id) as $p) {
-        $why = "Application rejected after payment: " . $reason;
-        $rid = insert_refund_request($conn, (int)$user_id, (int)$app_id, 'rejected_application', $p['invoiceId'], $p['amount'], $why, (int)$actor_id, 'admin');
-        $raised[] = ['id' => $rid, 'amount' => $p['amount']];
+        $amount = $p['amount'];
+        $take = min($fee_left, $amount);
+        $amount = round($amount - $take, 2);
+        $fee_left = round($fee_left - $take, 2);
+        $fee_kept = round($fee_kept + $take, 2);
+        if ($amount <= 0) continue;
+        $why = ($take > 0 ? "Cancelled at your request: a cancellation fee of ₱" . number_format($take, 2) . " was kept. " : "Application rejected after payment: ") . $reason;
+        $rid = insert_refund_request($conn, (int)$user_id, (int)$app_id, 'rejected_application', $p['invoiceId'], $amount, $why, (int)$actor_id, 'admin');
+        $raised[] = ['id' => $rid, 'amount' => $amount];
     }
     return $raised;
 }
@@ -5199,6 +5386,7 @@ function run_notification_sweep($conn, $force = false) {
         'contracts_expired' => 0,
         'lease_end_reminders_sent' => 0,
         'followups_queued' => 0,
+        'deposit_refunds_overdue' => 0,
     ];
 
     $reminders_enabled = get_setting($conn, 'rent_due_reminders_enabled', 'true') !== 'false';
@@ -5278,8 +5466,9 @@ function run_notification_sweep($conn, $force = false) {
     $result['contracts_expired'] = expire_lapsed_contracts($conn);
     $result['lease_end_reminders_sent'] = send_lease_end_reminders($conn);
     $result['followups_queued'] = sync_followup_queue($conn);
+    $result['deposit_refunds_overdue'] = notify_overdue_deposit_refunds($conn);
 
-    $did = $result['marked_overdue'] + $result['rent_invoices_created'] + $result['upcoming_reminders_sent'] + $result['overdue_reminders_sent']
+    $did = $result['deposit_refunds_overdue'] + $result['marked_overdue'] + $result['rent_invoices_created'] + $result['upcoming_reminders_sent'] + $result['overdue_reminders_sent']
          + $result['parking_released'] + $result['parking_charges_posted']
          + $result['contracts_expired'] + $result['lease_end_reminders_sent'] + $result['followups_queued'];
     if ($did > 0) {
@@ -5289,6 +5478,40 @@ function run_notification_sweep($conn, $force = false) {
     }
 
     return $result;
+}
+
+// Tells the admins, once, that a returned security deposit is still unpaid past
+// its due date (created_at + deposit_refund_days), and tells the tenant it is
+// being chased. The claim is the conditional UPDATE on overdue_notified_at, so
+// concurrent sweeps notify each refund once. Returns how many were notified.
+function notify_overdue_deposit_refunds($conn) {
+    $days = deposit_refund_days($conn);
+    $stmt = $conn->prepare("SELECT id, user_id, amount, created_at FROM refund_requests
+                            WHERE type = 'deposit' AND status IN ('Pending Review', 'Info Requested', 'Approved')
+                              AND overdue_notified_at IS NULL AND DATE_ADD(created_at, INTERVAL ? DAY) < CURDATE()");
+    $stmt->bind_param("i", $days);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $notified = 0;
+    foreach ($rows as $r) {
+        $rid = (int)$r['id'];
+        $claim = $conn->prepare("UPDATE refund_requests SET overdue_notified_at = NOW() WHERE id = ? AND overdue_notified_at IS NULL");
+        $claim->bind_param("i", $rid);
+        $claim->execute();
+        $won = $claim->affected_rows > 0;
+        $claim->close();
+        if (!$won) continue;
+        $amount = number_format((float)$r['amount'], 2);
+        $due = date('M j, Y', strtotime($r['created_at'] . " +$days days"));
+        notify_admins_info($conn, 'refund_update', 'Deposit Refund Overdue',
+            "Deposit refund #$rid of ₱$amount was due $due and is still unpaid. Approve it or record the payout under Refunds.");
+        create_notification($conn, (int)$r['user_id'], 'refund_update', 'Your Deposit Refund Is Late',
+            "Your deposit refund of ₱$amount was due $due. Management has been reminded and will pay it out; you can follow it under My Refunds.");
+        $notified++;
+    }
+    return $notified;
 }
 
 // Title and message for a rent-due or overdue reminder. Shared by the sweep and
