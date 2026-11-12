@@ -61,6 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $allowed_for_proof = array_values(array_unique(array_map(function ($part) {
         return $part['method'] === 'bank_transfer' ? 'bank_transfer' : $part['method'];
     }, $payments)));
+    // A desk admin can record cash that has physically been received even if
+    // the tenant did not first submit a cash declaration in Pay Bills. This
+    // exception is cash-only; online methods still require tenant action/proof.
+    $cash_received_at_desk = count($payments) === 1 && $payments[0]['method'] === 'cash';
     $open_rows = payment_key_invoices($conn, $invoice_id, null, BILLING_OPEN_STATUSES);
     foreach ($open_rows as $open_row) {
         // A gateway checkout may still complete; recording it here as well
@@ -73,7 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Pay Bills is where a payment starts: the tenant submits a proof or
         // schedules a visit first, then the desk confirms it.
-        if (!in_array($open_row['status'], ADMIN_RECORDABLE_STATUSES, true)) {
+        if (!in_array($open_row['status'], ADMIN_RECORDABLE_STATUSES, true) &&
+            !($cash_received_at_desk && in_array($open_row['status'], ['pending', 'unpaid', 'overdue'], true))) {
             http_response_code(409);
             echo json_encode(["success" => false, "message" => "The tenant hasn't submitted a payment or scheduled a visit for this bill yet. Ask them to pay in Pay Bills, or wait for their submission."]);
             exit;

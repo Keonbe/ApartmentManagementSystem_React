@@ -184,6 +184,21 @@ CREATE TABLE IF NOT EXISTS `trusted_devices` (
 --   refund_requests.gateway_status        requesting / pending / processing / succeeded / failed
 --   refund_requests.type                  + 'online_payment' (an online payment AMS could not apply)
 
+-- Cancellation review details; statements are guarded for production upgrades.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'payout_destination') = 0,
+  'ALTER TABLE `refund_requests` ADD COLUMN `payout_destination` varchar(255) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'paid_amount') = 0,
+  'ALTER TABLE `refund_requests` ADD COLUMN `paid_amount` decimal(10,2) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'deposit_amount') = 0,
+  'ALTER TABLE `refund_requests` ADD COLUMN `deposit_amount` decimal(10,2) DEFAULT NULL', 'DO 0');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+UPDATE `refund_requests` SET `reason` = REPLACE(`reason`, 'Application rejected after payment:', 'Application rejected by admin after payment:')
+WHERE `type` = 'rejected_application' AND `raised_by_role` = 'admin' AND `reason` LIKE 'Application rejected after payment:%';
+
+-- Tenant cancellation review: payout routing and verified paid/deposit snapshots.
 SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'paymongo_payment_id') = 0,
   'ALTER TABLE `invoices` ADD COLUMN `paymongo_payment_id` varchar(64) DEFAULT NULL', 'DO 0');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;

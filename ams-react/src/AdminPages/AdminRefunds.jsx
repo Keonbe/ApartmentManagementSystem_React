@@ -22,6 +22,7 @@ export default function AdminRefunds() {
   const [notice, setNotice] = useState(null);
   const [text, setText] = useState({});      // per-request message / reason box
   const [payout, setPayout] = useState({});  // per-request { method, reference }
+  const [refundAmounts, setRefundAmounts] = useState({});
   const [tenants, setTenants] = useState([]);
   const [newUserId, setNewUserId] = useState('');
   const [eligible, setEligible] = useState(null);
@@ -83,7 +84,7 @@ export default function AdminRefunds() {
   };
 
   const act = (r, action, okText, extra = {}) => call('update_refund_request.php',
-    { id: r.id, action, message: text[r.id] || '', payout_method: payout[r.id]?.method || '', payout_reference: payout[r.id]?.reference || '', ...extra },
+    { id: r.id, action, message: text[r.id] || '', payout_method: payout[r.id]?.method || '', payout_reference: payout[r.id]?.reference || '', ...(action === 'approve' && refundAmounts[r.id] !== undefined ? { amount: Number(refundAmounts[r.id]) } : {}), ...extra },
     okText, () => setText((p) => ({ ...p, [r.id]: '' })));
 
   // Money returns to the payer's own GCash / card / bank through PayMongo.
@@ -146,7 +147,10 @@ export default function AdminRefunds() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="m-0 text-title font-bold text-slate-800">{r.tenantName}{r.roomName ? ` · Unit ${r.roomName}` : ''}</h3>
-                    <p className="m-0 text-label text-slate-500">#{r.id} · {TYPE_LABELS[r.type]}{r.invoiceId ? ` (${r.invoiceId})` : ''} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by admin' : ''}{r.dueDate && ['Pending Review', 'Info Requested', 'Approved'].includes(r.status) ? ` · due ${r.dueDate}${r.overdue ? ' (OVERDUE)' : ''}` : ''}</p>
+                    <p className="m-0 text-label text-slate-500">#{r.id} · {TYPE_LABELS[r.type]}{r.invoiceId ? ` (${r.invoiceId})` : ''} · {when(r.createdAt)}{r.origin === 'cancelled_by_tenant' ? ` · Opened by tenant: ${r.tenantName}` : r.origin === 'rejected_by_admin' ? ' · Opened by admin' : r.raisedByRole === 'admin' ? ' · Opened by admin' : ''}{r.dueDate && ['Pending Review', 'Info Requested', 'Approved'].includes(r.status) ? ` · due ${r.dueDate}${r.overdue ? ' (OVERDUE)' : ''}` : ''}</p>
+                    {r.origin === 'cancelled_by_tenant' && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">Application cancelled by applicant</span>}
+                    {r.origin === 'cancelled_by_admin' && <span className="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">Application cancelled by management at the tenant&apos;s request</span>}
+                    {r.origin === 'rejected_by_admin' && <span className="mt-1 inline-block rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-900">Application rejected by admin</span>}
                   </div>
                   <div className="text-right">
                     <p className="m-0 text-title font-bold text-slate-800">{peso(r.amount)}</p>
@@ -154,17 +158,32 @@ export default function AdminRefunds() {
                   </div>
                 </div>
                 <p className="m-0 mt-2 whitespace-pre-wrap text-body text-slate-600">{r.reason}</p>
+                {r.type === 'rejected_application' && r.paidAmount != null && (
+                  <section className="mt-3 rounded-control border border-indigo-100 bg-indigo-50 p-3 text-label text-slate-700" aria-label="Refund calculation breakdown">
+                    <p className="m-0 font-bold text-slate-800">Move-in payment breakdown</p>
+                    <dl className="m-0 mt-2 grid grid-cols-2 gap-y-1">
+                      <dt>Total paid</dt><dd className="m-0 text-right font-semibold">{peso(r.paidAmount)}</dd>
+                      <dt>Security deposit portion (refundable before move-in)</dt><dd className="m-0 text-right font-semibold">{peso(r.depositAmount || 0)}</dd>
+                      <dt>Eligible refund (management review)</dt><dd className="m-0 text-right font-bold">{peso(r.amount)}</dd>
+                    </dl>
+                  </section>
+                )}
+                {r.payoutDestination && <p className="m-0 mt-2 rounded-control bg-amber-50 p-3 text-label text-slate-700"><strong>Tenant payout destination:</strong> {r.payoutDestination}</p>}
                 {r.status === 'Refunded' && <p className="m-0 mt-2 text-body font-semibold text-emerald-700">Paid out via {r.payoutMethod} (ref {r.payoutReference}).{r.gatewayStatus ? ` ${GATEWAY_LABELS[r.gatewayStatus] || r.gatewayStatus}.` : ''}</p>}
                 <RefundTrail events={r.events} />
 
                 {(r.status === 'Pending Review') && (
                   <div className="mt-4 space-y-2">
+                    {r.type === 'rejected_application' && <label className="block text-label font-bold text-slate-600">Final refund amount (max {peso(r.paidAmount ?? r.amount)})
+                      <input aria-label={`Final refund amount for request ${r.id}`} type="number" min="0.01" step="0.01" max={r.paidAmount ?? r.amount} value={refundAmounts[r.id] ?? r.amount}
+                        onChange={(e) => setRefundAmounts((p) => ({ ...p, [r.id]: e.target.value }))} className="mt-1 w-full max-w-xs rounded-control border border-slate-300 p-2 text-body" />
+                    </label>}
                     <label className="block text-label font-bold text-slate-600">Message to tenant
                       <textarea rows={2} maxLength={1000} value={text[r.id] || ''} placeholder="Your question, or the reason for rejecting"
                         onChange={(e) => setText((p) => ({ ...p, [r.id]: e.target.value }))} className="mt-1 w-full rounded-control border border-slate-300 p-2 text-body font-normal" />
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" disabled={busy} onClick={() => act(r, 'approve', 'Refund approved.')} className={`${btn} bg-emerald-600 hover:bg-emerald-700`}>Approve</button>
+                      <button type="button" disabled={busy || (r.type === 'rejected_application' && (!(Number(refundAmounts[r.id] ?? r.amount) > 0) || Number(refundAmounts[r.id] ?? r.amount) > Number(r.paidAmount ?? r.amount)))} onClick={() => act(r, 'approve', 'Refund approved.')} className={`${btn} bg-emerald-600 hover:bg-emerald-700`}>Approve</button>
                       <button type="button" disabled={busy || !(text[r.id] || '').trim()} title="Sends your message to the tenant and pauses this request until they reply."
                         onClick={() => act(r, 'request_info', 'Question sent to the tenant.')} className={`${btn} bg-sky-600 hover:bg-sky-700`}>Ask tenant a question</button>
                       <button type="button" disabled={busy || !(text[r.id] || '').trim()} onClick={() => act(r, 'reject', 'Refund rejected.')} className={`${btn} bg-red-600 hover:bg-red-700`}>Reject</button>

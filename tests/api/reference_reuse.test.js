@@ -162,6 +162,15 @@ describe('block: refused everywhere', () => {
 });
 
 describe('not duplicates', () => {
+  it('accepts numeric-only bank transfer trace numbers up to 55 characters', async () => {
+    const id = 'INV-TEST-RR-NUMERIC-BANK';
+    await addBill(id, { userId: 2 });
+    const ref = '123456789012';
+    const res = await upload(maria, id, ref, { method: 'Bank Transfer', bank: 'BDO' });
+    expect(res.status).toBe(200);
+    expect(await bill(id)).toMatchObject({ status: 'pending-verification', payment_reference: ref });
+  });
+
   it('the same invoice after a rejected proof', async () => {
     const id = 'INV-TEST-RR-REJ';
     const REF = '9000000000003';

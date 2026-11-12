@@ -58,9 +58,18 @@ while ($r = $res->fetch_assoc()) {
         'tenantEmail' => $r['tenant_email'],
         'roomName' => $r['room_name'],
         'type' => $r['type'],
+        // cancelled_by_admin: management cancelled at the tenant's request (the reason starts with
+        // ADMIN_CANCELLATION_REASON_PREFIX); rejected_by_admin: management rejected the application.
+        'origin' => $r['type'] === 'rejected_application'
+            ? ($r['raised_by_role'] === 'user' ? 'cancelled_by_tenant'
+                : (str_starts_with((string)$r['reason'], ADMIN_CANCELLATION_REASON_PREFIX) ? 'cancelled_by_admin' : 'rejected_by_admin'))
+            : null,
         'invoiceId' => $r['invoice_id'],
         'amount' => (float)$r['amount'],
         'reason' => $r['reason'],
+        'paidAmount' => $r['paid_amount'] !== null ? (float)$r['paid_amount'] : null,
+        'depositAmount' => $r['deposit_amount'] !== null ? (float)$r['deposit_amount'] : null,
+        'payoutDestination' => $r['payout_destination'],
         'status' => $r['status'],
         'decisionReason' => $r['decision_reason'],
         'payoutMethod' => $r['payout_method'],

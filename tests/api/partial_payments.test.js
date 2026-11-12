@@ -152,10 +152,12 @@ describe('desk part-payments (record_payment_admin.php, partial: true)', () => {
   it('double submit: two parts whose sum exceeds the balance → exactly one is recorded', async () => {
     const id = 'INV-TEST-PP-DOUBLE';
     await addBill(id);
-    // The first part puts the bill back to 'pending', so the second meets the
-    // desk gate (409); the lock test above covers the 422 balance re-check.
+    // Cash may be recorded at the desk on a pending bill (no tenant declaration
+    // needed), so the second part no longer stops at the desk gate (409): it is
+    // stopped by the balance re-check under the row lock (422). Either way exactly
+    // one part is recorded.
     const results = await Promise.all([desk(id, 1000), desk(id, 1000)]);
-    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 422]);
     const after = await bill(id);
     expect(after.paid).toBe(1000);
     expect(after.paid).toBeLessThanOrEqual(after.total);

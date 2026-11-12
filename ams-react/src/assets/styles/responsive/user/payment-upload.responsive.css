@@ -56,9 +56,3 @@
     font-size: 1.5rem !important;
   }
 }
-
-/* Ensure bank dropdown options are clearly legible across all browsers */
-.payment-upload-card select option {
-  background-color: #0f172a !important;
-  color: #ffffff !important;
-}

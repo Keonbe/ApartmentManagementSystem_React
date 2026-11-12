@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useSearchParams } from 'react-router-dom';
+import { getSystemSettings } from '../config/systemSettings';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faTimes, faCalendarAlt, faPhone, faEnvelope,
@@ -13,7 +14,6 @@ import {
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import ReasonModal from '../Components/form/ReasonModal';
-import { getSystemSettings } from '../config/systemSettings';
 import { fileUrl } from '../api/fileUrl';
 import { formatFileSize } from '../Components/form/formHelpers';
 import { LIMITS } from '../utils/validation';
@@ -277,8 +277,9 @@ const AdminApplications = () => {
       throw new Error(apiErrorMessage(err, 'Failed to update the application.'), { cause: err });
     }
     if (!res.data.success) throw new Error(apiErrorMessage(res, 'Failed to update the application.'));
-    if (res.data.cancellation_fee_kept) alert(`A cancellation fee of ₱${Number(res.data.cancellation_fee_kept).toLocaleString()} was kept from the refund.`);
     if (res.data.refunds_raised) alert(`${res.data.refunds_raised} refund request(s) were opened for payments this applicant already made. Review them under Refunds.`);
+    if (res.data.cancellation_fee_kept) alert(`A cancellation fee of ₱${Number(res.data.cancellation_fee_kept).toLocaleString()} was kept${res.data.refunds_raised ? ' from the refund' : ' (nothing was left to refund)'}.`);
+    setTenantRequestId(null);
     setRejectTarget(null);
     setShowProfileModal(false);
     fetchApplications();
@@ -1172,20 +1173,20 @@ const AdminApplications = () => {
 
       {rejectTarget && (
         <ReasonModal
-          title={rejectTarget.status === 'Approved' ? "Revoke Approval & Reject Application" : "Reject Application"}
+          title={rejectTarget.status === 'Approved' ? (tenantRequestId === rejectTarget.id ? "Revoke Approval & Cancel Application" : "Revoke Approval & Reject Application") : "Reject Application"}
           description={`${rejectTarget.name || 'The applicant'} is notified with this reason.${rejectTarget.status === 'Approved' ? ' Any payment already made is sent to Refunds as a refund request.' : ''}`}
-          label="Reason for rejecting this application"
-          confirmLabel={rejectTarget.status === 'Approved' ? "Revoke & Reject" : "Reject Application"}
+          label={tenantRequestId === rejectTarget.id ? "Reason for cancelling this application" : "Reason for rejecting this application"}
+          confirmLabel={rejectTarget.status === 'Approved' ? (tenantRequestId === rejectTarget.id ? "Revoke & Cancel" : "Revoke & Reject") : "Reject Application"}
           suggestions={['Incomplete or unverifiable documents', 'Unit is no longer available', 'Does not meet tenancy requirements', 'Change of mind', 'Other']}
           allowAttachment={true}
           attachmentLabel="Attach Supporting Document / Image (optional)"
           onConfirm={confirmReject}
-          onClose={() => setRejectTarget(null)}
+          onClose={() => { setRejectTarget(null); setTenantRequestId(null); }}
         >
           {rejectTarget.status === 'Approved' && cancellationFee > 0 && (
             <label className="mt-4 flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
               <input type="checkbox" className="mt-1" checked={tenantRequestId === rejectTarget.id} onChange={(e) => setTenantRequestId(e.target.checked ? rejectTarget.id : null)} />
-              <span>Cancelled at the tenant&apos;s request. A cancellation fee of ₱{cancellationFee.toLocaleString()} is kept from what they already paid (if anything). Leave this off when Management is rejecting the application.</span>
+              <span>Cancelled at the tenant&apos;s request. A cancellation fee of ₱{cancellationFee.toLocaleString()} is kept from what they already paid (if anything) and the rest goes to Refunds. Leave this off when Management is rejecting the application: the applicant is then refunded in full.</span>
             </label>
           )}
         </ReasonModal>

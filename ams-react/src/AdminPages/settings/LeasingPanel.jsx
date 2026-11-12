@@ -37,7 +37,7 @@ export default function LeasingPanel({ settings, updateSetting }) {
           </div>
           <Switch checked={!!settings.depositRefundableDefault} onChange={(v) => updateSetting('depositRefundableDefault', v)} label="Refund the unused deposit" />
         </div>
-        <Field label="Cancellation Fee" htmlFor="setting-cancellationFee" icon={faCalendarAlt} hint="Kept from what an applicant already paid when you cancel an approved application at their request (the checkbox in the reject dialog). 0 = full refund. A rejection by Management is always refunded in full.">
+        <Field label="Cancellation Fee" htmlFor="setting-cancellationFee" icon={faCalendarAlt} hint="Kept from what an applicant already paid when they ask to cancel an approved application (they send the request from Track Application, or you cancel at their request by ticking the box when you revoke an approval): the refund request is opened for the amount paid minus this fee, and you can still approve up to the full amount. 0 = full refund. A rejection by Management is always refunded in full.">
           <WithUnit suffix="PHP">
             <input id="setting-cancellationFee" name="cancellationFee" type="number" inputMode="decimal" min={0} max={100000} step="0.01" value={settings.cancellationFee} onChange={(e) => updateSetting('cancellationFee', e.target.value === '' ? '' : Number(e.target.value))} className={`${INPUT_NUMBER} w-32`} />
           </WithUnit>

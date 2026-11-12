@@ -17,16 +17,19 @@ import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import FieldError from '../Components/form/FieldError';
 import { formatFileSize } from '../Components/form/formHelpers';
 import ReasonModal from '../Components/form/ReasonModal';
+import Modal from '../Components/admin/Modal';
 import { apiErrorMessage } from '../utils/apiError';
 import { MOVE_IN_WINDOW_DEFAULT, checkMoveInDate, moveInBounds, moveInRangeText } from '../utils/validation';
 import { getSystemSettings } from '../config/systemSettings';
 import ApplicationStepper from '../Components/tenant/ApplicationStepper';
-import { APPLICATION_STATUS_CHIP, applicationSteps, normalizeApplicationStatus } from '../utils/applicationSteps';
+import { APPLICATION_STATUS_CHIP, applicationSteps, isMoveInPaymentSettled, normalizeApplicationStatus } from '../utils/applicationSteps';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 import { Bone, SkeletonPage } from '../Components/tenant/Skeleton';
+import { useChat } from '../context/ChatContext';
 
 export default function TrackApplication() {
     const navigate = useNavigate();
+    const { openSupportChat } = useChat();
     const { t } = useLang();
     const [loading, setLoading] = useState(true);
     const [application, setApplication] = useState(null);
@@ -54,6 +57,13 @@ export default function TrackApplication() {
     const [contractError, setContractError] = useState('');
     const [contractInputKey, setContractInputKey] = useState(0);
     const [cancelApplication, setCancelApplication] = useState(false);
+    const [cancellationReviewOpen, setCancellationReviewOpen] = useState(false);
+    const [cancellationReason, setCancellationReason] = useState('');
+    const [payoutDestination, setPayoutDestination] = useState('');
+    // Settings > Rental > Cancellation Fee: kept from what was paid when a cancellation is requested.
+    const [cancellationFee, setCancellationFee] = useState(0);
+    const [requestingCancellation, setRequestingCancellation] = useState(false);
+    const [cancellationError, setCancellationError] = useState('');
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const activeEmail = loggedInUser.email_address || '';
 
@@ -251,7 +261,10 @@ export default function TrackApplication() {
     useEffect(() => {
         let alive = true;
         getSystemSettings().then((s) => {
-            if (alive) setMoveInWindow({ min: s.moveInMinDays ?? MOVE_IN_WINDOW_DEFAULT.min, max: s.moveInMaxDays || MOVE_IN_WINDOW_DEFAULT.max });
+            if (alive) {
+                setMoveInWindow({ min: s.moveInMinDays ?? MOVE_IN_WINDOW_DEFAULT.min, max: s.moveInMaxDays || MOVE_IN_WINDOW_DEFAULT.max });
+                setCancellationFee(Number(s.cancellationFee) || 0);
+            }
         }).catch(() => {});
         return () => { alive = false; };
     }, []);
@@ -396,12 +409,52 @@ export default function TrackApplication() {
     }
 
     const status = normalizeApplicationStatus(application?.status);
-    const chip = APPLICATION_STATUS_CHIP[status];
+    const applicationChip = APPLICATION_STATUS_CHIP[status];
+    const moveInPaymentSettled = isMoveInPaymentSettled(application);
+    const chip = status === 'approved' && application?.signed_lease_path && !moveInPaymentSettled
+        ? { label: 'Pending Payment', tone: 'waiting' }
+        : applicationChip;
     const steps = applicationSteps(application);
+    const hasMoveInPayment = !!application?.initial_payment_paid ||
+        Number(application?.amount_paid ?? 0) > 0 || Number(application?.pending_amount_paid ?? 0) > 0;
     const peso = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
     const dayLabel = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' }) : '');
     const roomLabel = application?.room_name ? `Room ${application.room_name}` : 'your room';
-    const moveInBalance = application ? parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0))) : 0;
+    const moveInBalance = application
+        ? Math.max(0, Number(application.pending_balance ?? (application.pending_total_amount != null
+            ? Number(application.pending_total_amount) - Number(application.pending_amount_paid ?? application.amount_paid ?? 0)
+            : 2 * parseFloat(application.monthly_rent || 0))))
+        : 0;
+    const hasPartialMoveInPayment = Number(application?.pending_amount_paid ?? application?.amount_paid ?? 0) > 0
+        && !moveInPaymentSettled && moveInBalance > 0;
+    const hasSubmittedPayment = Boolean(application?.payment_submitted)
+        || Number(application?.pending_amount_paid ?? application?.amount_paid ?? 0) > 0
+        || ['pending-verification', 'processing', 'paid'].includes(application?.pending_invoice_status)
+        || moveInPaymentSettled;
+    const openCancellationReview = async () => {
+        setCancellationReviewOpen(false);
+        await openSupportChat?.();
+    };
+    const submitCancellationReview = async (e) => {
+        e.preventDefault();
+        if (requestingCancellation) return;
+        setRequestingCancellation(true);
+        setCancellationError('');
+        try {
+            const res = await api.post('/request_application_cancellation.php', {
+                id: application.id, reason: cancellationReason, payout_destination: payoutDestination,
+            });
+            if (!res.data.success) throw new Error(apiErrorMessage(res, 'Could not send the cancellation request.'));
+            setCancellationReviewOpen(false);
+            setNotice({ message: 'Cancellation request sent', subtext: 'Management will review the cancellation and refund. Your application remains active until management makes a decision.' });
+            setCancellationReason('');
+            setPayoutDestination('');
+        } catch (err) {
+            setCancellationError(apiErrorMessage(err, 'Could not send the cancellation request.'));
+        } finally {
+            setRequestingCancellation(false);
+        }
+    };
     // Cancelling is allowed only before moving in (cancel_application.php checks too).
     const canCancel = ['pending', 'action', 'approved'].includes(status);
 
@@ -501,8 +554,8 @@ export default function TrackApplication() {
     const cancelledBody = (
         <div className="space-y-4">
             {refundCard}
-            <button type="button" onClick={() => navigate('/preview')} className={BTN_PRIMARY}>
-                Browse available rooms <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+            <button type="button" onClick={() => navigate(hasMoveInPayment ? '/my-refunds' : '/preview')} className={BTN_PRIMARY}>
+                {hasMoveInPayment ? 'View My Refunds' : 'Browse available rooms'} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
             </button>
         </div>
     );
@@ -619,6 +672,12 @@ export default function TrackApplication() {
                 </div>
             </dl>
 
+            {application?.pending_invoice_status !== 'pending-verification' && hasPartialMoveInPayment && (
+                <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-slate-800">
+                    Partial payment received. Please settle your remaining balance of <strong className="text-slate-900">{peso(moveInBalance)}</strong> to confirm your move-in.
+                </p>
+            )}
+
             {application?.pending_invoice_status !== 'pending-verification' && application?.pending_rejection_reason && (
                 <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-relaxed text-slate-800">
                     <strong className="text-rose-800">Payment returned.</strong> Management returned your payment: <strong className="text-slate-900">{application.pending_rejection_reason}</strong>. Please pay again below.
@@ -629,7 +688,7 @@ export default function TrackApplication() {
                 <p className="m-0 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-relaxed text-slate-800">
                     Your payment {application.pending_payment_method ? <>by <strong className="text-slate-900">{application.pending_payment_method}</strong> </> : ''}is being verified by management. This step completes by itself once they confirm it, and you will be notified.
                 </p>
-            ) : application?.pending_payment_method === 'Cash on Hand' ? (
+            ) : application?.pending_payment_method === 'Cash on Hand' && !hasPartialMoveInPayment ? (
                 <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-slate-800">
                     Please pay <strong className="text-slate-900">{peso(moveInBalance)}</strong> in cash at the management office. This step completes once management records it, and you will be notified.
                 </p>
@@ -648,13 +707,15 @@ export default function TrackApplication() {
                                         type="button"
                                         aria-pressed={chosen}
                                         onClick={() => { setSelectedMethod(method.id); setPayError(''); }}
-                                        className={`flex items-center justify-between gap-3 min-h-[48px] px-4 rounded-xl border text-sm font-semibold text-left cursor-pointer transition-colors ${chosen ? 'bg-indigo-50 border-indigo-300 text-white' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                        className={`flex items-center justify-between gap-3 min-h-[48px] px-4 rounded-xl border text-sm text-left cursor-pointer transition-colors ${chosen
+                                            ? 'border-indigo-600 bg-indigo-50/70 font-semibold text-indigo-900'
+                                            : 'border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50'}`}
                                     >
                                         <span className="flex items-center gap-3">
-                                            <FontAwesomeIcon icon={method.icon} className={chosen ? 'text-indigo-800' : 'text-slate-600'} aria-hidden="true" />
+                                            <FontAwesomeIcon icon={method.icon} className={chosen ? 'text-indigo-600' : 'text-slate-500'} aria-hidden="true" />
                                             {method.label}
                                         </span>
-                                        {chosen && <FontAwesomeIcon icon={faCheck} className="text-indigo-800" aria-hidden="true" />}
+                                        {chosen && <FontAwesomeIcon icon={faCheck} className="text-indigo-600" aria-hidden="true" />}
                                     </button>
                                 );
                             }) : (
@@ -795,10 +856,12 @@ export default function TrackApplication() {
                             </dl>
                             {canCancel && (
                                 <div className="mt-5 border-t border-slate-200 pt-4">
-                                    <button type="button" onClick={() => setCancelApplication(true)} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-rose-700 hover:text-rose-700 cursor-pointer underline-offset-2 hover:underline">
-                                        Cancel application
+                                    <button type="button" onClick={() => (hasSubmittedPayment ? setCancellationReviewOpen(true) : setCancelApplication(true))} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-rose-700 hover:text-rose-700 cursor-pointer underline-offset-2 hover:underline">
+                                        {hasSubmittedPayment ? 'Request Cancellation' : 'Cancel application'}
                                     </button>
-                                    <p className="m-0 mt-1 text-sm text-slate-600">Possible until you move in.</p>
+                                    <p className="m-0 mt-1 text-sm text-slate-600">
+                                        {hasSubmittedPayment ? 'Subject to lease cancellation terms.' : 'Possible until you move in.'}
+                                    </p>
                                 </div>
                             )}
                         </aside>
@@ -822,6 +885,33 @@ export default function TrackApplication() {
                     onConfirm={confirmCancellation}
                     onClose={() => setCancelApplication(false)}
                 />
+            )}
+            {cancellationReviewOpen && (
+                <Modal
+                    title="Cancellation Requires Management Review"
+                    onClose={() => setCancellationReviewOpen(false)}
+                    className="w-full max-w-lg mx-4 overflow-hidden rounded-2xl bg-white p-6 shadow-2xl outline-none"
+                >
+                    <h2 className="m-0 text-lg font-bold text-slate-900">Cancellation Requires Management Review</h2>
+                    <p className="m-0 mt-3 text-sm leading-relaxed text-slate-700">Because payment has been recorded or submitted, this sends a cancellation and refund request for management review; it does not cancel your application. The security deposit portion is included in the refund review because you have not moved in.</p>
+                    {cancellationFee > 0 && (
+                        <p className="m-0 mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">A cancellation fee of ₱{cancellationFee.toLocaleString()} will be kept from what you paid.</p>
+                    )}
+                    <form onSubmit={submitCancellationReview} className="mt-4 space-y-3">
+                        <label className="block text-sm font-bold text-slate-700">Reason for cancellation
+                            <textarea required minLength={3} maxLength={255} value={cancellationReason} onChange={(e) => setCancellationReason(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-sm font-normal" />
+                        </label>
+                        <label className="block text-sm font-bold text-slate-700">Preferred payout account
+                            <input required maxLength={255} value={payoutDestination} onChange={(e) => setPayoutDestination(e.target.value)} placeholder="GCash number and account name, or bank name, account number and account name" className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-sm font-normal" />
+                        </label>
+                        {cancellationError && <p role="alert" className="m-0 text-sm font-semibold text-rose-700">{cancellationError}</p>}
+                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <button type="button" onClick={() => setCancellationReviewOpen(false)} className={BTN_QUIET}>Close</button>
+                            <button type="submit" disabled={requestingCancellation} className={BTN_PRIMARY}>{requestingCancellation ? 'Sending…' : 'Send cancellation request'}</button>
+                        </div>
+                        <button type="button" onClick={openCancellationReview} className="min-h-[44px] bg-transparent border-0 p-0 text-sm font-semibold text-indigo-700 underline">Or contact management through support chat</button>
+                    </form>
+                </Modal>
             )}
 
             {/* Modal Alert for file size / format violations */}

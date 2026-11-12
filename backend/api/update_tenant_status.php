@@ -139,19 +139,15 @@ if ($id > 0 && !empty($status)) {
             exit;
         }
 
-        // Cancelling an approved application can mean money goes back: a reason is required.
+        // Money paid on an approved application that management rejects or cancels goes
+        // back through Refunds. A rejection is refunded in full. A cancellation opens the
+        // same cancellation refund request as the tenant's own (request_application_cancellation.php),
+        // by open_cancellation_refund(); with at_tenant_request the cancellation fee
+        // (Settings > Rental) is kept out of it, without the flag it is a full refund.
         $refund_on_cancel = $current_status === 'Approved' && in_array($status, ['Rejected', 'Declined', 'Cancelled'], true);
-        if ($refund_on_cancel && trim((string)$rejection_reason) === '') {
-            http_response_code(422);
-            echo json_encode(["success" => false, "message" => "A reason is required to reject or cancel an approved application.", "errors" => ["rejection_reason" => "A reason is required."]]);
-            $conn->rollback();
-            $conn->close();
-            exit;
-        }
-        // A cancellation the tenant asked for keeps the cancellation fee (Settings → Rental)
-        // out of the refund; a rejection or decline by Management never does.
+        $cancelled_after_approval = $current_status === 'Approved' && $status === 'Cancelled';
         $at_tenant_request = in_array($input['at_tenant_request'] ?? false, [true, 1, '1', 'true', 'on'], true);
-        if ($at_tenant_request && !($current_status === 'Approved' && $status === 'Cancelled')) {
+        if ($at_tenant_request && !$cancelled_after_approval) {
             http_response_code(422);
             echo json_encode(["success" => false, "message" => "The cancellation fee only applies when an approved application is cancelled at the tenant's request."]);
             $conn->rollback();
@@ -159,6 +155,13 @@ if ($id > 0 && !empty($status)) {
             exit;
         }
         $cancellation_fee_kept = 0.0;
+        if ($refund_on_cancel && trim((string)$rejection_reason) === '') {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "A reason is required to reject or cancel an approved application.", "errors" => ["rejection_reason" => "A reason is required."]]);
+            $conn->rollback();
+            $conn->close();
+            exit;
+        }
         $refunds_raised = [];
         $deposit_refund_raised = null;
         $settled = null;
@@ -203,10 +206,28 @@ if ($id > 0 && !empty($status)) {
                 'room_name' => $cur_row['room_name'], 'vacate_held_room' => $current_status === 'Approved',
             ]);
 
-            // Money already paid on an approved application goes back through
-            // a refund request per paid invoice (the admin decides at /admin-refunds).
+            // Money paid on an approved application rejected by management goes
+            // back through one admin-origin refund request per paid invoice.
             if ($refund_on_cancel && !empty($cur_row['user_id'])) {
-                $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, trim((string)$rejection_reason), $admin_id, $at_tenant_request ? cancellation_fee($conn) : 0.0, $cancellation_fee_kept);
+                $refund_reason = trim((string)$rejection_reason);
+                if ($cancelled_after_approval) {
+                    // The move-in payment gets the cancellation refund request (with the fee
+                    // only when asked); anything else paid on the application is refunded in full.
+                    $cr = open_cancellation_refund($conn, $id, (int)$cur_row['user_id'], (int)$admin_id, 'admin', $refund_reason, null, $at_tenant_request);
+                    $skip_invoices = [];
+                    if ($cr['state'] === 'opened') {
+                        $refunds_raised[] = ['id' => $cr['id'], 'amount' => $cr['refund']];
+                        $cancellation_fee_kept = $cr['fee'];
+                    } elseif ($cr['state'] === 'fee_takes_all') {
+                        $cancellation_fee_kept = $cr['fee'];
+                        $skip_invoices[] = $cr['invoice'];
+                    }
+                    foreach (raise_rejection_refunds($conn, $cur_row['user_id'], $id, $refund_reason, $admin_id, ADMIN_CANCELLATION_REASON_PREFIX . ': ', $skip_invoices) as $rf) {
+                        $refunds_raised[] = $rf;
+                    }
+                } else {
+                    $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, $refund_reason, $admin_id);
+                }
             }
         }
 
@@ -471,10 +492,11 @@ if ($id > 0 && !empty($status)) {
                     $refund_total = array_sum(array_column($refunds_raised, 'amount'));
                     $notif_msg .= " A refund request of ₱" . number_format($refund_total, 2) . " was opened for the payments you made. You can follow it under My Refunds.";
                 }
+                
                 if ($cancellation_fee_kept > 0) {
                     $notif_msg .= " A cancellation fee of ₱" . number_format($cancellation_fee_kept, 2) . " was kept.";
                 }
-                
+
                 $notif_id = create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
                 if ($notif_id && $attachment_path) {
                     $upd_notif = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
@@ -489,12 +511,13 @@ if ($id > 0 && !empty($status)) {
         }
 
         $conn->commit();
+        $outcome = $status === 'Cancelled' ? 'cancelled' : 'rejected';
+        foreach ($refunds_raised as $rf) {
+            notify_refund_raised($conn, $rf['id'], $rf['amount'], "a payment on a $outcome application");
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$rf['id']}: ₱" . number_format($rf['amount'], 2) . " ($outcome application #$id)" . ($cancellation_fee_kept > 0 ? " after a cancellation fee of ₱" . number_format($cancellation_fee_kept, 2) : ''));
+        }
         if (empty($refunds_raised) && $cancellation_fee_kept > 0) {
             log_activity($conn, $admin_id, 'billing', 'Cancellation Fee Kept', "Application #$id: ₱" . number_format($cancellation_fee_kept, 2) . " (nothing left to refund)");
-        }
-        foreach ($refunds_raised as $rf) {
-            notify_refund_raised($conn, $rf['id'], $rf['amount'], 'a payment on a rejected application');
-            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$rf['id']}: ₱" . number_format($rf['amount'], 2) . " (rejected application #$id)" . ($cancellation_fee_kept > 0 ? "; cancellation fee kept: ₱" . number_format($cancellation_fee_kept, 2) : ""));
         }
         if ($deposit_refund_raised) {
             notify_refund_raised($conn, $deposit_refund_raised['id'], $deposit_refund_raised['amount'], 'a returned security deposit');
@@ -523,7 +546,7 @@ if ($id > 0 && !empty($status)) {
         }
         $response = ["success" => true];
         if (!empty($refunds_raised)) $response["refunds_raised"] = count($refunds_raised);
-        if ($cancellation_fee_kept > 0) $response["cancellation_fee_kept"] = $cancellation_fee_kept;
+        if ($cancellation_fee_kept > 0) $response["cancellation_fee_kept"] = round($cancellation_fee_kept, 2);
         if ($status === 'moved-out') {
             $response["balance_due"] = $balance > 0 ? round($balance, 2) : 0;
             if ($settled) {

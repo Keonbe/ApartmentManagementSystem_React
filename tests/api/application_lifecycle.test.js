@@ -60,6 +60,31 @@ describe('admin cancels an approved application', () => {
   });
 });
 
+describe('tenant requests cancellation after a move-in payment', () => {
+  it('creates one tenant-attributed review ticket with paid/deposit breakdown and payout destination without cancelling the application', async () => {
+    await q("UPDATE rent_applications SET status = 'Approved', move_in_date = NULL, move_in_notified_at = NULL WHERE id = 12");
+    await q("DELETE FROM payment_transactions WHERE invoice_id='INV-202601-14'");
+    await q("UPDATE invoices SET status='paid', amount_paid=4000, total_amount=4000, security_deposit=3500, cancel_reason=NULL WHERE id='INV-202601-14'");
+    const tenant = await loginAs('grace');
+    const res = await api('request_application_cancellation.php', { token: tenant, json: { id: 12, reason: 'Change of plans', payout_destination: 'GCash 09171234567 · Grace Mendoza' } });
+    expect(res.status).toBe(200);
+    const row = await one('SELECT status, amount, paid_amount, deposit_amount, payout_destination, raised_by_role, reason FROM refund_requests WHERE id = ?', [res.body.id]);
+    expect(row).toMatchObject({ status: 'Pending Review', raised_by_role: 'user', payout_destination: 'GCash 09171234567 · Grace Mendoza', reason: expect.stringContaining('Application cancellation requested by applicant') });
+    expect(Number(row.amount)).toBe(4000);
+    expect(Number(row.paid_amount)).toBe(4000);
+    expect(Number(row.deposit_amount)).toBe(3500);
+    const adminSession = await loginAs('admin');
+    const tooMuch = await api('update_refund_request.php', { token: adminSession, json: { id: res.body.id, action: 'approve', amount: 4000.01 } });
+    expect(tooMuch.status).toBe(422);
+    const approved = await api('update_refund_request.php', { token: adminSession, json: { id: res.body.id, action: 'approve', amount: 3500 } });
+    expect(approved.body.success).toBe(true);
+    expect(Number((await one('SELECT amount FROM refund_requests WHERE id=?', [res.body.id])).amount)).toBe(3500);
+    expect((await one('SELECT status FROM rent_applications WHERE id=12')).status).toBe('Approved');
+    expect((await api('get_refund_requests.php', { token: adminSession })).body.requests.find((r) => r.id === res.body.id)).toMatchObject({ origin: 'cancelled_by_tenant', tenantName: expect.any(String), payoutDestination: 'GCash 09171234567 · Grace Mendoza', paidAmount: 4000, depositAmount: 3500 });
+    expect((await api('request_application_cancellation.php', { token: tenant, json: { id: 12, reason: 'Again', payout_destination: '09170000000' } })).status).toBe(409);
+  });
+});
+
 describe('archive and restore', () => {
   it('archiving twice is refused and keeps the status to restore to', async () => {
     const first = await api('archive_tenant.php', { token: admin, json: { id: 2, archiveReason: 'End of Rent Term' } });

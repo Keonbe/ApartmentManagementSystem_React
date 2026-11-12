@@ -52,6 +52,90 @@
   background-color: var(--ut-page);
 }
 
+/* Native select popups may use the browser's dark color scheme even when the
+   app theme is light. Keep Payment Upload's bank selector explicitly light. */
+.ut-light #upload-bank-name {
+  color-scheme: light;
+  background-color: #fff;
+  border-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.ut-dark #upload-bank-name,
+.ut-glass #upload-bank-name {
+  color-scheme: dark;
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+.ut-light #upload-bank-name option {
+  background-color: #fff;
+  color: #1e293b;
+}
+
+.ut-dark #upload-bank-name option,
+.ut-glass #upload-bank-name option {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+/* Payment method cards keep the page's light palette in Light mode, while
+   explicitly adopting the user theme in Dark/Glass. Tailwind's `dark:` variant
+   follows the OS preference, not the selected app theme, so don't use it here. */
+.ut-light .track-app-payment-methods button {
+  background-color: #fff;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+.ut-light .track-app-payment-methods button:hover {
+  background-color: #f8fafc;
+}
+
+.ut-light .track-app-payment-methods button[aria-pressed="true"] {
+  background-color: rgb(238 242 255 / 0.7);
+  border-color: #4f46e5;
+  color: #312e81;
+}
+
+.ut-light .track-app-payment-methods button > span > svg {
+  color: #64748b;
+}
+
+.ut-light .track-app-payment-methods button[aria-pressed="true"] > span > svg {
+  color: #4f46e5;
+}
+
+.ut-dark .track-app-payment-methods button,
+.ut-glass .track-app-payment-methods button {
+  background-color: var(--ut-surface);
+  border-color: rgb(148 163 184 / 0.35);
+  color: #e2e8f0;
+}
+
+.ut-dark .track-app-payment-methods button:hover,
+.ut-glass .track-app-payment-methods button:hover {
+  background-color: var(--ut-raised);
+}
+
+.ut-dark .track-app-payment-methods button[aria-pressed="true"],
+.ut-glass .track-app-payment-methods button[aria-pressed="true"] {
+  background-color: rgb(49 46 129 / 0.4);
+  border-color: #6366f1;
+  color: #e0e7ff;
+}
+
+.ut-dark .track-app-payment-methods button > span > svg,
+.ut-glass .track-app-payment-methods button > span > svg {
+  color: #94a3b8;
+}
+
+.ut-dark .track-app-payment-methods button[aria-pressed="true"] > span > svg,
+.ut-glass .track-app-payment-methods button[aria-pressed="true"] > span > svg {
+  color: #a5b4fc;
+}
+
 .ut-dark .ut-route > :first-child:not(.fixed),
 .ut-glass .ut-route > :first-child:not(.fixed) {
   background-color: transparent;

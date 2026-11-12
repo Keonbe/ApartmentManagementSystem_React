@@ -46,6 +46,8 @@ These are already implemented and working.
 | **Manual GCash** | Upload proof screenshot + 13-digit reference number (Pay Bills continues to the upload page for QR Ph, GCash and bank, 2026-11-07) | Verify proof → approve payment | `upload_payment_proof.php`, `PayBills.jsx` → `PaymentUpload.jsx` |
 | **Manual Bank Transfer** | Upload deposit slip/screenshot + reference number | Verify proof → approve payment | Same files as above |
 
+Bank transfer references accept numeric, alphabetic or mixed alphanumeric trace/transaction IDs up to 55 characters; unlike GCash, they are not required to contain letters. The upload form's originating-bank dropdown uses explicit light/dark colors for both the select and its options.
+
 Current flow:
 
 ```mermaid
@@ -64,6 +66,15 @@ flowchart TD
 | **In-Person Payment** | Request a payment schedule (date + time slot) | Accept/reject schedule → record cash payment on visit |
 
 This channel is for tenants who pay at the admin office with cash. It adds a **scheduling step** so the admin knows when to expect the tenant.
+
+If cash has already been physically received at the desk, an admin may record a single cash payment against an open `pending`, `unpaid`, or `overdue` invoice without a tenant schedule or reference number. Online payments continue to require tenant submission/proof or an online payment attempt; the admin cannot clear a `processing` checkout.
+
+In Admin Payments, the tenant sidebar defaults to Latest Bill, sorting tenants by the newest active invoice's creation timestamp first. Tenants without an active invoice sort last; Due ↑ and Due ↓ remain available as separate options.
+
+The billing-details column stays empty until the admin explicitly selects a tenant. On first load it shows an instructional placeholder instead of opening the first tenant's account; an explicit selection is preserved during refreshes when that tenant is still present.
+The no-selection placeholder is scoped to the right billing column; summary metrics, the reminder alert, tenant sidebar and payment dashboard stay visible.
+The payment confirmation modal also requires a current tenant selection, so stale modal state cannot dereference a missing tenant.
+For a QR Ph proof under review, Admin Payments offers the supported GCash and Bank Transfer recording methods and prompts the admin to choose the route the funds arrived through; the API does not store a distinct QR Ph transaction method. Non-cash desk payments require a transaction reference, while cash at the desk does not.
 
 ---
 
@@ -373,3 +384,7 @@ flowchart LR
 
 ## Tenant payment screens (2026-11)
 Details in [tenant_pages.md](tenant_pages.md) §4. Pay Bills lays out the statement and the "how to pay" column side by side and offers: manual (GCash / bank with reference and proof), in person (scheduled date, morning / afternoon), online PayMongo checkout, **split payment** (portions kept in `payment_proof_parts` until the admin confirms; each confirmed portion becomes a `payment_transactions` row), partial amounts capped at the balance, **pay all together** (bundle, `BND-` key, one combined receipt) and **pay in advance** (`advance_payment.php`, `advance_credits`). Payment History groups open, paid (by year) and cancelled bills with printable receipts. Online payments can be refunded through PayMongo (My Refunds, `refund_requests`).
+
+Admin Payments treats proof paths, sender names and references as invoice-scoped data. The selected invoice supplies those values (including nulls), so a previous invoice cannot populate the current bill's verification panel. The e-receipt verification panel is hidden for cash and shown for digital payment proofs only.
+
+Paid applicants can submit a cancellation-review request with their payout destination from Track Application. It creates a tenant-origin refund ticket with total paid and deposit snapshots; the ticket explicitly identifies applicant cancellation and shows payout routing and the review amount. The full paid move-in amount, including the security-deposit portion, is eligible for review before move-in; admin approval may lower the requested amount but is bounded by verified paid funds. The request does not cancel the application or free the room; management must decide separately. When management cancels at the tenant's request instead (the box in the Revoke dialog on Admin → Applications), the application is cancelled in one step and the same cancellation refund request is opened for the move-in payment, with the `cancellation_fee` setting kept out of the amount (`open_cancellation_refund()`, shared with the tenant's request) and the origin shown as "cancelled by management at the tenant's request"; without the box the application is rejected and refunded in full.

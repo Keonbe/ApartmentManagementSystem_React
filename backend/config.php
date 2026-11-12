@@ -2301,8 +2301,8 @@ function normalize_payment_portions($payments, $max = 10) {
         if ($method === 'gcash' && $reference !== '' && !preg_match('/^\d{13}$/', $reference)) {
             return $fail("GCash reference numbers must be exactly 13 digits.");
         }
-        if ($method === 'bank_transfer' && $reference !== '' && (strlen($reference) > 55 || preg_match('/^\d+$/', $reference))) {
-            return $fail("Bank references must be 55 characters or fewer and cannot contain digits only.");
+        if ($method === 'bank_transfer' && $reference !== '' && strlen($reference) > 55) {
+            return $fail("Bank references must be 55 characters or fewer.");
         }
         if ($method !== 'bank_transfer') $bank_name = '';
         $part['method'] = $method;
@@ -3734,7 +3734,10 @@ function floor_rate_for($conn, $floor) {
 }
 
 // ── Refund requests ──
-// Advance rent and overpayments only; the security deposit is not refundable.
+// Advance rent, overpayments and cancelled never-occupied move-in invoices.
+// A refundable security deposit comes back at move-out as a 'deposit' request
+// (settle_deposit()); a deposit paid before move-in can be included in an
+// application-cancellation refund review.
 // Admin actions: approve / reject / request_info / mark_refunded. Tenant
 // actions: reply (answers an info request) / cancel.
 const REFUND_TRANSITIONS = [
@@ -3931,23 +3934,24 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
 // approval: [['invoiceId','label','amount']] (what the payments recorded, or
 // the invoice total when none were itemised), minus anything a refund request
 // already holds. Invoices settled from an advance credit are not new money.
-function paid_invoices_for_application($conn, $app_id) {
+function paid_invoices_for_application($conn, $app_id, $include_existing = false) {
     $app_id = (int)$app_id;
     $out = [];
     // Paid invoices, and any invoice with parts received (installments) whatever
     // its status now: those parts are refunded too.
-    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount, i.status, i.amount_paid,
+    $existing_filter = $include_existing ? "" : "AND NOT EXISTS (SELECT 1 FROM refund_requests r WHERE r.invoice_id = i.id AND r.status IN ('Pending Review','Info Requested','Approved','Refunded'))";
+    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount, i.status, i.amount_paid, i.security_deposit,
             (SELECT COALESCE(SUM(t.amount),0) FROM payment_transactions t WHERE t.invoice_id = i.id) AS tx_paid
         FROM invoices i
         WHERE i.rent_application_id = ? AND (i.status = 'paid' OR i.amount_paid > 0)
-          AND NOT EXISTS (SELECT 1 FROM refund_requests r WHERE r.invoice_id = i.id AND r.status IN ('Pending Review','Info Requested','Approved','Refunded'))
+          $existing_filter
           AND (i.payment_method IS NULL OR i.payment_method <> 'Advance credit')");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) {
         $amt = $r['status'] !== 'paid' ? (float)$r['amount_paid'] : ((float)$r['tx_paid'] > 0 ? (float)$r['tx_paid'] : (float)$r['total_amount']);
-        if ($amt > 0) $out[] = ['invoiceId' => $r['id'], 'label' => $r['billing_period'], 'amount' => round($amt, 2)];
+        if ($amt > 0) $out[] = ['invoiceId' => $r['id'], 'label' => $r['billing_period'], 'amount' => round($amt, 2), 'depositAmount' => min((float)$r['security_deposit'], $amt)];
     }
     $stmt->close();
     return $out;
@@ -3996,33 +4000,97 @@ function deposit_statement_for_user($conn, $user_id) {
     ];
 }
 
-// Flat fee (₱) kept when an admin cancels a paid application at the tenant's request.
+// Flat fee (₱) kept from the refund when a tenant asks to cancel an application
+// they have already paid for (request_application_cancellation.php). The admin
+// can still approve a different amount up to what was paid.
 function cancellation_fee($conn) {
     $v = get_setting($conn, 'cancellation_fee', '0');
     return is_numeric($v) ? max(0.0, round((float)$v, 2)) : 0.0;
 }
 
+// A cancellation an admin makes at the tenant's request starts its refund reason
+// with this. Admin rejections and admin cancellations are both raised_by_role
+// 'admin', so get_refund_requests.php tells them apart by the prefix.
+const ADMIN_CANCELLATION_REASON_PREFIX = "Application cancelled by management at the tenant's request";
+
+// Opens the cancellation refund request for the move-in payment of an application
+// that is cancelled before move-in: either the tenant's own request
+// (request_application_cancellation.php, $actor_role 'user') or an admin
+// cancelling at their request (update_tenant_status.php, 'admin'). The one place
+// the cancellation fee is worked out: it is kept out of `amount`, while
+// paid_amount records everything paid so the admin can still approve up to it.
+// $apply_fee false asks back everything. Runs inside the caller's transaction and
+// locks the invoice. Returns ['state' => ...] with
+//   'opened'        a request was inserted (id, refund, fee, paid, invoice)
+//   'none'          no move-in payment to refund (message)
+//   'exists'        a request is already open for it (message)
+//   'fee_takes_all' the fee is as much as was paid, nothing opened (fee, paid, invoice, message)
+function open_cancellation_refund($conn, $app_id, $user_id, $actor_id, $actor_role, $reason, $payout = null, $apply_fee = true) {
+    $app_id = (int)$app_id;
+    $inv = $conn->prepare("SELECT id, billing_period, total_amount, security_deposit, amount_paid, status,
+            (SELECT COALESCE(SUM(t.amount), 0) FROM payment_transactions t WHERE t.invoice_id = invoices.id) AS tx_paid
+        FROM invoices WHERE rent_application_id = ? AND security_deposit > 0 AND amount_paid > 0 AND status IN ('paid','pending','pending-verification','overdue','processing') ORDER BY created_at ASC LIMIT 1 FOR UPDATE");
+    $inv->bind_param('i', $app_id);
+    $inv->execute();
+    $invoice = $inv->get_result()->fetch_assoc();
+    $inv->close();
+    if (!$invoice) return ['state' => 'none', 'message' => 'No move-in payment was found. Use the unpaid application cancellation option.'];
+
+    $paid = round((float)$invoice['amount_paid'], 2);
+    if ($invoice['status'] === 'paid') {
+        $paid = (float)$invoice['tx_paid'] > 0 ? round((float)$invoice['tx_paid'], 2) : round((float)$invoice['total_amount'], 2);
+    }
+    $paid = min($paid, (float)$invoice['total_amount']);
+    if ($paid <= 0) return ['state' => 'none', 'message' => 'No refundable payment was found.'];
+
+    $existing = $conn->prepare("SELECT id, raised_by_role FROM refund_requests WHERE invoice_id = ? AND type = 'rejected_application' AND status IN ('Pending Review','Info Requested','Approved','Refunded') LIMIT 1 FOR UPDATE");
+    $existing->bind_param('s', $invoice['id']);
+    $existing->execute();
+    $already = $existing->get_result()->fetch_assoc();
+    $existing->close();
+    if ($already) {
+        return ['state' => 'exists', 'invoice' => $invoice['id'], 'message' => $already['raised_by_role'] === 'admin'
+            ? 'Management has already opened a refund request for this move-in payment.'
+            : 'A cancellation refund request already exists for this move-in payment.'];
+    }
+
+    $fee = $apply_fee ? min(cancellation_fee($conn), $paid) : 0.0;
+    $refund = round($paid - $fee, 2);
+    if ($refund <= 0) {
+        return ['state' => 'fee_takes_all', 'fee' => $fee, 'paid' => $paid, 'invoice' => $invoice['id'],
+            'message' => 'The cancellation fee of ₱' . number_format($fee, 2) . ' is as much as you paid, so nothing would be refunded. Please contact management.'];
+    }
+
+    $prefix = $actor_role === 'user' ? 'Application cancellation requested by applicant: ' : ADMIN_CANCELLATION_REASON_PREFIX . ': ';
+    $why = $prefix . $reason . ($fee > 0 ? ' (cancellation fee of ₱' . number_format($fee, 2) . ' kept from the ₱' . number_format($paid, 2) . ' paid)' : '');
+    $status = 'Pending Review';
+    $deposit = min((float)$invoice['security_deposit'], $paid);
+    $ins = $conn->prepare("INSERT INTO refund_requests (user_id, rent_application_id, type, invoice_id, amount, reason, status, raised_by, raised_by_role, payout_destination, paid_amount, deposit_amount) VALUES (?, ?, 'rejected_application', ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $ins->bind_param('iisdssissdd', $user_id, $app_id, $invoice['id'], $refund, $why, $status, $actor_id, $actor_role, $payout, $paid, $deposit);
+    if (!$ins->execute()) throw new Exception('Could not create the cancellation refund request.');
+    $rid = (int)$conn->insert_id;
+    $ins->close();
+    $event = $conn->prepare("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES (?, ?, ?, 'raised', ?)");
+    $event->bind_param('iiss', $rid, $actor_id, $actor_role, $why);
+    $event->execute();
+    $event->close();
+    return ['state' => 'opened', 'id' => $rid, 'refund' => $refund, 'fee' => $fee, 'paid' => $paid, 'invoice' => $invoice['id']];
+}
+
 // Raises one refund request per paid invoice of an application that is being
 // rejected or cancelled after approval. Runs inside the caller's transaction.
 // Returns the list of [rid, amount] raised; the caller notifies after commit.
-// $fee (the cancellation fee, for a cancellation the tenant asked for) is kept
-// out of the refunds, taken from the paid invoices in order and never more than
-// was paid; an invoice the fee uses up raises no request. $fee_kept (by
-// reference) is the amount actually kept.
-function raise_rejection_refunds($conn, $user_id, $app_id, $reason, $actor_id, $fee = 0.0, &$fee_kept = 0.0) {
+// $prefix words the reason; $skip lists invoice ids to leave out (a move-in
+// payment whose cancellation fee used all of it).
+function raise_rejection_refunds($conn, $user_id, $app_id, $reason, $actor_id, $prefix = "Application rejected by admin after payment: ", $skip = []) {
     $raised = [];
-    $fee_left = max(0.0, round((float)$fee, 2));
-    $fee_kept = 0.0;
     foreach (paid_invoices_for_application($conn, $app_id) as $p) {
-        $amount = $p['amount'];
-        $take = min($fee_left, $amount);
-        $amount = round($amount - $take, 2);
-        $fee_left = round($fee_left - $take, 2);
-        $fee_kept = round($fee_kept + $take, 2);
-        if ($amount <= 0) continue;
-        $why = ($take > 0 ? "Cancelled at your request: a cancellation fee of ₱" . number_format($take, 2) . " was kept. " : "Application rejected after payment: ") . $reason;
-        $rid = insert_refund_request($conn, (int)$user_id, (int)$app_id, 'rejected_application', $p['invoiceId'], $amount, $why, (int)$actor_id, 'admin');
-        $raised[] = ['id' => $rid, 'amount' => $amount];
+        if (in_array($p['invoiceId'], $skip, true)) continue;
+        $why = $prefix . $reason;
+        $rid = insert_refund_request($conn, (int)$user_id, (int)$app_id, 'rejected_application', $p['invoiceId'], $p['amount'], $why, (int)$actor_id, 'admin');
+        $meta = $conn->prepare("UPDATE refund_requests SET paid_amount = ?, deposit_amount = ? WHERE id = ?");
+        $meta->bind_param('ddi', $p['amount'], $p['depositAmount'], $rid); $meta->execute(); $meta->close();
+        $raised[] = ['id' => $rid, 'amount' => $p['amount']];
     }
     return $raised;
 }
