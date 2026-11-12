@@ -117,5 +117,4 @@ try {
 } catch (Exception $e) {
     server_error_response($e, 'Failed to update unit maintenance status.');
 }
-?>
 

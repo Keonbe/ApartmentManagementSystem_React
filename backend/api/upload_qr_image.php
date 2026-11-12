@@ -92,5 +92,4 @@ echo json_encode([
     "slot" => $slot
 ]);
 $conn->close();
-?>
 

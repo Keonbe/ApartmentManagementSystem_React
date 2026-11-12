@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBullhorn, faBell, faPaperclip, faFilePdf, faThumbtack, faMagnifyingGlass, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -108,31 +108,33 @@ export default function UserAnnouncements() {
     }, []);
 
     const [seenAt] = useState(() => readSeen(userId));
-
-    const load = async () => {
-        try {
-            const response = await api.get('get_announcements.php?public=1');
-            if (response.data.success) {
-                setAnnouncements(response.data.announcements);
-                setLoadFailed(false);
-                writeSeen(userId, new Date().toISOString());
-            } else {
-                setLoadFailed(true);
-            }
-        } catch (error) {
-            console.error('Failed to fetch announcements', error);
-            setLoadFailed(true);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
+        let isMounted = true;
+        const load = async () => {
+            try {
+                const response = await api.get('get_announcements.php?public=1');
+                if (!isMounted) return;
+                if (response.data.success) {
+                    setAnnouncements(response.data.announcements);
+                    setLoadFailed(false);
+                    writeSeen(userId, new Date().toISOString());
+                } else {
+                    setLoadFailed(true);
+                }
+            } catch (error) {
+                console.error('Failed to fetch announcements', error);
+                if (isMounted) setLoadFailed(true);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
         load();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        return () => { isMounted = false; };
+    }, [userId, reloadKey]);
 
-    const retry = () => { setLoading(true); load(); };
+    const retry = () => { setLoading(true); setReloadKey((k) => k + 1); };
 
     const isNew = (item) => !!seenAt && parseStamp(item.created_at) > new Date(seenAt);
     const newCount = announcements.filter(isNew).length;

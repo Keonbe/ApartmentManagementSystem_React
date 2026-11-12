@@ -36,6 +36,7 @@ $count = function ($where) use ($conn, $floor, $rate) {
     $stmt = $conn->prepare("SELECT COUNT(*) FROM rooms WHERE floor = ? AND archived_at IS NULL AND $where");
     $stmt->bind_param("s", $floor);
     $stmt->execute();
+    $n = 0;
     $stmt->bind_result($n);
     $stmt->fetch();
     $stmt->close();

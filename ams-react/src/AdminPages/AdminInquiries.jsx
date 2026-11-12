@@ -48,7 +48,7 @@ export default function AdminInquiries() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [view, setView] = useUrlFilter('view', 'inquiries', ['inquiries', 'reservations']);
+  const [view] = useUrlFilter('view', 'inquiries', ['inquiries', 'reservations']);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', [...new Set([...INQUIRY_TABS, ...RESERVATION_TABS])]);
 
