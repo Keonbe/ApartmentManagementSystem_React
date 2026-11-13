@@ -175,7 +175,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 
 ## 8. CI
 
-Not wired into `.github/workflows` yet. It would need a MariaDB service and PHP 8.0 with mysqli on the runner, with `MYSQL_BIN_DIR` / `PHP_BIN` set. See [cicd_pipeline.md](../deployment/cicd_pipeline.md#adding-tests).
+Runs in `.github/workflows/ci.yml` as the `api-tests` job (MariaDB 10.11 service, PHP 8.2 with mysqli, Node 20.19). The harness reads `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_PASS`, `MYSQL_BIN_DIR` and `PHP_BIN` (see `tests/api/lib/env.js`); CI sets `TEST_DB_PASS=root`, `PHP_BIN=php` and `MYSQL_BIN_DIR=/usr/bin`. The plain `DB_*` variables are set by the harness for its own `php -S`, so setting them in the job has no effect. The service needs no pre-created database: the suite drops and rebuilds `ams_test` itself.
 
 ## 9. Next
 

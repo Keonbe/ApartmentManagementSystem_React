@@ -37,8 +37,21 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Run frontend unit tests (Vitest)
+        run: npm test
+
       - name: Build production bundle
         run: npm run build
+
+      - name: Deploy-guard check for the SaaS and self-hosted builds
+        run: |
+          # build:saas runs the guard as a Vite plugin (env check + bundle scan);
+          # the standalone call re-scans the emitted dist/ the same way.
+          npm run build:saas
+          node scripts/deploy-guard.mjs production
+          cp .env.selfhosted.example .env.selfhosted
+          npm run build:selfhosted
+          node scripts/deploy-guard.mjs selfhosted
 
   # ──────────────────────────────────────────────
   # Job 2: Backend — PHP 8 Syntax Check
@@ -307,3 +320,115 @@ jobs:
           echo "dashboard_stats.php -> $code"
           [ "$code" = "200" ] || { echo "❌ dashboard_stats.php returned $code"; cat /tmp/resp.json; exit 1; }
           echo "✅ Authenticated smoke test passed."
+
+  # ──────────────────────────────────────────────
+  # Job 5: Backend — API Integration Test Suite (tests/api)
+  # ──────────────────────────────────────────────
+  api-tests:
+    name: Backend (API Integration Tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The harness builds and drops its own ams_test database from SetupDB.sql +
+    # seed_mock_data.sql, so the service only needs the root password.
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mysqli, pdo, pdo_mysql, fileinfo, mbstring
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"
+          cache: npm
+          cache-dependency-path: tests/api/package-lock.json
+
+      - name: Install API test dependencies
+        working-directory: tests/api
+        run: npm ci
+
+      - name: Run API integration tests
+        working-directory: tests/api
+        run: npm test
+        env:
+          TEST_DB_HOST: "127.0.0.1"
+          TEST_DB_PORT: "3306"
+          TEST_DB_USER: root
+          TEST_DB_PASS: root
+          PHP_BIN: php
+          MYSQL_BIN_DIR: /usr/bin
+
+  # ──────────────────────────────────────────────
+  # Job 6: Security — Dependency Vulnerability Audit
+  # ──────────────────────────────────────────────
+  security-audit:
+    name: Security (Dependency Audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer
+
+      - name: Audit frontend dependencies (shipped packages)
+        working-directory: ams-react
+        # Non-blocking until the known axios / follow-redirects advisories are
+        # fixed with `npm audit fix`; then remove continue-on-error.
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit chat server dependencies
+        working-directory: websocket-server
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit backend Composer packages
+        working-directory: backend
+        run: composer audit
+
+  # ──────────────────────────────────────────────
+  # Job 7: Security — Secret Leak Detection
+  # ──────────────────────────────────────────────
+  security-secrets:
+    name: Security (Secret Leak Detection)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

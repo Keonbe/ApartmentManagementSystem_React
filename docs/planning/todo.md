@@ -176,6 +176,8 @@ These are no longer open questions. The features they called for were built on 2
 | [x] | Where report expenses come from | An `expenses` table with manual entry, added to the derived maintenance costs | 2026-09 backlog Reports, PRD Open Questions |
 | [x] | Feature branches or direct pushes to `main` | Routine work and bug fixes go to `main`; big implementations use a `feature/` branch; no required PRs | [cicd Git Branching Strategy](../deployment/cicd_pipeline.md#git-branching-strategy), [CLAUDE.md](../../CLAUDE.md) |
 | [x] | Inquiry waitlist, conversion report, email/SMS | Conversion report: yes. Basic waitlist: yes. Email/SMS on new inquiries: TBA | [inquiry_reservation_design §8](../features/inquiry_reservation_design.md#8-planned-and-deferred) |
+| [ ] | High | Run `npm audit fix` in `ams-react` (axios, follow-redirects, zod advisories), then remove `continue-on-error` from the npm steps in `security-audit`; check the first gitleaks run for history findings. | CI/CD expansion, SPRINT 154 |
+| [ ] | Low | CI/CD guide phases 4 (SSH auto-deploy, needs prod secrets) and 6 (Playwright E2E) are still open. | `cicd_expansion_guide.md`, SPRINT 154 |
 
 ---
 

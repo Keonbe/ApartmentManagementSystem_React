@@ -1,0 +1,66 @@
+# .github/workflows/backup-drill.yml
+# Weekly proof that a database dump restores cleanly (utf8mb4 included).
+
+name: Backup Restore Drill
+
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Sundays 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  backup-drill:
+    name: Dump and restore drill
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build the source database
+        run: |
+          # SetupDB.sql and the seeds hardcode `ams_db`; rename it for the drill.
+          for f in SetupDB.sql seeds/seed_mock_data.sql; do
+            sed 's/\bams_db\b/drill_src/g' "backend/api/migrations/$f" \
+              | mysql -h 127.0.0.1 -u root -proot --default-character-set=utf8mb4
+          done
+
+      - name: Record what the source holds
+        run: |
+          q() { mysql -h 127.0.0.1 -u root -proot -N -e "$1"; }
+          q "SELECT COUNT(*) FROM drill_src.users" > /tmp/users.before
+          q "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='drill_src'" > /tmp/tables.before
+          q "SELECT COUNT(*) FROM drill_src.system_settings WHERE CONVERT(setting_value USING binary) <> CONVERT(CONVERT(setting_value USING ascii) USING binary)" > /tmp/nonascii.before
+          cat /tmp/users.before /tmp/tables.before /tmp/nonascii.before
+
+      - name: Dump, drop and restore
+        run: |
+          mysqldump -h 127.0.0.1 -u root -proot --default-character-set=utf8mb4 \
+            --routines --triggers --single-transaction drill_src > /tmp/backup.sql
+          mysql -h 127.0.0.1 -u root -proot -e "DROP DATABASE drill_src; CREATE DATABASE drill_src CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -u root -proot --default-character-set=utf8mb4 drill_src < /tmp/backup.sql
+
+      - name: Verify the restore matches the source
+        run: |
+          q() { mysql -h 127.0.0.1 -u root -proot -N -e "$1"; }
+          USERS=$(q "SELECT COUNT(*) FROM drill_src.users")
+          TABLES=$(q "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='drill_src'")
+          NONASCII=$(q "SELECT COUNT(*) FROM drill_src.system_settings WHERE CONVERT(setting_value USING binary) <> CONVERT(CONVERT(setting_value USING ascii) USING binary)")
+          [ "$USERS" = "$(cat /tmp/users.before)" ] || { echo "❌ users: $USERS vs $(cat /tmp/users.before)"; exit 1; }
+          [ "$TABLES" = "$(cat /tmp/tables.before)" ] || { echo "❌ tables: $TABLES vs $(cat /tmp/tables.before)"; exit 1; }
+          [ "$NONASCII" = "$(cat /tmp/nonascii.before)" ] || { echo "❌ non-ASCII settings changed: $NONASCII vs $(cat /tmp/nonascii.before)"; exit 1; }
+          [ "$USERS" -ge 13 ] || { echo "❌ expected >= 13 users, got $USERS"; exit 1; }
+          echo "✅ Restore verified: $USERS users, $TABLES tables, $NONASCII non-ASCII settings intact."

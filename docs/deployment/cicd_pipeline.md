@@ -127,18 +127,26 @@ Developer pushes code
          ├── 🟦 Frontend Job
          │   ├── npm ci
          │   ├── ESLint (lint)
+         │   ├── Vitest unit tests (`npm test`)
          │   ├── Vite build
-         │   └── Unit tests (when added)
+         │   └── Deploy-guard on the SaaS and self-hosted builds
          │
          ├── 🟩 Backend Job
          │   ├── PHP syntax check (all 80+ endpoints)
          │   ├── PHPStan static analysis (optional)
          │   └── PHPUnit tests (when added)
          │
-         └── 🟨 Database Job (stretch goal)
-             ├── Start MySQL service
-             ├── Import SetupDB.sql
-             └── Validate schema
+         ├── 🟨 Database Job
+         │   ├── Start MariaDB service
+         │   ├── Import SetupDB.sql
+         │   └── Validate schema, seeds, migrations
+         │
+         ├── 🟪 Smoke-Test Job
+         ├── 🟫 API Tests Job (`tests/api`, ~80 files)
+         ├── 🟥 Security Audit Job (npm audit, composer audit)
+         └── 🟥 Secret Scan Job (gitleaks)
+
+Weekly: `backup-drill.yml` dumps, drops and restores a seeded database.
 ```
 
 ### CD Pipeline (runs only on merge to `main`, after CI passes)
@@ -366,7 +374,9 @@ jobs:
 |---|---|
 | `npm ci` | Clean install from lockfile — guarantees reproducible builds |
 | `npm run lint` | Runs your existing ESLint config (`eslint.config.js`) to catch unused variables, missing imports, React hook violations |
+| `npm test` | Vitest unit tests (`src/**/*.test.js`, config in `vitest.config.js`; currently `utils/invoiceBalance.test.js`) |
 | `npm run build` | Vite production build — catches JSX syntax errors, broken imports, missing modules |
+| `build:saas` + `build:selfhosted` (example env), then `node scripts/deploy-guard.mjs <mode>` | Proves neither deployment build contains localhost URLs or secret-looking `VITE_*` variables |
 
 If any step fails, the entire job fails, and the PR is blocked from merging.
 
@@ -526,6 +536,23 @@ This is a common point of confusion. Here's how the two environments relate:
 
 **Key point:** GitHub Actions does **not** deploy to your XAMPP. It runs checks on a temporary cloud VM. Your XAMPP stays as your local development environment — nothing changes there.
 
+#### 🟫 API Tests Job
+
+Runs `tests/api` (`npm test`) against a MariaDB 10.11 service and PHP 8.2. The harness builds its own `ams_test` database, so the job needs only `TEST_DB_PASS=root`, `PHP_BIN=php` and `MYSQL_BIN_DIR=/usr/bin` (see [api_testing.md §8](../documentation/api_testing.md)). It does not depend on the other jobs.
+
+#### 🟥 Security Jobs
+
+| Job | Check |
+|---|---|
+| `security-audit` | `npm audit --omit=dev --audit-level=high` for `ams-react` and `websocket-server` (non-blocking until the known axios / follow-redirects advisories are fixed with `npm audit fix`), and `composer audit` for `backend` (blocking) |
+| `security-secrets` | Gitleaks over the full history, to catch committed SMS, PayMongo, SMTP or database credentials |
+
+#### Weekly backup drill (`backup-drill.yml`)
+
+Sundays 03:00 UTC (and on demand): builds a seeded database, `mysqldump`s it with `utf8mb4`, drops it, restores it, and compares users, tables and non-ASCII settings against the source.
+
+Planned next, not built: SSH deployment on a green `main` and Playwright E2E. See [cicd_expansion_guide.md](cicd_expansion_guide.md).
+
 ---
 
 ## Adding Tests
@@ -534,33 +561,7 @@ The CI pipeline is ready for tests. Here's how to add them to each layer:
 
 ### Frontend — Vitest (Recommended)
 
-Vitest is the natural test runner for Vite projects. Install it:
-
-```bash
-cd ams-react
-npm install --save-dev vitest @testing-library/react @testing-library/jest-dom jsdom
-```
-
-Add to `package.json` scripts:
-
-```json
-"scripts": {
-  "test": "vitest run",
-  "test:watch": "vitest"
-}
-```
-
-Add to `vite.config.js`:
-
-```js
-export default defineConfig({
-  // ... existing config
-  test: {
-    environment: 'jsdom',
-    globals: true,
-  },
-})
-```
+Vitest is installed and wired into CI (`npm test`). Its config is `ams-react/vitest.config.js`, kept separate from `vite.config.js` because the build plugins (React, Tailwind, deploy-guard) crash under Vitest. Tests are `src/**/*.test.js` with explicit `import { describe, it, expect } from 'vitest'`. For component tests add `@testing-library/react`, `@testing-library/jest-dom` and `jsdom`, and switch `environment` to `jsdom`.
 
 Example test (`ams-react/src/__tests__/App.test.jsx`):
 
@@ -581,18 +582,13 @@ describe('App', () => {
 })
 ```
 
-Then uncomment the test step in `ci.yml`:
-
-```yaml
-- name: Run tests
-  run: npm test
-```
+The `Run frontend unit tests (Vitest)` step in `ci.yml` already runs `npm test`.
 
 ### Backend — API tests (`tests/api/`, in place)
 
 The backend is tested over HTTP rather than with PHPUnit: `tests/api/` is a small Node project where Vitest calls the real PHP endpoints and checks the database with `mysql2`. Run it with `cd tests/api && npm install && npm test`. It builds a scratch `ams_test` database from `SetupDB.sql` + `seed_mock_data.sql` and serves the API with `php -S` on port 8091 (`AMS_TEST_MODE=1`, which makes `config.php` read `DB_*` from the environment and refuse any database not named `*_test`).
 
-In CI this needs a MariaDB service and PHP 8.0 with mysqli on the runner, plus `MYSQL_BIN_DIR` / `PHP_BIN` pointing at their binaries (the defaults are the XAMPP paths). It has not been wired into `ci.yml` yet.
+It runs in CI as the `api-tests` job (MariaDB service, PHP 8.2, `TEST_DB_PASS` / `PHP_BIN` / `MYSQL_BIN_DIR` set; the defaults are the XAMPP paths).
 
 ---
 
@@ -704,4 +700,4 @@ The philosophy is straightforward:
 ---
 
 *Last updated: September 2026 — verified against the live repo (lint status, DB engine, endpoint count) before the corrections above were applied
-*Related: [Deployment Guide](localhost_to_production.md) · [External Services Matrix](../documentation/external_services.md) · [Security Audit](../audits/security_audit.md) · [Development Backlog](../planning/todo.md)*
+*Related: [CI/CD Expansion & Enhancement Guide](cicd_expansion_guide.md) · [Deployment Guide](localhost_to_production.md) · [External Services Matrix](../documentation/external_services.md) · [Security Audit](../audits/security_audit.md) · [Development Backlog](../planning/todo.md)*
