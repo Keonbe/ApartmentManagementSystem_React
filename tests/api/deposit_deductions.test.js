@@ -78,7 +78,8 @@ describe('itemized clearance', () => {
     expect(saved.map((r) => [r.contract_id, r.recorded_by])).toEqual(Array(5).fill(['LC-0010', adminId]));
 
     const contract = await one('SELECT damage_deduction, utility_deduction, deposit_status FROM lease_contracts WHERE rent_application_id = ?', [MARK_APP]);
-    expect(contract).toMatchObject({ damage_deduction: '650.01', utility_deduction: '1322.40', deposit_status: 'Applied to Bills/Damages' });
+    // RA 9653 Sec. 7: what the deductions leave of the deposit is returned.
+    expect(contract).toMatchObject({ damage_deduction: '650.01', utility_deduction: '1322.40', deposit_status: 'Refund Pending' });
 
     const notif = await one("SELECT message FROM notifications WHERE user_id = 13 AND title = 'Move-Out Completed' ORDER BY id DESC LIMIT 1");
     expect(notif.message).toContain('Damage – Broken window: ₱500.01');
@@ -141,7 +142,7 @@ describe('a contract that expired before the clearance', () => {
     expect(res.body.success).toBe(true);
 
     const contract = await one('SELECT id, status, deposit_status, damage_deduction, utility_deduction, refund_date FROM lease_contracts WHERE rent_application_id = ?', [MARK_APP]);
-    expect(contract).toMatchObject({ status: 'expired', deposit_status: 'Applied to Bills/Damages', damage_deduction: '500.00', utility_deduction: '120.00' });
+    expect(contract).toMatchObject({ status: 'expired', deposit_status: 'Refund Pending', damage_deduction: '500.00', utility_deduction: '120.00' });
     expect(contract.refund_date).not.toBeNull();
     expect((await rows()).map((r) => r.contract_id)).toEqual([contract.id, contract.id]);
 

@@ -146,8 +146,13 @@ const AdminUnits = () => {
   
   // Settings → Rental → Minimum Rent Duration.
   const [minLeaseDuration, setMinLeaseDuration] = useState(3);
+  // Rent control (RA 9653): shown as a hint on Extend Rent; extend_tenancy() enforces it.
+  const [rentCap, setRentCap] = useState({ percent: 1, maxCovered: 10000 });
   useEffect(() => {
-    getSystemSettings().then(s => setMinLeaseDuration(s.minLeaseDuration || 3));
+    getSystemSettings().then(s => {
+      setMinLeaseDuration(s.minLeaseDuration || 3);
+      setRentCap({ percent: Number(s.rentCapPercent ?? 1), maxCovered: Number(s.rentCapMaxCoveredRent ?? 10000) });
+    });
   }, []);
 
   const fetchUsers = async () => {
@@ -856,7 +861,7 @@ const AdminUnits = () => {
           completingMaintenanceId={completingMaintenanceId}
           showExtendForm={showExtendForm} setShowExtendForm={setShowExtendForm} extendForm={extendForm} setExtendForm={setExtendForm} onExtendLease={handleExtendLease}
           extendConflict={extendConflict} overrideConflict={overrideConflict} setOverrideConflict={setOverrideConflict}
-          minLeaseDuration={minLeaseDuration} leaseError={leaseError} setLeaseError={setLeaseError}
+          minLeaseDuration={minLeaseDuration} rentCap={rentCap} leaseError={leaseError} setLeaseError={setLeaseError}
           extendErrors={extendErrors} extending={extending}
           onUpdateSuccess={fetchRooms}
         />
@@ -886,7 +891,7 @@ const AdminUnits = () => {
 };
 
 /* ─── Unit Detail Tabbed Modal Sub-Component ─── */
-const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, onCompleteMaintenance, completingMaintenanceId, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, extendConflict, overrideConflict, setOverrideConflict, minLeaseDuration, leaseError, setLeaseError, extendErrors, extending, onUpdateSuccess }) => {
+const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, onCompleteMaintenance, completingMaintenanceId, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, extendConflict, overrideConflict, setOverrideConflict, minLeaseDuration, rentCap, leaseError, setLeaseError, extendErrors, extending, onUpdateSuccess }) => {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Unit status monitoring edit states
@@ -1328,6 +1333,11 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
                             onBlur={() => extendErrors.validateField('newRent', extendForm)}
                             className={`w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newRent)}`} placeholder={String(unit.rent)} />
                           <FieldError id="extend-newRent" error={extendErrors.errors.newRent} />
+                          {rentCap && Number(unit.rent) > 0 && Number(unit.rent) <= rentCap.maxCovered && (
+                            <p className="m-0 mt-1 text-caption text-slate-500">
+                              Rent control (RA 9653): at most +{rentCap.percent}% a year for the same tenant, about ₱{(Math.floor(Number(unit.rent) * (1 + rentCap.percent / 100) * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}.
+                            </p>
+                          )}
                         </div>
                       </div>
                       {Number(extendForm.addMonths) > 0 && (

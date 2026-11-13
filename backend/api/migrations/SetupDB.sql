@@ -184,6 +184,9 @@ CREATE TABLE `lease_contracts` (
   -- contract_template_versions.id the terms were issued under (NULL = latest).
   `template_version_id` int(11) DEFAULT NULL,
   `eviction_status` varchar(50) DEFAULT NULL,
+  -- RA 9653 Sec. 9 ground of an eviction flag or termination (EJECTMENT_GROUNDS
+  -- in config.php, plus 'mutual' for a termination by agreement).
+  `eviction_ground` varchar(30) DEFAULT NULL,
   -- Set only by the 'terminate' action (update_contract_status.php), which
   -- also ends the tenancy via vacate_tenant_room() — distinct from the
   -- move-out settlement fields below, which apply to a voluntary
@@ -227,6 +230,9 @@ CREATE TABLE IF NOT EXISTS `lease_renewals` (
   `added_months` int(11) NOT NULL,
   `previous_lease_end` date DEFAULT NULL,
   `new_lease_end` date DEFAULT NULL,
+  -- Rent before this renewal: the RA 9653 yearly cap is measured from the
+  -- first raise of the calendar year (rent_cap_refusal()).
+  `previous_rent` decimal(10,2) DEFAULT NULL,
   `rent_at_renewal` decimal(10,2) DEFAULT NULL,
   `approved_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -1244,7 +1250,7 @@ CREATE TABLE IF NOT EXISTS `guest_messages` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- One-time "continue your conversation" links for guest chats, emailed to the
--- thread's address; only the sha256 of the code is stored (2026_11_cctv_auth_chat_billing.sql).
+-- thread's address; only the sha256 of the code is stored (2026_11_workstream.sql).
 CREATE TABLE IF NOT EXISTS `guest_chat_links` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `inquiry_id` int(11) NOT NULL,
@@ -1323,7 +1329,7 @@ WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'minors');
 
 -- ===== rules_filipino =====
 -- Filipino text for the starter house, children/pets and parking rules, only while
--- the admin has not written one (the house rules: 2026_11_cctv_auth_chat_billing.sql).
+-- the admin has not written one (the house rules: 2026_11_workstream.sql).
 UPDATE `house_rules` SET `title_fil` = 'Igalang ang oras ng katahimikan',
   `description_fil` = 'Panatilihing mahina ang ingay mula 10:00 PM hanggang 7:00 AM upang makapagpahinga ang lahat ng residente.'
  WHERE `scope` = 'house' AND `title` = 'Respect quiet hours' AND (`title_fil` IS NULL OR `title_fil` = '');
@@ -1402,7 +1408,7 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   CONSTRAINT `fk_refund_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Cancellation refund details (2026_11_cctv_auth_chat_billing.sql).
+-- Cancellation refund details (2026_11_workstream.sql).
 ALTER TABLE `refund_requests` ADD COLUMN IF NOT EXISTS `payout_destination` varchar(255) DEFAULT NULL;
 ALTER TABLE `refund_requests` ADD COLUMN IF NOT EXISTS `paid_amount` decimal(10,2) DEFAULT NULL;
 ALTER TABLE `refund_requests` ADD COLUMN IF NOT EXISTS `deposit_amount` decimal(10,2) DEFAULT NULL;
@@ -1567,6 +1573,9 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('deposit_refundable_default', '1'),
 ('deposit_refund_days', '30'),
 ('cancellation_fee', '0'),
+('rent_cap_percent', '1'),
+('rent_cap_max_covered_rent', '10000'),
+('rent_cap_valid_until', '2026-12-31'),
 ('overdue_threshold_days', '15'),
 ('maintenance_monthly_budget', '50000'),
 ('tenant_responsibility_clause', 'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.'),

@@ -22,7 +22,7 @@ if (!$input) {
 }
 
 $contract_id = $input['contractId'] ?? '';
-// Why a forfeiture is waived (security deposit): text only, empty = not waived.
+// Why the suggested notice deduction from the deposit was lowered: text only.
 $input['waive_forfeiture_reason'] = is_string($input['waive_forfeiture_reason'] ?? null) ? mb_substr(trim($input['waive_forfeiture_reason']), 0, 200) : '';
 $action = $input['action'] ?? ''; // 'flag', 'clear', 'activate', 'terminate' or 'edit'
 
@@ -151,19 +151,12 @@ if ($action === 'edit') {
         echo json_encode(["success" => false, "message" => "Failed to update contract dates"]);
     }
 } else if ($action === 'set_deposit_refundable') {
-    // Whether the unused deposit is paid back at move-out. Draft only: once the
-    // tenant has signed, the terms they agreed to do not change under them.
-    if ($current_status !== 'draft') {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "The deposit terms can only be changed while the contract is a draft."]);
-        exit;
-    }
-    $flag = !empty($input['depositRefundable']) ? 1 : 0;
-    $stmt = $conn->prepare("UPDATE lease_contracts SET deposit_refundable = ? WHERE id = ? AND status = 'draft'");
-    $stmt->bind_param("is", $flag, $contract_id);
-    $stmt->execute();
-    log_activity($conn, $admin_id, 'contract', "Set Deposit Terms", "Contract: $contract_id, deposit " . ($flag ? "refundable" : "not refundable"));
-    echo json_encode(["success" => true, "message" => $flag ? "The deposit will be refunded at move-out." : "The deposit will not be refunded in cash.", "depositRefundable" => (bool)$flag]);
+    // RA 9653 Sec. 7: the deposit may be kept only to the extent of unpaid
+    // rent, utilities and damage, so what remains is always returned. The
+    // "not refunded" option was removed (2026-11-13).
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Under RA 9653 the unused security deposit is always returned to the tenant, so this cannot be turned off."]);
+    exit;
 } else if ($action === 'activate') {
     // Draft -> Active, after the admin has reviewed the generated contract.
     if (!contract_action_allowed($current_status, 'activate')) {
@@ -215,8 +208,17 @@ if ($action === 'edit') {
     }
 
     $eviction_status = $action === 'flag' ? 'flagged' : null;
+    $ground = null;
 
     if ($action === 'flag') {
+        // RA 9653 Sec. 9: an eviction is only for one of the legal grounds,
+        // checked here (arrears must total three months of rent).
+        $ground = is_string($input['ground'] ?? null) ? $input['ground'] : '';
+        if ($why = ejectment_ground_refusal($conn, $contract, $ground, $input, 'flag')) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => $why]);
+            exit;
+        }
         $status = 'eviction-pending';
     } else {
         // Clearing the flag restores whatever status the lease's own dates
@@ -233,19 +235,25 @@ if ($action === 'edit') {
         $status = ($lease_end !== null && $lease_end < date('Y-m-d')) ? 'expired' : 'active';
     }
 
-    $stmt = $conn->prepare("UPDATE lease_contracts SET status = ?, eviction_status = ? WHERE id = ? AND status = ?");
-    $stmt->bind_param("ssss", $status, $eviction_status, $contract_id, $current_status);
+    $stmt = $conn->prepare("UPDATE lease_contracts SET status = ?, eviction_status = ?, eviction_ground = ? WHERE id = ? AND status = ?");
+    $stmt->bind_param("sssss", $status, $eviction_status, $ground, $contract_id, $current_status);
 
     if ($stmt->execute()) {
         if ($stmt->affected_rows === 0) {
             http_response_code(409);
             echo json_encode(["success" => false, "message" => "Contract status changed before this could be applied. Try again."]);
         } else {
-            log_activity($conn, $admin_id, 'contract', $action === 'flag' ? "Flagged Eviction" : "Cleared Eviction Flag", "Contract: $contract_id");
+            $detail = trim((string)($input['details'] ?? ''));
+            log_activity($conn, $admin_id, 'contract', $action === 'flag' ? "Flagged Eviction" : "Cleared Eviction Flag",
+                "Contract: $contract_id" . ($ground ? "; ground: " . ejectment_ground_label($ground) : '')
+                . (!empty($input['notice_date']) ? "; notice given " . $input['notice_date'] : '')
+                . ($detail !== '' ? "; " . mb_substr($detail, 0, 200) : ''));
             if ($tenant_id) {
                 if ($action === 'flag') {
                     create_notification($conn, $tenant_id, 'contract_update', 'Rent Contract Under Eviction Review',
-                        "Your rent contract has been flagged for eviction review because of overdue payments. Please settle your balance or contact management.");
+                        "Your rent contract is under eviction review. Ground: " . ejectment_ground_label($ground) . " (RA 9653 Sec. 9). "
+                        . ($ground === 'arrears' ? "Settling your unpaid rent ends the review. " : "")
+                        . "Please contact management. If you do not agree, only a court can order you to leave; your utilities and access are not cut off.");
                 } else {
                     create_notification($conn, $tenant_id, 'contract_update', 'Eviction Review Cleared',
                         "The eviction review on your rent contract has been cleared.");
@@ -275,6 +283,13 @@ if ($action === 'edit') {
         echo json_encode(["success" => false, "message" => "Give a reason for terminating this contract."]);
         exit;
     }
+    // RA 9653 Sec. 9 grounds, or the tenant's own agreement ('mutual').
+    $ground = is_string($input['ground'] ?? null) ? $input['ground'] : '';
+    if ($why = ejectment_ground_refusal($conn, $contract, $ground, $input, 'terminate')) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => $why]);
+        exit;
+    }
 
     if (empty($contract['rent_application_id'])) {
         http_response_code(409);
@@ -293,8 +308,8 @@ if ($action === 'edit') {
     try {
         // Not closed here — the shared cleanup at the bottom of the file
         // closes $stmt once, same as every other action branch above.
-        $stmt = $conn->prepare("UPDATE lease_contracts SET status = 'terminated', termination_reason = ?, terminated_at = NOW(), eviction_status = NULL WHERE id = ? AND status = ?");
-        $stmt->bind_param("sss", $reason, $contract_id, $current_status);
+        $stmt = $conn->prepare("UPDATE lease_contracts SET status = 'terminated', termination_reason = ?, terminated_at = NOW(), eviction_status = NULL, eviction_ground = ? WHERE id = ? AND status = ?");
+        $stmt->bind_param("ssss", $reason, $ground, $contract_id, $current_status);
         $stmt->execute();
         $changed = $stmt->affected_rows > 0;
         if (!$changed) {
@@ -308,12 +323,13 @@ if ($action === 'edit') {
         }
 
         // The deposit's disposition, through the same settle_deposit() as an
-        // ordinary move-out. A termination is for cause, so a refundable deposit
-        // is forfeited unless the admin keeps it refundable with a reason; a
-        // non-refundable one is applied against whatever is still owed. Read
-        // before end_tenancy() cancels any invoice.
+        // ordinary move-out: it covers what is owed plus itemized damage and
+        // utilities, and the rest (with any bank interest) is returned
+        // (RA 9653 Sec. 7). Read before end_tenancy() cancels any invoice.
         $settled = settle_deposit($conn, $app_id, $contract_id, [
             'kind' => 'terminate', 'waive_reason' => $input['waive_forfeiture_reason'] ?? '',
+            'damage' => $input['damage_deduction'] ?? 0, 'utility' => $input['utility_deduction'] ?? 0,
+            'interest' => $input['deposit_interest'] ?? 0,
             'admin_id' => $admin_id, 'user_id' => $ended['user_id'] ?? 0,
         ]);
         $open_total = $settled ? $settled['open_total'] : 0.0;
@@ -322,9 +338,9 @@ if ($action === 'edit') {
         if ($vacated === null) {
             throw new Exception("The application behind this contract no longer exists.");
         }
-        // A refundable deposit that covered what was owed also clears those invoices
+        // A deposit that covered what was owed also clears those invoices
         // (otherwise the tenant would pay them twice: once from the deposit, once again).
-        if ($settled && $settled['refundable'] && $settled['balance'] <= 0 && $settled['open_total'] > 0) {
+        if ($settled && $settled['balance'] <= 0 && $settled['open_total'] > 0) {
             $clear = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Settled from deposit' WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
             $clear->bind_param("i", $app_id);
             $clear->execute();
@@ -339,13 +355,12 @@ if ($action === 'edit') {
         }
         if ($vacated['user_id']) {
             create_notification($conn, $vacated['user_id'], 'contract_update', 'Rent Contract Terminated',
-                "Your rent contract ($contract_id) has been terminated: $reason. Your unit has been marked vacant."
-                . ($settled && $settled['forfeited'] > 0 ? " Your remaining deposit of ₱" . number_format($settled['forfeited'], 2) . " was withheld: " . implode('; ', $settled['forfeit_reasons']) . "." : "")
-                . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : ""));
+                "Your rent contract ($contract_id) has been terminated (" . ejectment_ground_label($ground) . "): $reason. Your unit has been marked vacant."
+                . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : "")
+                . ($ground !== 'mutual' ? " If you do not agree, only a court can order you to leave." : ""));
         }
-        $details = "Contract: $contract_id, Reason: $reason"
-            . ($settled ? "; deposit " . $settled['status'] . ($settled['refund_amount'] > 0 ? " (refund ₱" . number_format($settled['refund_amount'], 2) . ")" : "") . ($settled['forfeited'] > 0 ? " (forfeited ₱" . number_format($settled['forfeited'], 2) . ")" : "") : "")
-            . ($input['waive_forfeiture_reason'] !== '' ? "; forfeiture waived: " . $input['waive_forfeiture_reason'] : "")
+        $details = "Contract: $contract_id, Ground: " . ejectment_ground_label($ground) . ", Reason: $reason"
+            . ($settled ? "; deposit " . $settled['status'] . ($settled['refund_amount'] > 0 ? " (refund ₱" . number_format($settled['refund_amount'], 2) . ")" : "") . ($settled['interest'] > 0 ? " incl. ₱" . number_format($settled['interest'], 2) . " interest" : "") : "")
             . ($open_total > 0 ? "; ₱" . number_format($open_total, 2) . " open at termination" : "")
             . ($vacated['parking_released'] ? "; parking released" : "")
             . ($vacated['visitors_cancelled'] ? "; visitor pre-registrations cancelled" : "");

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import { faFileContract, faCalendarAlt, faUsers, faImage, faFileSignature } from '@fortawesome/free-solid-svg-icons';
-import { SettingsSection, Field, WithUnit, Switch, Callout, INPUT, INPUT_NUMBER } from './SettingsSection';
+import { faFileContract, faCalendarAlt, faUsers, faImage, faFileSignature, faScaleBalanced } from '@fortawesome/free-solid-svg-icons';
+import { SettingsSection, Field, WithUnit, Callout, INPUT, INPUT_NUMBER } from './SettingsSection';
 import { blockNonIntegerKeys, numberValue } from '../../Components/form/formHelpers';
 
 // Whole-number setting: empty stays empty (required stops the save).
@@ -18,25 +18,55 @@ const intInput = (settings, updateSetting, key, min, max) => ({
   onChange: (e) => updateSetting(key, numberValue(e)),
 });
 
+// Today in Manila as YYYY-MM-DD, to tell whether the rent-control resolution has lapsed.
+const manilaToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+
 export default function LeasingPanel({ settings, updateSetting }) {
+  const capLapsed = !!settings.rentCapValidUntil && settings.rentCapValidUntil < manilaToday();
   return (
     <>
+      <SettingsSection
+        icon={faScaleBalanced}
+        tone="amber"
+        title="Rent Control (RA 9653)"
+        description="For a unit renting at or below the coverage limit, the same tenant's rent may rise by at most this much in a calendar year. Renewals above it are refused. A vacant unit can be given a new rate for the next tenant."
+      >
+        {capLapsed && (
+          <Callout tone="rose" icon={faScaleBalanced} title="Check for a new resolution">
+            The resolution these numbers come from ended on {settings.rentCapValidUntil}. The cap still applies until you update it. Look for the new NHSB rent-control resolution and enter its numbers and end date.
+          </Callout>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <Field label="Yearly Increase Cap" htmlFor="setting-rentCapPercent" icon={faScaleBalanced} hint="NHSB Resolution 2024-01: 2.3% for 2025, 1% for 2026.">
+            <WithUnit suffix="%">
+              <input id="setting-rentCapPercent" name="rentCapPercent" type="number" inputMode="decimal" min={0} max={100} step="0.1" required value={settings.rentCapPercent} onChange={(e) => updateSetting('rentCapPercent', numberValue(e))} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+          <Field label="Covered Up To" htmlFor="setting-rentCapMaxCoveredRent" icon={faScaleBalanced} hint="Units renting at or below this monthly rent are covered.">
+            <WithUnit prefix="₱" suffix="/ month">
+              <input id="setting-rentCapMaxCoveredRent" name="rentCapMaxCoveredRent" type="number" inputMode="decimal" min={0} max={1000000} step="0.01" required value={settings.rentCapMaxCoveredRent} onChange={(e) => updateSetting('rentCapMaxCoveredRent', numberValue(e))} className={`${INPUT_NUMBER} w-32`} />
+            </WithUnit>
+          </Field>
+          <Field label="Resolution Valid Until" htmlFor="setting-rentCapValidUntil" icon={faCalendarAlt} hint="A reminder shows here after this date.">
+            <input id="setting-rentCapValidUntil" name="rentCapValidUntil" type="date" required value={settings.rentCapValidUntil || ''} onChange={(e) => updateSetting('rentCapValidUntil', e.target.value)} className={`${INPUT} w-44`} />
+          </Field>
+        </div>
+        <Callout tone="slate" icon={faScaleBalanced} title="What this does">
+          RA 9653 and the NHSB rent-control resolution limit how much a covered tenant's rent may rise in a year. These numbers are the ones in force, so the System can follow them.
+          It never raises or changes a rent by itself. It only refuses a new rent above the cap when you renew a tenant in Units → Extend Rent (the form shows the most you can enter), and an occupied unit's rent can only change there.
+          A vacant unit can be given any rate for the next tenant. When NHSB issues a new resolution, update the percentage, the limit and the end date here; after the end date the cap keeps applying until you do.
+        </Callout>
+      </SettingsSection>
+
       <SettingsSection
         icon={faFileSignature}
         tone="emerald"
         title="Security Deposit and Cancellation"
-        description="Whether a tenant gets the unused deposit back at move-out (new contracts copy this; you can change it on a draft contract before the tenant signs), and what a cancellation costs."
+        description="When a refund of the deposit is due, and what a cancellation costs."
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="m-0 text-body font-semibold text-slate-700">Refund the unused deposit</p>
-            <p className="m-0 mt-0.5 text-caption text-slate-500 leading-relaxed">
-              On: the deposit first covers unpaid rent, bills and damage, and what is left is returned. It is withheld when the tenant leaves without notice, before the rent end date, or is terminated for a breach (you can waive that with a reason at move-out).
-              Off: the deposit is applied to what is owed and the rest goes to the last month. Contracts already issued keep their terms.
-            </p>
-          </div>
-          <Switch checked={!!settings.depositRefundableDefault} onChange={(v) => updateSetting('depositRefundableDefault', v)} label="Refund the unused deposit" />
-        </div>
+        <Callout tone="slate" icon={faFileSignature} title="The unused deposit is always returned">
+          Under RA 9653 the deposit covers only unpaid rent, utility bills and damage, each listed with a reason. A tenant who leaves without the move-out notice can be charged rent for the notice days. What is left, plus any bank interest the deposit earned, goes back to the tenant.
+        </Callout>
         <Field label="Cancellation Fee" htmlFor="setting-cancellationFee" icon={faCalendarAlt} hint="Kept from what an applicant already paid when they ask to cancel an approved application (they send the request from Track Application, or you cancel at their request by ticking the box when you revoke an approval): the refund request is opened for the amount paid minus this fee, and you can still approve up to the full amount. 0 = full refund. A rejection by Management is always refunded in full.">
           <WithUnit suffix="PHP">
             <input id="setting-cancellationFee" name="cancellationFee" type="number" inputMode="decimal" min={0} max={100000} step="0.01" value={settings.cancellationFee} onChange={(e) => updateSetting('cancellationFee', e.target.value === '' ? '' : Number(e.target.value))} className={`${INPUT_NUMBER} w-32`} />

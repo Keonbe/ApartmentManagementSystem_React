@@ -1,8 +1,8 @@
 // Refundable security deposit: settle_deposit() in config.php, reached from the
 // move-out clearance (update_tenant_status.php) and the contract termination
-// (update_contract_status.php). A refundable deposit returns what the
-// deductions and unpaid invoices leave, through a 'deposit' refund request,
-// unless it is forfeited (no notice, leaving before the rent end, termination).
+// (update_contract_status.php). RA 9653 Sec. 7: the deposit returns what the
+// deductions and unpaid invoices leave, through a 'deposit' refund request; the
+// only extra deduction is rent for the notice days when no notice was given.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { api, loginAs } from './lib/api.js';
 import { q, one } from './lib/db.js';
@@ -39,7 +39,7 @@ describe('refundable deposit', () => {
     await reset();
     const res = await clear({ deductions: [{ category: 'damage', reason: 'Broken window', amount: 500 }] });
     expect(res.status).toBe(200);
-    expect(res.body.deposit).toMatchObject({ status: 'Refund Pending', refund_amount: DEPOSIT - 500, forfeited: 0 });
+    expect(res.body.deposit).toMatchObject({ status: 'Refund Pending', refund_amount: DEPOSIT - 500, notice_deduction: 0 });
 
     expect(await contract()).toMatchObject({ deposit_status: 'Refund Pending', refund_amount: '3000.00', status: 'expired' });
     const refund = await depositRefund();
@@ -72,31 +72,53 @@ describe('refundable deposit', () => {
     expect(await contract()).toMatchObject({ refund_amount: '0.00', deposit_status: 'Applied to Bills/Damages' });
   });
 
-  it('forfeits the rest when the tenant leaves before the rent end date', async () => {
+  it('still returns the rest when the tenant gave notice but leaves before the rent end date', async () => {
     await reset({ leaseEnd: 'CURDATE() + INTERVAL 60 DAY' });
     const res = await clear({ deductions: [{ category: 'damage', reason: 'Broken window', amount: 500 }] });
     expect(res.status).toBe(200);
-    expect(res.body.deposit).toMatchObject({ status: 'Forfeited', refund_amount: 0, forfeited: DEPOSIT - 500 });
-    expect(await depositRefund()).toBeNull();
-    const forfeit = await one("SELECT amount, reason FROM deposit_deductions WHERE rent_application_id = ? AND category = 'forfeiture'", [APP]);
-    expect(forfeit.amount).toBe('3000.00');
-    expect(forfeit.reason).toMatch(/before the contract end date/);
+    expect(res.body.deposit).toMatchObject({ status: 'Refund Pending', refund_amount: DEPOSIT - 500, notice_deduction: 0 });
+    expect((await depositRefund()).amount).toBe('3000.00');
+    expect(await one("SELECT COUNT(*) AS n FROM deposit_deductions WHERE rent_application_id = ? AND category = 'forfeiture'", [APP])).toMatchObject({ n: 0 });
   });
 
-  it('forfeits the rest when there was no move-out notice', async () => {
+  // Rent for the minimum notice days at the daily rate (monthly / 30).
+  const noticeRent = async () => {
+    const { rent } = await one('SELECT monthly_rent AS rent FROM rent_applications WHERE id = ?', [APP]);
+    const row = await one("SELECT setting_value AS v FROM system_settings WHERE setting_key = 'move_out_min_notice_days'");
+    const days = row ? Number(row.v) : 15;
+    return Math.round(Number(rent) / 30 * days * 100) / 100;
+  };
+
+  it('deducts only rent for the notice days when there was no move-out notice', async () => {
     await reset({ appStatus: 'active' });
+    const expected = await noticeRent();
     const res = await clear({ damage_deduction: 0, utility_deduction: 0 });
     expect(res.status).toBe(200);
-    expect(res.body.deposit).toMatchObject({ status: 'Forfeited', forfeited: DEPOSIT });
-    expect(await depositRefund()).toBeNull();
+    expect(res.body.deposit.notice_deduction).toBeCloseTo(expected, 2);
+    expect(res.body.deposit.refund_amount).toBeCloseTo(Math.max(0, DEPOSIT - expected), 2);
+    const row = await one("SELECT amount, reason FROM deposit_deductions WHERE rent_application_id = ? AND category = 'unpaid_rent'", [APP]);
+    expect(Number(row.amount)).toBeCloseTo(expected, 2);
+    expect(row.reason).toMatch(/notice not given/);
   });
 
-  it('an admin can waive the forfeiture with a reason', async () => {
-    await reset({ leaseEnd: 'CURDATE() + INTERVAL 60 DAY' });
-    const res = await clear({ deductions: [], waive_forfeiture_reason: 'Moved for work, approved by the owner' });
+  it('a lower notice deduction needs a reason', async () => {
+    await reset({ appStatus: 'active' });
+    const refused = await clear({ damage_deduction: 0, utility_deduction: 0, notice_deduction: 0 });
+    expect(refused.body.success).toBe(false);
+    expect(refused.body.message).toMatch(/reason/);
+    expect((await contract()).deposit_status).toBe('Held');
+
+    const res = await clear({ damage_deduction: 0, utility_deduction: 0, notice_deduction: 0, waive_forfeiture_reason: 'Moved for work, owner agreed' });
     expect(res.status).toBe(200);
-    expect(res.body.deposit).toMatchObject({ status: 'Refund Pending', refund_amount: DEPOSIT });
-    expect((await depositRefund()).amount).toBe('3500.00');
+    expect(res.body.deposit).toMatchObject({ refund_amount: DEPOSIT, notice_deduction: 0 });
+  });
+
+  it('returns bank interest with the deposit', async () => {
+    await reset();
+    const res = await clear({ deductions: [], deposit_interest: 12.5 });
+    expect(res.status).toBe(200);
+    expect(res.body.deposit).toMatchObject({ refund_amount: DEPOSIT + 12.5, interest: 12.5 });
+    expect((await depositRefund()).amount).toBe('3512.50');
   });
 
   it('a deposit that was never paid refunds nothing', async () => {
@@ -109,47 +131,42 @@ describe('refundable deposit', () => {
   });
 });
 
-describe('deposit not refundable (existing contracts)', () => {
-  it('is applied as before: no refund, no forfeiture row', async () => {
+describe('a contract once marked "not refundable"', () => {
+  it('still returns the unused deposit (RA 9653 Sec. 7)', async () => {
     await reset({ refundable: 0 });
     const res = await clear({ deductions: [] });
     expect(res.status).toBe(200);
-    expect(await contract()).toMatchObject({ deposit_status: 'Applied to Rent', refund_amount: '0.00' });
-    expect(await depositRefund()).toBeNull();
-    expect(await one('SELECT COUNT(*) AS n FROM deposit_deductions WHERE rent_application_id = ?', [APP])).toMatchObject({ n: 0 });
-  });
-});
-
-describe('termination for cause', () => {
-  it('forfeits a refundable deposit', async () => {
-    await reset();
-    await q("UPDATE rent_applications SET status = 'active' WHERE id = ?", [APP]);
-    const res = await api('update_contract_status.php', { token: admin, json: { contractId: CONTRACT, action: 'terminate', reason: 'Repeated violations' } });
-    expect(res.status).toBe(200);
-    expect(await depositRefund()).toBeNull();
-    expect((await contract()).deposit_status).toBe('Forfeited');
-  });
-
-  it('can be waived with a reason, which opens the refund', async () => {
-    await reset();
-    await q("UPDATE rent_applications SET status = 'active' WHERE id = ?", [APP]);
-    const res = await api('update_contract_status.php', { token: admin, json: { contractId: CONTRACT, action: 'terminate', reason: 'Agreed exit', waive_forfeiture_reason: 'Owner agreed to return it' } });
-    expect(res.status).toBe(200);
+    expect(await contract()).toMatchObject({ deposit_status: 'Refund Pending', refund_amount: '3500.00' });
     expect((await depositRefund()).amount).toBe('3500.00');
   });
 });
 
-describe('deposit terms on a contract', () => {
-  it('can be changed on a draft only', async () => {
-    await q("UPDATE lease_contracts SET status = 'draft', deposit_refundable = 0 WHERE id = ?", [CONTRACT]);
-    const on = await api('update_contract_status.php', { token: admin, json: { contractId: CONTRACT, action: 'set_deposit_refundable', depositRefundable: true } });
-    expect(on.status).toBe(200);
-    expect((await contract()).deposit_refundable).toBe(1);
+describe('termination', () => {
+  it('needs a legal ground', async () => {
+    await reset();
+    await q("UPDATE rent_applications SET status = 'active' WHERE id = ?", [APP]);
+    const res = await api('update_contract_status.php', { token: admin, json: { contractId: CONTRACT, action: 'terminate', reason: 'Repeated violations' } });
+    expect(res.status).toBe(422);
+    expect(res.body.message).toMatch(/legal ground/);
+  });
 
+  it('returns the deposit when ended by mutual agreement', async () => {
+    await reset();
+    await q("UPDATE rent_applications SET status = 'active' WHERE id = ?", [APP]);
+    const res = await api('update_contract_status.php', { token: admin, json: { contractId: CONTRACT, action: 'terminate', reason: 'Agreed exit', ground: 'mutual' } });
+    expect(res.status).toBe(200);
+    expect((await depositRefund()).amount).toBe('3500.00');
+    expect(await one('SELECT eviction_ground FROM lease_contracts WHERE id = ?', [CONTRACT])).toMatchObject({ eviction_ground: 'mutual' });
+  });
+});
+
+describe('deposit terms on a contract', () => {
+  it('cannot be switched to "not refundable"', async () => {
+    await q("UPDATE lease_contracts SET status = 'draft' WHERE id = ?", [CONTRACT]);
+    const res = await api('update_contract_status.php', { token: admin, json: { contractId: CONTRACT, action: 'set_deposit_refundable', depositRefundable: false } });
+    expect(res.status).toBe(422);
+    expect(res.body.message).toMatch(/RA 9653/);
     await q("UPDATE lease_contracts SET status = 'active' WHERE id = ?", [CONTRACT]);
-    const late = await api('update_contract_status.php', { token: admin, json: { contractId: CONTRACT, action: 'set_deposit_refundable', depositRefundable: false } });
-    expect(late.status).toBe(422);
-    expect((await contract()).deposit_refundable).toBe(1);
   });
 
   it('a tenant cannot open a deposit refund themselves', async () => {

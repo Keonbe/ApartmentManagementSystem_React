@@ -56,7 +56,13 @@ $SETTING_RULES = [
     'min_lease_duration'       => ['type' => 'int', 'min' => 1, 'max' => 24, 'message' => 'Minimum rent duration must be a whole number between 1 and 24 months.'],
     'max_rent_ahead_months'    => ['type' => 'int', 'min' => 1, 'max' => MAX_RENT_AHEAD_MONTHS_CEILING, 'message' => 'Maximum months ahead must be a whole number between 1 and ' . MAX_RENT_AHEAD_MONTHS_CEILING . '.'],
     'payment_window_days'      => ['type' => 'int', 'min' => 1, 'max' => 30, 'message' => 'Payment window must be a whole number of days between 1 and 30.', 'field' => 'Enter 1 to 30 days.'],
-    'deposit_refundable_default' => ['type' => 'enum', 'values' => ['0', '1'], 'message' => 'The deposit refund default must be on or off.'],
+    // RA 9653 Sec. 7: the unused deposit is always returned, so only "on" is accepted.
+    'deposit_refundable_default' => ['type' => 'enum', 'values' => ['1', 'true'], 'message' => 'Under RA 9653 the unused security deposit is always returned to the tenant.'],
+    // Rent control (RA 9653 / NHSB Resolution 2024-01): yearly cap for the same tenant, and the rent up to which a unit is covered.
+    'rent_cap_percent'         => ['type' => 'num', 'min' => 0, 'max' => 100, 'message' => 'The rent-control cap must be a percentage from 0 to 100.', 'field' => 'Enter 0 to 100.'],
+    'rent_cap_max_covered_rent' => ['type' => 'num', 'min' => 0, 'max' => 1000000, 'message' => 'The rent-control coverage limit must be an amount from 0 to 1,000,000.', 'field' => 'Enter 0 to 1,000,000.'],
+    'late_fee_type'            => ['type' => 'enum', 'values' => ['flat', 'percent'], 'message' => 'The late fee type must be flat or percent.'],
+    'late_fee_value'           => ['type' => 'num', 'min' => 0, 'max' => 100000, 'message' => 'The late fee must be an amount from 0 to 100,000.'],
     'cancellation_fee'         => ['type' => 'num', 'min' => 0, 'max' => 100000, 'message' => 'The cancellation fee must be an amount from 0 to 100,000.', 'field' => 'Enter 0 to 100,000.'],
     'deposit_refund_days'      => ['type' => 'int', 'min' => 1, 'max' => 90, 'message' => 'The deposit refund period must be a whole number of days between 1 and 90.', 'field' => 'Enter 1 to 90 days.'],
     'overdue_threshold_days'   => ['type' => 'int', 'min' => 1, 'max' => 365, 'message' => 'The overdue threshold must be a whole number of days between 1 and 365.'],
@@ -135,6 +141,16 @@ foreach ($input as $key => $value) {
         $rule = $SETTING_RULES[$key];
         $field = lcfirst(str_replace('_', '', ucwords($key, '_')));
         $refuse($rule['message'], isset($rule['field']) ? [$field => $rule['field']] : null);
+    }
+
+    // The date the current rent-control resolution runs until (Settings shows a
+    // reminder once it has passed; the cap keeps applying).
+    if ($key === 'rent_cap_valid_until' && real_date($value) === null) {
+        $refuse("Enter the date the rent-control resolution runs until (YYYY-MM-DD).", ["rentCapValidUntil" => "Enter a date."]);
+    }
+    // A percentage late fee may not exceed LATE_FEE_MAX_PERCENT (Civil Code Art. 1229).
+    if ($key === 'late_fee_value' && ($input['late_fee_type'] ?? $existing['late_fee_type'] ?? 'flat') === 'percent' && (float)$value > LATE_FEE_MAX_PERCENT) {
+        $refuse("A percentage late fee can be at most " . LATE_FEE_MAX_PERCENT . "%.");
     }
 
     // The parking slots themselves are managed in parking_slots.php; the old

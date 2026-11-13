@@ -16,7 +16,7 @@ export const SETTINGS_TABS = [
     label: 'Rental',
     icon: faFileContract,
     description: 'Rental rules, occupancy limits and the public room preview.',
-    keys: ['minLeaseDuration', 'maxRentAheadMonths', 'reservationHoldDays', 'moveOutMinNoticeDays', 'moveOutMaxNoticeDays', 'depositRefundableDefault', 'depositRefundDays', 'cancellationFee', 'moveInMinDays', 'moveInMaxDays', 'inquiryMoveInMaxMonths', 'includedOccupants', 'occupantSurchargePerPerson', 'maxOccupantsPerUnit', 'roomPreviewMode'],
+    keys: ['minLeaseDuration', 'maxRentAheadMonths', 'reservationHoldDays', 'moveOutMinNoticeDays', 'moveOutMaxNoticeDays', 'rentCapPercent', 'rentCapMaxCoveredRent', 'rentCapValidUntil', 'depositRefundDays', 'cancellationFee', 'moveInMinDays', 'moveInMaxDays', 'inquiryMoveInMaxMonths', 'includedOccupants', 'occupantSurchargePerPerson', 'maxOccupantsPerUnit', 'roomPreviewMode'],
   },
   {
     id: 'requirements',

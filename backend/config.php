@@ -377,6 +377,84 @@ function contract_action_allowed($current_status, $action) {
     return in_array($action, $allowed, true);
 }
 
+// ── Ejectment grounds (RA 9653 Sec. 9) ──
+// Flagging a contract for eviction and terminating one both name the legal
+// ground. A tenant who does not agree to leave can only be ejected by a court;
+// the System never locks a tenant out or cuts a utility.
+const EJECTMENT_GROUNDS = [
+    'arrears'       => 'Rent arrears totalling three months',
+    'sublease'      => 'Sublease or assignment without written consent',
+    'owner_use'     => 'Owner or immediate family needs the unit',
+    'condemnation'  => 'Order of condemnation requiring repairs',
+    'lease_expired' => 'Rent term has expired',
+];
+// Terminating by mutual agreement is not an ejectment, so only 'terminate' takes it.
+const TERMINATION_EXTRA_GROUNDS = ['mutual' => 'Ended by mutual agreement with the tenant'];
+const ARREARS_MONTHS_FOR_EJECTMENT = 3;
+const OWNER_USE_NOTICE_MONTHS = 3;
+
+// Months of rent the tenancy owes on past-due rent invoices: the unpaid rent
+// part of each (never more than its base rent, so utilities and fees do not
+// count), divided by the current monthly rent. 0 when nothing is owed.
+function rent_arrears_months($conn, $app_id) {
+    $rent = tenancy_monthly_rent($conn, $app_id);
+    if ($rent <= 0) return 0.0;
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(LEAST(i.base_rent, " . invoice_balance_sql('i') . ")), 0) AS owed
+                            FROM invoices i WHERE i.rent_application_id = ? AND i.base_rent > 0 AND " . invoice_owed_where_sql('i', true));
+    $app_id = (int)$app_id;
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $owed = (float)$stmt->get_result()->fetch_assoc()['owed'];
+    $stmt->close();
+    return round(max(0.0, $owed) / $rent, 2);
+}
+
+// Null when $ground is valid for this contract, else why not. $contract needs
+// rent_application_id and lease_end; $input may carry notice_date (owner_use)
+// and details (sublease, condemnation). $action is 'flag' or 'terminate'.
+function ejectment_ground_refusal($conn, array $contract, $ground, array $input, $action) {
+    $grounds = EJECTMENT_GROUNDS + ($action === 'terminate' ? TERMINATION_EXTRA_GROUNDS : []);
+    if (!is_string($ground) || !isset($grounds[$ground])) {
+        return "Choose the legal ground (RA 9653 Sec. 9): " . implode(', ', array_keys($grounds)) . ".";
+    }
+    $today = date('Y-m-d');
+    $details = trim((string)($input['details'] ?? ''));
+    switch ($ground) {
+        case 'arrears':
+            $months = rent_arrears_months($conn, $contract['rent_application_id'] ?? 0);
+            if ($months + 0.0001 < ARREARS_MONTHS_FOR_EJECTMENT) {
+                return "Unpaid rent comes to " . number_format($months, 2) . " month(s). RA 9653 allows ejectment for arrears only once they total " . ARREARS_MONTHS_FOR_EJECTMENT . " months.";
+            }
+            return null;
+        case 'lease_expired':
+            if (empty($contract['lease_end']) || $contract['lease_end'] >= $today) {
+                return "The rent term has not expired yet" . (!empty($contract['lease_end']) ? " (it ends " . $contract['lease_end'] . ")" : '') . ".";
+            }
+            return null;
+        case 'owner_use':
+            if (empty($contract['lease_end']) || $contract['lease_end'] >= $today) {
+                return "The owner's own use is a ground only after the rent term has expired.";
+            }
+            $notice = real_date((string)($input['notice_date'] ?? $input['noticeDate'] ?? ''));
+            if ($notice === null) return "Enter the date the formal notice was given to the tenant.";
+            if ($notice > date('Y-m-d', strtotime('-' . OWNER_USE_NOTICE_MONTHS . ' months'))) {
+                return "The formal notice must be given at least " . OWNER_USE_NOTICE_MONTHS . " months before (notice given $notice).";
+            }
+            return null;
+        case 'sublease':
+        case 'condemnation':
+            if (mb_strlen($details) < 5) {
+                return $ground === 'condemnation' ? "Enter the condemnation order's reference." : "Describe the sublease or assignment.";
+            }
+            return null;
+    }
+    return null;
+}
+
+function ejectment_ground_label($ground) {
+    return (EJECTMENT_GROUNDS + TERMINATION_EXTRA_GROUNDS)[$ground] ?? (string)$ground;
+}
+
 // How far ahead a rent end may reach after an extension (audit L6): at most
 // max_rent_ahead_months (Settings -> Rental) from today, never more than 12.
 // 'extend' in CONTRACT_TRANSITIONS limits extensions to active/expired contracts.
@@ -434,6 +512,63 @@ function extension_range_settings($conn) {
 // (extension_competing_applications()), so admin_extend_rent.php can show them.
 class ExtensionRefused extends Exception {
     public $conflicts = [];
+}
+
+// ── Rent control (RA 9653, extended by NHSB Resolution 2024-01) ──
+// A unit renting at rent_cap_max_covered_rent or less may not have its rent
+// raised by more than rent_cap_percent in one calendar year while the same
+// tenant stays (2.3% in 2025, 1% in 2026). A vacant unit may be re-priced
+// freely for the next tenant. Settings → Rental holds the numbers so a new
+// resolution only needs a settings change; the cap keeps applying after
+// rent_cap_valid_until (the tenant-safe side) and Settings flags it.
+const RENT_CAP_DEFAULT_PERCENT = 1.0;
+const RENT_CAP_DEFAULT_MAX_COVERED = 10000.0;
+const RENT_CAP_DEFAULT_VALID_UNTIL = '2026-12-31';
+
+function rent_control_settings($conn) {
+    $out = ['percent' => RENT_CAP_DEFAULT_PERCENT, 'max_covered' => RENT_CAP_DEFAULT_MAX_COVERED, 'valid_until' => RENT_CAP_DEFAULT_VALID_UNTIL];
+    $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('rent_cap_percent', 'rent_cap_max_covered_rent', 'rent_cap_valid_until')");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $v = $row['setting_value'];
+            if ($row['setting_key'] === 'rent_cap_percent' && is_numeric($v) && (float)$v >= 0) $out['percent'] = (float)$v;
+            if ($row['setting_key'] === 'rent_cap_max_covered_rent' && is_numeric($v) && (float)$v >= 0) $out['max_covered'] = (float)$v;
+            if ($row['setting_key'] === 'rent_cap_valid_until' && real_date($v) !== null) $out['valid_until'] = $v;
+        }
+    }
+    return $out;
+}
+
+// Null when $new_rent is allowed for the tenancy on $contract_id, else the
+// refusal message. The baseline is the rent before the first increase this
+// calendar year (lease_renewals.previous_rent), so two small raises cannot add
+// up past the cap; with no raise yet this year it is the current rent.
+function rent_cap_refusal($conn, $contract_id, $room, $current_rent, $new_rent) {
+    $new_rent = round((float)$new_rent, 2);
+    $current_rent = round((float)$current_rent, 2);
+    if ($new_rent <= $current_rent) return null;
+
+    $baseline = $current_rent;
+    $year_start = date('Y') . '-01-01';
+    $q = $conn->prepare("SELECT previous_rent FROM lease_renewals
+                         WHERE contract_id = ? AND created_at >= ? AND previous_rent IS NOT NULL AND rent_at_renewal > previous_rent
+                         ORDER BY created_at ASC, id ASC LIMIT 1");
+    $q->bind_param("ss", $contract_id, $year_start);
+    $q->execute();
+    $row = $q->get_result()->fetch_assoc();
+    $q->close();
+    if ($row) $baseline = round((float)$row['previous_rent'], 2);
+
+    $rc = rent_control_settings($conn);
+    if ($baseline <= 0 || $baseline > $rc['max_covered']) return null;
+
+    $max = floor($baseline * (1 + $rc['percent'] / 100) * 100) / 100;
+    if ($new_rent <= $max + 0.0001) return null;
+
+    $pct = rtrim(rtrim(number_format($rc['percent'], 2, '.', ''), '0'), '.');
+    return "Unit $room is under rent control (₱" . number_format($rc['max_covered'], 0) . " or less, same tenant). "
+        . "The most its rent can be this year is ₱" . number_format($max, 2) . " (+$pct% on ₱" . number_format($baseline, 2) . "), "
+        . "under RA 9653 and NHSB Resolution 2024-01. A new rate can be set when the unit is vacant.";
 }
 
 // Applications from other people for the unit a tenant wants to extend: still
@@ -553,6 +688,11 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
     $previous_end = $contract['lease_end'];
     $was_expired = $contract['status'] === 'expired';
 
+    // RA 9653: the same tenant's rent may rise only within the yearly cap.
+    if ($new_rent !== null && ($cap = rent_cap_refusal($conn, $contract['id'], $app['room_name'], $current_rent, $new_rent))) {
+        throw new ExtensionRefused($cap);
+    }
+
     // Holdover months, billed at the rent in force while they were lived.
     $holdover = [];
     $holdover_total = 0.0;
@@ -608,8 +748,9 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
     $stmt->close();
 
     $admin_id_param = $admin_id ? (int)$admin_id : null;
-    $stmt = $conn->prepare("INSERT INTO lease_renewals (contract_id, added_months, previous_lease_end, new_lease_end, rent_at_renewal, approved_by) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sissdi", $contract['id'], $add_months, $previous_end, $new_end, $rent_at_renewal, $admin_id_param);
+    // previous_rent is what rent_cap_refusal() measures this year's raises from.
+    $stmt = $conn->prepare("INSERT INTO lease_renewals (contract_id, added_months, previous_lease_end, new_lease_end, previous_rent, rent_at_renewal, approved_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sissddi", $contract['id'], $add_months, $previous_end, $new_end, $current_rent, $rent_at_renewal, $admin_id_param);
     $stmt->execute();
     $stmt->close();
 
@@ -3183,6 +3324,8 @@ function void_lapsed_payments($conn) {
 //
 // The fee is applied once per invoice, guarded by late_fee = 0, and is added
 // to total_amount so the stored total always equals the sum of its line items.
+const LATE_FEE_MAX_PERCENT = 5.0;
+
 function promote_overdue_invoices($conn) {
     // Anything still owed past its due date becomes overdue — not just
     // 'pending'. An abandoned checkout ('processing'), a declined payment
@@ -3221,21 +3364,29 @@ function promote_overdue_invoices($conn) {
         return $promoted;
     }
 
+    // A late fee is a penalty clause, which courts reduce when "iniquitous or
+    // unconscionable" (Civil Code Art. 1229); RA 9653 itself sets none. So it
+    // is charged once per invoice and never above LATE_FEE_MAX_PERCENT: of the
+    // overdue balance in percent mode, of the invoice's base rent in flat mode.
     if (($settings['late_fee_type'] ?? 'flat') === 'percent') {
+        $pct = min($value, LATE_FEE_MAX_PERCENT);
         $stmt = $conn->prepare("
             UPDATE invoices
             SET late_fee = ROUND(GREATEST(base_rent + water + electricity + parking + services + maintenance - amount_paid, 0) * ? / 100, 2),
                 total_amount = total_amount + ROUND(GREATEST(base_rent + water + electricity + parking + services + maintenance - amount_paid, 0) * ? / 100, 2)
             WHERE status = 'overdue' AND late_fee = 0 AND late_fee_waived = 0 AND advance_months IS NULL
         ");
-        $stmt->bind_param("dd", $value, $value);
+        $stmt->bind_param("dd", $pct, $pct);
     } else {
+        $cap = LATE_FEE_MAX_PERCENT;
         $stmt = $conn->prepare("
             UPDATE invoices
-            SET late_fee = ?, total_amount = total_amount + ?
+            SET late_fee = LEAST(?, ROUND(base_rent * ? / 100, 2)),
+                total_amount = total_amount + LEAST(?, ROUND(base_rent * ? / 100, 2))
             WHERE status = 'overdue' AND late_fee = 0 AND late_fee_waived = 0 AND advance_months IS NULL
+              AND base_rent > 0
         ");
-        $stmt->bind_param("dd", $value, $value);
+        $stmt->bind_param("dddd", $value, $cap, $value, $cap);
     }
     $stmt->execute();
     $stmt->close();
@@ -3806,13 +3957,16 @@ function notify_refund_raised($conn, $rid, $amount, $label) {
 }
 
 // ── Security deposit settlement ──
-// A contract is deposit_refundable = 1 (copied from the deposit_refundable_default
-// setting when it is issued) or 0 (applied to rent / bills / damage). Both
-// move-out paths (clearance in update_tenant_status.php, termination in
-// update_contract_status.php) settle through settle_deposit(), so they cannot drift.
+// RA 9653 Sec. 7: the deposit (kept in a bank in the owner's name) covers
+// unpaid rent, utility bills and damage, "commensurate to the pecuniary
+// damage"; the rest and any bank interest go back to the tenant. So every
+// contract is deposit_refundable = 1 and nothing is forfeited wholesale: the
+// only deductions are itemized amounts. Both move-out paths (clearance in
+// update_tenant_status.php, termination in update_contract_status.php) settle
+// through settle_deposit(), so they cannot drift.
 
 function deposit_refundable_default($conn) {
-    return in_array((string)get_setting($conn, 'deposit_refundable_default', '1'), ['1', 'true'], true) ? 1 : 0;
+    return 1;
 }
 
 // Days after the clearance within which a refundable deposit is paid back.
@@ -3821,31 +3975,32 @@ function deposit_refund_days($conn) {
     return ctype_digit((string)$n) ? max(1, min(90, (int)$n)) : 30;
 }
 
-// Why a refundable deposit is withheld. $ctx: 'terminate' (ended by Management
-// for cause) or 'move_out' with 'prior_status' (the application status before
-// the clearance), 'move_out_date' (requested date, else null) and 'lease_end'.
-function deposit_forfeiture_reasons(array $ctx) {
-    $reasons = [];
-    if (($ctx['kind'] ?? '') === 'terminate') {
-        return ['Contract terminated by Management for a breach'];
+// The rent a tenant who left without notice owes for the notice they did not
+// give: the minimum move-out notice in days, at the daily rate (monthly / 30).
+// This is the owner's actual loss, so it is the most that may be kept for it
+// (RA 9653 Sec. 7). Only a clearance straight from 'active' (no notice was
+// filed) suggests it; a tenant who gave notice or whose contract Management
+// ended owes none. Returns ['days' => int, 'amount' => float].
+function notice_shortfall_deduction($conn, array $ctx, $monthly_rent) {
+    if (($ctx['kind'] ?? '') !== 'move_out' || ($ctx['prior_status'] ?? '') !== 'active' || (float)$monthly_rent <= 0) {
+        return ['days' => 0, 'amount' => 0.0];
     }
-    if (($ctx['prior_status'] ?? '') === 'active') $reasons[] = 'No move-out notice was given';
-    $left = !empty($ctx['move_out_date']) ? $ctx['move_out_date'] : date('Y-m-d');
-    if (!empty($ctx['lease_end']) && $left < $ctx['lease_end']) {
-        $reasons[] = 'Moved out before the contract end date (' . $ctx['lease_end'] . ')';
-    }
-    return $reasons;
+    $days = move_out_notice_days($conn)['min'];
+    return ['days' => $days, 'amount' => round((float)$monthly_rent / 30 * $days, 2)];
 }
 
 // Settles the held deposit of one contract. The caller owns the transaction.
 //   $opts: damage, utility (deductions entered at clearance), kind
-//   ('move_out' | 'terminate'), prior_status, move_out_date, set_expired
-//   (clearance marks the contract expired), waive_reason (admin keeps the deposit
-//   refundable despite a forfeiture; recorded in the log), admin_id, user_id.
-// Returns ['contract_id', 'deposit', 'open_total', 'balance', 'status', 'refundable',
-//   'refund_amount', 'forfeited', 'forfeit_reasons', 'refund_id'] or null when the
-//   contract is not settled here (none, or already settled). refund_id is set when
-//   a refund request was opened: send notify_refund_raised() after commit.
+//   ('move_out' | 'terminate'), prior_status, set_expired (clearance marks the
+//   contract expired), notice_deduction (the admin's amount for unserved notice,
+//   0 up to notice_shortfall_deduction(); omitted = that suggestion), waive_reason
+//   (why it was lowered; required when it is), interest (bank interest earned on
+//   the deposit, returned with it), admin_id, user_id.
+// Returns ['contract_id', 'deposit', 'interest', 'open_total', 'balance', 'status',
+//   'refund_amount', 'notice_deduction', 'notice_days', 'refund_id'] or null when
+//   the contract is not settled here (none, or already settled). refund_id is set
+//   when a refund request was opened: send notify_refund_raised() after commit.
+//   Throws when a lowered notice deduction has no reason.
 function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     $app_id = (int)$app_id;
     if ($contract_id !== null) {
@@ -3862,11 +4017,14 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     $q->close();
     if (!$c) return null;
 
-    $damage = round((float)($opts['damage'] ?? 0), 2);
-    $utility = round((float)($opts['utility'] ?? 0), 2);
-    // Only a deposit that was actually paid ('Held') can cover anything or be returned.
-    $deposit = $c['deposit_status'] === 'Held' ? round((float)$c['deposit_amount'], 2) : 0.0;
-    $refundable = (int)$c['deposit_refundable'] === 1 && $deposit > 0;
+    $damage = max(0.0, round((float)($opts['damage'] ?? 0), 2));
+    $utility = max(0.0, round((float)($opts['utility'] ?? 0), 2));
+    // Only a deposit that was actually paid ('Held') can cover anything or be
+    // returned, and only it earns interest.
+    $held = $c['deposit_status'] === 'Held';
+    $interest = $held ? max(0.0, min(999999.99, round((float)($opts['interest'] ?? 0), 2))) : 0.0;
+    $deposit = $held ? round((float)$c['deposit_amount'], 2) : 0.0;
+    $pool = round($deposit + $interest, 2);
 
     $o = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
     $o->bind_param("i", $app_id);
@@ -3874,28 +4032,31 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     $open_total = round((float)$o->get_result()->fetch_assoc()['open_total'], 2);
     $o->close();
 
-    $consumed = round($open_total + $damage + $utility, 2);
-    $balance = round($consumed - $deposit, 2);
-    $remaining = max(0.0, round($deposit - $consumed, 2));
-
-    $reasons = [];
-    $refund = 0.0;
-    $forfeited = 0.0;
-    if ($refundable) {
-        $reasons = deposit_forfeiture_reasons([
-            'kind' => $opts['kind'] ?? 'move_out', 'prior_status' => $opts['prior_status'] ?? '',
-            'move_out_date' => $opts['move_out_date'] ?? null, 'lease_end' => $c['lease_end'],
-        ]);
-        if ($reasons && trim((string)($opts['waive_reason'] ?? '')) === '') {
-            $forfeited = $remaining;
-        } else {
-            $refund = $remaining;
+    // Rent for notice not given, at most the suggested amount; lowering it is
+    // the admin's call and needs a reason.
+    $suggested = notice_shortfall_deduction($conn, [
+        'kind' => $opts['kind'] ?? 'move_out', 'prior_status' => $opts['prior_status'] ?? '',
+    ], tenancy_monthly_rent($conn, $app_id));
+    $notice = $suggested['amount'];
+    if ($held && $suggested['amount'] > 0 && isset($opts['notice_deduction']) && $opts['notice_deduction'] !== '' && $opts['notice_deduction'] !== null) {
+        $notice = max(0.0, min($suggested['amount'], round((float)$opts['notice_deduction'], 2)));
+        if ($notice < $suggested['amount'] && trim((string)($opts['waive_reason'] ?? '')) === '') {
+            throw new Exception("Give a reason for lowering the notice deduction below ₱" . number_format($suggested['amount'], 2) . ".");
         }
-        $status = $refund > 0 ? 'Refund Pending' : ($forfeited > 0 ? 'Forfeited' : 'Applied to Bills/Damages');
-    } else {
-        $status = ($damage > 0 || $utility > 0 || $open_total > 0) ? 'Applied to Bills/Damages' : 'Applied to Rent';
     }
-    if ($c['deposit_status'] !== 'Held') $status = 'Not Collected';
+    if (!$held) $notice = 0.0;
+
+    $consumed = round($open_total + $damage + $utility + $notice, 2);
+    $balance = round($consumed - $pool, 2);
+    $refund = max(0.0, round($pool - $consumed, 2));
+
+    if (!$held) {
+        $status = 'Not Collected';
+    } elseif ($refund > 0) {
+        $status = 'Refund Pending';
+    } else {
+        $status = 'Applied to Bills/Damages';
+    }
 
     $set_expired = !empty($opts['set_expired']) ? ", status = 'expired'" : '';
     $u = $conn->prepare("UPDATE lease_contracts SET deposit_status = ?, damage_deduction = ?, utility_deduction = ?, refund_amount = ?, refund_date = CURDATE()$set_expired
@@ -3906,12 +4067,12 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     $u->close();
     if (!$won) return null;
 
-    if ($forfeited > 0) {
-        $why = mb_substr(implode('; ', $reasons), 0, 255);
-        $f = $conn->prepare("INSERT INTO deposit_deductions (rent_application_id, contract_id, category, reason, amount, recorded_by) VALUES (?, ?, 'forfeiture', ?, ?, ?)");
+    if ($notice > 0) {
+        $why = "Rent for {$suggested['days']} day(s) of move-out notice not given";
+        $f = $conn->prepare("INSERT INTO deposit_deductions (rent_application_id, contract_id, category, reason, amount, recorded_by) VALUES (?, ?, 'unpaid_rent', ?, ?, ?)");
         $admin = (int)($opts['admin_id'] ?? 0) ?: null;
-        $f->bind_param("issdi", $app_id, $c['id'], $why, $forfeited, $admin);
-        if (!$f->execute()) throw new Exception("Could not record the forfeited deposit.");
+        $f->bind_param("issdi", $app_id, $c['id'], $why, $notice, $admin);
+        if (!$f->execute()) throw new Exception("Could not record the notice deduction.");
         $f->close();
     }
 
@@ -3919,14 +4080,16 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     $user_id = (int)($opts['user_id'] ?? 0);
     if ($refund > 0 && $user_id > 0) {
         $due = date('M j, Y', strtotime('+' . deposit_refund_days($conn) . ' days'));
-        $why = "Security deposit returned after move-out, less deductions. To be paid back by $due.";
+        $why = "Security deposit returned after move-out, less deductions"
+            . ($interest > 0 ? ", with ₱" . number_format($interest, 2) . " bank interest" : "")
+            . ". To be paid back by $due.";
         $refund_id = insert_refund_request($conn, $user_id, $app_id, 'deposit', null, $refund, $why, (int)($opts['admin_id'] ?? 0), 'admin');
     }
 
     return [
-        'contract_id' => $c['id'], 'deposit' => $deposit, 'open_total' => $open_total, 'balance' => $balance,
-        'status' => $status, 'refundable' => $refundable, 'refund_amount' => $refund, 'forfeited' => $forfeited,
-        'forfeit_reasons' => $reasons, 'refund_id' => $refund_id,
+        'contract_id' => $c['id'], 'deposit' => $deposit, 'interest' => $interest, 'open_total' => $open_total, 'balance' => $balance,
+        'status' => $status, 'refund_amount' => $refund, 'notice_deduction' => $notice, 'notice_days' => $notice > 0 ? $suggested['days'] : 0,
+        'refund_id' => $refund_id,
     ];
 }
 

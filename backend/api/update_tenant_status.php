@@ -18,7 +18,7 @@ $input = $_POST;
 if (empty($input)) $input = json_decode(file_get_contents("php://input"), true) ?: [];
 $id = (int)($input['id'] ?? 0);
 $status = $input['status'] ?? '';
-// Why a forfeiture is waived (security deposit): text only, empty = not waived.
+// Why the suggested notice deduction from the deposit was lowered: text only.
 $input['waive_forfeiture_reason'] = is_string($input['waive_forfeiture_reason'] ?? null) ? mb_substr(trim($input['waive_forfeiture_reason']), 0, 200) : '';
 $rejection_reason = $input['rejection_reason'] ?? null;
 
@@ -379,10 +379,10 @@ if ($id > 0 && !empty($status)) {
             $room_condition = $has_damage_line ? 'Needs Repair' : 'Good';
 
             // The deposit is settled by settle_deposit() (config.php), the same
-            // routine as a contract termination: deductions and unpaid invoices
-            // come off it; on a refundable contract what is left is returned
-            // through a 'deposit' refund request (unless it is forfeited: no
-            // notice, or leaving before the contract end), else it goes to rent.
+            // routine as a contract termination: unpaid invoices, itemized
+            // deductions and (with no move-out notice) rent for the notice days
+            // come off it, and what is left, with any bank interest, is returned
+            // through a 'deposit' refund request (RA 9653 Sec. 7).
             // The contract is 'active', 'expired' (lease end passed before the
             // clearance) or 'eviction-pending'; a draft or terminated contract, or
             // one already settled, is not settled twice. Read before end_tenancy()
@@ -394,7 +394,8 @@ if ($id > 0 && !empty($status)) {
             $deposit_pre->close();
             $settled = settle_deposit($conn, $id, null, [
                 'damage' => $damage_deduction, 'utility' => $utility_deduction, 'kind' => 'move_out',
-                'prior_status' => $current_status, 'move_out_date' => $deposit_app['requested_move_out_date'] ?? null,
+                'prior_status' => $current_status,
+                'notice_deduction' => $input['notice_deduction'] ?? null, 'interest' => $input['deposit_interest'] ?? 0,
                 'set_expired' => true, 'waive_reason' => $input['waive_forfeiture_reason'] ?? '',
                 'admin_id' => $admin_id, 'user_id' => $deposit_app['user_id'] ?? 0,
             ]);
@@ -447,15 +448,17 @@ if ($id > 0 && !empty($status)) {
                 create_notification($conn, $vacated['user_id'], 'move_out_update', 'Move-Out Completed',
                     "Your move-out has been completed and your clearance recorded. Thank you for staying with us."
                     . ($deduction_summary ? " Deductions from your deposit: " . implode("; ", $deduction_summary) . "." : "")
-                    . ($settled && $settled['forfeited'] > 0 ? " Your remaining deposit of ₱" . number_format($settled['forfeited'], 2) . " was withheld: " . implode('; ', $settled['forfeit_reasons']) . "." : "")
-                    . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : "")
+                    . ($settled && $settled['notice_deduction'] > 0 ? " ₱" . number_format($settled['notice_deduction'], 2) . " was deducted as rent for {$settled['notice_days']} day(s) of move-out notice not given." : "")
+                    . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit" . ($settled['interest'] > 0 ? " (with ₱" . number_format($settled['interest'], 2) . " interest)" : "") . " will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : "")
                     . ($balance > 0 ? " An outstanding balance of ₱" . number_format($balance, 2) . " remains after your deposit." : ""));
             }
 
             log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance",
                 "Application ID: $id, $clearance_notes" . ($deduction_summary ? "; deductions: " . implode("; ", $deduction_summary) : "") . ($vacated && $vacated['parking_released'] ? "; parking released" : "")
-                . ($settled ? "; deposit " . $settled['status'] . ($settled['refund_amount'] > 0 ? " (refund ₱" . number_format($settled['refund_amount'], 2) . ")" : "") . ($settled['forfeited'] > 0 ? " (forfeited ₱" . number_format($settled['forfeited'], 2) . ": " . implode('; ', $settled['forfeit_reasons']) . ")" : "") : "")
-                . (trim((string)($input['waive_forfeiture_reason'] ?? '')) !== '' ? "; forfeiture waived: " . trim((string)$input['waive_forfeiture_reason']) : "")
+                . ($settled ? "; deposit " . $settled['status'] . ($settled['refund_amount'] > 0 ? " (refund ₱" . number_format($settled['refund_amount'], 2) . ")" : "")
+                    . ($settled['notice_deduction'] > 0 ? " (notice deduction ₱" . number_format($settled['notice_deduction'], 2) . ")" : "")
+                    . ($settled['interest'] > 0 ? " (interest ₱" . number_format($settled['interest'], 2) . ")" : "") : "")
+                . (trim((string)($input['waive_forfeiture_reason'] ?? '')) !== '' ? "; notice deduction lowered: " . trim((string)$input['waive_forfeiture_reason']) : "")
                 . ($balance > 0 ? "; balance due after deposit: ₱" . number_format($balance, 2) : "; deposit covered the balance in full"));
         } else {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
@@ -550,7 +553,8 @@ if ($id > 0 && !empty($status)) {
         if ($status === 'moved-out') {
             $response["balance_due"] = $balance > 0 ? round($balance, 2) : 0;
             if ($settled) {
-                $response["deposit"] = ['status' => $settled['status'], 'refund_amount' => $settled['refund_amount'], 'forfeited' => $settled['forfeited'], 'forfeit_reasons' => $settled['forfeit_reasons']];
+                $response["deposit"] = ['status' => $settled['status'], 'refund_amount' => $settled['refund_amount'],
+                    'notice_deduction' => $settled['notice_deduction'], 'notice_days' => $settled['notice_days'], 'interest' => $settled['interest']];
             }
         }
         echo json_encode($response);

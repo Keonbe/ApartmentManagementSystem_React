@@ -10,34 +10,24 @@ import '../../assets/styles/responsive/user/view-contract.responsive.css';
 
 const BLANK = '____________________';
 
-// The deposit paragraphs depend on the contract (deposit_refundable), not on the
-// template version, so they are put together here: the template's own opening
-// paragraph of the Security Deposit clause stays, what follows it is generated.
+// The deposit paragraphs follow RA 9653 Sec. 7 (the deposit is kept in a bank in
+// the Owner's name, its interest goes to the Tenant, and it may be kept only to
+// the extent of unpaid rent, utilities and damage), so they are generated here
+// for every contract rather than taken from the template version: the
+// template's own opening paragraph of the Security Deposit clause stays, what
+// follows it is generated. Older contracts once offered a "not refunded" mode;
+// it was removed (2026-11-13), and they render with these terms too.
 const DEPOSIT_TERMS = {
-  refundable: {
-    en: (days) => `**Return of the Security Deposit:**
-The security deposit is **refundable**. At move-out it is first applied to unpaid rent, unpaid electricity and water bills, and damage to the unit and its fixtures beyond normal wear, each listed with a reason. What remains is returned to the Tenant within ${days} days after the move-out clearance, through a payout method agreed with Management.
-
-**When the deposit is withheld:**
-The remaining deposit is forfeited if the Tenant (a) moves out without the required move-out notice, (b) moves out before the rent end date, or (c) has the contract terminated for a breach or eviction. Management may waive this with a written reason. If the unpaid amounts are more than the deposit, the deposit is used up and the difference stays payable by the Tenant.`,
-    tl: (days) => `**Pagbabalik ng Security Deposit:**
-Ang security deposit ay **ibinabalik**. Sa paglipat, ito ay unang ikinakaltas sa hindi nabayarang upa, singil sa kuryente at tubig, at pinsala sa unit at mga kagamitan nito na lampas sa karaniwang pagkasira, na may nakalistang dahilan. Ang matitira ay ibabalik sa Nangungupahan sa loob ng ${days} araw matapos ang move-out clearance, sa paraan ng payout na napagkasunduan sa Pamunuan.
-
-**Kailan hindi ibabalik ang deposit:**
-Ang natitirang deposit ay mawawala kung ang Nangungupahan ay (a) lilipat nang walang kinakailangang abiso, (b) lilipat bago ang petsa ng pagtatapos ng upa, o (c) matapos ang kontrata dahil sa paglabag o pagpapaalis. Maaari itong alisin ng Pamunuan nang may nakasulat na dahilan. Kung mas malaki ang hindi nabayaran kaysa sa deposit, mauubos ang deposit at ang kulang ay babayaran pa rin ng Nangungupahan.`,
-  },
-  applied: {
-    en: () => `**Use of the Security Deposit:**
-The security deposit is **not refunded in cash**. It is instead **applied against unpaid rent, unpaid electricity and water bills, or damage** to the unit and its fixtures. If nothing is owed at the end of the rent term, it may be applied to the last month's rent.`,
-    tl: () => `**Paggamit ng Security Deposit:**
-Ang security deposit ay **hindi ibinabalik bilang cash**. Sa halip, ito ay **ikinakaltas sa mga hindi nabayarang upa, singil sa kuryente at tubig, o pinsala** sa unit at mga kagamitan nito. Kung wala nang utang sa pagtatapos ng kontrata, maaari itong ipambayad sa huling buwan ng pag-upa.`,
-  },
+  en: (days) => `**Keeping and Return of the Security Deposit:**
+The security deposit is kept in a bank account in the Owner's name for the whole rent term, and any interest it earns is returned to the Tenant when the rent ends (RA 9653 Sec. 7). At move-out it is applied only to unpaid rent, unpaid electricity, water and other utility bills, and damage to the unit and its fixtures beyond normal wear, each listed with a reason. If the Tenant moves out without the required move-out notice, rent for the notice days may also be deducted. What remains, with the interest, is returned to the Tenant within ${days} days after the move-out clearance, through a payout method agreed with Management. If the unpaid amounts are more than the deposit, the deposit is used up and the difference stays payable by the Tenant.`,
+  tl: (days) => `**Pag-iingat at Pagbabalik ng Security Deposit:**
+Ang security deposit ay itatago sa isang bank account sa pangalan ng May-ari sa buong panahon ng pag-upa, at ang anumang interes nito ay ibabalik sa Nangungupahan sa pagtatapos ng upa (RA 9653 Sek. 7). Sa paglipat, ito ay ikakaltas lamang sa hindi nabayarang upa, hindi nabayarang singil sa kuryente, tubig at iba pang serbisyo, at pinsala sa unit at mga kagamitan nito na lampas sa karaniwang pagkasira, na may nakalistang dahilan. Kung lilipat ang Nangungupahan nang walang kinakailangang abiso, maaari ring ikaltas ang upa para sa mga araw ng abiso. Ang matitira, kasama ang interes, ay ibabalik sa Nangungupahan sa loob ng ${days} araw matapos ang move-out clearance, sa paraan ng payout na napagkasunduan sa Pamunuan. Kung mas malaki ang hindi nabayaran kaysa sa deposit, mauubos ang deposit at ang kulang ay babayaran pa rin ng Nangungupahan.`,
 };
-function withDepositTerms(body, refundable, lang, days) {
+function withDepositTerms(body, lang, days) {
   const text = body || '';
   const cut = text.indexOf('\n\n**');
   const intro = cut === -1 ? text : text.slice(0, cut);
-  const terms = DEPOSIT_TERMS[refundable ? 'refundable' : 'applied'][lang === 'tl' ? 'tl' : 'en'](days);
+  const terms = DEPOSIT_TERMS[lang === 'tl' ? 'tl' : 'en'](days);
   return `${intro}\n\n${terms}`;
 }
 
@@ -357,7 +347,7 @@ export default function ContractDocument({
         </p>
         <div className="text-slate-800 text-[14.5px] sm:text-[15px] leading-relaxed print:text-[10pt] print:leading-snug">
           {renderBody(clause.id === 'cl-deposit'
-            ? withDepositTerms(pick(clause.body, lang), data.depositRefundable === undefined ? true : Boolean(Number(data.depositRefundable)), lang, data.depositRefundDays || 30)
+            ? withDepositTerms(pick(clause.body, lang), lang, data.depositRefundDays || 30)
             : pick(clause.body, lang))}
         </div>
       </div>

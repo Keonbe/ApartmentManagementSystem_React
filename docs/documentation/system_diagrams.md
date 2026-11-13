@@ -1727,24 +1727,23 @@ Notification types that are not in `NOTIFICATION_PREF_CATEGORIES` (e.g. overdue 
 
 ---
 
-### Security deposit settlement (2026-11-11)
+### Security deposit settlement (2026-11-11, RA 9653 rules 2026-11-13)
 
-`settle_deposit()` in `backend/config.php`, called by the move-out clearance (`update_tenant_status.php`) and the contract termination (`update_contract_status.php`).
+`settle_deposit()` in `backend/config.php`, called by the move-out clearance (`update_tenant_status.php`) and the contract termination (`update_contract_status.php`). RA 9653 Sec. 7: only itemized loss is kept; there is no forfeiture and no "not refundable" mode.
 
 ```mermaid
 flowchart TD
     A([Clearance or termination]) --> B{Deposit paid<br/>and Held?}
     B -->|No| N["deposit_status = Not Collected"]
-    B -->|Yes| C{"lease_contracts<br/>.deposit_refundable"}
-    C -->|0| D["Applied to Rent / Bills-Damages<br/>(no cash back)"]
-    C -->|1| E["remaining = deposit - deductions - unpaid invoices"]
-    E --> F{"No notice, early exit,<br/>or terminated for cause?"}
-    F -->|Yes, no waiver| G["Forfeited: forfeiture line<br/>in deposit_deductions"]
-    F -->|No, or waived with a reason| H{remaining > 0}
+    B -->|Yes| E["pool = deposit + bank interest"]
+    E --> F{"Clearance with no<br/>move-out notice?"}
+    F -->|Yes| G["unpaid_rent line: rent for the<br/>notice days (lowered only with a reason)"]
+    F -->|No| H
+    G --> H{"pool - deductions - unpaid invoices > 0"}
     H -->|Yes| I["deposit refund request<br/>(due in deposit_refund_days)"]
-    H -->|No| D
+    H -->|No| D["Applied to Bills/Damages<br/>(balance stays payable)"]
     I --> J["Admin approves and records the payout<br/>deposit_status = Refunded"]
-    G --> K["Tenant may ask for a review<br/>(deposit_reviews)"]
+    D --> K["Tenant may ask for a review<br/>(deposit_reviews)"]
     I --> K
     K --> L{Admin answer}
     L -->|Stands| M([Closed with a reason])

@@ -34,8 +34,9 @@ const en = {
         li: [
           'Your balance is the amount invoiced less the amount already paid. Rent, advance rent, services, maintenance charges and parking are billed as invoices.',
           'Payments are submitted with proof and are checked by Management. A payment that cannot be verified may be rejected or voided.',
-          'When enabled by Management, a late fee (a flat amount or a percentage) is applied once per overdue invoice, and may be waived by Management.',
-          'An account that stays overdue beyond the threshold set by Management may be flagged for eviction proceedings.',
+          'When enabled by Management, a late fee (a flat amount or a percentage) is applied once per overdue invoice, is never more than 5% (of the overdue balance, or of the month\'s rent for a flat fee), and may be waived by Management.',
+          'Under the Rent Control Act (RA 9653 Sec. 9), Management may ask you to leave only for: subleasing without written consent, rent unpaid for a total of three months, the owner\'s or immediate family\'s own use after your rent term ends (with three months\' formal notice), a condemnation order requiring repairs, or the end of your rent term. The sale or mortgage of the property is not a ground. If you do not agree to leave, only a court can order it; Management never locks you out or cuts your utilities.',
+          'For a unit renting at ₱10,000 a month or less, your rent may rise by no more than the yearly rent-control cap while you stay (1% in 2026, NHSB Resolution 2024-01).',
           'Damage caused by negligence or misuse is billed to the responsible tenant.',
         ],
       },
@@ -45,7 +46,7 @@ const en = {
         li: [
           'an occupancy limit per unit, with a fee for each person above it;',
           'a move-out notice of 15 days;',
-          'a security deposit of one month\'s rent, applied to unpaid rent, utilities or damage. Whether the remainder is returned to you is stated in your contract (see Refunds and your security deposit);',
+          'a security deposit of one month\'s rent, applied to unpaid rent, utilities or damage, with the remainder returned to you (see Refunds and your security deposit);',
           'no sublease or transfer without Management\'s written permission;',
           'the owner\'s right to inspect the unit;',
           'termination by either party for a serious violation.',
@@ -99,21 +100,17 @@ const en = {
           'cancelling before move-in with nothing paid: no charge. Once part of the move-in bill is paid, cancellation is handled by Management, who refunds what you paid, less the cancellation fee if Management has set one;',
           'advance rent for months not yet reached when your tenancy ends: refunded;',
           'a payment above what you owed, or a charge that was removed after you paid it: refunded in full;',
-          'the security deposit: see below. Your contract states whether it is refundable.',
+          'the security deposit: what is left after the deductions below is always returned.',
         ],
       },
       {
         h: '',
-        p: ['If your contract says the security deposit is refundable, at move-out it first covers unpaid rent, utilities and damage beyond normal wear, each listed with a reason, and the rest is returned to you within the number of days shown on your refund (30 by default), counted from the move-out clearance. You can follow it under My Refunds.'],
+        p: ['The security deposit is kept in a bank account in the owner\'s name during your rent (RA 9653 Sec. 7). At move-out it covers only unpaid rent, utilities and damage beyond normal wear, each listed with a reason. The rest, with any interest the deposit earned, is returned to you within the number of days shown on your refund (30 by default), counted from the move-out clearance. You can follow it under My Refunds.'],
         li: [
-          'the remaining deposit is withheld if you move out without the required notice, move out before the rent end date, or your contract is terminated for a breach or eviction; Management may waive this and must give a reason;',
+          'if you move out without the required move-out notice, rent for the notice days may also be deducted; nothing else is kept;',
           'if what you owe is more than the deposit, the deposit is used up and the difference stays payable;',
-          'if you disagree with a deduction or with a withheld deposit, you can ask Management to review it under My Refunds within the refund period; Management answers with a reason.',
+          'if you disagree with a deduction, you can ask Management to review it under My Refunds within the refund period; Management answers with a reason.',
         ],
-      },
-      {
-        h: '',
-        p: ['If your contract says the deposit is not refundable, it is applied to what you owe, and any remainder to your last month\'s rent.'],
       },
       {
         h: '9. Notifications',
@@ -238,8 +235,9 @@ const fil = {
         li: [
           'Ang balanse mo ay ang na-invoice na halaga bawas ang nabayaran na. Ang upa, advance, serbisyo, maintenance at parking ay sinisingil sa pamamagitan ng invoice.',
           'Ang mga bayad ay isinusumite kasama ang patunay at sinusuri ng Pamunuan. Ang bayad na hindi ma-verify ay maaaring tanggihan o i-void.',
-          'Kapag pinagana ng Pamunuan, ang late fee (takdang halaga o porsyento) ay ipinapataw nang minsan kada overdue na invoice, at maaaring i-waive ng Pamunuan.',
-          'Ang account na nananatiling overdue lampas sa itinakdang limitasyon ng Pamunuan ay maaaring i-flag para sa proseso ng pagpapaalis.',
+          'Kapag pinagana ng Pamunuan, ang late fee (takdang halaga o porsyento) ay ipinapataw nang minsan kada overdue na invoice, hindi lalampas sa 5% (ng overdue na balanse, o ng buwanang upa kung takdang halaga), at maaaring i-waive ng Pamunuan.',
+          'Ayon sa Rent Control Act (RA 9653 Sek. 9), maaari ka lamang paalisin ng Pamunuan dahil sa: pagpapaupa muli nang walang nakasulat na pahintulot, upa na hindi nabayaran nang may kabuuang tatlong buwan, sariling paggamit ng may-ari o malapit na kapamilya matapos ang panahon ng upa mo (may pormal na abiso tatlong buwan bago), kautusan ng pagkondena na nangangailangan ng pagkukumpuni, o pagtatapos ng panahon ng upa mo. Ang pagbebenta o pagsasangla ng ari-arian ay hindi batayan. Kung hindi ka pumayag na umalis, hukuman lamang ang maaaring mag-utos nito; hindi ka ikakandado sa labas o puputulan ng serbisyo ng Pamunuan.',
+          'Para sa unit na may upa na ₱10,000 o mas mababa kada buwan, ang upa mo ay hindi maaaring tumaas nang higit sa taunang limitasyon ng rent control habang ikaw ay nananatili (1% sa 2026, NHSB Resolution 2024-01).',
           'Ang pinsalang dulot ng kapabayaan o maling paggamit ay sisingilin sa responsableng tenant.',
         ],
       },
@@ -249,7 +247,7 @@ const fil = {
         li: [
           'limitasyon sa bilang ng nakatira sa bawat unit, na may bayad sa bawat sobra;',
           'abiso sa paglipat-labas na 15 araw;',
-          'security deposit na katumbas ng isang buwang upa, na ginagamit sa hindi nabayarang upa, utilities o pinsala. Nakasaad sa kontrata mo kung ibinabalik ang matitira (tingnan ang Mga refund at ang iyong security deposit);',
+          'security deposit na katumbas ng isang buwang upa, na ginagamit sa hindi nabayarang upa, utilities o pinsala, at ibinabalik sa iyo ang matitira (tingnan ang Mga refund at ang iyong security deposit);',
           'bawal ang sublease o paglilipat nang walang nakasulat na pahintulot ng Pamunuan;',
           'karapatan ng may-ari na siyasatin ang unit;',
           'pagwawakas ng alinmang panig dahil sa malubhang paglabag.',
@@ -303,21 +301,17 @@ const fil = {
           'pagkansela bago lumipat na wala pang bayad: walang singil. Kapag may bahagi nang nabayaran sa move-in bill, ang Pamunuan ang aayos ng pagkansela at ibabalik ang binayaran mo, bawas ang cancellation fee kung may itinakda ang Pamunuan;',
           'advance na upa para sa mga buwang hindi pa dumarating sa pagtatapos ng paninirahan: ibabalik;',
           'bayad na lampas sa utang mo, o singil na inalis matapos mong bayaran: ibabalik nang buo;',
-          'ang security deposit: tingnan sa ibaba. Nakasaad sa kontrata mo kung ito ay ibinabalik.',
+          'ang security deposit: palaging ibinabalik ang matitira matapos ang mga kaltas sa ibaba.',
         ],
       },
       {
         h: '',
-        p: ['Kung nakasaad sa kontrata mo na ibinabalik ang security deposit, sa paglipat ito ay unang ikinakaltas sa hindi nabayarang upa, utilities at pinsalang lampas sa karaniwang pagkasira, na may nakalistang dahilan, at ang matitira ay ibabalik sa iyo sa loob ng bilang ng araw na nakasaad sa refund mo (30 bilang default), mula sa move-out clearance. Masusubaybayan mo ito sa My Refunds.'],
+        p: ['Ang security deposit ay itinatago sa isang bank account sa pangalan ng may-ari habang ikaw ay umuupa (RA 9653 Sek. 7). Sa paglipat, ito ay ikinakaltas lamang sa hindi nabayarang upa, utilities at pinsalang lampas sa karaniwang pagkasira, na may nakalistang dahilan. Ang matitira, kasama ang anumang interes ng deposit, ay ibabalik sa iyo sa loob ng bilang ng araw na nakasaad sa refund mo (30 bilang default), mula sa move-out clearance. Masusubaybayan mo ito sa My Refunds.'],
         li: [
-          'hindi ibabalik ang natitirang deposit kung lilipat ka nang walang kinakailangang abiso, lilipat bago ang petsa ng pagtatapos ng upa, o tatapusin ang kontrata mo dahil sa paglabag o pagpapaalis; maaari itong alisin ng Pamunuan at kailangan itong magbigay ng dahilan;',
+          'kung lilipat ka nang walang kinakailangang abiso, maaari ring ikaltas ang upa para sa mga araw ng abiso; wala nang ibang itatago;',
           'kung mas malaki ang utang mo kaysa sa deposit, mauubos ang deposit at ang kulang ay babayaran mo pa rin;',
-          'kung hindi ka sang-ayon sa isang kaltas o sa hindi ibinalik na deposit, maaari mong hilingin sa Pamunuan na suriin ito sa My Refunds sa loob ng panahon ng refund; sasagot ang Pamunuan na may dahilan.',
+          'kung hindi ka sang-ayon sa isang kaltas, maaari mong hilingin sa Pamunuan na suriin ito sa My Refunds sa loob ng panahon ng refund; sasagot ang Pamunuan na may dahilan.',
         ],
-      },
-      {
-        h: '',
-        p: ['Kung nakasaad sa kontrata mo na hindi ibinabalik ang deposit, ito ay ikinakaltas sa utang mo, at ang matitira ay sa huling buwang upa.'],
       },
       {
         h: '9. Mga abiso',

@@ -23,6 +23,8 @@ import { printElement } from '../utils/print';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import ReasonModal from '../Components/form/ReasonModal';
+import EjectmentGroundFields from '../Components/contract/EjectmentGroundFields';
+import { EJECTMENT_GROUND_LABELS } from '../Components/contract/ejectmentGrounds';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
@@ -138,6 +140,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           tenantSignature: { uploaded: !!c.tenant_signature_path, filePath: c.tenant_signature_path },
           ownerSignature: { uploaded: !!c.owner_signature_path, filePath: c.owner_signature_path },
           evictionStatus: c.eviction_status,
+          evictionGround: c.eviction_ground,
+          rentArrearsMonths: Number(c.rent_arrears_months) || 0,
           terminationReason: c.termination_reason,
           overdueInfo: c.overdueInfo ? {
             daysOverdue: c.overdueInfo.daysOverdue,
@@ -212,12 +216,15 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     getSystemSettings().then(s => { setOverdueThresholdDays(s.overdueThresholdDays); setEndingDays(s.leaseEndReminderDays ?? 30); });
   }, []);
 
-  // Count overdue contracts exceeding threshold. Only an 'active' contract
-  // can actually be flagged (CONTRACT_TRANSITIONS) — an expired or
-  // terminated lease's tenant can still show overdue invoices, but flagging
-  // that contract would just 422.
+  // RA 9653 Sec. 9: arrears are a ground for eviction only once unpaid rent
+  // totals three months. Only an 'active' contract can be flagged
+  // (CONTRACT_TRANSITIONS); the server re-checks the arrears.
   const evictionAlertContracts = useMemo(() => {
-    return contracts.filter(c => c.overdueInfo && c.overdueInfo.daysOverdue >= overdueThresholdDays && c.status === 'active');
+    return contracts.filter(c => c.rentArrearsMonths >= 3 && c.status === 'active');
+  }, [contracts]);
+  // Overdue past the follow-up threshold but short of the legal ground: a payment follow-up, not an eviction.
+  const followUpContracts = useMemo(() => {
+    return contracts.filter(c => c.overdueInfo && c.overdueInfo.daysOverdue >= overdueThresholdDays && c.status === 'active' && c.rentArrearsMonths < 3);
   }, [contracts, overdueThresholdDays]);
 
   const filtered = useMemo(() => {
@@ -253,8 +260,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const [generating, setGenerating] = useState(false);
   const [savingDates, setSavingDates] = useState(false);
   const [terminateTarget, setTerminateTarget] = useState(null);
-  // Reason for keeping a refundable deposit refundable when the contract is terminated (per contract id).
-  const [terminateWaive, setTerminateWaive] = useState({});
+  const [flagTarget, setFlagTarget] = useState(null);
+  // The legal ground (and notice date / bank interest) for the open flag or terminate dialog.
+  const [groundForm, setGroundForm] = useState({ ground: '', noticeDate: '', interest: '' });
 
   const setContractField = (key, value) => {
     setForm(p => {
@@ -479,20 +487,6 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     }
   };
 
-  const handleToggleDepositRefundable = async (contractId, depositRefundable) => {
-    try {
-      const res = await api.post('/update_contract_status.php', { contractId, action: 'set_deposit_refundable', depositRefundable });
-      if (res.data.success) {
-        await refreshContract(contractId);
-      } else {
-        alert(res.data.message || 'Failed to change the deposit terms.');
-      }
-    } catch (err) {
-      console.error(err);
-      alert(apiErrorMessage(err, 'Failed to change the deposit terms.'));
-    }
-  };
-
   const handleActivateContract = async (contractId) => {
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'activate' });
@@ -507,18 +501,26 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     }
   };
 
-  const handleFlagEviction = async (contractId) => {
+  // Flagging opens a dialog for the legal ground (RA 9653 Sec. 9); the server
+  // checks it and refuses arrears short of three months.
+  const handleFlagEviction = (contractId) => {
+    const target = contracts.find(c => c.id === contractId);
+    setGroundForm({ ground: target?.rentArrearsMonths >= 3 ? 'arrears' : '', noticeDate: '', interest: '' });
+    setFlagTarget(contractId);
+  };
+  const confirmFlag = async (details) => {
+    const contractId = flagTarget;
+    if (!groundForm.ground) throw new Error('Choose the legal ground.');
+    let res;
     try {
-      const res = await api.post('/update_contract_status.php', { contractId, action: 'flag' });
-      if (res.data.success) {
-        await refreshContract(contractId);
-      } else {
-        alert(res.data.message || 'Failed to flag contract for eviction.');
-      }
-    } catch(err) {
+      res = await api.post('/update_contract_status.php', { contractId, action: 'flag', ground: groundForm.ground, notice_date: groundForm.noticeDate, details });
+    } catch (err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to flag contract for eviction.'));
+      throw new Error(apiErrorMessage(err, 'Failed to flag contract for eviction.'), { cause: err });
     }
+    if (!res.data.success) throw new Error(res.data.message || 'Failed to flag contract for eviction.');
+    setFlagTarget(null);
+    await refreshContract(contractId);
   };
 
   const handleClearEviction = async (contractId) => {
@@ -541,20 +543,27 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   // prompt since it isn't reversible from this page.
   // The reason comes from ReasonModal (it used to be window.prompt()); a
   // failure is thrown so the modal shows it under the reason.
-  const handleTerminateContract = (contractId) => setTerminateTarget(contractId);
+  const handleTerminateContract = (contractId) => {
+    setGroundForm({ ground: '', noticeDate: '', interest: '' });
+    setTerminateTarget(contractId);
+  };
   const confirmTerminate = async (reason) => {
     const contractId = terminateTarget;
     const target = contracts.find(c => c.id === contractId);
-    const depositAtStake = !!target?.depositRefundable && target?.depositStatus === 'Held';
-    const waive = (terminateWaive[contractId] || '').trim();
+    if (!groundForm.ground) throw new Error('Choose the legal ground.');
+    const depositHeld = target?.depositStatus === 'Held';
     if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released.'
-      + (depositAtStake ? (waive ? ' What is left of the security deposit stays refundable.' : ' What is left of the security deposit is withheld.') : '')
+      + (depositHeld ? ' What is left of the security deposit after unpaid bills is returned to the tenant.' : '')
       + ' Continue?')) {
       return;
     }
     let res;
     try {
-      res = await api.post('/update_contract_status.php', { contractId, action: 'terminate', reason, waive_forfeiture_reason: (terminateWaive[contractId] || '').trim() });
+      res = await api.post('/update_contract_status.php', {
+        contractId, action: 'terminate', reason, details: reason,
+        ground: groundForm.ground, notice_date: groundForm.noticeDate,
+        deposit_interest: groundForm.interest === '' ? 0 : Number(groundForm.interest),
+      });
     } catch (err) {
       console.error(err);
       throw new Error(apiErrorMessage(err, 'Failed to terminate contract.'), { cause: err });
@@ -635,8 +644,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     <FontAwesomeIcon icon={faGavel} className="text-lg" />
                   </div>
                   <div>
-                    <h3 className="text-body font-bold text-red-800 m-0">⚠ Eviction Threshold Exceeded</h3>
-                    <p className="text-label text-red-700 m-0 mt-0.5">{evictionAlertContracts.length} tenant(s) have exceeded the {overdueThresholdDays}-day overdue payment threshold. Review and take action.</p>
+                    <h3 className="text-body font-bold text-red-800 m-0">⚠ Three Months of Rent Unpaid</h3>
+                    <p className="text-label text-red-700 m-0 mt-0.5">{evictionAlertContracts.length} tenant(s) owe rent totalling three months or more, a ground for eviction under RA 9653 Sec. 9. Only a court can order a tenant out.</p>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -646,7 +655,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                         <div className="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-label font-bold">{c.tenant.charAt(0)}</div>
                         <div>
                           <p className="text-body font-semibold text-slate-800 m-0">{c.tenant} · Unit {c.unit}</p>
-                          <p className="text-caption text-red-600 m-0 mt-0.5">{c.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(c.overdueInfo.outstandingAmount)}</p>
+                          <p className="text-caption text-red-600 m-0 mt-0.5">{c.rentArrearsMonths.toFixed(2)} months of rent unpaid{c.overdueInfo ? ` · Outstanding: ${formatCurrency(c.overdueInfo.outstandingAmount)}` : ''}</p>
                         </div>
                       </div>
                       <button onClick={() => handleFlagEviction(c.id)} className={btn('danger', 'sm')}>
@@ -658,10 +667,17 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               </div>
             )}
 
+            {followUpContracts.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-control px-4 py-2.5 flex items-center gap-2 text-label text-amber-800">
+                <FontAwesomeIcon icon={faClock} className="text-amber-600" />
+                <span><strong>{followUpContracts.length}</strong> tenant(s) are more than {overdueThresholdDays} days overdue: follow up on payment ({followUpContracts.map(c => `Unit ${c.unit}`).join(', ')}).</span>
+              </div>
+            )}
+
             {/* Doc completeness notice */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-control px-4 py-2.5 flex items-center gap-2 text-label text-indigo-700">
               <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
-              <span>All contracts require <strong>signed rent agreement</strong> and <strong>notarized copy</strong> to be uploaded. Eviction threshold: <strong>{overdueThresholdDays} days</strong> overdue.{docsIncompleteCount > 0 && <> <strong>{docsIncompleteCount} contract{docsIncompleteCount === 1 ? ' is' : 's are'} still missing documents.</strong></>}</span>
+              <span>All contracts require <strong>signed rent agreement</strong> and <strong>notarized copy</strong> to be uploaded. Payment follow-up after <strong>{overdueThresholdDays} days</strong> overdue; eviction only on an RA 9653 ground.{docsIncompleteCount > 0 && <> <strong>{docsIncompleteCount} contract{docsIncompleteCount === 1 ? ' is' : 's are'} still missing documents.</strong></>}</span>
             </div>
 
             {/* Toolbar */}
@@ -886,17 +902,35 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
         >
           {(() => {
             const target = contracts.find(c => c.id === terminateTarget);
-            if (!target?.depositRefundable || target?.depositStatus !== 'Held') return null;
             return (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                <p className="m-0 font-semibold">This contract&apos;s security deposit is refundable.</p>
-                <p className="m-0 mt-1">Terminating for cause withholds what is left of it after unpaid rent and bills. To keep it refundable anyway, give a reason (leave empty to withhold):</p>
-                <input type="text" maxLength={200} value={terminateWaive[terminateTarget] || ''} aria-label="Reason to keep the deposit refundable"
-                  onChange={(e) => setTerminateWaive((p) => ({ ...p, [terminateTarget]: e.target.value }))}
-                  className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm" />
-              </div>
+              <>
+                <EjectmentGroundFields value={groundForm} onChange={setGroundForm} allowMutual arrearsMonths={target?.rentArrearsMonths} />
+                {target?.depositStatus === 'Held' && (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                    <p className="m-0">The security deposit first covers unpaid bills; what is left is returned to the tenant (RA 9653 Sec. 7).</p>
+                    <label htmlFor="terminate-interest" className="mt-2 block text-xs font-semibold text-slate-700">Bank interest earned on the deposit (optional)</label>
+                    <input id="terminate-interest" type="number" inputMode="decimal" min={0} step="0.01" value={groundForm.interest}
+                      onChange={(e) => setGroundForm((p) => ({ ...p, interest: e.target.value }))}
+                      className="mt-1 w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                  </div>
+                )}
+              </>
             );
           })()}
+        </ReasonModal>
+      )}
+
+      {flagTarget && (
+        <ReasonModal
+          title="Flag for Eviction"
+          description="Records the legal ground and tells the tenant. Settling the unpaid rent, or clearing the flag, ends the review."
+          label="Details (order reference, what was found, notes)"
+          required={false}
+          confirmLabel="Flag for Eviction"
+          onConfirm={confirmFlag}
+          onClose={() => setFlagTarget(null)}
+        >
+          <EjectmentGroundFields value={groundForm} onChange={setGroundForm} arrearsMonths={contracts.find(c => c.id === flagTarget)?.rentArrearsMonths} />
         </ReasonModal>
       )}
 
@@ -992,26 +1026,12 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                 </div>
               )}
 
-              {/* Deposit terms: editable on a draft, fixed once the tenant has signed */}
-              <div className="bg-slate-50 border border-slate-200 rounded-card p-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-body font-bold text-slate-800 m-0">Security deposit: {selectedContract.depositRefundable ? 'refundable' : 'not refunded in cash'}</p>
-                  <p className="text-caption text-slate-500 m-0 mt-0.5">
-                    {selectedContract.depositRefundable
-                      ? 'What is left after deductions is returned at move-out, unless it is withheld (no notice, early exit, or termination for a breach).'
-                      : 'The deposit is applied to unpaid rent, bills and damage, and any remainder to the last month.'}
-                  </p>
-                </div>
-                {String(selectedContract.status).toLowerCase() === 'draft' && (
-                  <label className="flex items-center gap-2 text-label font-medium text-slate-700 shrink-0 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!selectedContract.depositRefundable}
-                      onChange={(e) => handleToggleDepositRefundable(selectedContract.id, e.target.checked)}
-                    />
-                    Refundable
-                  </label>
-                )}
+              {/* Deposit terms (RA 9653 Sec. 7): always returned, less itemized amounts */}
+              <div className="bg-slate-50 border border-slate-200 rounded-card p-4">
+                <p className="text-body font-bold text-slate-800 m-0">Security deposit: refundable</p>
+                <p className="text-caption text-slate-500 m-0 mt-0.5">
+                  At move-out it covers unpaid rent, utility bills and damage (each listed), plus rent for the notice days if the tenant left without notice. The rest, with any bank interest, is returned.
+                </p>
               </div>
 
               {/* Terminated contract banner */}
@@ -1259,23 +1279,28 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </div>
 
                   {/* Eviction Action Panel */}
-                  {selectedContract.overdueInfo && (
+                  {(selectedContract.overdueInfo || selectedContract.status === 'eviction-pending' || selectedContract.status === 'active') && (
                     <div className={`rounded-card border-2 p-5 space-y-3 ${selectedContract.status === 'eviction-pending' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
                       <div className="flex items-center gap-3">
                         <FontAwesomeIcon icon={faGavel} className={`text-xl ${selectedContract.status === 'eviction-pending' ? 'text-red-600' : 'text-amber-700'}`} />
                         <div>
                           <h4 className="text-body font-bold text-slate-800 m-0">
-                            {selectedContract.status === 'eviction-pending' ? '🚨 Eviction Flagged' : '⚠ Overdue Payment Detected'}
+                            {selectedContract.status === 'eviction-pending' ? '🚨 Eviction Flagged' : (selectedContract.overdueInfo ? '⚠ Overdue Payment Detected' : 'Eviction (RA 9653)')}
                           </h4>
                           <p className="text-caption text-slate-500 m-0 mt-0.5">
-                            {selectedContract.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(selectedContract.overdueInfo.outstandingAmount)} · Last payment: {selectedContract.overdueInfo.lastPaymentDate}
+                            {selectedContract.overdueInfo
+                              ? `${selectedContract.overdueInfo.daysOverdue} days overdue · ${selectedContract.rentArrearsMonths.toFixed(2)} months of rent unpaid · Outstanding: ${formatCurrency(selectedContract.overdueInfo.outstandingAmount)} · Last payment: ${selectedContract.overdueInfo.lastPaymentDate}`
+                              : 'No overdue rent. A flag needs another legal ground (sublease, owner use, condemnation or an expired term).'}
                           </p>
+                          {selectedContract.status === 'eviction-pending' && selectedContract.evictionGround && (
+                            <p className="text-caption text-red-700 m-0 mt-0.5">Ground: {(EJECTMENT_GROUND_LABELS[selectedContract.evictionGround] || selectedContract.evictionGround)}</p>
+                          )}
                         </div>
                       </div>
-                      {selectedContract.overdueInfo.daysOverdue >= overdueThresholdDays && (
-                        <div className="bg-white border border-red-200 rounded-control p-3 text-label text-red-700">
+                      {selectedContract.overdueInfo && selectedContract.overdueInfo.daysOverdue >= overdueThresholdDays && selectedContract.rentArrearsMonths < 3 && (
+                        <div className="bg-white border border-amber-200 rounded-control p-3 text-label text-amber-800">
                           <FontAwesomeIcon icon={faExclamationTriangle} className="mr-1.5" />
-                          This tenant has exceeded the <strong>{overdueThresholdDays}-day</strong> overdue payment threshold configured in System Settings.
+                          Past the <strong>{overdueThresholdDays}-day</strong> follow-up threshold. Arrears become a ground for eviction only once unpaid rent totals three months (RA 9653 Sec. 9).
                         </div>
                       )}
                       <div className="flex gap-2">

@@ -133,6 +133,16 @@ try {
             echo json_encode(['success' => false, 'message' => 'Monthly rent must be greater than 0.']);
             exit();
         }
+        // RA 9653: a tenant's rent changes only at renewal, where the yearly
+        // rent-control cap is checked (extend_tenancy()). The room rate is also
+        // the base apply_occupant_count() prices the tenancy from, so a change
+        // here would reach the tenant without that check. Same rule as
+        // apply_floor_rate.php: occupied or reserved units keep their rent.
+        if ($currentRoom['status'] !== 'vacant' && abs((float)$new_rent - (float)$currentRoom['monthly_rent']) > 0.001) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => "Unit $id has a tenant. Change the rent at renewal (Extend Rent), where the rent-control cap is checked."]);
+            exit();
+        }
         $floor_rate = floor_rate_for($conn, $currentRoom['floor']);
         $updateFields[] = "rent_is_custom = ?";
         $params[] = ($floor_rate === null || abs($floor_rate - (float)$new_rent) > 0.001) ? 1 : 0;

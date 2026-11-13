@@ -101,12 +101,48 @@ describe('update_contract_status.php', () => {
     expect((await contractOf(1)).status).not.toBe('eviction-pending');
   });
 
+  // RA 9653 Sec. 9: a flag names a legal ground; sublease needs a description.
+  const SUBLEASE = { ground: 'sublease', details: 'Bedspacer taken in without consent' };
+
+  it('refuses a flag without a valid RA 9653 ground', async () => {
+    await setStatus(cid, 'active');
+    expect((await act(admin, { contractId: cid, action: 'flag' })).status).toBe(422);
+    expect((await act(admin, { contractId: cid, action: 'flag', ground: 'late_once' })).status).toBe(422);
+    expect((await act(admin, { contractId: cid, action: 'flag', ground: 'sublease' })).status).toBe(422); // no details
+    // Arrears count only once unpaid rent totals three months.
+    await q("UPDATE invoices SET status = 'paid', amount_paid = total_amount WHERE rent_application_id = 1 AND status IN ('pending','overdue','unpaid')");
+    const arrears = await act(admin, { contractId: cid, action: 'flag', ground: 'arrears' });
+    expect(arrears.status).toBe(422);
+    expect(arrears.body.message).toMatch(/three months|3 months/);
+    // The owner's own use needs an expired term.
+    expect((await act(admin, { contractId: cid, action: 'flag', ground: 'owner_use', notice_date: ymd(-120) })).status).toBe(422);
+    expect((await contractOf(1)).status).toBe('active');
+  });
+
+  it('accepts arrears once three months of rent are overdue', async () => {
+    await setStatus(cid, 'active');
+    const rent = Number((await one('SELECT monthly_rent FROM rent_applications WHERE id = 1')).monthly_rent);
+    const ids = [];
+    for (let k = 1; k <= 3; k++) {
+      const id = `INV-RC-ARR-${k}`;
+      ids.push(id);
+      await q(`INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
+               VALUES (?, 2, 1, ?, ?, ?, 'overdue', DATE_SUB(CURDATE(), INTERVAL ? DAY))`, [id, rent, rent, `Arrears ${k}`, 30 * k]);
+    }
+    const res = await act(admin, { contractId: cid, action: 'flag', ground: 'arrears' });
+    expect(res.body.success).toBe(true);
+    expect(await contractOf(1)).toMatchObject({ status: 'eviction-pending', eviction_ground: 'arrears' });
+    expect((await act(admin, { contractId: cid, action: 'clear' })).body.success).toBe(true);
+    await q(`DELETE FROM invoices WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+  });
+
   it('flags and clears an eviction review, only from the right state', async () => {
     await setStatus(cid, 'active');
+    await q("DELETE FROM notifications WHERE user_id = 2 AND title = 'Rent Contract Under Eviction Review'");
     expect((await act(admin, { contractId: cid, action: 'clear' })).status).toBe(422); // nothing to clear
-    expect((await act(admin, { contractId: cid, action: 'flag' })).body.success).toBe(true);
-    expect((await contractOf(1))).toMatchObject({ status: 'eviction-pending', eviction_status: 'flagged' });
-    expect((await act(admin, { contractId: cid, action: 'flag' })).status).toBe(422); // already flagged
+    expect((await act(admin, { contractId: cid, action: 'flag', ...SUBLEASE })).body.success).toBe(true);
+    expect((await contractOf(1))).toMatchObject({ status: 'eviction-pending', eviction_status: 'flagged', eviction_ground: 'sublease' });
+    expect((await act(admin, { contractId: cid, action: 'flag', ...SUBLEASE })).status).toBe(422); // already flagged
     expect((await one("SELECT COUNT(*) AS n FROM notifications WHERE user_id = 2 AND title = 'Rent Contract Under Eviction Review'")).n).toBe(1);
     expect((await act(admin, { contractId: cid, action: 'clear' })).body.success).toBe(true);
     expect((await contractOf(1))).toMatchObject({ status: 'active', eviction_status: null });
@@ -184,7 +220,8 @@ describe('update_contract_status.php', () => {
 
   it('two simultaneous flags settle exactly once', async () => {
     await setStatus(cid, 'active');
-    const [a, b] = await Promise.all([act(admin, { contractId: cid, action: 'flag' }), act(admin, { contractId: cid, action: 'flag' })]);
+    const flag = { contractId: cid, action: 'flag', ground: 'sublease', details: 'Bedspacer taken in without consent' };
+    const [a, b] = await Promise.all([act(admin, flag), act(admin, flag)]);
     expect([a.status, b.status].filter((s) => s === 200)).toHaveLength(1);
     expect([a.status, b.status].find((s) => s !== 200)).toBeGreaterThanOrEqual(409); // 409 lost the race, 422 saw the new state
     expect((await contractOf(1)).status).toBe('eviction-pending');
@@ -202,9 +239,10 @@ describe('update_contract_status.php terminate', () => {
     expect((await contractOf(3)).status).toBe('active');
 
     const reason = "Zoë's unit — breach <b>of</b> rules 😀";
-    const res = await act(admin, { contractId: cid, action: 'terminate', reason });
+    expect((await act(admin, { contractId: cid, action: 'terminate', reason })).status).toBe(422); // no ground
+    const res = await act(admin, { contractId: cid, action: 'terminate', reason, ground: 'mutual' });
     expect(res.body.success).toBe(true);
-    expect(await contractOf(3)).toMatchObject({ status: 'terminated', termination_reason: reason });
+    expect(await contractOf(3)).toMatchObject({ status: 'terminated', termination_reason: reason, eviction_ground: 'mutual' });
     expect(await appStatus(3)).toBe('moved-out');
     expect((await one("SELECT status FROM rooms WHERE id = (SELECT room_name FROM rent_applications WHERE id = 3)")).status).not.toBe('occupied');
     expect((await one("SELECT COUNT(*) AS n FROM notifications WHERE user_id = 5 AND title = 'Rent Contract Terminated'")).n).toBe(1);

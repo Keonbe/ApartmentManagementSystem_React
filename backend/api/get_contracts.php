@@ -118,6 +118,18 @@ if (!empty($user_id)) {
         }
     }
 
+    // Unpaid rent on past-due rent invoices per tenancy, for the RA 9653
+    // arrears ground (three months in total). Same rule as rent_arrears_months().
+    $rent_owed_by_app = [];
+    $arrears_res = $conn->query("SELECT i.rent_application_id, SUM(LEAST(i.base_rent, " . invoice_balance_sql('i') . ")) AS owed
+                                 FROM invoices i WHERE i.rent_application_id IS NOT NULL AND i.base_rent > 0 AND " . invoice_owed_where_sql('i', true) . "
+                                 GROUP BY i.rent_application_id");
+    if ($arrears_res) {
+        while ($row = $arrears_res->fetch_assoc()) {
+            $rent_owed_by_app[(int)$row['rent_application_id']] = max(0.0, (float)$row['owed']);
+        }
+    }
+
     $last_payment_by_user = [];
     $paid_res = $conn->query("SELECT user_id, MAX(paid_at) AS last_paid_at FROM invoices WHERE status = 'paid' GROUP BY user_id");
     if ($paid_res) {
@@ -133,6 +145,8 @@ if (!empty($user_id)) {
     $today = new DateTime(date('Y-m-d'));
     foreach ($contracts as &$c) {
         $c['deposit_items'] = $deductions_by_app[(int)($c['rent_application_id'] ?? 0)] ?? [];
+        $owed_rent = $rent_owed_by_app[(int)($c['rent_application_id'] ?? 0)] ?? 0.0;
+        $c['rent_arrears_months'] = (float)($c['monthly_rent'] ?? 0) > 0 ? round($owed_rent / (float)$c['monthly_rent'], 2) : 0.0;
         $uid = isset($c['user_id']) ? (int)$c['user_id'] : null;
         if ($uid !== null && isset($overdue_by_user[$uid])) {
             $info = $overdue_by_user[$uid];
