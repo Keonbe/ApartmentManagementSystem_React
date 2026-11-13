@@ -51,7 +51,7 @@ function AnnouncementCard({ item, isNew, t }) {
                     <h3 className="user-announcements-item-title m-0 text-base font-bold text-slate-900 sm:text-lg">{item.title}</h3>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${type.chip}`}>{t(`announcements.type.${type.key}`)}</span>
-                        <time className="text-xs text-slate-400" dateTime={stamp.toISOString()}>{dateText}</time>
+                        <time className="text-xs text-slate-600" dateTime={stamp.toISOString()}>{dateText}</time>
                         {pinned && (
                             <span className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700">
                                 <FontAwesomeIcon icon={faThumbtack} aria-hidden="true" /> {t('announcements.pinned')}
@@ -176,7 +176,7 @@ export default function UserAnnouncements() {
                 <header className="mb-6 border-b border-slate-200 pb-5">
                     <a href="/my-room" className="group mb-2 inline-flex items-center gap-1.5 py-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800">
                         <FontAwesomeIcon icon={faChevronLeft} className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-                        <span>Back to My Room</span>
+                        <span>{t('common.backToMyRoom')}</span>
                     </a>
                     <h1 className="user-announcements-heading m-0 flex items-center gap-3 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
                         <FontAwesomeIcon icon={faBullhorn} className="text-xl text-indigo-600 sm:text-2xl" aria-hidden="true" />
@@ -263,7 +263,7 @@ export default function UserAnnouncements() {
                                     {monthKeys.map((key) => (
                                         <section key={key} aria-label={monthLabel(key)}>
                                             <div className="my-4 flex items-center gap-3">
-                                                <span className="whitespace-nowrap text-xs font-bold uppercase tracking-wider text-slate-400">{monthLabel(key)}</span>
+                                                <span className="whitespace-nowrap text-xs font-bold uppercase tracking-wider text-slate-600">{monthLabel(key)}</span>
                                                 <div className="h-px w-full bg-slate-200" />
                                             </div>
                                             <ul className="m-0 list-none p-0">

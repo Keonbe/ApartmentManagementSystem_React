@@ -59,7 +59,7 @@ export default function UserPaymentHistory() {
         });
     };
 
-    const { invoices, loaded } = useInvoiceWatch({ onTransition: handleTransitions });
+    const { invoices, loaded, loadError, refresh } = useInvoiceWatch({ onTransition: handleTransitions });
     const loading = !loaded;
 
     const buildReceipt = (inv) => {
@@ -287,6 +287,13 @@ export default function UserPaymentHistory() {
                             </div>
                         </div>
                     </SkeletonGroup>
+                ) : loadError && invoices.length === 0 ? (
+                    <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-rose-200">
+                        <p className="m-0 text-sm font-semibold text-rose-800">{t('common.loadFailed')}</p>
+                        <button type="button" onClick={refresh} className="mt-4 min-h-[44px] px-5 rounded-xl bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-50">
+                            {t('common.retry')}
+                        </button>
+                    </div>
                 ) : invoices.length === 0 ? (
                     <div className="animate-fade-in-up p-12 text-center bg-white rounded-2xl border border-slate-200">
                         <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-4xl text-slate-300 mb-4" aria-hidden="true" />

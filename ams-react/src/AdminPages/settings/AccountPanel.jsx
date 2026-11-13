@@ -149,7 +149,7 @@ export default function AccountPanel({
             <button
               type="submit"
               disabled={savingPassword}
-              className="btn-interactive bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-control text-body transition-all shadow-card flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
+              className="btn-interactive bg-amber-700 hover:bg-amber-800 text-white font-bold px-6 py-2.5 rounded-control text-body transition-all shadow-card flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
             >
               <FontAwesomeIcon icon={savingPassword ? faSpinner : faSave} className={savingPassword ? 'animate-spin' : ''} />
               {savingPassword ? 'Updating…' : 'Update Password'}

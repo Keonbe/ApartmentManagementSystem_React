@@ -370,8 +370,8 @@ const AdminApplications = () => {
       />
     ) : (
       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 shadow-inner ${
-        app.status === 'Pending Review' || app.status === 'Pending Deposit' ? 'bg-indigo-500' :
-        app.status === 'active' || app.status === 'Approved' ? 'bg-emerald-500' : 'bg-red-500'
+        app.status === 'Pending Review' || app.status === 'Pending Deposit' ? 'bg-indigo-600' :
+        app.status === 'active' || app.status === 'Approved' ? 'bg-emerald-700' : 'bg-red-600'
       }`}>
         {getInitials(app.name)}
       </div>
@@ -438,7 +438,7 @@ const AdminApplications = () => {
               />
             ) : (
               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 shadow-inner ${
-                isPending ? 'bg-indigo-500' : app.status === 'active' || app.status === 'Approved' ? 'bg-emerald-500' : 'bg-red-500'
+                isPending ? 'bg-indigo-600' : app.status === 'active' || app.status === 'Approved' ? 'bg-emerald-700' : 'bg-red-600'
               }`}>
                 {getInitials(app.name)}
               </div>

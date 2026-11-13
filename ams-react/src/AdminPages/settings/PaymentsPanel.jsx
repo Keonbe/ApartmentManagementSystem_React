@@ -139,7 +139,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           </WithUnit>
         </Field>
 
-        <Field label="Overdue Payment Threshold" htmlFor="setting-overdueThresholdDays" icon={faDollarSign} hint="Tenants past this threshold are listed for eviction review on the Contracts page.">
+        <Field label="Overdue Follow-Up After" htmlFor="setting-overdueThresholdDays" icon={faDollarSign} hint="Tenants past this many days overdue are listed for a payment follow-up on the Contracts page.">
           <WithUnit suffix="days overdue">
             <input
               id="setting-overdueThresholdDays" name="overdueThresholdDays"
@@ -152,9 +152,11 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           </WithUnit>
         </Field>
 
-        <Callout tone="rose" icon={faInfoCircle} title="Active Eviction Policy">
-          Tenants overdue more than <strong>{settings.overdueThresholdDays} days</strong> appear in the eviction
-          banner on the Contracts page, where you can flag them for review. Flagging is never automatic.
+        <Callout tone="rose" icon={faInfoCircle} title="Eviction Policy (RA 9653)">
+          Tenants overdue more than <strong>{settings.overdueThresholdDays} days</strong> are listed for a payment
+          follow-up. Unpaid rent becomes a ground for eviction only once it totals three months (RA 9653 Sec. 9);
+          those tenants appear in the eviction banner on the Contracts page. Flagging is never automatic, and only a
+          court can order a tenant out.
         </Callout>
       </SettingsSection>
 
@@ -187,7 +189,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                 />
                 <span>
                   <span className="text-body font-semibold text-slate-700 block">{mode.label}</span>
-                  <span className="text-caption text-slate-500">{mode.hint}</span>
+                  <span className="text-caption text-slate-600">{mode.hint}</span>
                 </span>
               </label>
             ))}
@@ -346,7 +348,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                       <div className="w-full h-36 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 flex flex-col items-center justify-center text-slate-400 p-3 text-center">
                         <FontAwesomeIcon icon={faQrcode} className="text-3xl text-slate-300 mb-1" />
                         <span className="text-xs font-medium text-slate-500">No QR Code Uploaded</span>
-                        <span className="text-[10px] text-slate-400">Upload a static QR Ph image</span>
+                        <span className="text-[10px] text-slate-600">Upload a static QR Ph image</span>
                       </div>
                     )}
 
@@ -418,7 +420,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
                   </div>
                 </div>
 
-                <div className="pt-3 mt-3 border-t border-slate-100 text-[10px] text-slate-400 text-center">
+                <div className="pt-3 mt-3 border-t border-slate-100 text-[10px] text-slate-600 text-center">
                   {slot.image_path ? 'Ready to display when active' : 'No image uploaded'}
                 </div>
               </div>

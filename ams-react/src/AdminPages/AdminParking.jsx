@@ -36,8 +36,8 @@ function SlotTile({ slot, onEdit, onRemove }) {
   const taken = !!slot.occupant;
   const maintenance = slot.status === 'maintenance';
   const tone = maintenance
-    ? 'border-slate-200 bg-slate-50 text-slate-400'
-    : taken ? 'border-rose-200 bg-rose-50 text-rose-500' : 'border-emerald-200 bg-emerald-50 text-emerald-600';
+    ? 'border-slate-200 bg-slate-50 text-slate-600'
+    : taken ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700';
   return (
     <div className="group relative">
       <button

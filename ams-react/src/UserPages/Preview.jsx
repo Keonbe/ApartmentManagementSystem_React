@@ -146,7 +146,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                             ) : (
                                 loading
                                     ? <Bone className="h-7 w-20 rounded-full" />
-                                    : <span className="text-sm font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{t('preview.units').replace('{n}', rooms.length)}</span>
+                                    : <span className="text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">{t('preview.units').replace('{n}', rooms.length)}</span>
                             )}
                             {list.length > 1 && (
                                 <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">

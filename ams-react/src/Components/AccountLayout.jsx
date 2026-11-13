@@ -49,7 +49,7 @@ export default function AccountLayout({ hasRentedRoom, children }) {
                     className="group mb-3 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                 >
                     <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-                    <span>Back to My Room</span>
+                    <span>{t('common.backToMyRoom')}</span>
                 </Link>
             </div>
             <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start text-left">

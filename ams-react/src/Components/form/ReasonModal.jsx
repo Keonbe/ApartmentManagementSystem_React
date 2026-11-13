@@ -120,7 +120,7 @@ export default function ReasonModal({
         {hasOptions && (
           <>
             <label htmlFor="reason-modal-choice" className="mt-4 block text-sm font-semibold text-slate-700">
-              {label}{required && <span className="text-red-500"> *</span>}
+              {label}{required && <span className="text-red-600"> *</span>}
             </label>
             <select
               id="reason-modal-choice"
@@ -156,7 +156,7 @@ export default function ReasonModal({
               </div>
             )}
             <label htmlFor="reason-modal-text" className="mt-4 block text-sm font-semibold text-slate-700">
-              {hasOptions ? 'Please specify' : label}{required && (error || (attemptedSubmit && !reason.trim())) ? <span className="text-red-500"> *</span> : null}
+              {hasOptions ? 'Please specify' : label}{required && (error || (attemptedSubmit && !reason.trim())) ? <span className="text-red-600"> *</span> : null}
             </label>
             <textarea
               id="reason-modal-text"

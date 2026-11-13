@@ -82,7 +82,7 @@ export default function UserUtilities() {
               className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
               <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-              <span>Back to My Room</span>
+              <span>{t('common.backToMyRoom')}</span>
             </Link>
             <h1 className="text-2xl sm:text-3xl font-black m-0 tracking-tight text-brand">
               {t('utilities.title')}

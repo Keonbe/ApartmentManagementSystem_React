@@ -209,13 +209,13 @@ export default function UserMyRequests() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span className="text-xs font-bold text-slate-700">{typeLabel(req.type)}</span>
-                                                <span className="text-xs text-slate-300">•</span>
+                                                <span className="text-xs text-slate-300" aria-hidden="true">•</span>
                                                 <span className="text-xs font-medium text-slate-500">
                                                     {t('myRequests.submitted')} {formatStamp(req.created_at)}
                                                 </span>
                                                 {req.resolved_at && (
                                                     <>
-                                                        <span className="text-xs text-slate-300">•</span>
+                                                        <span className="text-xs text-slate-300" aria-hidden="true">•</span>
                                                         <span className="text-xs font-semibold text-emerald-600">
                                                             {t('myRequests.resolved')} {formatStamp(req.resolved_at)}
                                                         </span>
@@ -376,7 +376,7 @@ export default function UserMyRequests() {
                         className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                     >
                         <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-                        <span>Back to My Room</span>
+                        <span>{t('common.backToMyRoom')}</span>
                     </Link>
                     <h1 className="my-requests-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand">
                         {t('myRequests.heading')}

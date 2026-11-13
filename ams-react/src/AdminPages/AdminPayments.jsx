@@ -1609,11 +1609,11 @@ const handleMarkAsPaid = async () => {
                     </div>
                     <div className="bg-orange-50 border border-orange-100 rounded-control p-3 text-center">
                       <p className="text-body lg:text-title font-bold text-orange-700 m-0">{formatCurrency(agingData.days30)}</p>
-                      <p className="text-caption text-orange-600 font-semibold m-0 mt-0.5">16–30 Days</p>
+                      <p className="text-caption text-orange-700 font-semibold m-0 mt-0.5">16–30 Days</p>
                     </div>
                     <div className="bg-red-50 border border-red-100 rounded-control p-3 text-center">
                       <p className="text-body lg:text-title font-bold text-red-700 m-0">{formatCurrency(agingData.days60plus)}</p>
-                      <p className="text-caption text-red-600 font-semibold m-0 mt-0.5">60+ Days</p>
+                      <p className="text-caption text-red-700 font-semibold m-0 mt-0.5">60+ Days</p>
                     </div>
                   </div>
                   {/* Aging visual bar */}
@@ -1649,7 +1649,7 @@ const handleMarkAsPaid = async () => {
                             </div>
                             <div className="flex justify-between mt-0.5">
                               <span className="text-caption text-slate-500">{paidCount} payments recorded</span>
-                              {(t.outstandingBalance || 0) > 0 && <span className="text-caption text-red-600 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
+                              {(t.outstandingBalance || 0) > 0 && <span className="text-caption text-red-700 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
                             </div>
                           </div>
                         </div>

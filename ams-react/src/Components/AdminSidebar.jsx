@@ -257,7 +257,7 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
       )}
       {!mobile && !narrow && (
         <div className="shrink-0 border-t border-slate-800 p-3">
-          <p className="m-0 mb-2 px-1 text-caption font-medium text-slate-500">Sidebar</p>
+          <p className="m-0 mb-2 px-1 text-caption font-medium text-slate-400">Sidebar</p>
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-800/70 p-1" role="radiogroup" aria-label="Sidebar behaviour">
             {MODES.map((m) => (
               <button

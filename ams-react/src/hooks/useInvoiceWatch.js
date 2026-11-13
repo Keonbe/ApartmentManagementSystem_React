@@ -23,6 +23,8 @@ const WATCH_POLL_MS = 20000;
 export default function useInvoiceWatch({ onTransition, onFirstLoad } = {}) {
   const [invoices, setInvoices] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  // The last fetch failed: an empty list then means "unknown", not "nothing owed".
+  const [loadError, setLoadError] = useState(false);
   const previous = useRef(null); // Map of invoice id → status from the last fetch
   const onTransitionRef = useRef(onTransition);
   const onFirstLoadRef = useRef(onFirstLoad);
@@ -37,7 +39,7 @@ export default function useInvoiceWatch({ onTransition, onFirstLoad } = {}) {
     if (!user.id) return;
     try {
       const res = await api.get(`/get_invoices.php?userId=${user.id}`);
-      if (!res.data.success) return;
+      if (!res.data.success) { setLoadError(true); return; }
       const list = res.data.invoices || [];
 
       const before = previous.current;
@@ -61,8 +63,10 @@ export default function useInvoiceWatch({ onTransition, onFirstLoad } = {}) {
 
       previous.current = new Map(list.map((invoice) => [invoice.id, invoice.status]));
       setInvoices(list);
+      setLoadError(false);
     } catch (err) {
       console.error('Failed to load invoices:', err);
+      setLoadError(true);
     } finally {
       setLoaded(true);
     }
@@ -85,5 +89,5 @@ export default function useInvoiceWatch({ onTransition, onFirstLoad } = {}) {
     return () => clearInterval(timer);
   }, [watching, refresh]);
 
-  return { invoices, loaded, refresh, watching };
+  return { invoices, loaded, loadError, refresh, watching };
 }

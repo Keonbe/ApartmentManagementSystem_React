@@ -167,7 +167,7 @@ function BiInput({ id, label, value, onChange, multiline = false, rows = 3, max,
 
   return (
     <div className="flex flex-col gap-1.5">
-      {label && <span className="text-body font-semibold text-slate-700">{label}{required && <span className="text-red-500"> *</span>}</span>}
+      {label && <span className="text-body font-semibold text-slate-700">{label}{required && <span className="text-red-600"> *</span>}</span>}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {box('en')}
         {box('tl')}

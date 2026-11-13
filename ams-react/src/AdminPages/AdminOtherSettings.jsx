@@ -197,7 +197,7 @@ const AdminOtherSettings = () => {
             {/* Structured Category Navigation Card */}
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-4 border-b border-slate-100">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
                   Settings Modules
                 </span>
                 {isDirty && (

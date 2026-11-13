@@ -139,7 +139,7 @@ export default function MaintenanceRequest() {
                         className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                     >
                         <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-                        <span>Back to Services</span>
+                        <span>{t('common.backToServices')}</span>
                     </Link>
                     <h1
                         className="maintenance-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-brand"
@@ -287,7 +287,7 @@ export default function MaintenanceRequest() {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="maintenance-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="maintenance-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-emerald-700 hover:bg-emerald-800 hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {isSubmitting ? 'Submitting…' : t('maintenance.submit')}
                         </button>

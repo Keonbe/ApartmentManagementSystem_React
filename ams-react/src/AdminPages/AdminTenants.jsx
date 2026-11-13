@@ -82,8 +82,8 @@ const AdminTenants = () => {
   // Move-out inspection & clearance states
   const [showClearanceModal, setShowClearanceModal] = useState(false);
   const [clearanceTarget, setClearanceTarget] = useState(null);
-  // Reason for keeping a refundable deposit refundable although it would be withheld (sent as waive_forfeiture_reason).
-  const [waiveReason, setWaiveReason] = useState('');
+  // Bank interest the deposit earned, returned with it at clearance (RA 9653 Sec. 7).
+  const [depositInterest, setDepositInterest] = useState('');
   // Itemized deductions for the clearance: [{key, category, reason, amount}].
   const [deductionLines, setDeductionLines] = useState([]);
   const [deductionErrors, setDeductionErrors] = useState([]);
@@ -158,7 +158,7 @@ const AdminTenants = () => {
     setDeductionLines([]);
     setDeductionErrors([]);
     setDamageNotes('');
-    setWaiveReason('');
+    setDepositInterest('');
     setShowProfileModal(false);
     tenantForms.setErrors({});
     setShowClearanceModal(true);
@@ -214,16 +214,10 @@ const AdminTenants = () => {
   const clearanceDeposit = clearanceTarget?.depositHeld ? Number(clearanceTarget.depositAmount) || 0 : 0;
   // Mirrors settle_deposit() in config.php for the preview; the server decides.
   const clearanceOwed = Number(clearanceTarget?.outstandingBalance) || 0;
-  const clearanceRefundable = !!clearanceTarget?.depositRefundable && clearanceDeposit > 0;
-  const clearanceRemaining = Math.max(0, Math.round((clearanceDeposit - deductionTotal - clearanceOwed) * 100) / 100);
-  const forfeitReasons = [];
-  if (clearanceRefundable && clearanceTarget) {
-    if (clearanceTarget.status === 'active') forfeitReasons.push('No move-out notice was given');
-    const leaves = clearanceTarget.requestedMoveOutDate || new Date().toISOString().slice(0, 10);
-    const leaseEnd = String(clearanceTarget.leaseEnd || '').slice(0, 10);
-    if (leaseEnd && leaves < leaseEnd) forfeitReasons.push(`Moves out before the rent end date (${leaseEnd})`);
-  }
-  const forfeiting = forfeitReasons.length > 0 && !waiveReason.trim();
+  // RA 9653 Sec. 7: the deposit (plus any bank interest) covers only what is
+  // owed and itemized; the rest is always returned.
+  const clearanceInterest = clearanceDeposit > 0 ? Math.max(0, money(depositInterest)) : 0;
+  const clearanceRemaining = Math.max(0, Math.round((clearanceDeposit + clearanceInterest - deductionTotal - clearanceOwed) * 100) / 100);
 
   const handleConfirmClearance = async () => {
     if (!clearanceTarget || savingAction) return;
@@ -247,7 +241,7 @@ const AdminTenants = () => {
         status: 'moved-out',
         deductions: lines.map((l) => ({ category: l.category, reason: l.reason, amount: Math.round(money(l.amount) * 100) / 100 })),
         damage_notes: notes,
-        waive_forfeiture_reason: waiveReason.trim(),
+        deposit_interest: clearanceInterest,
         clearance_notes: summaryNotes
       });
 
@@ -511,7 +505,7 @@ const AdminTenants = () => {
     t.status === 'archived' ? (
       <div>
         <div>Archived: {t.archiveDate}</div>
-        <div className="text-caption text-violet-500 font-semibold">{t.archiveReason}</div>
+        <div className="text-caption text-violet-700 font-semibold">{t.archiveReason}</div>
       </div>
     ) : t.status === 'Pending Review' ? (
       <span className="text-slate-500">Move-in date pending</span>
@@ -749,7 +743,7 @@ const AdminTenants = () => {
                   <p className="text-label text-slate-500 m-0 mt-0.5">
                     Unit {selectedTenant.unit} · {getOccupancyBadge(selectedTenant.status)}
                     {selectedTenant.status === 'archived' && (
-                      <span className="ml-2 text-caption text-violet-500 font-semibold">Read-Only</span>
+                      <span className="ml-2 text-caption text-violet-700 font-semibold">Read-Only</span>
                     )}
                   </p>
                 </div>
@@ -1293,26 +1287,17 @@ const AdminTenants = () => {
                         <span className="font-semibold">-₱{clearanceOwed.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                       </div>
                     )}
-                    {clearanceRefundable ? (
+                    {clearanceDeposit > 0 && (
                       <div className="rounded-control bg-white border border-indigo-100 p-3 space-y-1.5 mt-1">
-                        <p className="m-0 text-label font-semibold text-indigo-900">This deposit is refundable.</p>
-                        {forfeitReasons.length > 0 && (
-                          <>
-                            <ul className="m-0 pl-4 text-caption text-amber-800">
-                              {forfeitReasons.map((r) => <li key={r}>{r}</li>)}
-                            </ul>
-                            <label htmlFor="waive-reason" className="block text-caption text-slate-600">Keep it refundable anyway? Give a reason (leave empty to withhold the rest of the deposit):</label>
-                            <input id="waive-reason" type="text" maxLength={200} value={waiveReason} onChange={(e) => setWaiveReason(e.target.value)}
-                              className="w-full rounded-control border border-slate-300 px-3 py-2 text-body" />
-                          </>
-                        )}
-                        <div className={`flex justify-between font-bold text-body ${forfeiting ? 'text-red-700' : 'text-emerald-700'}`}>
-                          <span>{forfeiting ? 'Deposit withheld:' : 'To be refunded to the tenant:'}</span>
+                        <p className="m-0 text-caption text-slate-600">The deposit covers only unpaid bills and the itemized deductions above; the rest is returned to the tenant (RA 9653 Sec. 7).</p>
+                        <label htmlFor="deposit-interest" className="block text-caption text-slate-600">Bank interest earned on the deposit (returned with it, optional):</label>
+                        <input id="deposit-interest" type="number" inputMode="decimal" min={0} step="0.01" value={depositInterest} onChange={(e) => setDepositInterest(e.target.value)}
+                          className="w-40 rounded-control border border-slate-300 px-3 py-2 text-body" />
+                        <div className="flex justify-between font-bold text-body text-emerald-700">
+                          <span>To be refunded to the tenant:</span>
                           <span>₱{clearanceRemaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                       </div>
-                    ) : (
-                      <p className="m-0 text-caption text-slate-500">This deposit is not refunded in cash: it is applied to what is owed.</p>
                     )}
                   </div>
                 </div>

@@ -388,7 +388,7 @@ const AdminNotifications = () => {
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleProcessRequest(n.id, 'reject'); }}
                                 disabled={processingId === n.id}
-                                className="bg-red-50 hover:bg-red-100 text-red-600 font-bold text-label px-3.5 py-1.5 rounded-control border border-red-200 cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-50"
+                                className="bg-red-50 hover:bg-red-100 text-red-700 font-bold text-label px-3.5 py-1.5 rounded-control border border-red-200 cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-50"
                               >
                                 <FontAwesomeIcon icon={faTimesCircle} /> Reject
                               </button>

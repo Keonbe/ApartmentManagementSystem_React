@@ -161,7 +161,7 @@ export default function PayBills() {
         if (events.some(e => e.invoice?.advance_months)) loadAdvance();
     };
 
-    const { invoices, loaded, refresh } = useInvoiceWatch({ onTransition: handleTransitions, onFirstLoad: handleFirstLoad });
+    const { invoices, loaded, loadError, refresh } = useInvoiceWatch({ onTransition: handleTransitions, onFirstLoad: handleFirstLoad });
 
     // The bill on screen: the earliest-due invoice the tenant still has to pay;
     // failing that, the earliest one awaiting confirmation (shown read-only).
@@ -677,7 +677,7 @@ export default function PayBills() {
                             className="group mb-2 -ml-0.5 inline-flex min-h-[44px] items-center gap-1.5 py-1 text-sm font-medium text-slate-500 no-underline transition-colors hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                         >
                             <FontAwesomeIcon icon={faChevronLeft} className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />
-                            <span>Back to My Room</span>
+                            <span>{t('common.backToMyRoom')}</span>
                         </Link>
                         <h1 className="pay-bills-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-slate-900">
                             {payingGroup ? groupWord : t('payBills.heading')}
@@ -732,7 +732,15 @@ export default function PayBills() {
                 )}
 
                 {loaded && !activeInv && !openBundle && (
-                    hasCancelledApp ? (
+                    loadError && invoices.length === 0 ? (
+                        // The fetch failed: say so rather than "all paid up".
+                        <InlineAlert>
+                            {t('common.loadFailed')}{' '}
+                            <button type="button" onClick={refresh} className="ml-1 min-h-[36px] px-3 rounded-lg bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-100 transition-colors">
+                                {t('common.retry')}
+                            </button>
+                        </InlineAlert>
+                    ) : hasCancelledApp ? (
                         <Banner tone="slate" icon={faTimesCircle} title="Application Cancelled">
                             Your application has been cancelled. Any open bills associated with this application were voided and no payment is required.
                         </Banner>

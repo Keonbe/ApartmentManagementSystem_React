@@ -161,7 +161,7 @@ export default function Services() {
                 <div className="relative pb-6 border-b border-slate-200">
                     <Link className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors mb-2 py-1 -ml-0.5 group" to="/my-room">
                         <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                        <span>Back to My Room</span>
+                        <span>{t('common.backToMyRoom')}</span>
                     </Link>
                     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
                         <div className="space-y-2">

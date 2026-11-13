@@ -226,7 +226,7 @@ const AdminDashboard = () => {
                         role="tab"
                         aria-selected={lowerTab === tab.id}
                         onClick={() => setLowerTab(tab.id)}
-                        className={`touch-compact px-3 py-1.5 rounded-control cursor-pointer border-0 transition-all flex items-center gap-1.5 ${lowerTab === tab.id ? 'bg-white text-indigo-700 shadow-card' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`touch-compact px-3 py-1.5 rounded-control cursor-pointer border-0 transition-all flex items-center gap-1.5 ${lowerTab === tab.id ? 'bg-white text-indigo-700 shadow-card' : 'bg-transparent text-slate-600 hover:text-slate-800'}`}
                       >
                         <FontAwesomeIcon icon={tab.icon} />
                         <span>{tab.label}</span>

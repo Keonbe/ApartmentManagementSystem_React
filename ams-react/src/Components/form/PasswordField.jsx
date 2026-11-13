@@ -28,7 +28,7 @@ export default function PasswordField({
   return (
     <div className="flex flex-col space-y-1.5">
       <label htmlFor={a11y.id} className={labelClassName}>
-        {label}{required && <span className="text-red-500"> *</span>}
+        {label}{required && <span className="text-red-600"> *</span>}
       </label>
       <div className="relative">
         <input

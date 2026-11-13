@@ -54,7 +54,7 @@ function FormField({ id, label, optional, error, className = '', children }) {
         <div className={`flex flex-col gap-1.5 min-w-0 ${className}`}>
             <label htmlFor={id} className="flex items-baseline justify-between gap-2 text-sm font-bold text-slate-700">
                 <span>{label}</span>
-                {optional && <span className="text-xs font-medium text-slate-400">{optional}</span>}
+                {optional && <span className="text-xs font-medium text-slate-600">{optional}</span>}
             </label>
             {children}
             <FieldError id={id} error={error} className="m-0" />
@@ -574,7 +574,7 @@ export default function ProfileSettings() {
 
                     {/* Account: documents and password, each opens a dialog */}
                     <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm p-2 sm:p-3">
-                        <h3 className="m-0 px-3 sm:px-5 pt-3 pb-2 text-xs font-bold uppercase tracking-wider text-slate-400">{t('profile.accountSection')}</h3>
+                        <h3 className="m-0 px-3 sm:px-5 pt-3 pb-2 text-xs font-bold uppercase tracking-wider text-slate-600">{t('profile.accountSection')}</h3>
                         <div className="profile-actions-grid divide-y divide-slate-100">
                             {[
                                 { icon: faFileAlt, title: t('profile.verificationDocs'), hint: t('profile.docsHint'), onClick: () => setShowDocsModal(true) },
