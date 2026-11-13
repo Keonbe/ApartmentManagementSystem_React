@@ -162,7 +162,9 @@ export default function UserPaymentHistory() {
     const isOpen = (i) => PAYABLE_STATUSES.includes(i.status) || AWAITING_STATUSES.includes(i.status);
     const openBills = invoices.filter(isOpen).sort(byDue);
     const payable = openBills.filter((i) => PAYABLE_STATUSES.includes(i.status));
-    const toPayTotal = payable.reduce((s, i) => s + owedOf(i), 0);
+    // An unpaid advance-rent invoice is an optional prepayment, not a debt: left out of the owed total.
+    const owedBills = payable.filter((i) => i.advance_months == null);
+    const toPayTotal = owedBills.reduce((s, i) => s + owedOf(i), 0);
     const paidBills = invoices.filter((i) => i.status === 'paid');
     const otherBills = invoices.filter((i) => !isOpen(i) && i.status !== 'paid');
     const lastPaid = paidBills.filter((i) => i.paid_at).sort((a, b) => String(b.paid_at).localeCompare(String(a.paid_at)))[0];
@@ -197,7 +199,8 @@ export default function UserPaymentHistory() {
     const billRow = (inv, { nested = false } = {}) => {
         const paid = inv.status === 'paid';
         const open = isOpen(inv);
-        const badge = STATUS_BADGES[inv.status] || UNPAID_BADGE;
+        const isAdvanceBill = inv.advance_months != null && inv.status === 'overdue';
+        const badge = isAdvanceBill ? UNPAID_BADGE : (STATUS_BADGES[inv.status] || UNPAID_BADGE);
         const badgeLabel = t(`paymentHistory.status.${badge.key}`);
         const range = inv.period_start && inv.period_end ? formatPeriodRange(inv.period_start, inv.period_end) : '';
         const amount = open ? owedOf(inv) : parseFloat(inv.total_amount) || 0;
@@ -210,7 +213,7 @@ export default function UserPaymentHistory() {
                     <p className="m-0 mt-0.5 text-sm text-slate-500">
                         {range && <>{range}, </>}{invoiceLabel(inv)}
                     </p>
-                    {open && isPastDue(inv) && (
+                    {open && !isAdvanceBill && isPastDue(inv) && (
                         <p className="m-0 mt-1 text-sm font-semibold text-rose-700">{daysPastDue(inv) === 1 ? t('paymentHistory.overdueOne') : t('paymentHistory.overdueMany', { count: daysPastDue(inv) })}</p>
                     )}
                     {paid && inv.paid_from_advance && (
@@ -296,7 +299,7 @@ export default function UserPaymentHistory() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-brand text-white p-5 sm:p-6">
                             <div>
                                 <p className="m-0 text-sm text-indigo-100">
-                                    {payable.length === 0 ? t('paymentHistory.nothingToPay') : payable.length === 1 ? t('paymentHistory.toPayOne') : t('paymentHistory.toPayMany', { count: payable.length })}
+                                    {owedBills.length === 0 ? t('paymentHistory.nothingToPay') : owedBills.length === 1 ? t('paymentHistory.toPayOne') : t('paymentHistory.toPayMany', { count: owedBills.length })}
                                 </p>
                                 <p className="m-0 mt-1 text-3xl font-extrabold tabular-nums">{formatCurrency(toPayTotal)}</p>
                                 {lastPaid && (

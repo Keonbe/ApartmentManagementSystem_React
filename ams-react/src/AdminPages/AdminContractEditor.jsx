@@ -67,8 +67,10 @@ const move = (list, from, to) => {
 const hasText = (t) => !!((t?.en || '').trim() || (t?.tl || '').trim());
 const formatDateTime = (raw) => {
   if (!raw) return '';
-  const d = new Date(raw.replace(' ', 'T'));
-  return isNaN(d.getTime()) ? raw : d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+  // The server stores DATETIMEs in the app timezone (Asia/Manila, no DST), so read
+  // them as +08:00 and show them in Manila, whatever the browser's own zone is.
+  const d = new Date(`${String(raw).replace(' ', 'T')}+08:00`);
+  return isNaN(d.getTime()) ? raw : d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' });
 };
 
 function validate(t) {

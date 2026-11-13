@@ -187,6 +187,15 @@ function process_notification_queue($conn, $limit = 20, $only_user_id = null) {
     $limit  = max(1, min(500, (int)$limit));
     $counts = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'deferred' => 0, 'pruned' => 0];
 
+    // notification_selftest.php swaps the drivers to 'log' while it runs; a
+    // general drain (Task Scheduler or the poll piggyback) then would mark real
+    // jobs sent without a provider seeing them. The selftest drains only its own
+    // fixture ($only_user_id). A lock older than 15 minutes is a crashed selftest.
+    if ($only_user_id === null) {
+        $lock = (int)get_setting($conn, 'notification_selftest_lock', 0);
+        if ($lock > 0 && time() - $lock < 900) return $counts;
+    }
+
     // A crashed run leaves rows in 'processing' forever, so reclaim the stale
     // ones before claiming new work.
     $conn->query("UPDATE notification_queue SET status = 'pending', claim_token = NULL

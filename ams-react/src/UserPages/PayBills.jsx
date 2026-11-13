@@ -753,9 +753,10 @@ export default function PayBills() {
                     )
                 )}
 
-                {/* Overdue / due today (not while a payment awaits confirmation). "Due soon" is
+                {/* Overdue / due today (not while a payment awaits confirmation, and not under the
+                    unpaid-bills, returned-proof or declined-payment banner: one lead banner at a time). "Due soon" is
                     the chip on the bill card instead of a banner of its own. */}
-                {dueStatus && !isAwaiting && !payingGroup && (
+                {dueStatus && !isAwaiting && !payingGroup && !(canBundle && !bundleChoiceHidden) && !billDetails.rejectionReason && billDetails.status !== 'payment-failed' && (
                     dueStatus.isOverdue ? (
                         <Banner
                             tone="rose"

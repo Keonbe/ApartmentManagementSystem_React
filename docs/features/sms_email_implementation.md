@@ -223,7 +223,7 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 | `backend/api/services/email_templates.php` | §1.5 as written, `esc()` on every interpolated value (C10). |
 | `backend/api/services/sms_templates.php` | §1.5a: one SMS template per event, following Semaphore's content rules (R1–R8). Added 2026-09-26. |
 | `backend/api/services/send_notification.php` | `dispatch_external_notification()`, `dispatch_external_broadcast()`, `enqueue_notification()`, `process_notification_queue()`. |
-| `backend/cron/process_queue.php` | CLI drain. Task Scheduler entry point. |
+| `backend/cron/process_queue.php` | CLI drain. Task Scheduler entry point. A general drain returns at once while `notification_selftest.php` holds the `notification_selftest_lock` setting (stale after 15 min), so a selftest never sends real jobs through its `log` drivers. |
 | `backend/cron/notification_selftest.php` | 26 dry-run checks (M6-02…M6-18, C11, M6-35, M6-39, M6-41…M6-47, DRY). The verification gate for this module. |
 | `backend/api/send_test_notification.php` | Admin-only test send; returns the rendered message for the settings UI to print to the browser console. |
 | `ams-react/src/AdminPages/AdminAccountSettings.jsx` + `settings/NotificationsPanel.jsx` | §3.3 — Notifications tab: provider (Log / Semaphore), API key, sender name + approval, balance check, daily cap, test sends. |

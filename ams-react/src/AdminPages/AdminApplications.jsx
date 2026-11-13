@@ -417,7 +417,7 @@ const AdminApplications = () => {
     }
     return (
       <span className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 ring-slate-200 ring-1 ring-inset">
-        {status || 'Unknown'}
+        {status ? String(status).charAt(0).toUpperCase() + String(status).slice(1) : 'Unknown'}
       </span>
     );
   };

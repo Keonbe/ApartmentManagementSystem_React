@@ -49,6 +49,11 @@ function put_setting($conn, $key, $value) {
     $stmt->close();
 }
 
+// While the drivers are switched to 'log' below, the scheduled "AMS Notification
+// Queue" task must not drain real jobs through them (they would be marked sent
+// without reaching a provider). process_queue.php skips while this lock is fresh.
+put_setting($conn, 'notification_selftest_lock', (string)time());
+
 $fixture_email = 'ams-selftest-' . bin2hex(random_bytes(4)) . '@example.com';
 $stmt = $conn->prepare("INSERT INTO users (first_name, last_name, contact_no, email_address, password, role)
                         VALUES ('Selftest', 'Fixture', '0917 123 4567', ?, 'x', 'user')");
@@ -393,6 +398,8 @@ try {
     foreach ($saved_settings as $key => $value) {
         if ($value !== null) put_setting($conn, $key, $value);
     }
+    // Release the lock process_queue.php honours, so the scheduled drain resumes.
+    $conn->query("DELETE FROM system_settings WHERE setting_key = 'notification_selftest_lock'");
 }
 
 // ── Report ──────────────────────────────────────────────────
