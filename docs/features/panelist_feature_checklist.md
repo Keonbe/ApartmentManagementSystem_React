@@ -615,6 +615,35 @@ flowchart TD
 
 ---
 
+## Delimitations, Limitations and Defended Gaps
+
+Source: [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_panel_policy_gap_audit.md) Part B (full wording and justification there). A ✅ above means the feature is built, not that it covers everything a property office does; these are the edges, each with what covers it off-system.
+
+**Delimitations (chosen not to cover):** DE-1 one property of about 15–100 units, no multi-building or multi-owner · DE-2 one login per unit, other occupants are household members without accounts · DE-3 no separate owner or accountant role, the admin does all office work · DE-4 not an accounting or tax system, no BIR official receipts or general ledger · DE-5 no tenant screening or credit check · DE-6 utility readings are entered by the admin, no metering · DE-7 no complaints module or invoice dispute screen (adjustments carry a reason) · DE-8 pesos and Philippine phone formats only · DE-9 responsive web app, no native app · DE-10 no mid-month proration or automated room transfer.
+
+**Limitations (cannot do, or depends on people or other parties):**
+
+| # | Limitation | Covered off-system by |
+|---|---|---|
+| LI-1 | The balance left after the deposit at move-out is recorded, not invoiced or collected | Settlement agreed between manager and former tenant (SPRINT 73) |
+| LI-2 | Part-payments are recorded, no installment schedule is enforced | Admin moves due dates as agreed |
+| LI-3 | Refunds are tracked to "Refunded" with method and reference; the payout itself happens in the bank or e-wallet app (PayMongo refunds excepted) | Admin records the reference |
+| LI-4 | Cash payments rely on one admin's confirmation, no second approver | Owner reviews the activity log |
+| LI-5 | A paid payment cannot be voided; corrections go through a refund request | Refund request or written correction |
+| LI-6 | Online confirmation depends on PayMongo's webhook; no polling | Admin checks the PayMongo dashboard before releasing a checkout |
+| LI-7 | SMS and email run in dry-run mode in the study environment | In-app notifications always work |
+| LI-8 | Legal compliance (rent-control caps under RA 9653 / NHSB 2024-01, signature validity) is the manager's job; e-signature is an uploaded image | Manager applies the cap and keeps signed or notarized originals (SPRINT 149 adds a warning) |
+| LI-9 / LI-10 | Backups, scheduled jobs and restore drills are the operator's; one server, no replication or monitoring | `backup_and_restore.md` runbook |
+| LI-11 | Data is kept until the owner deletes it; no automated erasure or anonymization | Owner as data protection contact |
+| LI-12 | Emergency contacts and tenant incapacity or death are not modelled | Manager keeps them; termination or archive |
+| LI-13 | Usability, performance and reliability evidence comes from code review and seed-data runs, not a user population or production load | SUS session and load test per `2026-11-10_real_world_test_guide.md` (SPRINT 148, 153) |
+
+**True gaps still open before defense** (SPRINT rows 144-153): chat socket authentication (CH-1) · admin sign-in hardening · doc counts that disagree · registration consent checkbox · SUS session · rent-increase cap warning · panel writing (novelty, running costs, admin quick start) · clearance while a proof is pending · late webhook after a desk payment · checks that stay UNVERIFIED.
+
+**Status wording to keep honest:** Module 11 "Security & Access" shows 5/5 above while the chat socket (CH-1) and admin sign-in (A-1, S-05) are open in `security_audit.md`; read it as "built, with the open findings listed there". Not built, by design: multi-building, installment scheduler, four-eyes approval, frontend test suite, pagination on every list, complaints module, proration, room transfers, native app.
+
+---
+
 ## Detailed Module Feature Tables
 
 ### Module 1 — Tenant Management

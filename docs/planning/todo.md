@@ -80,6 +80,26 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks �
 
 ---
 
+## Urgent — Before Defense (panel audit 2026-11-12)
+
+Smallest set from [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_panel_policy_gap_audit.md) Part D. Everything else is defended through its Part B limitations. SPRINT rows 144-153 track the same items.
+
+| Status | Priority | Task | Source |
+|---|---|---|---|
+| [ ] | Urgent | Authenticate the Socket.IO server: verify the session token on connect, take `sender_id` from it, no `join` for another user, message length limit, stop logging bodies (Critical). | Audit S-11, security_audit CH-1, SPRINT 144 |
+| [ ] | Urgent | Force the admin password change on first login, remove the admin device-code skip, `random_int` plus hashed code. | Audit S-14, S-05, S-06; security_audit A-1; SPRINT 145 |
+| [ ] | Urgent | Make every count agree across the docs (79 test files, endpoints 160, tables 51, PHP version) and refresh stale `security_audit.md` rows and checklist Module 11. | Audit §A.13, SPRINT 146 |
+| [ ] | Urgent | Registration consent checkbox with timestamp and terms version. | Audit L-02, L-04, SPRINT 147 |
+| [ ] | Urgent | Run one SUS session with real users and record n and the score (no user acceptance data exists). | Audit RD-01, SPRINT 148 |
+| [ ] | Urgent | Warn when a renewal rent increase exceeds the NHSB 2024-01 cap (2.3% in 2025, 1% in 2026; units at ₱10,000 or less). | Audit L-10, SPRINT 149 |
+| [ ] | High | Schedule the nightly backup and record one restore drill. | Audit D-05, SPRINT 87 |
+| [ ] | High | Write the novelty paragraph, the running-cost table and a 2-page admin quick start. | Audit SC-06, O-04, O-05, SPRINT 150 |
+| [ ] | Medium | Refuse tenant clearance while a payment proof is pending verification. | Audit P-05, SPRINT 151 |
+| [ ] | Medium | Raise a refund request when a paid webhook arrives for a bill already paid at the desk (confirmed 2026-11-12). | Audit F-07, SPRINT 152 |
+| [ ] | Low | Still UNVERIFIED: prod PHP error-log path and socket timezone, N+1 at volume, prepayment legal reading, `ci.yml` run on GitHub. | Audit UNVERIFIED list, SPRINT 153 |
+
+---
+
 ## Backend
 
 | Status | Priority | Task | Source |
@@ -154,6 +174,8 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks �
 | [ ] | Unprioritized | **Maint** `cicd_pipeline.md` says the repo has "20 commits, no branches". It has about 196 commits and several branches. | [cicd_pipeline.md](../deployment/cicd_pipeline.md#git-branching-strategy) |
 | [ ] | Unprioritized | **Maint** `date_dependent_testing.md` §14 points to `todo.md` "Priority B" for auto-invoicing, but that label no longer exists there. | [date_dependent_testing §14](../documentation/date_dependent_testing.md#14-tips--gotchas) |
 
+| [ ] | Unprioritized | **Maint** Run the panel policy and gap audit (limitations, delimitations, praise/critique, true gaps), then update the panelist docs from it: `panelist_feature_checklist.md`, `manager_interview_comparison.md`, ISO 25010 evidence map, design docs. Tracked as SPRINT #133. | [SPRINT.md](../../SPRINT.md) |
+
 ### Needs decision
 
 Open questions that block or shape tasks above. Questions the sources have since resolved are left out, such as lease-extension conflicts (see `inquiry_reservation_design.md`) and parking inventory.
@@ -187,7 +209,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
-| [x] | Refundable security deposit and refund rules (adviser feedback, 2026-11-10/11): per-contract `deposit_refundable` (default from Settings → Rental, on for new contracts), one `settle_deposit()` for the move-out clearance and the termination, a `deposit` refund request due in `deposit_refund_days` (once-only overdue notice from the daily sweep), itemized `forfeiture` (no notice, early exit, termination; admin waives with a reason), a cancellation fee kept from a tenant's cancellation request or an admin's cancellation at their request (one shared helper), a tenant "Request review" on a deposit settlement answered from Admin → Refunds, report and ledger lines for returned and withheld deposits, Terms §8 refund matrix and per-contract clause text. Tests `deposit_refund`, `deposit_review`, `cancellation_fee`. | Adviser feedback; `2026_11_deposit_refund_policy.sql` |
+| [x] | Refundable security deposit and refund rules (adviser feedback, 2026-11-10/11): per-contract `deposit_refundable` (default from Settings → Rental, on for new contracts), one `settle_deposit()` for the move-out clearance and the termination, a `deposit` refund request due in `deposit_refund_days` (once-only overdue notice from the daily sweep), itemized `forfeiture` (no notice, early exit, termination; admin waives with a reason), a cancellation fee kept from a tenant's cancellation request or an admin's cancellation at their request (one shared helper), a tenant "Request review" on a deposit settlement answered from Admin → Refunds, report and ledger lines for returned and withheld deposits, Terms §8 refund matrix and per-contract clause text. Tests `deposit_refund`, `deposit_review`, `cancellation_fee`. | Adviser feedback; `2026_11_workstream.sql` |
 | [x] | Rent extension rules (panel review 2026-10-10): one `extend_tenancy()` / `extension_block_reason()` for the tenant request, its approval and Units → Extend Rent. Refused while any bill is past due (not-yet-due bills and payments under verification don't block), while a move-out is scheduled (approval used to crash), unless the contract is active/expired, or beyond the months-ahead limit. Extending an expired contract bills the holdover months lived since expiry at the old rent, due in 7 days (they were never billed). Units → Extend Rent (new `admin_extend_rent.php`) is a real extension now — it used to change only the room's dates, so its months were never billed. Tenant page explains a block with a Pay Bills link; the admin approval card shows the overdue total. | [verification guide M9-27…32](../documentation/module_verification_guide.md), [checklist 3.10](../features/panelist_feature_checklist.md) |
 | [x] | Security + backlog batch (2026-10-09): **L-1** `backend/logs/.htaccess` denies all HTTP access (403), tracked via a `.gitignore`/`.dockerignore` exception; **C4** `APP_ENV` falls back to `production` when unset; **L5** a service cancellation claims the status and reverses the charge in one transaction; **L6** extensions only from `active`/`expired` contracts, at most `max_rent_ahead_months` (new Settings → Rental field, default and max 12) ahead, on the request, the approval and Units → Extend Rent, and the rent-end reminder re-arms; **L7** `get_rooms.php` history in 3 queries total, and the sweep/overstay/overdue/hold checks run at most once a minute (`throttle_claim()`); **M1** tenants upload lease documents only to a draft contract and never the notarized copy; **M13** lockout per account+IP (5) with a 25 per-account ceiling, registration limited to 5 per IP per hour (`rate_limit_events`); **D-8/L1** caught database errors are logged, not returned (`public_error_message()`), except the chat endpoints. Also: `payment_transactions`, `house_rules` and `invoices.bank_name` mirrored into SetupDB; the house_rules seed no longer duplicates on re-run. CH-2 (websocket `.env`) left to the chat developer. | [verification guide §3.2, §15](../documentation/module_verification_guide.md), [database_schema](../documentation/database_schema.md) |
 | [x] | Backlog bugs (2026-10-07): **M2** editing a past tenant's contract dates no longer rewrites a re-let room; **M5** a Converted unit hold is released when its application is rejected/cancelled or, after the hold date, when nothing claims the room (`release_room_if_unclaimed()`); **M6** `update_room.php` refuses free-form `status` (422) and a second tenancy for the same user (409); **M10** † admin payment-history edit/delete/ad-hoc controls were already gone; **L8** catch-all 404 page (the shared-toast part was dropped by choice); **L10** service bookings use `notify_admins_queue()`. Also: `cron/migrate.php` runs each statement separately so a duplicate column can no longer skip the rest of a file; tenant notification no longer says "has been application rejected"; TopBar crash on an Action Required notice (`faInfoCircle` not imported) fixed; min rent duration configurable (d632ae1). | [verification guide M2-14…16, M9-26, §18.3](../documentation/module_verification_guide.md), [database_schema §3](../documentation/database_schema.md) |

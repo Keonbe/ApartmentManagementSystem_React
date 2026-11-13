@@ -71,3 +71,18 @@ Status after Phases 1-5, the Q13/Q22 follow-up and the Q26 backup runbook: **30 
 | 10 | Production backup (Q26) | Documented: [backup_and_restore.md](../deployment/backup_and_restore.md) covers what is backed up, the nightly schedule, retention, restore and a monthly drill. Operator action left: enable the schedule on the production host and record the first restore drill. |
 | 11 | Billing disputes (Q13) | Done: adjustment history with a required reason; no tenant dispute screen. |
 | 12 | Duplicate payment references (Q22) | Done: warn/block setting plus an always-on double-submit guard; same-bill installments, split resubmission and indexed lookups covered (verification guide M3-91…99). |
+
+## Answers to tighten before defense (panel audit, 2026-11-12)
+
+From [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_panel_policy_gap_audit.md) Part C.4: places where a spoken answer or a doc line contradicts the code or another doc. Each needs the wording fixed or the code changed, not defended as is.
+
+| Statement | What the code or another doc says | Fix |
+|---|---|---|
+| Q11: deposit "non-refundable by default" | `deposit_refundable` is seeded on (adviser feedback, SPRINT 163); refund matrix in Terms §8 | Say: refundable by default, forfeiture itemized, waiver needs a reason |
+| "Prorated billing done" (`todo.md`) | Rent is billed by whole month; proration is open (SPRINT 73) and a delimitation (DE-10) | Say: whole months, partial months computed by the manager |
+| "Late fee configurable" (checklist §3.7) | Not editable in the UI; the contract preview shows a fixed amount | Fix the checklist line or build the setting |
+| Q13 disputes | No dispute screen; adjustments carry a reason and history (DE-7) | Say so, point to the adjustment history |
+| Q4 owner approval | No owner role (DE-3); the owner reads reports and the activity log | Keep "decided: no separate role" |
+| Q26 backup | Runbook and CI drill exist; the operator's schedule and a recorded restore are open (SPRINT 87) | Do not say "backed up" until a drill is recorded |
+| "All admin changes are logged" (Privacy Notice) | Not true for house rules or socket chat | Reword the notice or add the log calls |
+| Test, endpoint and table counts | Docs quote 49, 67, 77 and 79 test files | One set of numbers (SPRINT 146) |
