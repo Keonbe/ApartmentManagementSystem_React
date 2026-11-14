@@ -113,7 +113,9 @@ try {
         if ($adjusted_amount !== null) {
             $u = $conn->prepare("UPDATE refund_requests SET amount=?, status='Approved', decided_by=?, decided_at=NOW(), decision_reason=NULLIF(?, '') WHERE id=? AND status=? AND amount=?");
             $original_amount = (float)$req['amount'];
-            $u->bind_param("disisd", $adjusted_amount, $admin_id, $message, $id, $from, $original_amount);
+            $adjusted_text = money_str($adjusted_amount);
+            $original_text = money_str($original_amount);
+            $u->bind_param("sisiss", $adjusted_text, $admin_id, $message, $id, $from, $original_text);
         } else {
             $u = $conn->prepare("UPDATE refund_requests SET status='Approved', decided_by=?, decided_at=NOW(), decision_reason=NULLIF(?, '') WHERE id=? AND status=?");
             $u->bind_param("isis", $admin_id, $message, $id, $from);

@@ -427,7 +427,8 @@ if ($id > 0 && !empty($status)) {
             if ($deduction_lines) {
                 $dd_stmt = $conn->prepare("INSERT INTO deposit_deductions (rent_application_id, contract_id, category, reason, amount, recorded_by) VALUES (?, ?, ?, ?, ?, ?)");
                 foreach ($deduction_lines as $line) {
-                    $dd_stmt->bind_param("isssdi", $id, $settled_contract_id, $line['category'], $line['reason'], $line['amount'], $admin_id);
+                    $line_amount = money_str($line['amount']);
+                    $dd_stmt->bind_param("issssi", $id, $settled_contract_id, $line['category'], $line['reason'], $line_amount, $admin_id);
                     if (!$dd_stmt->execute()) throw new Exception("Could not save the deposit deductions.");
                     $deduction_summary[] = deposit_deduction_label($line['category']) . " – " . $line['reason'] . ": ₱" . number_format($line['amount'], 2);
                 }

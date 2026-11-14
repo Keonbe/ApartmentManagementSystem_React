@@ -52,7 +52,7 @@ try {
     $new_status = ($due_date !== null && $due_date < date('Y-m-d')) ? 'overdue' : 'pending';
 
     $upd = $conn->prepare("UPDATE invoices SET status = CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 'overdue' ELSE 'pending' END,
-                                   proof_rejection_reason = ?, proof_of_payment_path = NULL, payment_reference = NULL, proof_amount = NULL,
+                                   proof_rejection_reason = ?, rejected_proof_path = COALESCE(proof_of_payment_path, rejected_proof_path), proof_of_payment_path = NULL, payment_reference = NULL, proof_amount = NULL,
                                    scheduled_date = IF(payment_method = 'Split payment', NULL, scheduled_date), scheduled_time_slot = IF(payment_method = 'Split payment', NULL, scheduled_time_slot)
                             WHERE ? IN (id, payment_group) AND status = 'pending-verification'");
     $upd->bind_param("ss", $reason, $invoice_id);

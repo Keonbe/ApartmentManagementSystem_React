@@ -252,6 +252,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null,
                 // Why an admin sent the proof back — the tenant's bill page shows it.
                 'proof_rejection_reason' => $row['proof_rejection_reason'] ?? null,
+                // The file of the last rejected proof, for the admin only (kept as evidence).
+                'rejected_proof_path' => $is_admin ? ($row['rejected_proof_path'] ?? null) : null,
                 'rent_period_start' => $row['rent_period_start'] ?? null,
                 'payment_group' => $row['payment_group'] ?? null,
                 'period_start' => $covered[0] ?? null,

@@ -74,6 +74,10 @@ if ($owner === null) {
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE proof_of_payment_path IN (?,?) LIMIT 1", $two);
 }
+if ($owner === null && table_has_column($conn, 'invoices', 'rejected_proof_path')) {
+    // A rejected proof (reject_payment_proof.php keeps the file for the admin).
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE rejected_proof_path IN (?,?) LIMIT 1", $two);
+}
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) OR lc.tenant_signature_path IN (?,?) OR lc.owner_signature_path IN (?,?) LIMIT 1", array_merge($six, $two));
 }

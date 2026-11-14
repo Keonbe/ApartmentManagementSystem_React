@@ -663,3 +663,14 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'terms_version') = 0,
   'ALTER TABLE `users` ADD COLUMN `terms_version` varchar(20) DEFAULT NULL', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== 2026_11_rejected_proof_path.sql =====
+-- A rejected payment proof keeps its file for the admin (reject_payment_proof.php copies the
+-- path here before clearing proof_of_payment_path, which pay_bill.php needs empty to ask for a
+-- new proof). 2026-11-14. Idempotent; guarded for production.
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'rejected_proof_path') = 0,
+  'ALTER TABLE `invoices` ADD COLUMN `rejected_proof_path` varchar(255) DEFAULT NULL AFTER `proof_rejection_reason`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+

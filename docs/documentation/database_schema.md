@@ -176,6 +176,7 @@ erDiagram
         tinyint late_fee_waived
         varchar paymongo_payment_id
     }
+        varchar rejected_proof_path "file of the last rejected proof, kept for the admin (2026-11-14)"
 
     ADVANCE_CREDITS {
         int id PK

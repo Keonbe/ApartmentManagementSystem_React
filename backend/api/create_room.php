@@ -50,7 +50,8 @@ try {
 
     if ($existingRoom) {
         $stmt = $conn->prepare("UPDATE rooms SET type = ?, floor = ?, monthly_rent = ?, rent_is_custom = ?, status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, last_tenant = NULL, maintenance_flag = 0, occupants = 0, room_condition = 'Good', furnishing_status = 'Unfurnished', last_inspection_date = NULL, gallery = NULL, archived_at = NULL, archived_by = NULL WHERE id = ? AND archived_at IS NOT NULL");
-        $stmt->bind_param("ssdis", $type, $floor, $rent, $custom, $id);
+        $rent_text = money_str($rent);
+        $stmt->bind_param("sssis", $type, $floor, $rent_text, $custom, $id);
         if (!$stmt->execute()) {
             error_log("[AMS] Failed to restore unit: " . $stmt->error);
             throw new Exception("Failed to restore unit.");
@@ -62,7 +63,8 @@ try {
     }
 
     $stmt = $conn->prepare("INSERT INTO rooms (id, type, floor, monthly_rent, rent_is_custom, status) VALUES (?, ?, ?, ?, ?, 'vacant')");
-    $stmt->bind_param("sssdi", $id, $type, $floor, $rent, $custom);
+    $rent_text = money_str($rent);
+    $stmt->bind_param("ssssi", $id, $type, $floor, $rent_text, $custom);
     if (!$stmt->execute()) {
         error_log("[AMS] Failed to create unit: " . $stmt->error);
         throw new Exception("Failed to create unit.");

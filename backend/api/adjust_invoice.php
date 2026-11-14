@@ -213,7 +213,9 @@ if (!$ok || $affected !== 1) $stale();
 $changes_json = json_encode($changes);
 $hist = $conn->prepare("INSERT INTO invoice_adjustments (invoice_id, admin_id, reason, old_total, new_total, changes) VALUES (?, ?, ?, ?, ?, ?)");
 $admin_ref = (int)$admin_id;
-$hist->bind_param("sisdds", $invoice_id, $admin_ref, $reason, $old_total, $new_total, $changes_json);
+$old_total_text = money_str($old_total);
+$new_total_text = money_str($new_total);
+$hist->bind_param("sisss" . "s", $invoice_id, $admin_ref, $reason, $old_total_text, $new_total_text, $changes_json);
 if (!$hist->execute()) {
     $hist->close();
     $conn->rollback();

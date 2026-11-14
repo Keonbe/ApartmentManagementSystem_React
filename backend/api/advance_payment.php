@@ -192,7 +192,8 @@ if ($action === 'create') {
     $conn->begin_transaction();
     $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date, advance_months)
                             VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)");
-    $stmt->bind_param("siiddssi", $invoice_id, $user_id, $app_id, $total, $total, $label, $due, $count);
+    $total_text = money_str($total);
+    $stmt->bind_param("siissssi", $invoice_id, $user_id, $app_id, $total_text, $total_text, $label, $due, $count);
     $ok = $stmt->execute();
     $stmt->close();
     if (!$ok) {
@@ -202,7 +203,8 @@ if ($action === 'create') {
     $credit = $conn->prepare("INSERT INTO advance_credits (advance_invoice_id, user_id, rent_application_id, period_start, amount, status)
                               VALUES (?, ?, ?, ?, ?, 'reserved')");
     foreach ($months as $m) {
-        $credit->bind_param("siisd", $invoice_id, $user_id, $app_id, $m['period_start'], $m['amount']);
+        $credit_amount = money_str($m['amount']);
+        $credit->bind_param("siiss", $invoice_id, $user_id, $app_id, $m['period_start'], $credit_amount);
         if (!$credit->execute()) {
             // Credited by a concurrent request between preview and now.
             $credit->close();

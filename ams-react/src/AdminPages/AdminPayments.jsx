@@ -321,6 +321,7 @@ const AdminPayments = () => {
           // invoice can never leak its proof metadata into the selected bill.
           t.proofOfPaymentPath = sel.proof_of_payment_path || null;
           t.paymentReference = sel.payment_reference || null;
+          t.rejectedProofPath = sel.rejected_proof_path || null;
           t.senderName = sel.sender_name || null;
           if (sel.split_parts?.length) t.splitParts = sel.split_parts;
           if (sel.payment_gateway) t.paymentGateway = sel.payment_gateway;
@@ -1351,7 +1352,7 @@ const handleMarkAsPaid = async () => {
                       )}
                       
                       {(activeTenant.declaredMethod !== 'cash' && (
-                        activeTenant.proofOfPaymentPath || activeTenant.senderName || activeTenant.paymentReference ||
+                        activeTenant.proofOfPaymentPath || activeTenant.rejectedProofPath || activeTenant.senderName || activeTenant.paymentReference ||
                         activeTenant.splitParts?.some(part => part.proof_path || part.reference_number)
                       )) && (
                         <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-card space-y-3">
@@ -1401,6 +1402,12 @@ const handleMarkAsPaid = async () => {
                             </div>
                           )}
                           {activeTenant.proofOfPaymentPath && !activeTenant.splitParts?.length && (
+                          {activeTenant.rejectedProofPath && !activeTenant.proofOfPaymentPath && (
+                            <p className="m-0 pt-2 text-label text-slate-700">
+                              Last rejected proof:{' '}
+                              <a href={getBackendAssetUrl(activeTenant.rejectedProofPath)} target="_blank" rel="noreferrer" className="font-bold text-indigo-700 underline">open the file</a>
+                            </p>
+                          )}
                             <div className="pt-2 flex items-center gap-2 flex-wrap">
                               <button
                                 type="button"

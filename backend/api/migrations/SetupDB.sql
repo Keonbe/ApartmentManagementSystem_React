@@ -125,6 +125,7 @@ CREATE TABLE `invoices` (
   `bank_name` varchar(100) DEFAULT NULL,
   `proof_of_payment_path` varchar(255) DEFAULT NULL,
   `proof_rejection_reason` varchar(255) DEFAULT NULL,
+  `rejected_proof_path` varchar(255) DEFAULT NULL,
   `sender_name` varchar(150) DEFAULT NULL,
   `billing_period` varchar(50) NOT NULL,
   -- Rent periods and advance payments (2026_09_rent_periods_advance.sql): the

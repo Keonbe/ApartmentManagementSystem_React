@@ -39,7 +39,7 @@ $expectedColumns = [
         'services', 'amount_paid', 'proof_amount', 'last_reminder_date',
         'reminder_count', 'late_fee', 'late_fee_waived', 'maintenance',
         'checkout_payment_intent_id', 'processing_since', 'rent_period_start',
-        'rent_period_key', 'payment_group', 'advance_months', 'bank_name',
+        'rent_period_key', 'payment_group', 'advance_months', 'bank_name', 'rejected_proof_path',
     ],
     'rent_applications' => [
         'previous_address', 'pre_archive_status', 'terms_agreed_at',

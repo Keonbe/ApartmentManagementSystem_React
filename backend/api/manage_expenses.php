@@ -83,7 +83,8 @@ switch ($action) {
     case 'create': {
         [$category, $amount, $date, $description] = validate_expense($input);
         $stmt = $conn->prepare("INSERT INTO expenses (category, amount, expense_date, description, created_by) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sdssi", $category, $amount, $date, $description, $admin_id);
+        $amount_text = money_str($amount);
+        $stmt->bind_param("ssssi", $category, $amount_text, $date, $description, $admin_id);
         if (!$stmt->execute()) fail(500, "Could not save the expense.");
         $id = $stmt->insert_id;
         $stmt->close();
@@ -97,7 +98,8 @@ switch ($action) {
         if ($id <= 0) fail(422, "Expense id is required.");
         [$category, $amount, $date, $description] = validate_expense($input);
         $stmt = $conn->prepare("UPDATE expenses SET category = ?, amount = ?, expense_date = ?, description = ? WHERE id = ?");
-        $stmt->bind_param("sdssi", $category, $amount, $date, $description, $id);
+        $amount_text = money_str($amount);
+        $stmt->bind_param("ssssi", $category, $amount_text, $date, $description, $id);
         if (!$stmt->execute()) fail(500, "Could not update the expense.");
         $stmt->close();
         // affected_rows is 0 for an unchanged row too, so check existence separately.

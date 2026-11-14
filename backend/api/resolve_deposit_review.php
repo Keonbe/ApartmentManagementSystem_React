@@ -59,7 +59,8 @@ try {
     }
 
     $u = $conn->prepare("UPDATE deposit_reviews SET status = 'Resolved', outcome = ?, adjusted_amount = ?, admin_response = ?, resolved_by = ?, resolved_at = NOW() WHERE id = ? AND status = 'Open'");
-    $u->bind_param("sdsii", $outcome, $amount, $response, $admin_id, $id);
+    $amount_text = money_str($amount);
+    $u->bind_param("sssii", $outcome, $amount_text, $response, $admin_id, $id);
     $u->execute();
     if ($u->affected_rows < 1) throw new Exception("This review was answered by someone else. Reload and try again.");
     $u->close();
@@ -77,7 +78,7 @@ try {
         $ev->execute();
         $ev->close();
         $c = $conn->prepare("UPDATE lease_contracts SET refund_amount = refund_amount + ?, deposit_status = 'Refund Pending' WHERE id = ?");
-        $c->bind_param("ds", $amount, $rv['contract_id']);
+        $c->bind_param("ss", $amount_text, $rv['contract_id']);
         $c->execute();
         $c->close();
     }
