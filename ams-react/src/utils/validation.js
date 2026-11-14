@@ -1,6 +1,9 @@
 // Client-side input checks. The backend is still the boundary: these only stop
 // a bad value before the round trip and keep the UI's limits equal to the
 // database's. Each check returns an error message, or '' when the value is fine.
+// Messages are looked up in config/i18n.js (validation.*) when a check runs, so
+// they follow the language the person has chosen.
+import { t, dateLocale } from '../config/i18n';
 
 // Column sizes from backend/api/migrations/SetupDB.sql. MariaDB runs non-strict,
 // so a longer value is silently cut instead of rejected — maxLength prevents that.
@@ -52,11 +55,11 @@ export const MAX_AMOUNT = 99999999.99;
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX_BYTES = 72;
 
-export const checkRequired = (value, label = 'This field') =>
-  String(value ?? '').trim() === '' ? `${label} is required.` : '';
+export const checkRequired = (value, label = t('validation.thisField')) =>
+  String(value ?? '').trim() === '' ? t('validation.required', { label }) : '';
 
-export const checkLength = (value, max, label = 'This field') =>
-  String(value ?? '').trim().length > max ? `${label} must be ${max} characters or fewer.` : '';
+export const checkLength = (value, max, label = t('validation.thisField')) =>
+  String(value ?? '').trim().length > max ? t('validation.maxLength', { label, max }) : '';
 
 // Control characters other than tab/newline, and inline script tags. Text is
 // escaped on output everywhere; this only stops junk from being stored.
@@ -64,23 +67,23 @@ export const checkLength = (value, max, label = 'This field') =>
 const UNSAFE_TEXT =/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]|<\s*script/i;
 
 // Free text: trimmed first, so whitespace-only counts as empty.
-export const checkText = (value, { label = 'This field', max, min = 0, required = true } = {}) => {
+export const checkText = (value, { label = t('validation.thisField'), max, min = 0, required = true } = {}) => {
   const v = String(value ?? '').trim();
-  if (!v) return required ? `${label} is required.` : '';
-  if (min && v.length < min) return `${label} must be at least ${min} characters.`;
-  if (max && v.length > max) return `${label} must be ${max} characters or fewer.`;
-  if (UNSAFE_TEXT.test(v)) return `${label} contains characters that are not allowed.`;
+  if (!v) return required ? t('validation.required', { label }) : '';
+  if (min && v.length < min) return t('validation.minLength', { label, min });
+  if (max && v.length > max) return t('validation.maxLength', { label, max });
+  if (UNSAFE_TEXT.test(v)) return t('validation.unsafe', { label });
   return '';
 };
 
 // Personal names: letters (any script, ñ included), spaces and . ' -
-export const checkPersonName = (value, { label = 'Name', max = LIMITS.fullName, required = true } = {}) => {
+export const checkPersonName = (value, { label = t('validation.name'), max = LIMITS.fullName, required = true } = {}) => {
   const base = checkText(value, { label, max, required });
   if (base) return base;
   const v = String(value ?? '').trim();
   if (!v) return '';
-  if (/^[\d\s]+$/.test(v)) return `${label} cannot be only numbers.`;
-  if (!/^[\p{L}\p{M}][\p{L}\p{M}\s.'-]*$/u.test(v)) return `${label} can only contain letters, spaces, periods, apostrophes and hyphens.`;
+  if (/^[\d\s]+$/.test(v)) return t('validation.nameOnlyNumbers', { label });
+  if (!/^[\p{L}\p{M}][\p{L}\p{M}\s.'-]*$/u.test(v)) return t('validation.nameChars', { label });
   return '';
 };
 
@@ -88,10 +91,10 @@ export const normalizeEmail = (value) => String(value ?? '').trim().toLowerCase(
 
 export const checkEmail = (value, { max = LIMITS.email, required = true } = {}) => {
   const v = String(value ?? '').trim();
-  if (!v) return required ? 'Email is required.' : '';
+  if (!v) return required ? t('validation.emailRequired') : '';
   // Same shape PHP's FILTER_VALIDATE_EMAIL accepts for ordinary addresses.
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Please enter a valid email address (e.g. name@domain.com).';
-  if (v.length > max) return `Email must be ${max} characters or fewer.`;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return t('validation.emailInvalid');
+  if (v.length > max) return t('validation.emailMax', { max });
   return '';
 };
 
@@ -103,10 +106,10 @@ export const checkPhMobile = (value) => {
   if (digits.startsWith('63') && digits.length === 12) digits = digits.slice(2);
   else if (digits.startsWith('0') && digits.length === 11) digits = digits.slice(1);
 
-  if (digits.length !== 10) return 'Mobile number must be exactly 10 digits (e.g., 9171234567).';
-  if (!digits.startsWith('9')) return 'Philippine mobile numbers start with 9.';
-  if (/^(\d)\1+$/.test(digits)) return 'Repeated-digit numbers are not accepted.';
-  if ('0123456789012'.includes(digits) || '9876543210'.includes(digits)) return 'Sequential numbers are not accepted.';
+  if (digits.length !== 10) return t('validation.phDigits');
+  if (!digits.startsWith('9')) return t('validation.phStart9');
+  if (/^(\d)\1+$/.test(digits)) return t('validation.phRepeated');
+  if ('0123456789012'.includes(digits) || '9876543210'.includes(digits)) return t('validation.phSequential');
   return '';
 };
 
@@ -130,49 +133,50 @@ export const toPhE164 = (local10) => {
 // Any contact number, landlines included — check_in_visitor.php's rule.
 export const checkContactNumber = (value) =>
   /^[0-9+\-\s()]{7,30}$/.test(String(value ?? '').trim())
-    ? '' : 'Contact number must be 7-30 characters of digits, spaces, +, - or ().';
+    ? '' : t('validation.contactNumber');
 
 // Length only: for Login and "current password" fields, where an older
 // password that predates the complexity rules must still be accepted.
 export const checkPassword = (password) => {
   const pw = String(password ?? '');
-  if (pw.length < PASSWORD_MIN) return `Password must be at least ${PASSWORD_MIN} characters.`;
-  if (new TextEncoder().encode(pw).length > PASSWORD_MAX_BYTES) return `Password must be ${PASSWORD_MAX_BYTES} characters or fewer.`;
+  if (pw.length < PASSWORD_MIN) return t('validation.passwordMin', { min: PASSWORD_MIN });
+  if (new TextEncoder().encode(pw).length > PASSWORD_MAX_BYTES) return t('validation.passwordMax', { max: PASSWORD_MAX_BYTES });
   return '';
 };
 
 // Rules for a new password — the same ones password_policy_error() in
 // backend/config.php enforces. Drives PasswordChecklist too.
+// `label` is a getter so it is looked up when read, in the current language.
 export const PASSWORD_RULES = [
-  { key: 'length', label: `At least ${PASSWORD_MIN} characters`, test: (pw) => pw.length >= PASSWORD_MIN },
-  { key: 'upper', label: 'One uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
-  { key: 'lower', label: 'One lowercase letter', test: (pw) => /[a-z]/.test(pw) },
-  { key: 'digit', label: 'One number', test: (pw) => /\d/.test(pw) },
-  { key: 'symbol', label: 'One symbol (e.g. ! @ # $)', test: (pw) => /[^A-Za-z0-9\s]/.test(pw) },
+  { key: 'length', get label() { return t('validation.pw.length', { min: PASSWORD_MIN }); }, test: (pw) => pw.length >= PASSWORD_MIN },
+  { key: 'upper', get label() { return t('validation.pw.upper'); }, test: (pw) => /[A-Z]/.test(pw) },
+  { key: 'lower', get label() { return t('validation.pw.lower'); }, test: (pw) => /[a-z]/.test(pw) },
+  { key: 'digit', get label() { return t('validation.pw.digit'); }, test: (pw) => /\d/.test(pw) },
+  { key: 'symbol', get label() { return t('validation.pw.symbol'); }, test: (pw) => /[^A-Za-z0-9\s]/.test(pw) },
 ];
 
 export const checkNewPassword = (password) => {
   const pw = String(password ?? '');
-  if (!pw) return 'Password is required.';
+  if (!pw) return t('validation.passwordRequired');
   const lengthError = checkPassword(pw);
   if (lengthError) return lengthError;
   const missing = PASSWORD_RULES.filter((r) => !r.test(pw)).map((r) => r.label.toLowerCase());
-  return missing.length ? `Password needs ${missing.join(', ')}.` : '';
+  return missing.length ? t('validation.passwordNeeds', { rules: missing.join(', ') }) : '';
 };
 
 export const checkPasswordMatch = (password, confirm) => {
-  if (!String(confirm ?? '')) return 'Please confirm the password.';
-  return confirm === password ? '' : 'Passwords do not match.';
+  if (!String(confirm ?? '')) return t('validation.confirmPassword');
+  return confirm === password ? '' : t('validation.passwordMismatch');
 };
 
-export const checkAmount = (value, { min = 0, max = MAX_AMOUNT, label = 'Amount', allowZero = true, required = true } = {}) => {
+export const checkAmount = (value, { min = 0, max = MAX_AMOUNT, label = t('validation.amount'), allowZero = true, required = true } = {}) => {
   const raw = String(value ?? '').trim();
-  if (raw === '') return required ? `${label} is required.` : '';
+  if (raw === '') return required ? t('validation.required', { label }) : '';
   const n = Number(raw);
-  if (!Number.isFinite(n)) return `${label} must be a number.`;
-  if (n < min || (!allowZero && n === 0)) return `${label} must be ${allowZero ? 'at least' : 'more than'} ${min}.`;
-  if (n > max) return `${label} must not exceed ${max.toLocaleString()}.`;
-  if (/\.\d{3,}$/.test(raw)) return `${label} can have at most 2 decimal places.`;
+  if (!Number.isFinite(n)) return t('validation.notNumber', { label });
+  if (n < min || (!allowZero && n === 0)) return t(allowZero ? 'validation.atLeast' : 'validation.moreThan', { label, min });
+  if (n > max) return t('validation.notExceed', { label, max: max.toLocaleString() });
+  if (/\.\d{3,}$/.test(raw)) return t('validation.decimals', { label });
   return '';
 };
 
@@ -186,21 +190,21 @@ export const isBankMethod = (method = '') => /bank|bdo|bpi/i.test(String(method)
 export const checkPaymentReference = (reference, method = '') => {
   const ref = String(reference ?? '').trim();
   const m = String(method).toLowerCase();
-  if (!ref) return 'Reference number is required.';
+  if (!ref) return t('validation.refRequired');
   if (m.includes('gcash')) {
-    return /^\d{13}$/.test(ref) ? '' : 'GCash reference number must be exactly 13 digits.';
+    return /^\d{13}$/.test(ref) ? '' : t('validation.refGcash');
   }
   if (isBankMethod(m)) {
-    if (ref.length > 55) return 'Bank transfer reference must be 55 characters or fewer.';
+    if (ref.length > 55) return t('validation.refBank');
     return '';
   }
-  return checkLength(ref, LIMITS.paymentReference, 'Reference number');
+  return checkLength(ref, LIMITS.paymentReference, t('validation.refLabel'));
 };
 
-export const checkIntRange =(value, min, max, label = 'Value') => {
+export const checkIntRange =(value, min, max, label = t('validation.value')) => {
   const n = Number(value);
-  if (!Number.isInteger(n)) return `${label} must be a whole number.`;
-  if (n < min || n > max) return `${label} must be between ${min} and ${max}.`;
+  if (!Number.isInteger(n)) return t('validation.wholeNumber', { label });
+  if (n < min || n > max) return t('validation.between', { label, min, max });
   return '';
 };
 
@@ -209,10 +213,10 @@ export const checkIntRange =(value, min, max, label = 'Value') => {
 // These are the shipped defaults, used until the settings have loaded.
 export const MOVE_IN_WINDOW_DEFAULT = { min: 0, max: 365 };
 
-// "October 26, 2027" for a local YYYY-MM-DD.
+// "October 26, 2027" for a local YYYY-MM-DD, in the chosen language.
 const longDay = (ymd) => {
   const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return new Date(y, m - 1, d).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' });
 };
 
 // First and last allowed day as YYYY-MM-DD, for the date input's min / max.
@@ -230,43 +234,56 @@ export const moveInBounds = (window = MOVE_IN_WINDOW_DEFAULT, availableFrom = nu
 // "Choose a date from October 26, 2026 to October 26, 2027."
 export const moveInRangeText = (window = MOVE_IN_WINDOW_DEFAULT, availableFrom = null) => {
   const { min, max } = moveInBounds(window, availableFrom);
-  if (min === max) return `Move in on ${longDay(min)}, when the unit is free.`;
-  return `Choose a date from ${longDay(min)} to ${longDay(max)}.`;
+  if (min === max) return t('validation.moveInSingle', { date: longDay(min) });
+  return t('validation.moveInRange', { from: longDay(min), to: longDay(max) });
 };
 
 // Same rule as config.php move_in_date_error(): a real date inside the window.
 // The messages name the actual first / last day.
 export const checkMoveInDate = (value, window = MOVE_IN_WINDOW_DEFAULT, availableFrom = null) => {
   if (availableFrom && value && value < availableFrom) {
-    return `This unit is available from ${longDay(availableFrom)}. Choose that day or later.`;
+    return t('validation.moveInAvailable', { date: longDay(availableFrom) });
   }
   const { min, max } = moveInBounds(window, availableFrom);
-  const error = checkDate(value, { label: 'The move-in date', min, max });
-  if (!error) return '';
-  if (/cannot be before/.test(error)) {
+  // The problem is read as a code, never by matching the (translated) message.
+  const problem = dateProblem(value, { min, max });
+  if (!problem) return '';
+  if (problem === 'before') {
     return window.min === 0
-      ? `The move-in date cannot be in the past. The earliest is ${longDay(min)}.`
-      : `The move-in date must be at least ${window.min} day(s) from today: the earliest is ${longDay(min)}.`;
+      ? t('validation.moveInPast', { date: longDay(min) })
+      : t('validation.moveInMinDays', { days: window.min, date: longDay(min) });
   }
-  if (/cannot be after/.test(error)) return `The move-in date can be at most ${window.max} days from today: the latest is ${longDay(max)}.`;
-  return error;
+  if (problem === 'after') return t('validation.moveInMaxDays', { days: window.max, date: longDay(max) });
+  return dateMessage(problem, { label: t('validation.moveInLabel'), min, max });
 };
 
 // YYYY-MM-DD that is a real calendar day (rejects 2026-02-31), optionally within
 // [min, max] given as YYYY-MM-DD strings.
-export const checkDate = (value, { min, max, label = 'Date' } = {}) => {
+// What is wrong with a date: 'required', 'invalid', 'before' (earlier than min),
+// 'after' (later than max), or '' when it is fine. Callers that need to rewrite
+// the message use this code instead of matching the wording.
+export const dateProblem = (value, { min, max } = {}) => {
   const v = String(value ?? '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${label} is required.`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return 'required';
   const [y, m, d] = v.split('-').map(Number);
   const parsed = new Date(Date.UTC(y, m - 1, d));
   // Date.UTC rolls 2026-02-31 over to March, so compare the parts back.
-  if (parsed.getUTCFullYear() !== y || parsed.getUTCMonth() !== m - 1 || parsed.getUTCDate() !== d) {
-    return `${label} is not a valid date.`;
-  }
-  if (min && v < min) return `${label} cannot be before ${min}.`;
-  if (max && v > max) return `${label} cannot be after ${max}.`;
+  if (parsed.getUTCFullYear() !== y || parsed.getUTCMonth() !== m - 1 || parsed.getUTCDate() !== d) return 'invalid';
+  if (min && v < min) return 'before';
+  if (max && v > max) return 'after';
   return '';
 };
+
+const dateMessage = (problem, { min, max, label }) => {
+  if (problem === 'required') return t('validation.required', { label });
+  if (problem === 'invalid') return t('validation.dateInvalid', { label });
+  if (problem === 'before') return t('validation.dateBefore', { label, date: min });
+  if (problem === 'after') return t('validation.dateAfter', { label, date: max });
+  return '';
+};
+
+export const checkDate = (value, { min, max, label = t('validation.date') } = {}) =>
+  dateMessage(dateProblem(value, { min, max }), { min, max, label });
 
 // Local YYYY-MM-DD for date inputs' min/max (toISOString() would give UTC).
 export const localDateString = (date = new Date()) => {
@@ -299,9 +316,9 @@ export const addYears = (years, from = new Date()) => {
 export const maxFutureDate = () => addYears(MAX_FUTURE_YEARS);
 
 // End must not be before start. Empty values are left to checkDate/required.
-export const checkDateRange = (start, end, { startLabel = 'Start date', endLabel = 'End date' } = {}) => {
+export const checkDateRange = (start, end, { startLabel = t('validation.startDate'), endLabel = t('validation.endDate') } = {}) => {
   if (!start || !end) return '';
-  return end < start ? `${endLabel} cannot be before ${startLabel.toLowerCase()}.` : '';
+  return end < start ? t('validation.rangeBefore', { end: endLabel, start: startLabel.toLowerCase() }) : '';
 };
 
 // Local HH:mm for time inputs.

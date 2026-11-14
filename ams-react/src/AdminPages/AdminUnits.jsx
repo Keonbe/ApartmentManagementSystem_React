@@ -14,7 +14,7 @@ import { getSystemSettings } from '../config/systemSettings';
 import { publicAssetUrl } from '../api/fileUrl';
 import DepositOutcome from '../Components/DepositOutcome';
 import SetUnderMaintenanceModal from '../Components/admin/SetUnderMaintenanceModal';
-import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, checkIntRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, dateProblem, checkIntRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
 
 // admin_extend_rent.php extends by whole months, at most 12 (the server also
 // enforces Settings -> Rental -> Maximum Months Ahead and the dues rules).
@@ -298,8 +298,9 @@ const AdminUnits = () => {
   }, { idPrefix: 'unit-' });
   const assignErrors = useFieldErrors({
     userId: (v) => (users.some(u => String(u.id) === String(v)) ? '' : 'Choose the tenant to assign.'),
-    moveIn: (v) => checkDate(v, { label: 'Move-in date', min: localDateString(), max: maxFutureDate() })
-      .replace(/cannot be before .*/, 'cannot be in the past.'),
+    moveIn: (v) => (dateProblem(v, { min: localDateString() }) === 'before'
+      ? 'Move-in date cannot be in the past.'
+      : checkDate(v, { label: 'Move-in date', min: localDateString(), max: maxFutureDate() })),
     leaseEnd: (v, all) => checkDate(v, { label: 'Rent end', max: maxFutureDate() })
       || checkDateRange(all.moveIn, v, { startLabel: 'Move-in date', endLabel: 'Rent end' })
       || validateLeaseDuration(all.moveIn, v),

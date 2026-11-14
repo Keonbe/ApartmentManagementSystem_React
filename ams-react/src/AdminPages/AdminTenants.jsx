@@ -9,7 +9,7 @@ import {
   faSignOutAlt, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, addDays, checkAmount, checkDate, checkText } from '../utils/validation';
+import { LIMITS, addDays, checkAmount, checkDate, checkText, dateProblem } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
@@ -177,9 +177,13 @@ const AdminTenants = () => {
   const tenantForms = useFieldErrors({
     archiveReason: (v) => (archiveReasons.includes(v) ? '' : 'Choose an archive reason.'),
     archiveNotes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
-    requested_move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(moveOutWindow.min), max: addDays(moveOutWindow.max) })
-      .replace(/cannot be before .*/, `must be at least ${moveOutWindow.min} days from today.`)
-      .replace(/cannot be after .*/, `cannot be more than ${moveOutWindow.max} days from today.`),
+    requested_move_out_date: (v) => {
+      const range = { min: addDays(moveOutWindow.min), max: addDays(moveOutWindow.max) };
+      const problem = dateProblem(v, range);
+      if (problem === 'before') return `Move-out date must be at least ${moveOutWindow.min} days from today.`;
+      if (problem === 'after') return `Move-out date cannot be more than ${moveOutWindow.max} days from today.`;
+      return checkDate(v, { label: 'Move-out date', ...range });
+    },
     damage_notes: (v) => checkText(v, { label: 'Inspection notes', max: LIMITS.reason, required: false }),
   }, { idPrefix: 'tenant-' });
   const tenantValues = {

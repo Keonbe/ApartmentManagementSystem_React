@@ -94,6 +94,11 @@ function StepTitle({ n, children, className = '' }) {
 export default function PayBills() {
     const navigate = useNavigate();
     const { t } = useLang();
+    // t() with bold values inside: `strong` values are wrapped in <strong>, `plain` ones are text.
+    const rich = (key, strong = {}, plain = {}) => {
+        const marked = Object.fromEntries(Object.keys(strong).map((name) => [name, `\uE000${name}\uE001`]));
+        return t(key, { ...plain, ...marked }).split(/\uE000(\w+)\uE001/).map((part, i) => (i % 2 ? <strong key={i}>{strong[part]}</strong> : part));
+    };
     const [selectedMethod, setSelectedMethod] = useState('');
     const [methodMenuOpen, setMethodMenuOpen] = useState(false);
     const methodMenuRef = useRef(null);
@@ -109,8 +114,9 @@ export default function PayBills() {
     const [notice, setNotice] = useState(() => (
         gatewayReturnParams().get('status') === 'success'
             ? {
-                message: 'Payment sent',
-                subtext: 'We are waiting for the payment gateway to confirm it. This page updates by itself, and you will also get a notification.',
+                kind: 'sent',
+                message: t('payBills.sentTitle'),
+                subtext: t('payBills.sentBody'),
             }
             : null
     ));
@@ -127,12 +133,13 @@ export default function PayBills() {
     const confirmedNotice = (paidInvoices) => {
         const first = paidInvoices[0];
         const total = paidInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_amount) || 0), 0);
+        const amount = `₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
         return {
-            message: 'Payment confirmed',
+            message: t('paymentHistory.confirmedTitle'),
             subtext: paidInvoices.length === 1
-                ? `Management confirmed your payment of ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} for ${first.billing_period || `invoice ${first.id}`}. Your receipt is ready.`
-                : `Management confirmed ${paidInvoices.length} payments totalling ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}. A receipt for each month is ready.`,
-            action: { label: 'View receipt', onClick: () => navigate('/payment-history', { state: { receiptId: first.id } }) },
+                ? t('payBills.confirmedOne', { amount, period: first.billing_period || t('paymentHistory.invoiceNo', { id: first.id }) })
+                : t('payBills.confirmedMany', { count: paidInvoices.length, amount }),
+            action: { label: t('paymentHistory.viewReceipt'), onClick: () => navigate('/payment-history', { state: { receiptId: first.id } }) },
         };
     };
 
@@ -155,7 +162,7 @@ export default function PayBills() {
         const confirmed = events.filter(e => e.type === 'confirmed');
         if (confirmed.length > 0) setNotice(confirmedNotice(confirmed.map(e => e.invoice)));
         // A declined checkout: drop "Payment sent"; the bill's banner says why.
-        else if (events.some(e => e.type === 'failed')) setNotice(prev => (prev?.message === 'Payment sent' ? null : prev));
+        else if (events.some(e => e.type === 'failed')) setNotice(prev => (prev?.kind === 'sent' ? null : prev));
         // A rejection or a declined checkout shows as a banner on the bill itself.
         // A settled advance turns into prepaid-month credits on the advance card.
         if (events.some(e => e.invoice?.advance_months)) loadAdvance();
@@ -188,7 +195,7 @@ export default function PayBills() {
         }
         return acc;
     }, {})).map(e => (e.payment_group
-        ? { ...e, billing_period: `${isBundleKey(e.payment_group) ? 'Combined' : 'Advance'}: ${e.months.join(', ')}` }
+        ? { ...e, billing_period: t(isBundleKey(e.payment_group) ? 'payBills.combinedPrefix' : 'payBills.advancePrefix', { months: e.months.join(', ') }) }
         : e));
     const activeInv = payableInvoices[0] || awaitingInvoices.find(i => !isGrouped(i)) || null;
 
@@ -241,7 +248,7 @@ export default function PayBills() {
             const pending = advance?.pending?.id === inv.id ? advance.pending.months : [];
             return {
                 key: inv.id,
-                months: pending.map(m => ({ key: m.period_start, label: m.billing_period, sub: `Starts ${formatDay(m.period_start)} · paid from this advance when billed`, amount: m.amount })),
+                months: pending.map(m => ({ key: m.period_start, label: m.billing_period, sub: t('payBills.advanceStarts', { date: formatDay(m.period_start) }), amount: m.amount })),
                 total: parseFloat(inv.total_amount) || 0,
                 payable: PAYABLE_STATUSES.includes(inv.status),
                 cancelBody: { action: 'cancel', invoice: inv.id },
@@ -253,7 +260,7 @@ export default function PayBills() {
         const rows = group.filter(i => i.payment_group === key);
         return {
             key,
-            months: rows.map(i => ({ key: i.id, label: i.billing_period, sub: `Due ${i.due_date} · ${i.id}`, amount: i.total_amount })),
+            months: rows.map(i => ({ key: i.id, label: i.billing_period, sub: t('payBills.dueIdSub', { date: i.due_date, id: i.id }), amount: i.total_amount })),
             total: rows.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
             payable: rows.every(i => PAYABLE_STATUSES.includes(i.status)),
             cancelBody: { action: 'cancel', group: key },
@@ -268,8 +275,8 @@ export default function PayBills() {
     // its own receipt, plus one combined receipt), or one at a time, earliest first.
     // "Oct 4 – Nov 3, 2026 · 8 days overdue" for a past-due bill, "Due Oct 15, 2026" otherwise.
     const billStatusText = (i) => (isPastDue(i)
-        ? `${formatCoveredPeriod(i)} · ${daysPastDue(i)} day${daysPastDue(i) === 1 ? '' : 's'} overdue`
-        : `Due ${formatDay(i.due_date)}`);
+        ? t(daysPastDue(i) === 1 ? 'payBills.periodOverdueOne' : 'payBills.periodOverdueMany', { period: formatCoveredPeriod(i), count: daysPastDue(i) })
+        : t('payBills.dueOnDay', { date: formatDay(i.due_date) }));
     const [bundleBusy, setBundleBusy] = useState(false);
     const [bundleView, setBundleView] = useState(true);   // show an open bundle in the ledger
     const [bundleChoiceHidden, setBundleChoiceHidden] = useState(false);
@@ -303,10 +310,10 @@ export default function PayBills() {
                 setPayingAdvance(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
-                setActionError(res.data.message || 'Could not combine the overdue bills.');
+                setActionError(res.data.message || t('payBills.errCombine'));
             }
         } catch (err) {
-            setActionError(apiErrorMessage(err, 'Could not combine the overdue bills.'));
+            setActionError(apiErrorMessage(err, t('payBills.errCombine')));
         } finally {
             setBundleBusy(false);
         }
@@ -322,10 +329,10 @@ export default function PayBills() {
                 setBundleChoiceHidden(true);
                 await refresh();
             } else {
-                setActionError(res.data.message || 'Could not split the combined payment.');
+                setActionError(res.data.message || t('payBills.errSplitBundle'));
             }
         } catch (err) {
-            setActionError(apiErrorMessage(err, 'Could not split the combined payment.'));
+            setActionError(apiErrorMessage(err, t('payBills.errSplitBundle')));
         } finally {
             setBundleBusy(false);
         }
@@ -337,13 +344,13 @@ export default function PayBills() {
         ? { ...openAdvance, kind: 'advance' }
         : (bundleView && openBundle?.payable) ? { ...openBundle, kind: 'bundle' } : null;
     const payingGroup = !!activeGroup;
-    const groupWord = activeGroup?.kind === 'bundle' ? 'Combined payment' : 'Advance payment';
+    const groupWord = activeGroup?.kind === 'bundle' ? t('payBills.combinedPayment') : t('payBills.advancePayment');
 
     // What the payment panel pays: the chosen group, otherwise the bill on screen.
     const payKey = payingGroup ? activeGroup.key : billDetails.invoiceId;
     const payLabel = payingGroup
         ? `${groupWord.toLowerCase()} (${activeGroup.months.map(m => m.label).join(', ')})`
-        : (billDetails.billingPeriod || 'this bill');
+        : (billDetails.billingPeriod || t('payBills.thisBill'));
 
     const handleCreateAdvance = async () => {
         if (advanceBusy) return;
@@ -356,10 +363,10 @@ export default function PayBills() {
                 setPayingAdvance(true);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
-                setAdvanceError(res.data.message || 'Could not prepare the advance payment.');
+                setAdvanceError(res.data.message || t('payBills.errPrepareAdvance'));
             }
         } catch (err) {
-            setAdvanceError(apiErrorMessage(err, 'Could not prepare the advance payment.'));
+            setAdvanceError(apiErrorMessage(err, t('payBills.errPrepareAdvance')));
         } finally {
             setAdvanceBusy(false);
         }
@@ -377,10 +384,10 @@ export default function PayBills() {
                 setConfirmCancelAdvance(false);
                 await Promise.all([refresh(), loadAdvance()]);
             } else {
-                setAdvanceError(res.data.message || 'Could not cancel the advance payment.');
+                setAdvanceError(res.data.message || t('payBills.errCancelAdvance'));
             }
         } catch (err) {
-            setAdvanceError(apiErrorMessage(err, 'Could not cancel the advance payment.'));
+            setAdvanceError(apiErrorMessage(err, t('payBills.errCancelAdvance')));
         } finally {
             setAdvanceBusy(false);
         }
@@ -473,14 +480,14 @@ export default function PayBills() {
                         }
                     }
                     if (outcome !== 'none') setGatewayMessage(outcome === 'released'
-                        ? "Payment was cancelled. Your bill is open again, so you can choose a payment method and try again."
-                        : "Payment was cancelled, but this bill could not be reopened for payment. Please contact management to release it.");
+                        ? t('payBills.cancelledReopened')
+                        : t('payBills.cancelledNotReopened'));
                     navigate('/pay-bills', { replace: true });
                     refresh();
                 })();
             }
         }
-    }, [navigate, refresh]);
+    }, [navigate, refresh, t]);
 
     const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.services + billDetails.maintenance + billDetails.securityDeposit + billDetails.lateFee;
     // Installments: parts already received on this bill, and what is left.
@@ -489,7 +496,7 @@ export default function PayBills() {
     // The part the tenant pays now ('' = the whole balance). Single bills only.
     const [partAmount, setPartAmount] = useState('');
     const [partCapped, setPartCapped] = useState(false); // the last entry was over the balance
-    const partError = partAmount === '' ? '' : checkAmount(partAmount, { label: 'Amount', min: 0.01, max: balanceDue, allowZero: false });
+    const partError = partAmount === '' ? '' : checkAmount(partAmount, { label: t('validation.amount'), min: 0.01, max: balanceDue, allowZero: false });
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
     useEffect(() => {
@@ -528,8 +535,8 @@ export default function PayBills() {
     const family = currentMethodObj.family;
     const payForm = useFieldErrors(
         family === 'in_person' ? {
-            scheduled_date: (v) => checkDate(v, { min: localDateString(), max: addDays(SCHEDULE_MAX_DAYS), label: 'Schedule date' }),
-            scheduled_time_slot: (v) => (TIME_SLOTS.includes(v) ? '' : 'Please choose a time slot.'),
+            scheduled_date: (v) => checkDate(v, { min: localDateString(), max: addDays(SCHEDULE_MAX_DAYS), label: t('payBills.scheduleDateLabel') }),
+            scheduled_time_slot: (v) => (TIME_SLOTS.includes(v) ? '' : t('payBills.errTimeSlot')),
         } : {},
         { idPrefix: 'pay-' }
     );
@@ -549,11 +556,11 @@ export default function PayBills() {
 
     const executePayment = async () => {
         if (!payKey) {
-            setPayError("No pending invoice found.");
+            setPayError(t('payBills.errNoInvoice'));
             return;
         }
         if (!payingGroup && isAwaiting) {
-            setPayError("This bill already has a payment awaiting confirmation.");
+            setPayError(t('payBills.errAwaiting'));
             return;
         }
 
@@ -569,15 +576,15 @@ export default function PayBills() {
                     // Bell and invoice watch both refetch; the bell starts polling faster.
                     window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
                     setNotice({
-                        message: payingGroup ? `${groupWord} scheduled` : 'Payment scheduled',
-                        subtext: `Please pay at the admin office on ${scheduledDate} (${scheduledTimeSlot}). You will be notified once management records your payment.`,
+                        message: payingGroup ? t('payBills.groupScheduled', { group: groupWord }) : t('payBills.paymentScheduled'),
+                        subtext: t('payBills.scheduledBody', { date: scheduledDate, slot: t(`payBills.slot.${scheduledTimeSlot}`) }),
                     });
                 } else if (!payForm.applyServerErrors(res)) {
                     setPayError(res.data.message);
                 }
             } catch (error) {
                 console.error(error);
-                if (!payForm.applyServerErrors(error)) setPayError(apiErrorMessage(error, "Failed to schedule payment."));
+                if (!payForm.applyServerErrors(error)) setPayError(apiErrorMessage(error, t('payBills.errSchedule')));
             }
             return;
         }
@@ -609,15 +616,15 @@ export default function PayBills() {
                     setSplitAttempted(false);
                     window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
                     setNotice({
-                        message: payingGroup ? `${groupWord} submitted` : 'Payment submitted',
-                        subtext: `Your split payment for ${payLabel} is awaiting verification by management.${hadCash ? ` Pay the cash portion at the admin office on ${scheduledDate} (${scheduledTimeSlot}).` : ''} This page updates by itself, and you will be notified once it is confirmed.`,
+                        message: payingGroup ? t('payBills.groupSubmitted', { group: groupWord }) : t('payBills.paymentSubmitted'),
+                        subtext: `${t('payBills.splitAwaiting', { label: payLabel })}${hadCash ? ` ${t('payBills.splitCash', { date: scheduledDate, slot: t(`payBills.slot.${scheduledTimeSlot}`) })}` : ''} ${t('payBills.splitTail')}`,
                     });
                 } else {
                     setPayError(res.data.message);
                 }
             } catch (error) {
                 console.error('Error submitting split payment:', error);
-                setPayError(apiErrorMessage(error, 'Split payment failed.'));
+                setPayError(apiErrorMessage(error, t('payBills.errSplit')));
             }
             return;
         }
@@ -634,11 +641,11 @@ export default function PayBills() {
                 if (res.data.success && res.data.checkout_url) {
                     window.location.assign(res.data.checkout_url);
                 } else {
-                    setPayError(res.data.message || "Failed to create checkout session.");
+                    setPayError(res.data.message || t('payBills.errCheckout'));
                 }
             } catch (error) {
                 console.error("Error creating checkout session:", error);
-                setPayError(apiErrorMessage(error, "Payment gateway error."));
+                setPayError(apiErrorMessage(error, t('payBills.errGateway')));
             }
             return;
         }
@@ -686,10 +693,10 @@ export default function PayBills() {
                             {t('payBills.subtext')}
                         </p>
                     </div>
-                    <nav className="flex flex-wrap gap-2 shrink-0" aria-label="Billing links">
+                    <nav className="flex flex-wrap gap-2 shrink-0" aria-label={t('payBills.billingLinks')}>
                         <button type="button" onClick={() => navigate('/user-utilities')} className={PILL_LINK}>
                             <FontAwesomeIcon icon={faTachometerAlt} className="text-indigo-500" aria-hidden="true" />
-                            <span>Meter Readings</span>
+                            <span>{t('payBills.meterReadings')}</span>
                         </button>
                         <button type="button" onClick={() => navigate('/payment-history')} className={PILL_LINK}>
                             <FontAwesomeIcon icon={faHistory} className="text-indigo-500" aria-hidden="true" />
@@ -707,27 +714,27 @@ export default function PayBills() {
                         tone="sky"
                         icon={faHourglassHalf}
                         chip={inv.billing_period || inv.id}
-                        title={inv.status === 'scheduled' ? 'In-person payment scheduled'
-                            : inv.status === 'processing' ? 'Online payment processing'
-                            : 'Payment awaiting verification'}
+                        title={inv.status === 'scheduled' ? t('payBills.awaitScheduledTitle')
+                            : inv.status === 'processing' ? t('payBills.awaitProcessingTitle')
+                            : t('payBills.awaitVerifyTitle')}
                     >
                         {inv.status === 'scheduled'
-                            ? <>Please pay <strong>{fmtMoney(inv.owed)}</strong> at the admin office on <strong>{inv.scheduled_date}</strong>{inv.scheduled_time_slot ? ` (${inv.scheduled_time_slot})` : ''}. You will be notified once management records it.</>
+                            ? rich('payBills.awaitScheduledBody', { amount: fmtMoney(inv.owed), date: inv.scheduled_date }, { slot: inv.scheduled_time_slot ? ` (${t(`payBills.slot.${inv.scheduled_time_slot}`)})` : '' })
                             : inv.status === 'processing'
-                            ? <>Your online payment of <strong>{fmtMoney(inv.owed)}</strong> is being confirmed by the payment gateway. This page updates by itself.</>
-                            : <>Your {inv.payment_method || ''} payment of <strong>{fmtMoney(inv.owed)}</strong>{inv.payment_reference ? <> (ref. {inv.payment_reference})</> : null} is being verified by management. You will be notified as soon as it is confirmed; this page updates by itself.</>}
+                            ? rich('payBills.awaitProcessingBody', { amount: fmtMoney(inv.owed) })
+                            : rich('payBills.awaitVerifyBody', { amount: fmtMoney(inv.owed) }, { method: inv.payment_method || '', ref: inv.payment_reference ? ` (${t('paymentHistory.refShort')} ${inv.payment_reference})` : '' })}
                     </Banner>
                 ))}
 
                 {/* Management sent the proof back, or the online checkout was declined */}
                 {!isAwaiting && billDetails.rejectionReason && (
-                    <Banner tone="rose" icon={faTimesCircle} title="Payment proof not accepted">
-                        Management returned your payment for {billDetails.billingPeriod || 'this bill'}: <strong>{billDetails.rejectionReason}</strong>. Please submit a new payment below.
+                    <Banner tone="rose" icon={faTimesCircle} title={t('payBills.proofRejectedTitle')}>
+                        {rich('payBills.proofRejectedBody', { reason: billDetails.rejectionReason }, { period: billDetails.billingPeriod || t('payBills.thisBill') })}
                     </Banner>
                 )}
                 {billDetails.status === 'payment-failed' && (
-                    <Banner tone="rose" icon={faTimesCircle} title="Online payment did not go through">
-                        Please try again or choose another payment method.
+                    <Banner tone="rose" icon={faTimesCircle} title={t('payBills.onlineFailedTitle')}>
+                        {t('payBills.onlineFailedBody')}
                     </Banner>
                 )}
 
@@ -741,17 +748,17 @@ export default function PayBills() {
                             </button>
                         </InlineAlert>
                     ) : hasCancelledApp ? (
-                        <Banner tone="slate" icon={faTimesCircle} title="Application Cancelled">
-                            Your application has been cancelled. Any open bills associated with this application were voided and no payment is required.
+                        <Banner tone="slate" icon={faTimesCircle} title={t('payBills.appCancelledTitle')}>
+                            {t('payBills.appCancelledBody')}
                         </Banner>
                     ) : (
                         <div className="w-full rounded-3xl border border-emerald-200 bg-emerald-50 px-6 py-10 sm:py-12 flex flex-col items-center text-center gap-3">
                             <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl">
                                 <FontAwesomeIcon icon={faCheckCircle} aria-hidden="true" />
                             </div>
-                            <h2 className="text-xl sm:text-2xl font-extrabold text-emerald-900 m-0">You're all paid up</h2>
+                            <h2 className="text-xl sm:text-2xl font-extrabold text-emerald-900 m-0">{t('payBills.paidUpTitle')}</h2>
                             <p className="text-sm text-emerald-800 m-0 max-w-md leading-relaxed">
-                                There is no open bill right now. Receipts for past payments are in your payment history.
+                                {t('payBills.paidUpBody')}
                             </p>
                             <button type="button" onClick={() => navigate('/payment-history')} className={`${PILL_LINK} mt-1`}>
                                 <FontAwesomeIcon icon={faReceipt} className="text-emerald-600" aria-hidden="true" />
@@ -769,14 +776,14 @@ export default function PayBills() {
                         <Banner
                             tone="rose"
                             icon={faExclamationTriangle}
-                            title="Payment is Overdue"
-                            chip={dueStatus.diffDays < 0 ? `${Math.abs(dueStatus.diffDays)} day${Math.abs(dueStatus.diffDays) === 1 ? '' : 's'} past due` : null}
+                            title={t('payBills.overdueTitle')}
+                            chip={dueStatus.diffDays < 0 ? t(Math.abs(dueStatus.diffDays) === 1 ? 'payBills.pastDueChipOne' : 'payBills.pastDueChipMany', { count: Math.abs(dueStatus.diffDays) }) : null}
                         >
-                            Your payment of <strong>{fmtMoney(balanceDue)}</strong> for the period <strong>{billDetails.coveredPeriod}</strong> is still unpaid. Please settle your bill immediately to avoid late fees and service interruptions.
+                            {rich('payBills.overdueBody', { amount: fmtMoney(balanceDue), period: billDetails.coveredPeriod })}
                         </Banner>
                     ) : dueStatus.isDueToday ? (
-                        <Banner tone="amber" icon={faClock} title="Payment Due Today">
-                            Your billing payment of <strong>{fmtMoney(balanceDue)}</strong> for {billDetails.billingPeriod} is due today (<strong>{dueStatus.formattedDate}</strong>). Please complete your settlement before the end of the day.
+                        <Banner tone="amber" icon={faClock} title={t('payBills.dueTodayTitle')}>
+                            {rich('payBills.dueTodayBody', { amount: fmtMoney(balanceDue), date: dueStatus.formattedDate }, { period: billDetails.billingPeriod })}
                         </Banner>
                     ) : null
                 )}
@@ -786,18 +793,18 @@ export default function PayBills() {
                     <Banner
                         tone="rose"
                         icon={faLayerGroup}
-                        title={`You have ${unpaidSingles.length} unpaid bills (${overdueCount} overdue)`}
+                        title={t('payBills.unpaidBillsTitle', { count: unpaidSingles.length, overdue: overdueCount })}
                         chip={fmtMoney(unpaidSingles.reduce((s, i) => s + owed(i), 0))}
                         actions={<>
                             <button type="button" onClick={handleCreateBundle} disabled={bundleBusy} className={BTN_SOLID_ROSE}>
-                                {bundleBusy ? 'Preparing…' : 'Pay all together'}
+                                {bundleBusy ? t('payBills.preparing') : t('payBills.payAllTogether')}
                             </button>
                             <button type="button" onClick={() => setBundleChoiceHidden(true)} className={BTN_GHOST}>
-                                Pay one at a time
+                                {t('payBills.payOneAtATime')}
                             </button>
                         </>}
                     >
-                        <p className="m-0">Pay them all in one payment, or pay each billing period separately. Every billing period keeps its own invoice and receipt either way.</p>
+                        <p className="m-0">{t('payBills.bundleHint')}</p>
                         <ul className="pl-0 mt-2 list-none rounded-xl bg-white border border-rose-100 divide-y divide-slate-100">
                             {unpaidSingles.map(i => (
                                 <li key={i.id} className="flex justify-between gap-3 px-3 py-2 text-xs sm:text-sm text-slate-600">
@@ -814,14 +821,14 @@ export default function PayBills() {
                     <Banner
                         tone="rose"
                         icon={faLayerGroup}
-                        title="Combined payment ready"
+                        title={t('payBills.bundleReadyTitle')}
                         chip={fmtMoney(openBundle.total)}
                         actions={<>
                             <button type="button" onClick={() => { setPayingAdvance(false); setBundleView(true); }} className={BTN_SOLID_ROSE}>
-                                Pay all
+                                {t('payBills.payAll')}
                             </button>
                             <button type="button" onClick={handleReleaseBundle} disabled={bundleBusy} className={BTN_GHOST}>
-                                Pay separately
+                                {t('payBills.paySeparately')}
                             </button>
                         </>}
                     >
@@ -864,13 +871,15 @@ export default function PayBills() {
                                     <p className="pay-bills-total-due text-3xl sm:text-4xl font-black text-slate-900 m-0 mt-1 tabular-nums">{fmtMoney(activeGroup.total)}</p>
                                 </div>
                                 <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${activeGroup.kind === 'bundle' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                                    {activeGroup.months.length} {activeGroup.kind === 'bundle' ? `bill${activeGroup.months.length === 1 ? '' : 's'}` : `month${activeGroup.months.length === 1 ? '' : 's'}`}
+                                    {t(activeGroup.kind === 'bundle'
+                                        ? (activeGroup.months.length === 1 ? 'payBills.billsCountOne' : 'payBills.billsCountMany')
+                                        : (activeGroup.months.length === 1 ? 'payBills.monthsCountOne' : 'payBills.monthsCountMany'), { count: activeGroup.months.length })}
                                 </span>
                             </div>
                             <p className="text-xs sm:text-sm text-slate-600 m-0 mt-3 leading-relaxed">
                                 {activeGroup.kind === 'bundle'
-                                    ? `One payment for ${activeGroup.months.length} bills. You get one combined receipt, and each billing period keeps its own invoice and receipt.`
-                                    : `One payment for ${activeGroup.months.length} month${activeGroup.months.length === 1 ? '' : 's'}. Each month's rent invoice is still issued on its usual date and paid from this advance, with its own receipt.`}
+                                    ? t('payBills.groupBundleNote', { count: activeGroup.months.length })
+                                    : t(activeGroup.months.length === 1 ? 'payBills.groupAdvanceNoteOne' : 'payBills.groupAdvanceNoteMany', { count: activeGroup.months.length })}
                             </p>
                             <div className="flex flex-wrap gap-2 mt-3">
                                 {(activeGroup.kind === 'advance' || activeInv) && (
@@ -880,12 +889,12 @@ export default function PayBills() {
                                         className={PILL_LINK}
                                     >
                                         <FontAwesomeIcon icon={faArrowLeft} className="text-indigo-500" aria-hidden="true" />
-                                        Back to current bill
+                                        {t('payBills.backToCurrent')}
                                     </button>
                                 )}
                                 {activeGroup.kind === 'bundle' && (
                                     <button type="button" onClick={handleReleaseBundle} disabled={bundleBusy} className={`${PILL_LINK} text-rose-600 disabled:opacity-50`}>
-                                        Pay separately instead
+                                        {t('payBills.paySeparatelyInstead')}
                                     </button>
                                 )}
                             </div>
@@ -895,14 +904,14 @@ export default function PayBills() {
                                 <BillLine
                                     key={m.key}
                                     icon={activeGroup.kind === 'bundle' ? faReceipt : faCalendarPlus}
-                                    label={activeGroup.kind === 'bundle' ? m.label : `Rent — ${m.label}`}
+                                    label={activeGroup.kind === 'bundle' ? m.label : t('payBills.rentDash', { label: m.label })}
                                     sub={m.sub}
                                     amount={fmtMoney(m.amount)}
                                 />
                             ))}
                         </div>
                         <div className="mx-5 sm:mx-7 mb-5 sm:mb-7 mt-2 rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 flex justify-between items-center">
-                            <span className="text-sm font-bold text-slate-700">Total</span>
+                            <span className="text-sm font-bold text-slate-700">{t('payBills.total')}</span>
                             <span className="text-lg font-black text-slate-900 tabular-nums">{fmtMoney(activeGroup.total)}</span>
                         </div>
                     </section>
@@ -917,7 +926,7 @@ export default function PayBills() {
                                     </p>
                                     <p className="pay-bills-total-due text-3xl sm:text-4xl font-black text-slate-900 m-0 mt-1 tabular-nums">{fmtMoney(balanceDue)}</p>
                                     <p className="text-xs sm:text-sm text-slate-500 m-0 mt-1">
-                                        {paidSoFar > 0 ? 'Balance left to pay' : t('payBills.totalDue')}
+                                        {paidSoFar > 0 ? t('paymentHistory.balanceRemaining') : t('payBills.totalDue')}
                                     </p>
                                 </div>
                                 {dueStatus && (
@@ -928,11 +937,11 @@ export default function PayBills() {
                                         : dueStatus.isDueSoon ? 'bg-indigo-100 text-indigo-700'
                                         : 'bg-slate-100 text-slate-600'}`}
                                     >
-                                        {isAwaiting ? 'Awaiting confirmation'
-                                            : dueStatus.isOverdue ? 'Overdue'
-                                            : dueStatus.isDueToday ? 'Due today'
-                                            : dueStatus.isDueSoon ? `Due in ${dueStatus.diffDays} day${dueStatus.diffDays === 1 ? '' : 's'}`
-                                            : 'Upcoming'}
+                                        {isAwaiting ? t('payBills.awaitingConfirmation')
+                                            : dueStatus.isOverdue ? t('payBills.overdue')
+                                            : dueStatus.isDueToday ? t('payBills.dueToday')
+                                            : dueStatus.isDueSoon ? t(dueStatus.diffDays === 1 ? 'payBills.dueInOne' : 'payBills.dueInMany', { count: dueStatus.diffDays })
+                                            : t('payBills.upcoming')}
                                     </span>
                                 )}
                             </div>
@@ -940,12 +949,12 @@ export default function PayBills() {
                             {dueStatus?.isOverdue ? (
                                 <p className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 m-0 mt-3">
                                     <FontAwesomeIcon icon={faCalendarPlus} className="text-slate-400" aria-hidden="true" />
-                                    Covers <strong className="text-slate-800">{billDetails.coveredPeriod}</strong>
+                                    {t('payBills.covers')} <strong className="text-slate-800">{billDetails.coveredPeriod}</strong>
                                 </p>
                             ) : billDetails.dueDate && (
                                 <p className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 m-0 mt-3">
                                     <FontAwesomeIcon icon={faClock} className="text-slate-400" aria-hidden="true" />
-                                    Due <strong className="text-slate-800">{dueStatus?.formattedDate || billDetails.dueDate}</strong>
+                                    {t('payBills.dueLabel')} <strong className="text-slate-800">{dueStatus?.formattedDate || billDetails.dueDate}</strong>
                                 </p>
                             )}
                         </div>
@@ -968,17 +977,17 @@ export default function PayBills() {
 
                         <div className="mx-5 sm:mx-7 mb-5 sm:mb-7 mt-2 rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 space-y-2">
                             <div className="flex justify-between items-center">
-                                <span className="text-sm font-bold text-slate-700">{paidSoFar > 0 ? 'Bill total' : t('payBills.totalDue')}</span>
+                                <span className="text-sm font-bold text-slate-700">{paidSoFar > 0 ? t('payBills.billTotal') : t('payBills.totalDue')}</span>
                                 <span className="text-lg font-black text-slate-900 tabular-nums">{fmtMoney(totalAmount)}</span>
                             </div>
                             {paidSoFar > 0 && (
                                 <>
                                     {/* Installments: paid so far and the balance */}
-                                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Paid so far" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((paidSoFar / (totalAmount || 1)) * 100)}>
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label={t('paymentHistory.paidSoFar')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((paidSoFar / (totalAmount || 1)) * 100)}>
                                         <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, (paidSoFar / (totalAmount || 1)) * 100)}%` }} />
                                     </div>
-                                    <div className="flex justify-between text-sm font-semibold text-emerald-700"><span>Paid so far</span><span className="tabular-nums">{fmtMoney(paidSoFar)}</span></div>
-                                    <div className="flex justify-between text-sm font-extrabold text-slate-800"><span>Balance</span><span className="tabular-nums">{fmtMoney(balanceDue)}</span></div>
+                                    <div className="flex justify-between text-sm font-semibold text-emerald-700"><span>{t('paymentHistory.paidSoFar')}</span><span className="tabular-nums">{fmtMoney(paidSoFar)}</span></div>
+                                    <div className="flex justify-between text-sm font-extrabold text-slate-800"><span>{t('payBills.balance')}</span><span className="tabular-nums">{fmtMoney(balanceDue)}</span></div>
                                 </>
                             )}
                         </div>
@@ -997,14 +1006,14 @@ export default function PayBills() {
                         <fieldset className="space-y-3 mx-0 mt-0 p-0 border-0 min-w-0">
                             <legend className="p-0 mb-3"><StepTitle n={1}>{t('payBills.selectMethod')}</StepTitle></legend>
                             {channelsLoading ? (
-                                <p className="m-0 text-sm text-slate-500">Loading payment methods…</p>
+                                <p className="m-0 text-sm text-slate-500">{t('payBills.loadingMethods')}</p>
                             ) : paymentChannels.length === 0 ? (
                                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-1">
                                     <p className="font-bold m-0 flex items-center gap-1.5">
                                         <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600" />
-                                        Payment Options Unavailable
+                                        {t('payBills.noChannelsTitle')}
                                     </p>
-                                    <p className="m-0 text-slate-600">All payment channels are currently disabled by apartment management. Online checkouts and proof uploads cannot be processed at this time.</p>
+                                    <p className="m-0 text-slate-600">{t('payBills.noChannelsBody')}</p>
                                 </div>
                             ) : null}
                             <div ref={methodMenuRef} className="relative">
@@ -1022,7 +1031,7 @@ export default function PayBills() {
                                             : currentMethodObj.isQr ? <span className="rounded bg-indigo-600 px-1 text-[8px] font-black leading-4 tracking-tight text-white">QR PH</span>
                                                 : <FontAwesomeIcon icon={currentMethodObj.icon || faWallet} className={`text-base ${currentMethodObj.color || 'text-slate-500'}`} />}
                                     </span>
-                                    <span className="min-w-0 flex-1 truncate">{currentMethodObj.family === 'split' ? t('payBills.splitPayment') : currentMethodObj.label || 'Select a payment method'}</span>
+                                    <span className="min-w-0 flex-1 truncate">{currentMethodObj.family === 'split' ? t('payBills.splitPayment') : currentMethodObj.label || t('payBills.selectAMethod')}</span>
                                     <FontAwesomeIcon icon={faChevronDown} className={`text-xs text-slate-400 transition-transform ${methodMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                                 </button>
                                 {methodMenuOpen && (
@@ -1054,12 +1063,12 @@ export default function PayBills() {
                         </fieldset>
 
                         {(['split', 'in_person'].includes(currentMethodObj.family) || (currentMethodObj.family === 'manual' && !payingGroup && balanceDue > 0)) && (
-                            <StepTitle n={2} className="mb-3">{currentMethodObj.family === 'manual' ? 'Amount you are paying now' : 'Payment details'}</StepTitle>
+                            <StepTitle n={2} className="mb-3">{currentMethodObj.family === 'manual' ? t('payBills.amountNow') : t('payBills.paymentDetails')}</StepTitle>
                         )}
 
                         {!payingGroup && ['manual', 'split'].includes(currentMethodObj.family) && balanceDue > 0 && (
                             <div className="flex flex-col gap-2 text-left">
-                                <label htmlFor="pay-part_amount" className={currentMethodObj.family === 'manual' ? 'sr-only' : 'text-xs font-bold text-slate-700 block'}>Amount you are paying now (₱)</label>
+                                <label htmlFor="pay-part_amount" className={currentMethodObj.family === 'manual' ? 'sr-only' : 'text-xs font-bold text-slate-700 block'}>{t('payBills.amountNowPeso')}</label>
                                 {/* Text, not type="number" (which took 1e6, -5 and any size): digits
                                     and one point, 2 decimals, and never more than the balance. */}
                                 <input id="pay-part_amount" type="text" inputMode="decimal" autoComplete="off" value={partAmount}
@@ -1071,13 +1080,13 @@ export default function PayBills() {
                                         setPartCapped(capped);
                                         setPartAmount(capped ? balanceDue.toFixed(2) : v);
                                     }}
-                                    placeholder={`${balanceDue.toFixed(2)} (whole balance)`} aria-invalid={!!partError} aria-describedby="pay-part_amount-hint"
+                                    placeholder={t('payBills.wholeBalancePlaceholder', { amount: balanceDue.toFixed(2) })} aria-invalid={!!partError} aria-describedby="pay-part_amount-hint"
                                     className={`pay-bills-input w-full rounded-xl border px-3 py-2 text-sm text-slate-800 ${partError ? 'border-rose-400' : 'border-slate-200'}`} />
                                 {partError
                                     ? <p id="pay-part_amount-hint" role="alert" className="m-0 mt-0.5 text-xs font-semibold text-rose-600">{partError}</p>
                                     : partCapped && partAmount !== ''
-                                    ? <p id="pay-part_amount-hint" role="status" className="m-0 mt-0.5 text-xs font-semibold text-amber-700">The most you can pay is your balance, {fmtMoney(balanceDue)}.</p>
-                                    : <p id="pay-part_amount-hint" className="m-0 mt-0.5 text-xs text-slate-500">Leave blank to pay the whole balance ({fmtMoney(balanceDue)}), or pay part now and the rest later.</p>}
+                                    ? <p id="pay-part_amount-hint" role="status" className="m-0 mt-0.5 text-xs font-semibold text-amber-700">{t('payBills.maxIsBalance', { amount: fmtMoney(balanceDue) })}</p>
+                                    : <p id="pay-part_amount-hint" className="m-0 mt-0.5 text-xs text-slate-500">{t('payBills.leaveBlank', { amount: fmtMoney(balanceDue) })}</p>}
                             </div>
                         )}
 
@@ -1086,8 +1095,8 @@ export default function PayBills() {
                                 <FontAwesomeIcon icon={currentMethodObj.isQr ? faQrcode : faReceipt} className="mt-0.5 text-indigo-500" aria-hidden="true" />
                                 <span>
                                     {currentMethodObj.isQr
-                                        ? 'Next, scan the QR code to pay, then enter the reference number and upload your receipt.'
-                                        : `Next, you'll see the ${(currentMethodObj.label || '').replace(/\s*\(manual\)/i, '')} account to send to, then enter the reference number and upload your receipt.`}
+                                        ? t('payBills.nextQr')
+                                        : t('payBills.nextAccount', { method: (currentMethodObj.label || '').replace(/\s*\(manual\)/i, '') })}
                                 </span>
                             </p>
                         )}
@@ -1101,7 +1110,7 @@ export default function PayBills() {
                             <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
                                 <div>
                                     <label htmlFor="pay-scheduled_date" className="block text-xs font-bold text-slate-700 mb-1">
-                                        Schedule Date <span className="text-red-500">*</span>
+                                        {t('payBills.scheduleDate')} <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="date"
@@ -1118,7 +1127,7 @@ export default function PayBills() {
                                 </div>
                                 <div>
                                     <label htmlFor="pay-scheduled_time_slot" className="block text-xs font-bold text-slate-700 mb-1">
-                                        Time Slot <span className="text-red-500">*</span>
+                                        {t('payBills.timeSlot')} <span className="text-red-500">*</span>
                                     </label>
                                     <select
                                         {...payForm.fieldA11y('scheduled_time_slot')}
@@ -1126,8 +1135,8 @@ export default function PayBills() {
                                         onChange={e => { setScheduledTimeSlot(e.target.value); payForm.clearError('scheduled_time_slot'); }}
                                         className={`pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500 cursor-pointer${invalidCls(payForm.errors.scheduled_time_slot)}`}
                                     >
-                                        <option value="morning">Morning (9am-12pm)</option>
-                                        <option value="afternoon">Afternoon (1pm-5pm)</option>
+                                        <option value="morning">{t('payBills.slotMorning')}</option>
+                                        <option value="afternoon">{t('payBills.slotAfternoon')}</option>
                                     </select>
                                     <FieldError id="pay-scheduled_time_slot" error={payForm.errors.scheduled_time_slot} />
                                 </div>
@@ -1144,18 +1153,18 @@ export default function PayBills() {
                                 className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[52px] bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-extrabold py-3.5 rounded-2xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed"
                             >
                                 {!(currentMethodObj.family === 'manual' && !isAwaiting) && <FontAwesomeIcon icon={faLock} className="text-sm opacity-80" aria-hidden="true" />}
-                                {isPaying ? 'Processing…' : currentMethodObj.family === 'manual' && (payingGroup || (activeInv && !isAwaiting))
-                                    ? `Continue to payment (${fmtMoney(payingGroup ? activeGroup.total : (partAmount !== '' && !partError ? Number(partAmount) : balanceDue))})`
+                                {isPaying ? t('payBills.processing') : currentMethodObj.family === 'manual' && (payingGroup || (activeInv && !isAwaiting))
+                                    ? `${t('payBills.continueToPayment')} (${fmtMoney(payingGroup ? activeGroup.total : (partAmount !== '' && !partError ? Number(partAmount) : balanceDue))})`
                                     : payingGroup
-                                    ? `${activeGroup.kind === 'bundle' ? 'Pay all' : 'Pay advance'} (${fmtMoney(activeGroup.total)})`
-                                    : isAwaiting ? 'Awaiting confirmation'
+                                    ? `${activeGroup.kind === 'bundle' ? t('payBills.payAll') : t('payBills.payAdvance')} (${fmtMoney(activeGroup.total)})`
+                                    : isAwaiting ? t('payBills.awaitingConfirmation')
                                     // A part amount is sent only with manual and split payments.
                                     : activeInv ? `${t('payBills.proceedToPay')} (${fmtMoney(['manual', 'split'].includes(currentMethodObj.family) && partAmount !== '' && !partError ? Number(partAmount) : balanceDue)})`
                                     : t('payBills.proceedToPay')}
                                 {currentMethodObj.family === 'manual' && !isPaying && (payingGroup || (activeInv && !isAwaiting)) && <FontAwesomeIcon icon={faArrowRight} className="text-sm" aria-hidden="true" />}
                             </button>
                             {currentMethodObj.family !== 'sandbox' && (
-                                <p className="m-0 text-center text-xs text-slate-500">You will be notified once management confirms your payment.</p>
+                                <p className="m-0 text-center text-xs text-slate-500">{t('payBills.notifyOnConfirm')}</p>
                             )}
                         </div>
 
@@ -1172,9 +1181,9 @@ export default function PayBills() {
                                 <FontAwesomeIcon icon={faCalendarPlus} aria-hidden="true" />
                             </div>
                             <div>
-                                <h3 className="text-lg font-bold m-0 text-slate-900">Pay in advance</h3>
+                                <h3 className="text-lg font-bold m-0 text-slate-900">{t('payBills.advanceCardTitle')}</h3>
                                 <p className="text-xs text-slate-500 m-0 mt-0.5">
-                                    Prepay upcoming months in one payment. Each month's rent invoice is still issued on your usual rent day and paid from your advance, with its own receipt.
+                                    {t('payBills.advanceCardBody')}
                                 </p>
                             </div>
                         </div>
@@ -1183,11 +1192,11 @@ export default function PayBills() {
                             openAdvance.payable ? (
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                     <p className="text-sm text-slate-700 m-0">
-                                        Advance payment ready: <strong>{advanceMonthsText}</strong> — <strong>{fmtMoney(openAdvance.total)}</strong>
+                                        {rich('payBills.advanceReady', { months: advanceMonthsText, amount: fmtMoney(openAdvance.total) })}
                                     </p>
                                     {confirmCancelAdvance ? (
-                                        <div role="group" aria-label="Confirm cancelling the advance payment" className="flex flex-col sm:items-end gap-2 shrink-0">
-                                            <p className="m-0 text-sm font-semibold text-slate-800">Cancel this advance? Its months will be billed as usual.</p>
+                                        <div role="group" aria-label={t('payBills.confirmCancelAdvanceLabel')} className="flex flex-col sm:items-end gap-2 shrink-0">
+                                            <p className="m-0 text-sm font-semibold text-slate-800">{t('payBills.cancelAdvanceAsk')}</p>
                                             <div className="flex gap-2">
                                                 <button
                                                     type="button"
@@ -1195,7 +1204,7 @@ export default function PayBills() {
                                                     disabled={advanceBusy}
                                                     className="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50"
                                                 >
-                                                    {advanceBusy ? 'Cancelling…' : 'Yes, cancel advance'}
+                                                    {advanceBusy ? t('payBills.cancelling') : t('payBills.yesCancelAdvance')}
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1203,7 +1212,7 @@ export default function PayBills() {
                                                     disabled={advanceBusy}
                                                     className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50"
                                                 >
-                                                    Keep it
+                                                    {t('payBills.keepIt')}
                                                 </button>
                                             </div>
                                         </div>
@@ -1215,7 +1224,7 @@ export default function PayBills() {
                                                 onClick={() => { setPayingAdvance(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                                                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold border-0 cursor-pointer"
                                             >
-                                                Pay now
+                                                {t('paymentHistory.payNow')}
                                             </button>
                                         )}
                                         <button
@@ -1224,20 +1233,20 @@ export default function PayBills() {
                                             disabled={advanceBusy}
                                             className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50"
                                         >
-                                            Cancel advance
+                                            {t('payBills.cancelAdvance')}
                                         </button>
                                     </div>
                                     )}
                                 </div>
                             ) : (
                                 <p className="text-sm text-slate-600 m-0">
-                                    Your advance payment for {advanceMonthsText} is awaiting confirmation (see above).
+                                    {t('payBills.advanceAwaiting', { months: advanceMonthsText })}
                                 </p>
                             )
                         ) : advance?.available && advance.months?.length > 0 ? (
                             <div className="space-y-4">
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                                    <label htmlFor="advance-months" className="text-sm font-bold text-slate-700">Months to prepay</label>
+                                    <label htmlFor="advance-months" className="text-sm font-bold text-slate-700">{t('payBills.monthsToPrepay')}</label>
                                     <select
                                         id="advance-months"
                                         value={Math.min(advanceCount, advance.months.length)}
@@ -1245,7 +1254,7 @@ export default function PayBills() {
                                         className="pay-bills-input px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500 cursor-pointer"
                                     >
                                         {advance.months.map((m, i) => (
-                                            <option key={m.period_start} value={i + 1}>{i + 1} month{i === 0 ? '' : 's'}</option>
+                                            <option key={m.period_start} value={i + 1}>{t(i === 0 ? 'payBills.monthsCountOne' : 'payBills.monthsCountMany', { count: i + 1 })}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -1257,7 +1266,7 @@ export default function PayBills() {
                                             const [month] = selectedMonths;
                                             return (
                                                 <div className="flex justify-between text-sm text-slate-600">
-                                                    <span>Rent — {month.billing_period} <span className="text-xs text-slate-500">({formatPeriodRange(month.period_start, month.period_end)})</span></span>
+                                                    <span>{t('payBills.rentDash', { label: month.billing_period })} <span className="text-xs text-slate-500">({formatPeriodRange(month.period_start, month.period_end)})</span></span>
                                                     <span className="font-bold text-slate-900">{fmtMoney(month.amount)}</span>
                                                 </div>
                                             );
@@ -1267,10 +1276,10 @@ export default function PayBills() {
                                         const sameMonthlyAmount = selectedMonths.every(month => month.amount === firstMonth.amount);
                                         return (
                                             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-slate-600">
-                                                <span>Rent Advance ({selectedMonths.length} months: {formatDay(firstMonth.period_start)} – {formatDay(lastMonth.period_end)})</span>
+                                                <span>{t('payBills.rentAdvanceRange', { count: selectedMonths.length, from: formatDay(firstMonth.period_start), to: formatDay(lastMonth.period_end) })}</span>
                                                 <span className="font-bold text-slate-900">
-                                                    {sameMonthlyAmount && <span>{fmtMoney(firstMonth.amount)} × {selectedMonths.length} months = </span>}
-                                                    <span className="text-indigo-600">{fmtMoney(total)} total</span>
+                                                    {sameMonthlyAmount && <span>{t('payBills.amountTimesMonths', { amount: fmtMoney(firstMonth.amount), count: selectedMonths.length })} </span>}
+                                                    <span className="text-indigo-600">{t('payBills.totalAmount', { amount: fmtMoney(total) })}</span>
                                                 </span>
                                             </div>
                                         );
@@ -1282,12 +1291,12 @@ export default function PayBills() {
                                     disabled={advanceBusy}
                                     className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50"
                                 >
-                                    {advanceBusy ? 'Preparing…' : 'Continue to payment'}
+                                    {advanceBusy ? t('payBills.preparing') : t('payBills.continueToPayment')}
                                 </button>
                             </div>
                         ) : advance?.available ? (
                             <p className="text-sm text-slate-600 m-0">
-                                There are no upcoming months left to prepay before your rent ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
+                                {t('payBills.noMonthsLeft', { end: advance.lease_end ? ` (${advance.lease_end})` : '' })}
                             </p>
                         ) : null}
 
@@ -1296,16 +1305,16 @@ export default function PayBills() {
                         {/* Months already paid in advance: waiting for their month, or billed and settled. */}
                         {advance?.credits?.length > 0 && (
                             <div className="border-t border-slate-100 pt-4">
-                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">Prepaid months</p>
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 m-0 mb-1">{t('payBills.prepaidMonths')}</p>
                                 <div className="divide-y divide-slate-100">
                                     {advance.credits.map(c => (
                                         <BillLine
                                             key={`${c.advance_invoice_id}-${c.period_start}`}
                                             icon={c.status === 'applied' ? faCheckCircle : faCalendarPlus}
-                                            label={`Rent — ${c.billing_period}`}
+                                            label={t('payBills.rentDash', { label: c.billing_period })}
                                             sub={c.status === 'applied'
-                                                ? `Paid from advance · invoice ${c.applied_invoice_id}`
-                                                : `Credited · the month from ${formatDay(c.period_start)} is paid automatically when billed`}
+                                                ? t('payBills.creditApplied', { id: c.applied_invoice_id })
+                                                : t('payBills.creditWaiting', { date: formatDay(c.period_start) })}
                                             amount={<span className={c.status === 'applied' ? 'text-emerald-600' : 'text-indigo-600'}>{fmtMoney(c.amount)}</span>}
                                         />
                                     ))}

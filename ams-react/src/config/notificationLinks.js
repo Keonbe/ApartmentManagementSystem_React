@@ -1,6 +1,7 @@
 // Where a notification leads when clicked, by notification type. Types are the
 // ones the backend writes (create_notification() / notify_admins_queue() in
 // backend/config.php). A type missing from a map simply has no link.
+import { t, dateLocale } from './i18n';
 
 export const TENANT_NOTIFICATION_LINKS = {
   welcome: { path: '/preview', label: 'Browse Units' },
@@ -118,11 +119,11 @@ export const formatRelativeTime = (dateStr) => {
   const d = new Date(String(dateStr).replace(' ', 'T'));
   if (isNaN(d.getTime())) return dateStr;
   const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t('time.justNow');
+  if (mins < 60) return t('time.minutesAgo', { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('time.hoursAgo', { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  if (days < 7) return t('time.daysAgo', { n: days });
+  return d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
 };

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ACTION_LABELS, STATUS_STYLES, peso, when } from '../utils/refundFormat';
+import { ACTION_LABELS, STATUS_STYLES, peso, statusLabel, when } from '../utils/refundFormat';
 
 // Shared by the tenant page (UserRefunds) and the admin page (AdminRefunds).
 
 export function StatusBadge({ status }) {
-  return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_STYLES[status] || STATUS_STYLES.Cancelled}`}>{status}</span>;
+  return <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_STYLES[status] || STATUS_STYLES.Cancelled}`}>{statusLabel(status)}</span>;
 }
 
 // Timestamped status trail, oldest first.

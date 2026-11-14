@@ -549,7 +549,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 ref={avatarButtonRef}
                                 type="button"
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                aria-label={`Account menu for ${displayName}`}
+                                aria-label={t('nav.accountMenuFor', { name: displayName })}
                                 aria-haspopup="menu"
                                 aria-expanded={isDropdownOpen}
                                 className="flex items-center space-x-3 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 min-h-[44px] rounded-xl border-0 bg-transparent cursor-pointer transition-all duration-200 select-none focus-visible:outline-2 focus-visible:outline-white"

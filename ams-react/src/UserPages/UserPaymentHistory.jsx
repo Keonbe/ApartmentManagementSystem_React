@@ -5,7 +5,7 @@ import { faFileInvoiceDollar, faDownload, faHistory, faPrint, faArrowRight } fro
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import fileUrl from '../api/fileUrl';
-import { useLang, dateLocale } from '../config/i18n';
+import { useLang, dateLocale, t as translate } from '../config/i18n';
 import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import { printElement } from '../utils/print';
 import useDialog from '../hooks/useDialog';
@@ -32,7 +32,7 @@ const formatCurrency = (amount) => {
 };
 const formatDate = (value) => value
     ? new Date(value).toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'N/A';
+    : translate('paymentHistory.notAvailable');
 
 export default function UserPaymentHistory() {
     const navigate = useNavigate();
@@ -51,11 +51,11 @@ export default function UserPaymentHistory() {
         if (confirmed.length === 0) return;
         const first = confirmed[0].invoice;
         setNotice({
-            message: 'Payment confirmed',
+            message: t('paymentHistory.confirmedTitle'),
             subtext: confirmed.length === 1
-                ? `Management confirmed your payment for ${first.billing_period || `invoice ${first.id}`}. Your receipt is ready.`
-                : `Management confirmed ${confirmed.length} payments. A receipt for each month is ready.`,
-            action: { label: 'View receipt', onClick: () => { setNotice(null); setReceiptInvoiceId(first.id); } },
+                ? t('paymentHistory.confirmedOne', { period: first.billing_period || t('paymentHistory.invoiceNo', { id: first.id }) })
+                : t('paymentHistory.confirmedMany', { count: confirmed.length }),
+            action: { label: t('paymentHistory.viewReceipt'), onClick: () => { setNotice(null); setReceiptInvoiceId(first.id); } },
         });
     };
 
@@ -64,28 +64,28 @@ export default function UserPaymentHistory() {
 
     const buildReceipt = (inv) => {
         let breakdown = inv.advance_months
-            ? `Advance rent (${inv.advance_months} month${inv.advance_months === 1 ? '' : 's'}): ${formatCurrency(inv.base_rent)}`
-            : `Rent: ${formatCurrency(inv.base_rent)}`;
+            ? t(inv.advance_months === 1 ? 'paymentHistory.advanceRentOne' : 'paymentHistory.advanceRentMany', { n: inv.advance_months, amount: formatCurrency(inv.base_rent) })
+            : `${t('paymentHistory.rent')} ${formatCurrency(inv.base_rent)}`;
         if (parseFloat(inv.security_deposit) > 0) {
-            breakdown += `\nSecurity Deposit: ${formatCurrency(inv.security_deposit)}`;
+            breakdown += `\n${t('paymentHistory.deposit')} ${formatCurrency(inv.security_deposit)}`;
         }
         if (parseFloat(inv.water) > 0) {
-            breakdown += `\nWater: ${formatCurrency(inv.water)}`;
+            breakdown += `\n${t('paymentHistory.water')} ${formatCurrency(inv.water)}`;
         }
         if (parseFloat(inv.electricity) > 0) {
-            breakdown += `\nElectricity: ${formatCurrency(inv.electricity)}`;
+            breakdown += `\n${t('paymentHistory.electricity')} ${formatCurrency(inv.electricity)}`;
         }
         if (parseFloat(inv.parking) > 0) {
-            breakdown += `\nParking: ${formatCurrency(inv.parking)}`;
+            breakdown += `\n${t('paymentHistory.parking')} ${formatCurrency(inv.parking)}`;
         }
         if (parseFloat(inv.services) > 0) {
-            breakdown += `\nAdd-On Services: ${formatCurrency(inv.services)}`;
+            breakdown += `\n${t('paymentHistory.addOnServices')} ${formatCurrency(inv.services)}`;
         }
         if (parseFloat(inv.maintenance) > 0) {
-            breakdown += `\nMaintenance Recharge: ${formatCurrency(inv.maintenance)}`;
+            breakdown += `\n${t('paymentHistory.maintenance')} ${formatCurrency(inv.maintenance)}`;
         }
         if (parseFloat(inv.late_fee) > 0) {
-            breakdown += `\nLate Fee Penalty (Overdue): ${formatCurrency(inv.late_fee)}`;
+            breakdown += `\n${t('paymentHistory.lateFee')} ${formatCurrency(inv.late_fee)}`;
         }
 
         // A month paid ahead of its due date says so; every month keeps its own receipt.
@@ -94,8 +94,8 @@ export default function UserPaymentHistory() {
         return {
             rctId: `RCT-${inv.id}`,
             date: formatDate(inv.paid_at),
-            tenant: personName(loggedInUser) || 'Tenant',
-            unit: inv.room_name || 'N/A',
+            tenant: personName(loggedInUser) || t('paymentHistory.tenantFallback'),
+            unit: inv.room_name || t('paymentHistory.notAvailable'),
             period: inv.billing_period,
             coveredPeriod: formatPeriodRange(inv.period_start, inv.period_end),
             dueDate: inv.due_date ? formatDate(`${inv.due_date}T00:00:00`) : null,
@@ -107,7 +107,7 @@ export default function UserPaymentHistory() {
             amount: parseFloat(inv.total_amount),
             breakdown: breakdown,
             status: inv.status.toUpperCase(),
-            method: inv.payment_method || 'N/A',
+            method: inv.payment_method || t('paymentHistory.notAvailable'),
             paymentTransactions: inv.payment_transactions || [],
             reference: inv.payment_reference || null,
             proofPath: inv.proof_of_payment_path || null
@@ -162,7 +162,7 @@ export default function UserPaymentHistory() {
         return {
             ...buildReceipt(first),
             rctId: `RCT-${key}`,
-            period: `Combined payment — ${bills.length} billing period${bills.length === 1 ? '' : 's'}`,
+            period: t(bills.length === 1 ? 'paymentHistory.combinedPeriodOne' : 'paymentHistory.combinedPeriodMany', { count: bills.length }),
             coveredPeriod: '',
             dueDate: null,
             paidInAdvance: false,
@@ -176,7 +176,7 @@ export default function UserPaymentHistory() {
             amount: bills.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
             breakdown: bills.map(i => {
                 const range = formatPeriodRange(i.period_start, i.period_end);
-                const fee = parseFloat(i.late_fee) > 0 ? ` (incl. late fee ${formatCurrency(i.late_fee)})` : '';
+                const fee = parseFloat(i.late_fee) > 0 ? ` ${t('paymentHistory.inclLateFee', { amount: formatCurrency(i.late_fee) })}` : '';
                 return `${i.billing_period}${range ? ` · ${range}` : ''} · ${i.id}: ${formatCurrency(i.total_amount)}${fee}`;
             }).join('\n'),
         };
@@ -478,38 +478,38 @@ export default function UserPaymentHistory() {
                                         <div className="mt-2 text-left space-y-1">
                                             {receiptData.paymentTransactions.map((tx) => (
                                                 <p key={tx.id} className="m-0 text-xs text-slate-700">
-                                                    {formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? <> (ref. <span className="font-mono">{tx.reference_number}</span>)</> : ''}
+                                                    {formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? <> ({t('paymentHistory.refShort')} <span className="font-mono">{tx.reference_number}</span>)</> : ''}
                                                 </p>
                                             ))}
                                         </div>
                                     )}
                                     {receiptData.reference && (
-                                        <p className="m-0 mt-1 text-xs font-semibold text-indigo-700">Ref. <span className="font-mono">{receiptData.reference}</span></p>
+                                        <p className="m-0 mt-1 text-xs font-semibold text-indigo-700">{t('paymentHistory.refShort')} <span className="font-mono">{receiptData.reference}</span></p>
                                     )}
                                 </div>
                             </div>
                             <div className="border-b border-slate-200 pb-3">
-                                <p className="m-0 text-xs text-slate-500">Billing period</p>
+                                <p className="m-0 text-xs text-slate-500">{t('paymentHistory.billingPeriod')}</p>
                                 <p className="m-0 mt-0.5 font-semibold text-slate-900">
-                                    {receiptData.period}{receiptData.coveredPeriod ? ` (${receiptData.coveredPeriod})` : ''}{receiptData.dueDate && !receiptData.advanceMonths ? `, due ${receiptData.dueDate}` : ''}
+                                    {receiptData.period}{receiptData.coveredPeriod ? ` (${receiptData.coveredPeriod})` : ''}{receiptData.dueDate && !receiptData.advanceMonths ? `, ${t('paymentHistory.dueOn', { date: receiptData.dueDate })}` : ''}
                                 </p>
                                 {receiptData.bundleKey && (
                                     <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">
-                                        Paid as part of combined payment {receiptData.bundleKey}.{' '}
+                                        {t('paymentHistory.partOfCombined', { key: receiptData.bundleKey })}{' '}
                                         <button type="button" onClick={() => setReceiptInvoiceId(receiptData.bundleKey)} className="print-hide bg-transparent border-0 p-0 text-xs font-bold text-indigo-700 underline cursor-pointer">
-                                            View combined receipt
+                                            {t('paymentHistory.viewCombined')}
                                         </button>
                                     </p>
                                 )}
                                 {receiptData.combinedBills > 0 && (
-                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Each billing period below also has its own receipt.</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">{t('paymentHistory.eachHasReceipt')}</p>
                                 )}
                                 {receiptData.paidFromAdvance ? (
-                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Paid from advance payment {receiptData.paidFromAdvance}</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">{t('paymentHistory.paidFromAdvance', { ref: receiptData.paidFromAdvance })}</p>
                                 ) : receiptData.advanceMonths > 0 ? (
-                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Advance payment for {receiptData.advanceMonths} month{receiptData.advanceMonths === 1 ? '' : 's'}. Each month's rent invoice is issued on its usual date and paid from it, with its own receipt.</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">{t(receiptData.advanceMonths === 1 ? 'paymentHistory.advanceNoteOne' : 'paymentHistory.advanceNoteMany', { n: receiptData.advanceMonths })}</p>
                                 ) : receiptData.paidInAdvance && (
-                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Paid in advance on {receiptData.date}</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">{t('paymentHistory.paidInAdvanceOn', { date: receiptData.date })}</p>
                                 )}
                             </div>
                             <div>
