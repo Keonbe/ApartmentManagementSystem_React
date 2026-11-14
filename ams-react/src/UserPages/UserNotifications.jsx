@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBell, faSearch, faTimes, faCheckDouble, faClock,
   faExclamationTriangle, faFileContract, faCheckCircle, faInfoCircle,
-  faCog, faToggleOn, faToggleOff, faCheck, faWrench, faArrowRight, faLock,
+  faCog, faCheck, faWrench, faArrowRight, faLock,
   faCar, faVideo, faConciergeBell, faUserFriends, faHome, faMoneyBillWave, faBullhorn, faPaperclip, faBoxArchive, faChevronLeft
 } from '@fortawesome/free-solid-svg-icons';
 import ConfirmDialog from '../Components/ConfirmDialog';
@@ -67,6 +67,12 @@ export default function UserNotifications() {
   // localStorage and the Save button did nothing.
   const [preferences, setPreferences] = useState([]);
   const [alwaysOn, setAlwaysOn] = useState([]);
+  // Per-channel choices (SMS / email), the building-wide availability of each channel and the
+  // account-wide opt-outs, all from get_notification_preferences.php.
+  const [channels, setChannels] = useState({ sms_available: false, email_available: false, has_contact_no: false, has_email: false });
+  const [optOut, setOptOut] = useState({ sms: false, email: false });
+  // Own delivery history (texts and emails sent to this tenant), from get_notification_log.php.
+  const [history, setHistory] = useState({ entries: [], total: 0, loaded: false, loading: false, error: false });
   const [prefDirty, setPrefDirty] = useState(false);
   const [prefSaving, setPrefSaving] = useState(false);
   const [prefMessage, setPrefMessage] = useState(null);
@@ -106,6 +112,13 @@ export default function UserNotifications() {
       if (res.data.success) {
         setPreferences(res.data.preferences);
         setAlwaysOn(res.data.always_on || []);
+        setChannels({
+          sms_available: !!res.data.channels?.sms_available,
+          email_available: !!res.data.channels?.email_available,
+          has_contact_no: !!res.data.has_contact_no,
+          has_email: !!res.data.has_email,
+        });
+        setOptOut({ sms: !!res.data.sms_opt_out, email: !!res.data.email_opt_out });
         setPrefDirty(false);
       }
     } catch {
@@ -152,18 +165,44 @@ export default function UserNotifications() {
     navigate(link.path);
   };
 
-  const togglePreference = (category) => {
-    setPreferences(prev => prev.map(p => p.category === category ? { ...p, in_app_enabled: !p.in_app_enabled } : p));
+  // channel: 'in_app_enabled' | 'sms_enabled' | 'email_enabled'
+  const togglePreference = (category, channel = 'in_app_enabled') => {
+    setPreferences(prev => prev.map(p => p.category === category ? { ...p, [channel]: !p[channel] } : p));
     setPrefDirty(true);
     setPrefMessage(null);
+  };
+
+  const toggleOptOut = (channel) => {
+    setOptOut(prev => ({ ...prev, [channel]: !prev[channel] }));
+    setPrefDirty(true);
+    setPrefMessage(null);
+  };
+
+  const HISTORY_PAGE = 10;
+  const loadHistory = useCallback(async (append = false) => {
+    setHistory(h => ({ ...h, loading: true, error: false }));
+    try {
+      const offset = append ? history.entries.length : 0;
+      const res = await api.get('get_notification_log.php', { params: { limit: HISTORY_PAGE, offset } });
+      if (!res.data.success) throw new Error(res.data.message || 'failed');
+      setHistory(h => ({ entries: append ? [...h.entries, ...res.data.entries] : res.data.entries, total: res.data.total, loaded: true, loading: false, error: false }));
+    } catch {
+      setHistory(h => ({ ...h, loaded: true, loading: false, error: true }));
+    }
+  }, [history.entries.length]);
+
+  // The history loads the first time the panel is opened.
+  const toggleSettings = () => {
+    if (!showSettings && !history.loaded && !history.loading) loadHistory(false);
+    setShowSettings(!showSettings);
   };
 
   const savePreferences = async () => {
     setPrefSaving(true);
     setPrefMessage(null);
     try {
-      const payload = Object.fromEntries(preferences.map(p => [p.category, !!p.in_app_enabled]));
-      const res = await api.post('update_notification_preferences.php', { preferences: payload });
+      const payload = Object.fromEntries(preferences.map(p => [p.category, { in_app: !!p.in_app_enabled, sms: !!p.sms_enabled, email: !!p.email_enabled }]));
+      const res = await api.post('update_notification_preferences.php', { preferences: payload, sms_opt_out: optOut.sms, email_opt_out: optOut.email });
       setPrefMessage({ ok: res.data.success, text: res.data.message });
       if (res.data.success) setPrefDirty(false);
     } catch (e) {
@@ -229,14 +268,14 @@ export default function UserNotifications() {
             <button
               onClick={handleMarkAllRead}
               disabled={unreadCount === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-brand bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
+              className="flex min-h-[44px] items-center gap-1.5 px-4 py-2 text-xs font-bold text-brand bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
             >
               <FontAwesomeIcon icon={faCheckDouble} /> {t('notifications.markAllRead')}
             </button>
             <button
               onClick={handleArchiveAll}
               disabled={!notifications.some((n) => !n.isArchived)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
+              className="flex min-h-[44px] items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
             >
               <FontAwesomeIcon icon={faBoxArchive} aria-hidden="true" /> {t('notifications.archiveAll')}
             </button>
@@ -246,7 +285,7 @@ export default function UserNotifications() {
               aria-controls="notif-pref-panel"
               aria-label={t('notifications.preferences')}
               title={t('notifications.preferences')}
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={toggleSettings}
               className={`user-notif-pref-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all cursor-pointer border shadow-sm active:scale-[0.96] ${showSettings ? 'bg-brand text-white border-brand' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
             >
               <FontAwesomeIcon icon={faCog} aria-hidden="true" className={`transition-transform duration-300 ${showSettings ? 'rotate-90' : ''}`} />
@@ -417,29 +456,58 @@ export default function UserNotifications() {
                 <h3 className="text-sm font-bold text-slate-800 m-0">{t('notifications.prefTitle')}</h3>
               </div>
 
-              <div className="space-y-5 text-left">
-                <h4 className="text-xs font-extrabold text-slate-500 m-0">{t('notifications.inApp')}</h4>
+              <div className="space-y-4 text-left">
+                <h4 className="text-xs font-extrabold text-slate-500 m-0">{t('notifications.byTopic')}</h4>
                 {preferences.map(p => (
-                  <div key={p.category} className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-slate-700 m-0 pr-3">{p.label}</p>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={!!p.in_app_enabled}
-                      onClick={() => togglePreference(p.category)}
-                      className="bg-transparent border-0 cursor-pointer text-3xl h-11 w-14 p-0 flex items-center justify-center"
-                      aria-label={p.label}
-                    >
-                      <FontAwesomeIcon
-                        icon={p.in_app_enabled ? faToggleOn : faToggleOff}
-                        aria-hidden="true"
-                        className={p.in_app_enabled ? 'text-indigo-600' : 'text-slate-400'}
-                      />
-                    </button>
-                  </div>
+                  <fieldset key={p.category} className="m-0 border-0 p-0">
+                    <legend className="text-xs font-bold text-slate-700 p-0 pb-1">{p.label}</legend>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {[
+                        ['in_app_enabled', t('notifications.chInApp'), true],
+                        ['sms_enabled', t('notifications.chSms'), channels.sms_available && !optOut.sms],
+                        ['email_enabled', t('notifications.chEmail'), channels.email_available && !optOut.email],
+                      ].map(([key, label, usable]) => (
+                        <label key={key} className={`flex min-h-[44px] items-center gap-2 text-xs font-semibold ${usable ? 'text-slate-700 cursor-pointer' : 'text-slate-500 cursor-not-allowed'}`}>
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 accent-indigo-600"
+                            checked={usable ? !!p[key] : false}
+                            disabled={!usable}
+                            onChange={() => togglePreference(p.category, key)}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
                 ))}
               </div>
 
+              <hr className="border-slate-100 m-0" />
+              <div className="space-y-3 text-left">
+                <h4 className="text-xs font-extrabold text-slate-500 m-0">{t('notifications.globalTitle')}</h4>
+                {[
+                  ['sms', t('notifications.receiveSms'), channels.sms_available, channels.has_contact_no, t('notifications.noContact')],
+                  ['email', t('notifications.receiveEmail'), channels.email_available, channels.has_email, t('notifications.noEmail')],
+                ].map(([key, label, available, reachable, unreachableText]) => (
+                  <div key={key}>
+                    <label className={`flex min-h-[44px] items-center justify-between gap-3 text-xs font-bold ${available ? 'text-slate-700 cursor-pointer' : 'text-slate-500 cursor-not-allowed'}`}>
+                      <span>{label}</span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        className="h-5 w-5 accent-indigo-600"
+                        checked={available && !optOut[key]}
+                        disabled={!available}
+                        onChange={() => toggleOptOut(key)}
+                      />
+                    </label>
+                    {!available && <p className="m-0 text-xs text-slate-600">{t('notifications.channelOff')}</p>}
+                    {available && !reachable && <p className="m-0 text-xs text-amber-700">{unreachableText}</p>}
+                    {key === 'sms' && available && <p className="m-0 mt-1 text-xs leading-relaxed text-slate-600">{t('notifications.smsConsent')}</p>}
+                  </div>
+                ))}
+              </div>
               {alwaysOn.length > 0 && (
                 <>
                   <hr className="border-slate-100 m-0" />
@@ -469,6 +537,30 @@ export default function UserNotifications() {
               >
                 {prefSaving ? 'Saving…' : t('notifications.savePref')}
               </button>
+            </div>
+            <div className="mt-4 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-3 text-left">
+              <h3 className="text-sm font-bold text-slate-800 m-0">{t('notifications.historyTitle')}</h3>
+              <p className="m-0 text-xs text-slate-600">{t('notifications.historyDesc')}</p>
+              {history.error && <p role="alert" className="m-0 text-xs font-semibold text-rose-700">{t('notifications.historyFailed')}</p>}
+              {history.loaded && !history.error && history.entries.length === 0 && <p className="m-0 text-xs text-slate-600">{t('notifications.historyEmpty')}</p>}
+              <ul className="m-0 list-none space-y-2 p-0">
+                {history.entries.map(entry => (
+                  <li key={entry.id} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-slate-800 truncate">{entry.subject || entry.event_type}</span>
+                      <span className="block text-slate-600">{entry.channel === 'sms' ? t('notifications.chSms') : t('notifications.chEmail')} · {formatRelativeTime(entry.sent_at)}</span>
+                    </span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 font-bold ${entry.status === 'sent' ? 'bg-emerald-100 text-emerald-800' : entry.status === 'failed' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'}`}>
+                      {entry.status === 'sent' ? t('notifications.histSent') : entry.status === 'failed' ? t('notifications.histFailed') : t('notifications.histSkipped')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {history.entries.length < history.total && (
+                <button type="button" onClick={() => loadHistory(true)} disabled={history.loading} className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 disabled:opacity-50">
+                  {history.loading ? t('common.pleaseWait') : t('notifications.loadMore')}
+                </button>
+              )}
             </div>
           </div>
 

@@ -239,7 +239,7 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 - **The mock outbox** (`backend/logs/notification_outbox/`, gitignored) holds one file per message: `.txt` for SMS, `.html` for email. Opening the HTML in a browser is the closest thing to seeing the real mail.
 - **Secret masking landed early.** Rendering credential fields in a browser is the moment §3.3's security note matters, so `SECRET_SETTING_KEYS`, `mask_secret_value()` and `is_masked_secret()` now live in `config.php`; admins receive `••••1234` and posting that back means "unchanged". This covers the PayMongo keys too.
 
-**Not built yet:** Phase 2 endpoint wiring (nothing calls the dispatcher in anger), the §3.2 tenant preferences UI, the §4.2 delivery log viewer, real provider drivers (Semaphore has since shipped — C.1), PHPMailer. The web-path queue drain in §4.1 is deliberately absent — with nothing enqueuing from an endpoint it would be untestable; it belongs with the Phase 2 wiring.
+**Not built yet:** Phase 2 endpoint wiring (nothing calls the dispatcher in anger), the §4.2 admin delivery log viewer (the tenant sees their own history in Notifications → Preferences, `get_notification_log.php`, 2026-11-14; the tenant per-channel preferences grid and SMS consent line shipped the same day), real provider drivers (Semaphore has since shipped — C.1), PHPMailer. The web-path queue drain in §4.1 is deliberately absent — with nothing enqueuing from an endpoint it would be untestable; it belongs with the Phase 2 wiring.
 
 ---
 
