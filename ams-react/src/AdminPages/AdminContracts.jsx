@@ -212,10 +212,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   // the threshold permanently undefined).
   const [overdueThresholdDays, setOverdueThresholdDays] = useState(15);
   const [endingDays, setEndingDays] = useState(30);
-  useEffect(() => {
   // The late fee in force (Settings, Payment Options): the new-contract preview quotes it, or says there is none.
   const [lateFee, setLateFee] = useState({ enabled: false, type: 'flat', value: 0 });
     getSystemSettings().then(s => {
+  useEffect(() => {
       setOverdueThresholdDays(s.overdueThresholdDays);
       setEndingDays(s.leaseEndReminderDays ?? 30);
       setLateFee({ enabled: !!s.lateFeeEnabled, type: s.lateFeeType, value: Number(s.lateFeeValue) || 0 });
