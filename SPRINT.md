@@ -166,6 +166,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-13. Built from `TASK.md` a
 ## In progress
 
 | # | Task | Category | Description | Status | Priority | Start | End |
+| 209 | Unify rent application legal notice modal | UI/UX · Privacy | Match the registration legal modal's two-tab layout; reuse the RA 10173 Privacy Notice, rename the application terms, correct occupancy wording in English and Filipino, retain the green agreement action | In progress | Medium | 2026-11-14 | — |
 |---|------|----------|-------------|--------|----------|-------|-----|
 | 57 | Browser check: admin round 3-4 refactors | Test | Checked 2026-11-13: contract editor loads and version times show in Manila time, messages search box filters, announcements has its file input, top bar bell opens. Not exercised: saving a contract, search results, uploading an announcement attachment, notice dialogs | In progress | Medium | 2026-10-26 | — |
 | 58 | Browser check: payments | Test | Checked 2026-11-13: Adjust modal needs a reason and posts nothing without one, Reports "Adjust Existing" opens with the reason field. Not yet: saving an adjustment and its history, Settings payments policy, amber reuse badge | In progress | Medium | 2026-10-25 | — |
