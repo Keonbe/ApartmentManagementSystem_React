@@ -319,11 +319,11 @@ Submit or resubmit a rent/lease application.
 | `nbiFile` | file | ✅ (first submit) |
 | `appId` | integer | ❌ (for resubmission) |
 
+**Other checks:** a field sent as an array is a `400`; text fields are saved trimmed; `monthsOfRent` is the admin minimum to 24 and the rent saved is the unit's own, never `monthlyRent`; an occupied unit is a `409` (`tests/api/application_submit.test.js`).
+
 **File Validation:** JPG/PNG/PDF only, max 10MB, server-side MIME check
 
 **Side Effects:**
-**Other checks:** a field sent as an array is a `400`; text fields are saved trimmed; `monthsOfRent` is the admin minimum to 24 and the rent saved is the unit's own, never `monthlyRent`; an occupied unit is a `409` (`tests/api/application_submit.test.js`).
-
 - Syncs profile fields to `users` table
 - Creates admin notification
 
@@ -959,7 +959,7 @@ Admin broadcasts an announcement to all tenants via in-app notifications.
 ---
 
 ### `GET` [get_announcements.php](../../backend/api/get_announcements.php)
-`?public=1` — the tenant feed: `require_user()`, sent announcements only. Without it — the full list including drafts and channels: `require_admin()`.
+`?public=1` — the tenant feed: `require_user()`, sent announcements only; an announcement addressed to one unit or to chosen tenants is listed only for those people (the audience itself is not returned). Without it — the full list including drafts and channels: `require_admin()`.
 
 ---
 

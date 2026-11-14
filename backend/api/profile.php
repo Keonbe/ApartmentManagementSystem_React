@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // own id is now the only thing that can ever be updated.
     $auth = require_user($conn);
 
-    $input = json_decode(file_get_contents("php://input"), true);
+    $input = read_json_input();
     $clear_avatar = $input['clearAvatar'] ?? false;
 
     // INTERCEPT LOGIC: Handle the delete avatar signal before updating other details

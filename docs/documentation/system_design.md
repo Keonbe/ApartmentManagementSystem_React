@@ -906,7 +906,7 @@ ALTER TABLE maintenance_requests
 | FR-10.4 | The system shall provide a Notification Center with history, read/unread status, and delete functionality. | ✅ |
 | FR-10.5 | The system shall display a live notification bell in the TopBar that reads unread count from the database. | ✅ |
 | FR-10.6 | The system shall allow admins to schedule announcements for future delivery. | 🔲 (drafts exist; scheduled sending does not) |
-| FR-10.7 | The system shall allow admins to target specific tenants for announcements (instead of all non-admin users). | 🔧 (one unit's tenants can be targeted) |
+| FR-10.7 | The system shall allow admins to target specific tenants for announcements (instead of all non-admin users). | ✅ (all tenants, one unit, or chosen tenants: `Tenants: 2,3`) |
 | FR-10.8 | The system shall automatically send notifications when admin updates CCTV/parking/maintenance request status. | ✅ |
 | FR-10.9 | The system shall deliver notifications by SMS (Semaphore) and email (SMTP) through a queue with retries, quiet hours, a daily SMS cap and per-user opt-outs. | 🔧 (email SMTP configured for current deployment; verify runtime settings; SMS go-live pending) |
 | FR-10.10 | The system shall provide real-time tenant ↔ admin chat with conversation history and unread counts. | ✅ (admin-initiated threads and per-message notifications pending) |
@@ -963,7 +963,7 @@ ALTER TABLE maintenance_requests
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| FR-15.1 | The system shall provide a garbage collection schedule page or announcement. | 🔲 |
+| FR-15.1 | The system shall provide a garbage collection schedule page or announcement. | ✅ (Settings → House Rules → Garbage and Housekeeping Schedule; tenants see `/housekeeping`) |
 | FR-15.2 | The system shall provide a house rules page (static or served via announcements). | 🔲 |
 
 ---

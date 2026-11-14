@@ -3,5 +3,5 @@ parameters:
 		-
 			message: '#^Function fail invoked with 1 parameter, 2 required\.$#'
 			identifier: arguments.count
-			count: 12
+			count: 13
 			path: backend/api/registration.php

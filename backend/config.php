@@ -3478,12 +3478,6 @@ function validation_fail(array $errors, $status = 422) {
     exit;
 }
 
-function v_str($value, $label, $min, $max, $required = true) {
-    if ($value !== null && !is_scalar($value)) return "$label is invalid.";
-    $s = trim((string)$value);
-    if ($s === '') return $required ? "$label is required." : '';
-    $len = mb_strlen($s);
-    if ($len < $min) return "$label must be at least $min characters.";
 // The JSON request body as an array. An empty body is [] (the endpoint's own
 // "field is required" answers still apply); a body that is not a JSON object,
 // or a field that is an array/object where the endpoint expects one value, is
@@ -3518,6 +3512,12 @@ function money_str($amount) {
     return number_format(round((float)$amount, 2), 2, '.', '');
 }
 
+function v_str($value, $label, $min, $max, $required = true) {
+    if ($value !== null && !is_scalar($value)) return "$label is invalid.";
+    $s = trim((string)$value);
+    if ($s === '') return $required ? "$label is required." : '';
+    $len = mb_strlen($s);
+    if ($len < $min) return "$label must be at least $min characters.";
     if ($len > $max) return "$label must be $max characters or fewer.";
     return '';
 }

@@ -182,7 +182,6 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `demo_seed.test.js` | 8 | `seed_demo_full.sql` / `seed_demo_reset.sql`: the demo set loads on a live-style database, every workflow state shows up through the real endpoints, and the reset removes it |
 | `guest_chat_links.test.js` | 11 | Guest inquiry chat: a repeat inquiry never receives an existing conversation's token, one-time "continue" links (`guest_chat_resume.php`), reply emails throttled to one per unseen batch |
 | `input_validation.test.js` | 13 | Per-field validation (`validation_fail`): a refused request answers 422 with every bad field in `errors` keyed by the form's field names, and nothing is written |
-| `maintenance_workflow.test.js` | 10 | Scheduled visit, tenant-visible progress, tenant cancel request on work under way, "not fixed" reopen, the tenant-charge notice |
 | `array_input.test.js` | 19 | `read_json_input()`: an array where one value is expected, or a body that is not a JSON object, answers 400 with no PHP warning; real list fields (`channels`, settings) still work |
 | `notification_log.test.js` | 10 | get_notification_log.php: only the caller's texts and emails, no private columns, filters, paging, bad queries 400 |
 | `unit_extensions.test.js` | 2 | get_rooms.php leaseHistory for the Units Extensions tab: tenant and rents for admins only |
@@ -192,6 +191,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `application_submit.test.js` | 9 | rent_application.php: array form field 400, term bounds 422, occupied unit 409, text saved trimmed, rent from the unit, one open application per account (also for two simultaneous submits) |
 | `rejected_proof.test.js` | 5 | A rejected proof keeps its file in `rejected_proof_path` (admin-only in get_invoices, download access by owner or admin), the live proof is cleared and a new proof replaces it |
 | `contract_template_defaults.test.js` | 6 | The default contract template quotes the Rental settings (occupancy limit, extra-person fee, move-out notice); `late_fee_enabled` saves as 1/0, bad values and non-admins are refused, the 5% ceiling holds |
+| `maintenance_workflow.test.js` | 10 | Scheduled visit, tenant-visible progress, tenant cancel request on work under way, "not fixed" reopen, the tenant-charge notice |
 | `parking_guards_orphan_cleanup.test.js` | 4 | The parking guard columns refuse overbooking; the cleanup migration removes only rows whose invoice is gone |
 | `profile_avatar.test.js` | 5 | `profile.php` avatar upload: JPG, PNG and WEBP only; animated GIFs refused by extension and by content |
 | `service_workflow.test.js` | 25 | Add-on services: booking validation, the confirmed visit, tenant-visible progress, free cancel vs cancel request, the final-quantity adjustment at completion |
