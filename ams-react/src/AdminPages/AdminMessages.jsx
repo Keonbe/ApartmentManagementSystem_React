@@ -95,6 +95,9 @@ const TenantAvatar = ({ conversation, sizeClass = 'w-11 h-11' }) => {
   return <img src={avatarUrl} alt={`${conversation.other_user_name || 'Tenant'} profile`} onError={() => setImageFailed(true)} className={`${sizeClass} rounded-full object-cover border border-slate-200 shrink-0`} />;
 };
 
+// Moves the admin can make (mirrors COMPLAINT_TRANSITIONS in config.php).
+const COMPLAINT_NEXT = { 'Open': ['In Review', 'Resolved'], 'In Review': ['Resolved'], 'Resolved': ['In Review'] };
+
 const AdminMessages = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
@@ -199,6 +202,26 @@ const AdminMessages = () => {
     return () => window.clearInterval(timer);
   }, [loadGuests]);
 
+  // The complaint the open tenant chat follows (SPRINT 189), read from the list so it
+  // refreshes when the list does; the buttons call update_complaint_status.php.
+  const activeComplaint = activeChat && activeChat.thread_type !== 'guest'
+    ? conversations.find((c) => String(c.other_user_id) === String(activeChat.other_user_id))?.complaint ?? null
+    : null;
+  const [complaintBusy, setComplaintBusy] = useState(false);
+  const moveComplaint = async (status) => {
+    if (!activeComplaint || complaintBusy) return;
+    setComplaintBusy(true);
+    try {
+      await api.post('update_complaint_status.php', { complaintId: activeComplaint.id, status });
+      await fetchConversations?.();
+    } catch (err) {
+      setSendError(err?.response?.data?.message || 'Could not update the complaint. Please try again.');
+      fetchConversations?.();
+    } finally {
+      setComplaintBusy(false);
+    }
+  };
+
   const retryConversations = () => { fetchConversations?.(); loadGuests(); };
 
   const filteredConversations = useMemo(() => {
@@ -221,6 +244,7 @@ const AdminMessages = () => {
       registered: current.filter((conversation) => !isGuestConversation(conversation)).length,
       guest: current.filter(isGuestConversation).length,
       archived: all.length - current.length,
+      complaints: current.filter((conversation) => conversation.complaint).length,
     };
   }, [conversations, guestThreads]);
 
@@ -230,6 +254,7 @@ const AdminMessages = () => {
   const visibleConversations = filteredConversations.filter((conversation) => (
     search.trim() ? true
       : conversationFilter === 'archived' ? conversation.archived
+      : conversationFilter === 'complaints' ? !!conversation.complaint
       : !conversation.archived && (
         conversationFilter === 'all'
         || (conversationFilter === 'guest' && isGuestConversation(conversation))
@@ -425,6 +450,7 @@ const AdminMessages = () => {
                     ['all', `All (${conversationCounts.all})`],
                     ['registered', `Registered (${conversationCounts.registered})`],
                     ['guest', `Guest (${conversationCounts.guest})`],
+                    ['complaints', `Complaints (${conversationCounts.complaints})`],
                     ['archived', `Archived (${conversationCounts.archived})`],
                   ].map(([filter, label]) => (
                     <button key={filter} type="button" onClick={() => setConversationFilter(filter)} aria-pressed={conversationFilter === filter}
@@ -446,7 +472,7 @@ const AdminMessages = () => {
                 ) : !search && visibleConversations.length === 0 && listFailed ? (
                   <LoadError title="Couldn't load conversations" onRetry={retryConversations} />
                 ) : visibleConversations.length === 0 ? (
-                  <div className="p-8 text-center text-body text-slate-500">{search ? 'No matching conversations.' : conversationFilter === 'archived' ? 'No archived chats. Resolved or ended inquiries, and people not renting who have been quiet for 6 months, show here.' : 'No tenant conversations yet.'}</div>
+                  <div className="p-8 text-center text-body text-slate-500">{search ? 'No matching conversations.' : conversationFilter === 'complaints' ? 'No open complaints.' : conversationFilter === 'archived' ? 'No archived chats. Resolved or ended inquiries, and people not renting who have been quiet for 6 months, show here.' : 'No tenant conversations yet.'}</div>
                 ) : visibleConversations.map((conversation) => {
                   const convKey = conversation.thread_type === 'guest' ? `guest_${conversation.thread_id}` : `user_${conversation.other_user_id}`;
                   const selectedKey = activeChat?.thread_type === 'guest' ? `guest_${activeChat.thread_id}` : activeChat ? `user_${activeChat.other_user_id}` : null;
@@ -460,6 +486,11 @@ const AdminMessages = () => {
                           <span className="flex min-w-0 items-center overflow-hidden font-semibold text-body text-slate-900">
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
+                            {conversation.complaint && (
+                              <span className="ml-1.5 shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700" title={`Complaint: ${conversation.complaint.category}`}>
+                                Complaint · {conversation.complaint.status}
+                              </span>
+                            )}
                             {conversation.archived && (
                               <span className="ml-1.5 shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
                                 {conversation.archive_reason === 'ended' ? 'Ended' : conversation.archive_reason === 'resolved' ? 'Resolved' : 'Inactive'}
@@ -491,6 +522,19 @@ const AdminMessages = () => {
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
                     <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
                     <div className="min-w-0"><h3 className="m-0 text-body font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
+                    {activeComplaint && (
+                      <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                        <span className="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-caption font-semibold text-rose-700">
+                          Complaint: {activeComplaint.category} · {activeComplaint.status}
+                        </span>
+                        {(COMPLAINT_NEXT[activeComplaint.status] || []).map((next) => (
+                          <button key={next} type="button" disabled={complaintBusy} onClick={() => moveComplaint(next)}
+                            className="min-h-[36px] rounded-full border border-rose-200 bg-white px-3 text-label font-bold text-rose-700 cursor-pointer hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                            {next === 'Resolved' ? 'Mark resolved' : next === 'In Review' ? 'Start review' : 'Reopen'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {activeChat.thread_type === 'guest' && (
                       <div className="ml-auto flex shrink-0 items-center gap-2">
                         {(checkPending || guestResolved || guestEnded) && (

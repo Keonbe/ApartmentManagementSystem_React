@@ -3599,6 +3599,30 @@ function emergency_contact_check($name, $relationship, $phone, $own_phone, $requ
     return [$errors, $normalized];
 }
 
+// ── Complaints (SPRINT 189, checklist 7.7) ──
+// A tenant files a complaint with a category; the admin moves it Open -> In Review
+// -> Resolved. The conversation stays in `messages`: messages that belong to a
+// complaint carry its id (messages.complaint_id).
+const COMPLAINT_CATEGORIES = ['Maintenance', 'Billing', 'Neighbor', 'Noise', 'Staff', 'Other'];
+const COMPLAINT_TRANSITIONS = [
+    'Open'      => ['In Review', 'Resolved'],
+    'In Review' => ['Resolved', 'Open'],
+    'Resolved'  => ['In Review'],
+];
+const COMPLAINT_OPEN_STATUSES = ['Open', 'In Review'];
+
+// The tenant's unresolved complaint id, or null. A tenant has at most one at a
+// time (file_complaint.php refuses a second), so a message to or from them can be
+// attached to it without the client saying so.
+function open_complaint_id($conn, $tenant_id) {
+    $stmt = $conn->prepare("SELECT id FROM complaints WHERE user_id = ? AND status IN ('Open', 'In Review') ORDER BY id DESC LIMIT 1");
+    $stmt->bind_param("i", $tenant_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? (int)$row['id'] : null;
+}
+
 // Ends every session a user holds, optionally keeping the caller's own token.
 // Called whenever a password, role or archive state changes, so the old
 // credentials or privileges stop working at once (security audit A-8).
@@ -3814,7 +3838,9 @@ const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     // Refund requests wait for an admin decision.
     'refund_request', 'deposit_review',
     // Follow-up monitor: an overdue tenant, or an applicant with documents outstanding.
-    'payment_followup', 'document_followup'
+    'payment_followup', 'document_followup',
+    // A tenant's complaint waits for an admin until it is resolved.
+    'complaint'
 ];
 
 // Age categories (infant / toddler / minor ...), edited in Settings → Minors & Pets.

@@ -127,11 +127,29 @@ try {
             'last_message_time' => $row['last_message_time'],
             'unread_count' => (int) ($row['unread_count'] ?? 0),
             'is_active_tenant' => (bool) $row['is_active_tenant'],
+            'is_admin' => $row['other_user_role'] === 'admin',
             // Messages → Archived: someone not renting now (an applicant, a past
             // tenant) with no message for 6 months. Active tenants and admins never are.
             'archived' => !$row['is_active_tenant'] && $row['other_user_role'] !== 'admin'
                 && $row['last_message_time'] !== null && strtotime($row['last_message_time']) < strtotime('-6 months'),
         ];
+    }
+
+    // The unresolved complaint of each conversation (one query for the whole list):
+    // the other person's own, or, in a tenant's chat with the office, the tenant's.
+    $ids = array_values(array_unique(array_merge([(int)$user_id], array_column($conversations, 'other_user_id'))));
+    $open_complaints = [];
+    if ($ids) {
+        $res = $conn->query("SELECT id, user_id, category, status FROM complaints
+                              WHERE user_id IN (" . implode(',', array_map('intval', $ids)) . ") AND status IN ('Open', 'In Review')
+                              ORDER BY id ASC");
+        while ($res && ($c = $res->fetch_assoc())) {
+            $open_complaints[(int)$c['user_id']] = ['id' => (int)$c['id'], 'category' => $c['category'], 'status' => $c['status']];
+        }
+    }
+    foreach ($conversations as $i => $conv) {
+        $conversations[$i]['complaint'] = $open_complaints[$conv['other_user_id']]
+            ?? (($conv['is_admin'] ?? false) ? ($open_complaints[(int)$user_id] ?? null) : null);
     }
 
     echo json_encode(["success" => true, "conversations" => $conversations]);

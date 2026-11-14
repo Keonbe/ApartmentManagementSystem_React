@@ -86,6 +86,7 @@
 21. [Defense Gaps (2026-10-13)](#21-defense-gaps-2026-10-13)
 22. [Guest Inquiry Chat Links (2026-10-31)](#22-guest-inquiry-chat-links-2026-10-31)
 23. [Security Deposit, Refund Rules and Reviews (2026-11-11)](#23-security-deposit-refund-rules-and-reviews-2026-11-11)
+24. [Complaints (2026-11-14)](#24-complaints-2026-11-14)
 
 ---
 
@@ -3326,6 +3327,22 @@ Checklist 7.8. Migration: `2026_11_workstream.sql`. Automated: `tests/api/guest_
 | **M23-35** | Rule | Occupied-unit rent | `update_room.php {id:'C', monthly_rent:6000}` on an occupied unit | `409` "…Change the rent at renewal (Extend Rent)…"; vacant unit: `200` |
 | **M23-36** | Rule | Eviction ground | Contracts → Flag for Eviction on a tenant 1 month behind, ground Arrears; then ground Sublease with details | Arrears: refused ("…only once they total 3 months"); sublease: flagged, `eviction_ground` sublease, tenant notice names the ground and the court rule |
 | **M23-37** | Rule | Late fee ceiling | `late_fee_enabled=true`, flat ₱1,000 (or 10%), an overdue ₱4,000 rent invoice, load Payments | Late fee ₱200 (5%); Settings refuses a percent above 5 |
+
+---
+
+## 24. Complaints (2026-11-14)
+
+Checklist 7.7 (SPRINT 189). Migration section `2026_11_complaints` in `2026_11_workstream.sql`. Automated: `tests/api/complaints.test.js` (18), `tests/api/chat_socket.test.js` (complaint case).
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M24-01** | Happy | Tenant files | Chat widget → *Report a problem*, pick Noise, write 20+ characters, send | Status line "Your report (Noise): Open"; the thread with the office holds the message; the admin gets a Complaint notification |
+| **M24-02** | Negative | Short or empty message; unknown category (API) | Send 2 characters | Refused, nothing stored |
+| **M24-03** | Negative | Second complaint while one is unresolved | File again | 409; the form is not offered while the status line shows |
+| **M24-04** | Happy | Admin works it | Message Manager → Complaints filter → open the thread → *Start review*, then *Mark resolved* | Badge and tenant status line follow; the tenant is notified each time; Resolved clears the admin queue item |
+| **M24-05** | Stale | Two admins move it | Second tab presses the same button | 409 "already ..." and the list refreshes |
+| **M24-06** | Rule | Messages after Resolved | Tenant writes again | Ordinary chat (no complaint flag); a new complaint can be filed |
+| **M24-07** | Sec | Another tenant or a tenant calls the status endpoint | `update_complaint_status.php` as a tenant | 403 |
 
 ---
 

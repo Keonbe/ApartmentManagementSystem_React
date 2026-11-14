@@ -51,7 +51,7 @@ if (mb_strlen($message) > 2000) {
 try {
     // Check both people and the reply target before anything is written to disk,
     // so a refused message never leaves an orphaned attachment behind.
-    $userCheck = $conn->prepare("SELECT id FROM users WHERE id IN (?, ?)");
+    $userCheck = $conn->prepare("SELECT id, role FROM users WHERE id IN (?, ?)");
     if (!$userCheck) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
@@ -64,6 +64,14 @@ try {
         echo json_encode(["success" => false, "message" => "User not found"]);
         exit;
     }
+
+    // A message between a tenant and the office belongs to the tenant's open
+    // complaint, if they have one (the client never says so).
+    $roles = [];
+    while ($u = $userResult->fetch_assoc()) $roles[(int)$u['id']] = $u['role'];
+    $tenant_party = ($roles[$sender_id] ?? '') === 'user' ? $sender_id : (($roles[$receiver_id] ?? '') === 'user' ? $receiver_id : null);
+    $complaint_id = ($tenant_party !== null && ($roles[$sender_id] ?? '') !== ($roles[$receiver_id] ?? ''))
+        ? open_complaint_id($conn, $tenant_party) : null;
 
     if ($reply_to_id) {
         $replyCheck = $conn->prepare("SELECT id FROM messages WHERE id = ? AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))");
@@ -109,11 +117,11 @@ try {
         $attachmentPath = 'uploads/messages/' . $filename;
     }
 
-    $stmt = $conn->prepare("INSERT INTO messages (sender_id, receiver_id, message, attachment_path, reply_to_id) VALUES (?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO messages (sender_id, receiver_id, message, attachment_path, reply_to_id, complaint_id) VALUES (?, ?, ?, ?, ?, ?)");
     if (!$stmt) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
-    $stmt->bind_param('iissi', $sender_id, $receiver_id, $message, $attachmentPath, $reply_to_id);
+    $stmt->bind_param('iissii', $sender_id, $receiver_id, $message, $attachmentPath, $reply_to_id, $complaint_id);
     $stmt->execute();
 
     $newMessage = [
@@ -123,6 +131,7 @@ try {
         'message' => $message,
         'attachment_path' => $attachmentPath,
         'reply_to_id' => $reply_to_id,
+        'complaint_id' => $complaint_id,
         'reply_message' => null,
         'created_at' => date('Y-m-d H:i:s'),
         'is_read' => 0,

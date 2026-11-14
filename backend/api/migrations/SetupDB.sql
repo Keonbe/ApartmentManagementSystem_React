@@ -1276,6 +1276,23 @@ CREATE TABLE IF NOT EXISTS `guest_chat_links` (
 -- Chat messages between a tenant and an admin (send_message.php,
 -- websocket-server/server.js). Same columns, keys and constraint names as
 -- production; reply_to_id has no key or constraint there either.
+-- Complaints (2026_11_complaints): a tenant's complaint and its status; the chat
+-- messages that belong to it carry messages.complaint_id.
+CREATE TABLE IF NOT EXISTS `complaints` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `category` enum('Maintenance','Billing','Neighbor','Noise','Staff','Other') NOT NULL,
+  `status` enum('Open','In Review','Resolved') NOT NULL DEFAULT 'Open',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `resolved_at` datetime DEFAULT NULL,
+  `resolved_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_complaints_user_status` (`user_id`,`status`),
+  KEY `idx_complaints_status` (`status`,`created_at`),
+  CONSTRAINT `fk_complaints_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_complaints_resolver` FOREIGN KEY (`resolved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE IF NOT EXISTS `messages` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `sender_id` int(11) NOT NULL,
@@ -1285,11 +1302,14 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
   `attachment_path` varchar(255) DEFAULT NULL,
   `reply_to_id` int(11) DEFAULT NULL,
+  `complaint_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_sender` (`sender_id`),
   KEY `async_receiver` (`receiver_id`),
+  KEY `idx_messages_complaint` (`complaint_id`),
   CONSTRAINT `fk_messages_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_messages_complaint` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- House rules shown on the listing, inquiry and application forms, edited in

@@ -27,6 +27,7 @@ const TYPE_CONFIG = {
   cctv_request: { label: 'CCTV Request', icon: faVideo, tone: 'slate' },
   service_request: { label: 'Service Booking', icon: faConciergeBell, tone: 'cyan' },
   inquiry: { label: 'Inquiry', icon: faInfoCircle, tone: 'sky' },
+  complaint: { label: 'Complaint', icon: faExclamationTriangle, tone: 'red' },
   unit_waitlist: { label: 'Waitlist', icon: faClock, tone: 'sky' },
   payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, tone: 'emerald' },
   cash_payment_declared: { label: 'Cash Payment', icon: faMoneyBillWave, tone: 'emerald' },

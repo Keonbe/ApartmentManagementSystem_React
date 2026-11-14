@@ -631,7 +631,18 @@ erDiagram
         text message
         tinyint is_read
         int reply_to_id "soft ref messages.id"
+        int complaint_id FK "SET NULL"
         timestamp created_at
+    }
+
+    COMPLAINTS {
+        int id PK
+        int user_id FK "CASCADE"
+        enum category
+        enum status "Open, In Review, Resolved"
+        int resolved_by FK "SET NULL"
+        timestamp created_at
+        timestamp resolved_at
     }
 
     USERS ||--o{ NOTIFICATIONS : "receives"
@@ -641,6 +652,8 @@ erDiagram
     USERS ||--o{ MESSAGES : "sends"
     USERS ||--o{ MESSAGES : "receives"
     MESSAGES |o..o{ MESSAGES : "replied to by"
+    USERS ||--o{ COMPLAINTS : "files"
+    COMPLAINTS |o--o{ MESSAGES : "flags"
 ```
 
 There is no `conversations` table: a chat thread is every `messages` row between two users.
@@ -715,6 +728,8 @@ erDiagram
 | users → notifications / notification_preferences / notification_queue | `user_id` | 1 : N | FK | CASCADE |
 | users → notification_log | `user_id` | 0..1 : N | FK | SET NULL |
 | users → messages | `sender_id`, `receiver_id` | 1 : N (each) | FK | CASCADE |
+| users → complaints | `user_id` (and `resolved_by`) | 1 : N | FK | CASCADE (SET NULL) |
+| complaints → messages | `complaint_id` | 0..1 : N | FK | SET NULL |
 | users → activity_logs | `performed_by` | 0..1 : N | FK | SET NULL |
 | rooms → utility_readings / maintenance_requests / service_requests / visitor_logs / inquiries / unit_reservations / unit_waitlist | `room_name` | 1 : N | soft | — |
 | invoices → utility_readings / parking_charges / maintenance_requests / service_requests | `invoice_id` | 0..1 : N | soft | — |
@@ -1132,7 +1147,7 @@ The Level 1 and Level 2 diagrams share these data stores:
 | D15 Announcements | `announcements` |
 | D16 Notifications | `notifications` (tenant inbox + admin queue) |
 | D17 Delivery | `notification_queue`, `notification_log`, `notification_preferences` |
-| D18 Messages | `messages` |
+| D18 Messages | `messages`, `complaints` |
 | D19 Activity log | `activity_logs` |
 | D20 Settings | `system_settings` |
 | D21 Expenses | `expenses` |

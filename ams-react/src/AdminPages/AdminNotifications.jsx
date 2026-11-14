@@ -48,6 +48,7 @@ const typeConfig = {
   cctv_request: { label: 'CCTV Request', icon: faVideo, color: 'bg-slate-100 text-slate-600', badge: 'bg-slate-100 text-slate-700' },
   service_request: { label: 'Service Booking', icon: faConciergeBell, color: 'bg-cyan-100 text-cyan-600', badge: 'bg-cyan-100 text-cyan-700' },
   inquiry: { label: 'Inquiry', icon: faInfoCircle, color: 'bg-sky-100 text-sky-700', badge: 'bg-sky-100 text-sky-700' },
+  complaint: { label: 'Complaint', icon: faExclamationTriangle, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
   unit_waitlist: { label: 'Waitlist', icon: faClock, color: 'bg-sky-100 text-sky-700', badge: 'bg-sky-100 text-sky-700' },
   payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
   cash_payment_declared: { label: 'Cash Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
@@ -61,7 +62,7 @@ const typeConfig = {
 const FILTERS = [
   { key: 'all', label: 'All', types: null },
   { key: 'decide', label: 'Occupancy & Rent', types: ['occupancy_request', 'household_request', 'lease_extension_request'] },
-  { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'new_user', 'inquiry', 'unit_waitlist'] },
+  { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'new_user', 'inquiry', 'unit_waitlist', 'complaint'] },
   { key: 'maintenance', label: 'Maintenance', types: ['maintenance_request'] },
   { key: 'services', label: 'Services, CCTV & Parking', types: ['service_request', 'cctv_request', 'parking_reservation'] },
   { key: 'payments', label: 'Payments', types: ['payment_verification', 'cash_payment_declared', 'payment', 'refund_request', 'deposit_review', 'payment_followup', 'document_followup'] },

@@ -47,6 +47,7 @@ const ChatWidget = () => {
         setIsChatOpen, 
         sendMessage, 
         fetchChatHistory,
+        fetchConversations,
         handleTyping,
         openSupportChat,
         userRole,
@@ -426,6 +427,12 @@ const ChatWidget = () => {
         );
     };
 
+    // The tenant's unresolved complaint (SPRINT 189) rides on the thread with the office.
+    const isTenantChat = Boolean(userId) && userRole !== 'admin';
+    const supportConv = isTenantChat ? conversations.find((c) => c.is_admin) : null;
+    const supportComplaint = supportConv?.complaint ?? null;
+    const complaintFiled = async () => { await openSupportChat?.(); await fetchConversations?.(); };
+
     const handleInputChange = (e) => {
         const value = e.target.value;
         setNewMessage(value);
@@ -574,10 +581,20 @@ const ChatWidget = () => {
                                 ))
                             )}
                             </div>
+                            {isTenantChat && openSupportChat && (
+                                <div className="shrink-0 border-t border-slate-100 p-2 text-center">
+                                    <ComplaintPanel complaint={supportComplaint} onFiled={complaintFiled} />
+                                </div>
+                            )}
                         </div>
                     ) : (
                         /* Active Conversation Message Stream */
                         <div className="flex flex-1 min-h-0 flex-col overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
+                            {isTenantChat && activeChat && activeChat.thread_type !== 'guest' && (
+                                <div className="shrink-0 text-center">
+                                    <ComplaintPanel complaint={supportComplaint} onFiled={complaintFiled} />
+                                </div>
+                            )}
                             {/* Takes the free space above the messages, so a short chat sits at
                                 the bottom next to the input (like Messenger). It shrinks to
                                 nothing once the messages fill the window, so scrolling works. */}

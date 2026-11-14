@@ -717,3 +717,39 @@ SET @s = IF((SELECT COALESCE(MAX(character_maximum_length), 0) FROM information_
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
 
+-- ===== 2026_11_complaints.sql =====
+-- Complaints (SPRINT 189, checklist 7.7): a tenant files a complaint with a
+-- category; the admin works it Open -> In Review -> Resolved. The conversation
+-- itself stays in `messages`; messages that belong to a complaint carry its id.
+--   complaints          one row per complaint (status lives here)
+--   messages.complaint_id  the complaint a message belongs to (NULL for ordinary chat)
+-- Idempotent; guarded for production (MySQL 8, one statement at a time).
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'complaints') = 0,
+  'CREATE TABLE `complaints` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `user_id` int(11) NOT NULL,
+    `category` enum("Maintenance","Billing","Neighbor","Noise","Staff","Other") NOT NULL,
+    `status` enum("Open","In Review","Resolved") NOT NULL DEFAULT "Open",
+    `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+    `resolved_at` datetime DEFAULT NULL,
+    `resolved_by` int(11) DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `idx_complaints_user_status` (`user_id`, `status`),
+    KEY `idx_complaints_status` (`status`, `created_at`),
+    CONSTRAINT `fk_complaints_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_complaints_resolver` FOREIGN KEY (`resolved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'complaint_id') = 0,
+  'ALTER TABLE `messages` ADD COLUMN `complaint_id` int(11) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'messages' AND index_name = 'idx_messages_complaint') = 0,
+  'ALTER TABLE `messages` ADD KEY `idx_messages_complaint` (`complaint_id`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = 'messages' AND constraint_name = 'fk_messages_complaint') = 0,
+  'ALTER TABLE `messages` ADD CONSTRAINT `fk_messages_complaint` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`id`) ON DELETE SET NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;

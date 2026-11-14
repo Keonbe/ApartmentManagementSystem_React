@@ -27,7 +27,7 @@ if (!$other_user_id) {
 }
 
 try {
-    $query = "SELECT m.id, m.sender_id, m.receiver_id, m.message, m.attachment_path, m.created_at, m.is_read, m.reply_to_id,
+    $query = "SELECT m.id, m.sender_id, m.receiver_id, m.message, m.attachment_path, m.created_at, m.is_read, m.reply_to_id, m.complaint_id,
                      r.message AS reply_message, r.attachment_path AS reply_attachment_path, r.sender_id AS reply_sender_id
               FROM messages m
               LEFT JOIN messages r ON r.id = m.reply_to_id

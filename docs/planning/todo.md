@@ -76,7 +76,6 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks �
 |---|---|---|---|
 | [ ] | Urgent | **Enh** 6.6 Email Notifications 🔧, 6.7 SMS Notifications 🔧: the pipeline is built — dispatcher, opt-outs, a queue with retries, and the status/announcement endpoints wired. SMS has a live Semaphore driver (the only provider); email runs on the `log` dry-run driver. Remaining: SMS go-live (credits, sender approval, scheduled drain, a verified live send), email via PHPMailer + Gmail SMTP, real password-reset email, rent-due/overdue SMS from the daily sweep, tenant SMS/email preference toggles. Email/SMS on new inquiries is TBA. | [Checklist Module 6](../features/panelist_feature_checklist.md#module-6--notification-module), [sms_email_implementation.md](../features/sms_email_implementation.md), saas guide §8 (doc removed), [external_services §1](../documentation/external_services.md#1-external-service-integration-matrix), PRD v1.1 |
 | [ ] | Urgent | **Enh** 7.1 / 7.6 Chat gaps 🔧 (chat itself is built — see Recently Completed): let the admin start a thread with any tenant; write a `notifications` row on send; (the Socket.IO server is authenticated since 2026-11-13, CH-1 fixed); restrict recipients to tenant↔admin (CH-3); move `messages` into `SetupDB.sql` and drop the request-time DDL. | [Checklist Module 7](../features/panelist_feature_checklist.md#module-7--communication-two-way-chat), [chat_design As built](../features/chat_design.md) |
-| [ ] | Urgent | **Enh** 7.7 Complaints Management 📋: dedicated channel for filing and tracking tenant complaints. The §12 design assumes a `conversations` table that was not built — rebase it onto `messages`. | [Checklist Module 7](../features/panelist_feature_checklist.md#module-7--communication-two-way-chat) |
 
 ---
 
@@ -204,6 +203,9 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | 2026-11-14 Complaints (7.7): a `complaints` table and `messages.complaint_id`; the tenant files from the chat widget, the admin works Open / In Review / Resolved in Message Manager. | SPRINT 189 |
+| [x] | 2026-11-14 Emergency contact on the application and Profile; clearer follow-up for a paid applicant who missed the move-in. | SPRINT 186 |
+| [x] | 2026-11-14 Part-payment receipts, en/fil strings for PayBills, Payment History, validation and refund labels, Preview map height. | SPRINT 69, 71, 75, 77 |
 | [x] | 2026-11-13 Chat socket authenticated (security_audit CH-1): session token required on connect, sender taken from the session, same checks as `send_message.php`, 2,000-character and 20-per-10-seconds limits, `ALLOWED_ORIGINS`, no body logging; `chat_socket.test.js`. Recipient rules and HTTP rate limits remain (SPRINT 167). | [security_audit.md](../audits/security_audit.md) §6e, SPRINT 144 |
 | [x] | 2026-11-13 Registration consent (RA 10173): required checkbox, `users.terms_agreed_at` and `terms_version`. | SPRINT 147 |
 | [x] | 2026-11-13 Move-out clearance and contract termination refused while a payment is under review or an online checkout is open (audit P-05). | SPRINT 151 |

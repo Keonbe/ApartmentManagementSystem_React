@@ -138,8 +138,23 @@ io.on('connection', (socket) => {
             }
             if (receiverId === userId) return fail('Cannot send a message to yourself');
 
-            const [people] = await pool.execute('SELECT id FROM users WHERE id IN (?, ?)', [userId, receiverId]);
+            const [people] = await pool.execute('SELECT id, role FROM users WHERE id IN (?, ?)', [userId, receiverId]);
             if (people.length < 2) return fail('User not found');
+
+            // A message between a tenant and the office follows the tenant's unresolved
+            // complaint (same rule as send_message.php); the client never says so.
+            const roles = Object.fromEntries(people.map((p) => [Number(p.id), p.role]));
+            let complaintId = null;
+            if (roles[userId] !== roles[receiverId]) {
+                const tenantId = roles[userId] === 'user' ? userId : (roles[receiverId] === 'user' ? receiverId : null);
+                if (tenantId !== null) {
+                    const [open] = await pool.execute(
+                        "SELECT id FROM complaints WHERE user_id = ? AND status IN ('Open', 'In Review') ORDER BY id DESC LIMIT 1",
+                        [tenantId],
+                    );
+                    if (open.length) complaintId = Number(open[0].id);
+                }
+            }
 
             if (replyToId) {
                 const [target] = await pool.execute(
@@ -151,8 +166,8 @@ io.on('connection', (socket) => {
             }
 
             const [result] = await pool.execute(
-                'INSERT INTO messages (sender_id, receiver_id, message, reply_to_id) VALUES (?, ?, ?, ?)',
-                [userId, receiverId, text, replyToId],
+                'INSERT INTO messages (sender_id, receiver_id, message, reply_to_id, complaint_id) VALUES (?, ?, ?, ?, ?)',
+                [userId, receiverId, text, replyToId, complaintId],
             );
             // Same row send_message.php writes ('chat' is normalised to 'system' there).
             await pool.execute(
@@ -167,6 +182,7 @@ io.on('connection', (socket) => {
                 message: text,
                 attachment_path: null,
                 reply_to_id: replyToId,
+                complaint_id: complaintId,
                 created_at: new Date(),
             };
 

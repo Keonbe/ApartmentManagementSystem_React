@@ -179,3 +179,27 @@ describe('sending', () => {
     expect(server.output()).not.toContain('a-secret-body-1234');
   });
 });
+
+describe('complaints over the socket (SPRINT 189)', () => {
+  it('a message between a tenant and the office follows the tenant\'s open complaint; others do not', async () => {
+    const filed = await api('file_complaint.php', { token: maria, json: { category: 'Noise', message: 'Loud music from the unit above' } });
+    const complaintId = filed.body.complaint.id;
+    const [mariaSock, joseSock] = await Promise.all([connect(maria), connect(jose)]);
+
+    const toOffice = await send(mariaSock, { receiver_id: adminId, message: 'It happened again tonight' });
+    expect(toOffice.message.complaint_id).toBe(complaintId);
+    expect((await one('SELECT complaint_id FROM messages WHERE id = ?', [toOffice.message.id])).complaint_id).toBe(complaintId);
+
+    // To another tenant, or from a tenant with no complaint: ordinary chat.
+    const toNeighbour = await send(mariaSock, { receiver_id: JOSE, message: 'Hi Jose' });
+    expect(toNeighbour.message.complaint_id).toBeNull();
+    const other = await send(joseSock, { receiver_id: adminId, message: 'A question about my bill' });
+    expect(other.message.complaint_id).toBeNull();
+
+    // Once resolved the thread is ordinary chat again.
+    const admin2 = await loginAs('admin');
+    await api('update_complaint_status.php', { token: admin2, json: { complaintId, status: 'Resolved' } });
+    const after = await send(mariaSock, { receiver_id: adminId, message: 'Thank you' });
+    expect(after.message.complaint_id).toBeNull();
+  });
+});
