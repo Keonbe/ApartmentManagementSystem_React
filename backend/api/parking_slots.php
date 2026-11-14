@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') slot_fail(405, 'Method not allowed.');
 
-$in = json_decode(file_get_contents('php://input'), true);
+$in = read_json_input(['vehicle_types']);
 if (!is_array($in)) slot_fail(400, 'Send JSON.');
 $action = (string)($in['action'] ?? '');
 

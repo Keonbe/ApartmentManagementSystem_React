@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $admin_id = require_admin($conn);
 
 $input = $_POST;
-if (empty($input)) $input = json_decode(file_get_contents("php://input"), true) ?: [];
+if (empty($input)) $input = read_json_input(['deductions']);
 $id = (int)($input['id'] ?? 0);
 $status = $input['status'] ?? '';
 // Why the suggested notice deduction from the deposit was lowered: text only.

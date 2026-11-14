@@ -5,7 +5,7 @@ header('Access-Control-Allow-Methods: POST, OPTIONS');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit;
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/services/login_otp_policy.php';
-$input = json_decode(file_get_contents('php://input'), true) ?: [];
+$input = read_json_input();
 $email = trim((string)($input['email_address'] ?? ''));
 $otp = trim((string)($input['otp'] ?? ''));
 if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/^\d{6}$/', $otp)) { http_response_code(400); echo json_encode(['valid'=>false,'message'=>'Enter a valid email and six-digit code.']); exit; }

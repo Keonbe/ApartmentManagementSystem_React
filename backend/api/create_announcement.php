@@ -16,7 +16,7 @@ $admin_id = require_admin($conn);
 
 $input = $_POST;
 if (empty($input)) {
-    $input = json_decode(file_get_contents("php://input"), true) ?? [];
+    $input = read_json_input(['channels', 'tenantIds']);
 }
 
 

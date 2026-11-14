@@ -17,7 +17,7 @@ require_once '../config.php';
 $adminId = require_admin($conn);
 
 try {
-    $data = json_decode(file_get_contents("php://input"), true);
+    $data = read_json_input();
 
     if (!isset($data['id'])) {
         http_response_code(400);

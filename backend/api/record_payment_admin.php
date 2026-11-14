@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $admin_id = require_admin($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents("php://input"), true);
+    $input = read_json_input(['payments']);
     $invoice_id = $input['invoiceId'] ?? '';
     $payment_method = $input['paymentMethod'] ?? 'Cash';
     // Checklist 3.2 calls for amount and reference to be recorded; both

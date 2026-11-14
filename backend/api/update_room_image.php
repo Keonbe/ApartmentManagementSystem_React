@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $adminId = require_admin($conn);
 
 // Sets one showcase photo's description (alt text) and display option.
-$data = json_decode(file_get_contents("php://input"), true) ?? [];
+$data = read_json_input();
 $room_id = (string)($data['room_id'] ?? '');
 $path = (string)($data['path'] ?? '');
 $alt = trim((string)($data['alt'] ?? ''));

@@ -19,7 +19,7 @@ if (!verify_admin($conn, $admin_id)) {
 }
 $admin_id_int = (int)$admin_id;
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 
 $id     = (int)($input['rawId'] ?? $input['id'] ?? 0);
 $status = trim($input['status'] ?? '');

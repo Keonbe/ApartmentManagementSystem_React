@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input(['*']);
 if (!is_array($input)) {
     http_response_code(400);
     echo json_encode(["success" => false, "message" => "No data received"]);

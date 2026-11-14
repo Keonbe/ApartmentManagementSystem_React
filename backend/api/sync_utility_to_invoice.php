@@ -29,7 +29,7 @@ function fail($code, $message) {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 $id = (int)($input['id'] ?? 0);
 $sync_mode = $input['sync_mode'] ?? 'merge';
 $custom_due_date = trim((string)($input['due_date'] ?? ''));

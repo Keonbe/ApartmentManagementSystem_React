@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // any caller name their own admin id.
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 
 if (!$input) {
     http_response_code(422);

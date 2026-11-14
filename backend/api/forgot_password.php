@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$data = json_decode(file_get_contents('php://input'), true);
+$data = read_json_input();
 $email = trim($data['email'] ?? '');
 $lang = strtolower(trim($data['lang'] ?? 'en')) === 'fil' ? 'fil' : 'en';
 

@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') otp_fail(405, 'Method not allowed.');
 
-$in = json_decode(file_get_contents('php://input'), true);
+$in = read_json_input();
 if (!is_array($in)) otp_fail(400, 'Send JSON.');
 $action = (string)($in['action'] ?? '');
 

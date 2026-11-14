@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 $user_id = (int)$auth['id'];
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
+$input = read_json_input();
 $action = $input['action'] ?? '';
 
 if ($action === 'create') {

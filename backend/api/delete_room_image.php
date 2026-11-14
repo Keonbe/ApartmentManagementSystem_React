@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $adminId = require_admin($conn);
 
-$data = json_decode(file_get_contents("php://input"), true);
+$data = read_json_input();
 $room_id = $data['room_id'] ?? '';
 $path = $data['path'] ?? '';
 

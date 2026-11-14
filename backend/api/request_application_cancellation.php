@@ -6,7 +6,7 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id');
 require_once '../config.php';
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 $auth = require_user($conn);
-$input = json_decode(file_get_contents('php://input'), true);
+$input = read_json_input();
 if (!is_array($input)) $input = [];
 $app_id = (int)($input['id'] ?? 0);
 $reason = trim((string)($input['reason'] ?? ''));

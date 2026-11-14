@@ -23,7 +23,7 @@ function review_fail($code, $msg) {
 // window; the answer comes from resolve_deposit_review.php.
 $auth = require_user($conn);
 $uid = (int)$auth['id'];
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
+$input = read_json_input();
 $message = is_string($input['message'] ?? null) ? trim($input['message']) : '';
 if ($message === '') review_fail(422, "Tell Management what you would like reviewed.");
 if (mb_strlen($message) > 1000) review_fail(422, "Keep the message under 1000 characters.");

@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $auth = require_user($conn);
 $user_id = $auth['id'];
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $id   = (int)($input['id'] ?? $input['rawId'] ?? 0);
 $type = $input['type'] ?? '';
 

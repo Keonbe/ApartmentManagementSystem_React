@@ -29,7 +29,7 @@ function parking_status_fail($code, $message) {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $id = (int)($input['rawId'] ?? $input['id'] ?? 0);
 $status = trim((string)($input['status'] ?? ''));
 $slot_raw = $input['slotId'] ?? $input['slotNumber'] ?? null;

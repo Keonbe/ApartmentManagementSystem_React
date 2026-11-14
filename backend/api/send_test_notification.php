@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // always to the caller, so this cannot be used to message a tenant.
 $admin_id = require_admin($conn);
 
-$input   = json_decode(file_get_contents("php://input"), true) ?? [];
+$input   = read_json_input();
 $channel = $input['channel'] ?? 'both';
 if (!in_array($channel, ['sms', 'email', 'both'], true)) {
     http_response_code(422);

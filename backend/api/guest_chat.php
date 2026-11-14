@@ -5,7 +5,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 require_once __DIR__ . '/../config.php';
 
 $auth = get_authenticated_user($conn);
-$body = json_decode(file_get_contents('php://input'), true) ?: [];
+$body = read_json_input();
 $body = $_POST ?: $body;
 $token = trim((string)($body['guest_token'] ?? $_SERVER['HTTP_X_GUEST_TOKEN'] ?? ''));
 $threadId = (int)($body['thread_id'] ?? $_GET['thread_id'] ?? 0);

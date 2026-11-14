@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $auth = require_user($conn);
 $user_id = $auth['id'];
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $id = (int)($input['id'] ?? 0);
 $rating = $input['rating'] ?? null;
 $comment = trim((string)($input['comment'] ?? ''));

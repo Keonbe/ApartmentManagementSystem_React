@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit();
 $auth = require_user($conn);
 $user_id = $auth['id'];
 
-$data = json_decode(file_get_contents("php://input"), true);
+$data = read_json_input();
 $invoice_id = $data['invoice_id'] ?? null;
 
 if (!$invoice_id) {

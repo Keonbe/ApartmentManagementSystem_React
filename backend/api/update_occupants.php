@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit();
 // verified identity, never a client-supplied email.
 $auth = require_user($conn);
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 $occupants = (int)($input['occupants'] ?? 0);
 
 if ($occupants < 1) {

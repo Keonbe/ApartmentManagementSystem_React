@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 
 // Honeypot: a real browser leaves this hidden field empty. Bots fill it in.
 // Respond with success so the bot does not learn it was caught.

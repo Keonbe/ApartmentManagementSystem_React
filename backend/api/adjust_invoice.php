@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $invoice_id = trim($input['invoiceId'] ?? '');
 
 if (empty($invoice_id)) {

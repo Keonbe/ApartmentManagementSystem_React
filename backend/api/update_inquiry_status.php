@@ -18,7 +18,7 @@ if (!verify_admin($conn, $admin_id)) {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 
 $id            = (int)($input['rawId'] ?? $input['id'] ?? 0);
 $status        = trim($input['status'] ?? '');

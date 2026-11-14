@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // those are governed by the global sms_opt_out / email_opt_out flags below.
 $auth = require_user($conn);
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input(['preferences']);
 $prefs = $input['preferences'] ?? null;
 $has_globals = array_key_exists('sms_opt_out', $input) || array_key_exists('email_opt_out', $input);
 

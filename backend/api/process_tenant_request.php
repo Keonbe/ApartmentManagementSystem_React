@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $notification_id = (int)($input['notificationId'] ?? 0);
 $action = $input['action'] ?? ''; // 'approve' or 'reject'
 

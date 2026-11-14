@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // added months were never billed and the contract still expired on the old date.
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
+$input = read_json_input();
 $room_id = trim((string)($input['roomId'] ?? ''));
 $add_months = (int)($input['addMonths'] ?? 0);
 $override_conflict = filter_var($input['overrideConflict'] ?? false, FILTER_VALIDATE_BOOLEAN);

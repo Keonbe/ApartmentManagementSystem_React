@@ -16,7 +16,7 @@ function fail($message) {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 if (!is_array($input)) fail("No data received");
 
 $first_name = trim((string)($input["first_name"] ?? ''));

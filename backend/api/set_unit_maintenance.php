@@ -14,7 +14,7 @@ require_once '../config.php';
 $adminId = require_admin($conn);
 
 try {
-    $input = json_decode(file_get_contents("php://input"), true);
+    $input = read_json_input();
     if (!is_array($input)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Invalid JSON input.']);

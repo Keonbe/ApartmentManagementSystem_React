@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $auth = require_user($conn);
 $user_id = $auth['id'];
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 
 // Find the latest approved/active rent application for this user
 $stmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY created_at DESC LIMIT 1");

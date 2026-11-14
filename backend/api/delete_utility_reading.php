@@ -15,7 +15,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
 // earlier one would break the chain the next reading was computed from.
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 $id = (int)($input['id'] ?? 0);
 if ($id <= 0) {
     http_response_code(422);

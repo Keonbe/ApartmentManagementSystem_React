@@ -18,7 +18,7 @@ if (!verify_admin($conn, $admin_id)) {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 $id = $input['id'] ?? 0;
 $archiveReason = $input['archiveReason'] ?? 'End of Rent Term';
 $archiveNotes = $input['archiveNotes'] ?? '';

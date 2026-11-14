@@ -24,7 +24,7 @@ function refund_fail($code, $msg) {
 // (POST /v1/refunds on the payment the money came in on); without it the
 // admin records a payout made by hand (method + reference).
 $admin_id = (int)require_admin($conn);
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
+$input = read_json_input();
 $id = (int)($input['id'] ?? 0);
 $action = $input['action'] ?? '';
 $message = trim((string)($input['message'] ?? ''));

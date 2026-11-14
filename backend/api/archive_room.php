@@ -16,6 +16,14 @@ $input = json_decode($rawInput, true);
 if (!is_array($input)) {
     $input = $_POST;
 }
+// A value sent as an array would reach the (string) cast below as the text "Array".
+foreach (['id', 'roomId', 'room_id', 'room_name'] as $room_key) {
+    if (is_array($input[$room_key] ?? null) || is_array($_POST[$room_key] ?? null) || is_array($_GET[$room_key] ?? null)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "Field '$room_key' must be a single value.", "field" => $room_key]);
+        exit;
+    }
+}
 $roomId = trim((string)(
     $input['id'] ??
     $input['roomId'] ??

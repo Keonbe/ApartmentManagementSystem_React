@@ -57,7 +57,7 @@ try {
         exit();
     }
 
-    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $input = read_json_input(['rules']);
     if ($method === 'PUT' && ($input['action'] ?? '') === 'reorder') {
         $orderedRules = $input['rules'] ?? null;
         if (!is_array($orderedRules) || count($orderedRules) > 1000) {

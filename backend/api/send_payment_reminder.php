@@ -25,7 +25,7 @@ $remindable = array_values(array_diff(BILLING_OPEN_STATUSES, ['processing', 'pen
 $remindable_sql = "('" . implode("','", $remindable) . "')";
 
 try {
-    $input = json_decode(file_get_contents("php://input"), true) ?? [];
+    $input = read_json_input();
     $invoice_id = trim($input['invoice_id'] ?? '');
     $is_batch = !empty($input['all']);
     $custom_message = trim($input['custom_message'] ?? '');

@@ -106,6 +106,7 @@ sequenceDiagram
 | `require_user()` | Gate: 401 if no valid session; returns `{id, role}` |
 | `require_owner_or_admin()` | Gate: 403 if caller is neither the resource owner nor admin |
 | `verify_admin()` | Legacy boolean check — does **not** exit on failure |
+| `read_json_input($array_keys)` | The JSON request body as an array. Empty body is `[]`; a body that is not a JSON object, or a top-level field that is an array where the endpoint expects one value, gets **400** `{success:false, message, field}` before any cast (so no "Array to string conversion" warning or `trim()` 500). `$array_keys` lists the fields that really are lists (`channels`, `rules`, `ids`, `payments`, `items`, `deductions`, `vehicle_types`, `preferences`); `'*'` accepts any (settings and contract-template documents). Used by every JSON endpoint |
 
 > [!IMPORTANT]
 > The session token is the sole proof of identity. `config.php` overwrites any `X-User-Id` / `X-Admin-Id` header from the verified session before an endpoint runs (and removes them when there is no session), and the frontend no longer sends them. Never trust a client-supplied id for authorization.

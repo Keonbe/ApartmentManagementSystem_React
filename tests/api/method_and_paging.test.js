@@ -20,7 +20,7 @@ const SKIP = new Set([
   'final_schema_patch', 'sync_live', 'logout', 'verify_email', 'verify_device', 'guest_chat_resume', 'guest_chat_inbox',
   'send_test_notification', 'auth_email',
 ]);
-const writers = names.filter((n) => !SKIP.has(n) && !n.startsWith('get_') && source(n).includes('php://input'));
+const writers = names.filter((n) => !SKIP.has(n) && !n.startsWith('get_') && (source(n).includes('php://input') || source(n).includes('read_json_input')));
 
 // A body whose every common field has the wrong type.
 const WRONG = {};

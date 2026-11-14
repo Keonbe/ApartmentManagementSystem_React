@@ -27,7 +27,7 @@ function fail($code, $message) {
 // are enforced here instead.
 const VISITOR_ID_TYPES = ["National ID", "Driver's License", "Passport", "UMID / SSS", "Student / Work ID", "Company / Student ID"];
 
-$input = !empty($_POST) ? $_POST : (json_decode(file_get_contents("php://input"), true) ?: []);
+$input = !empty($_POST) ? $_POST : (read_json_input());
 
 $visitor_name = trim($input['visitorName'] ?? $input['visitor_name'] ?? '');
 $contact_number = trim($input['contactNumber'] ?? $input['contact_number'] ?? '');

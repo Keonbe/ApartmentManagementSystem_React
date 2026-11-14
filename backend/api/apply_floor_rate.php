@@ -17,7 +17,7 @@ $adminId = require_admin($conn);
 // Copies a floor's fixed rent onto its VACANT units. Occupied or reserved units
 // keep the rent their tenant agreed to; units whose rent an admin set by hand
 // (rooms.rent_is_custom) are skipped too. `preview: true` only counts.
-$data = json_decode(file_get_contents("php://input"), true) ?: [];
+$data = read_json_input();
 $floor = trim((string)($data['floor'] ?? ''));
 $preview = !empty($data['preview']);
 if ($floor === '') {

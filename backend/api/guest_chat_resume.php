@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 if (!is_array($input)) $input = [];
 $action = (string)($input['action'] ?? '');
 if ($error = v_enum($action, 'Action', ['request', 'redeem'])) validation_fail(['action' => $error]);

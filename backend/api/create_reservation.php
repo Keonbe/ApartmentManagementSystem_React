@@ -19,7 +19,7 @@ if (!verify_admin($conn, $admin_id)) {
 }
 $admin_id_int = (int)$admin_id;
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 
 $inquiry_id  = isset($input['inquiry_id']) && $input['inquiry_id'] !== '' ? (int)$input['inquiry_id'] : null;
 $room_name   = trim($input['room_name'] ?? '');

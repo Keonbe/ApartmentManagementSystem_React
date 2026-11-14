@@ -21,7 +21,7 @@ function refund_fail($code, $msg) {
 // Tenant side: reply (answers an info request) | cancel.
 $auth = require_user($conn);
 $uid = (int)$auth['id'];
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
+$input = read_json_input();
 $id = (int)($input['id'] ?? 0);
 $action = $input['action'] ?? '';
 $message = trim((string)($input['message'] ?? ''));

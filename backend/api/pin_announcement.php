@@ -17,7 +17,7 @@ $admin_id = require_admin($conn);
 // keep the top meaningful: pinning everything pins nothing.
 const MAX_PINNED_ANNOUNCEMENTS = 3;
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $ann_id = (int)($input['id'] ?? 0);
 $pin = filter_var($input['pinned'] ?? false, FILTER_VALIDATE_BOOLEAN);
 

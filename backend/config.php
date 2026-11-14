@@ -3478,6 +3478,40 @@ function v_str($value, $label, $min, $max, $required = true) {
     if ($s === '') return $required ? "$label is required." : '';
     $len = mb_strlen($s);
     if ($len < $min) return "$label must be at least $min characters.";
+// The JSON request body as an array. An empty body is [] (the endpoint's own
+// "field is required" answers still apply); a body that is not a JSON object,
+// or a field that is an array/object where the endpoint expects one value, is
+// refused with 400 here instead of reaching a (string) cast, which warns
+// "Array to string conversion" and carries on with the text "Array" (or a
+// TypeError 500 from trim()). $array_keys lists the fields that really are
+// lists/objects; '*' accepts any (a settings or template document).
+function read_json_input(array $array_keys = []) {
+    $raw = file_get_contents('php://input');
+    if ($raw === false || trim($raw) === '') return [];
+    $input = json_decode($raw, true);
+    if (!is_array($input) || ($input && array_keys($input) === range(0, count($input) - 1))) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "Send a JSON object."]);
+        exit;
+    }
+    if (!in_array('*', $array_keys, true)) {
+        foreach ($input as $key => $value) {
+            if (is_array($value) && !in_array((string)$key, $array_keys, true)) {
+                http_response_code(400);
+                echo json_encode(["success" => false, "message" => "Field '" . (string)$key . "' must be a single value.", "field" => (string)$key]);
+                exit;
+            }
+        }
+    }
+    return $input;
+}
+
+// A money amount as a 2-place string for bind_param("s"). Binding a PHP float as "d" sends a binary
+// double (0.1 + 0.2 is 0.30000000000000004); a DECIMAL column should get the rounded text instead.
+function money_str($amount) {
+    return number_format(round((float)$amount, 2), 2, '.', '');
+}
+
     if ($len > $max) return "$label must be $max characters or fewer.";
     return '';
 }

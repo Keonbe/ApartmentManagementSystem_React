@@ -100,7 +100,7 @@ $app_id = (int)$app['id'];
 $holder = person_name($app);
 $room = $app['room_name'];
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $action = $input['action'] ?? '';
 
 switch ($action) {

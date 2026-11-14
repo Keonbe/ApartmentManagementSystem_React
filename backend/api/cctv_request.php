@@ -26,7 +26,7 @@ if ($auth['role'] !== 'admin' && get_setting($conn, 'service_cctv_active', 'true
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $incident_date = trim($input['incidentDate'] ?? '');
 $incident_time = trim($input['incidentTime'] ?? '');
 $location_details = trim($input['locationDetails'] ?? '');

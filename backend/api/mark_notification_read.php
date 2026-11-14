@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $auth = require_user($conn);
 $is_admin = $auth['role'] === 'admin';
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $notification_id = (int)($input['notificationId'] ?? $input['id'] ?? 0);
 
 $scope = $is_admin

@@ -13,7 +13,7 @@ const MESSAGE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const MESSAGE_VIDEO_MAX_BYTES = 25 * 1024 * 1024;
 
 $sender_id = intval($_SERVER['HTTP_X_USER_ID'] ?? $_SERVER['HTTP_X_ADMIN_ID'] ?? 0);
-$body = $_POST ?: (json_decode(file_get_contents('php://input'), true) ?: []);
+$body = $_POST ?: (read_json_input());
 $receiver_id = intval($body['receiver_id'] ?? 0);
 $message = trim($body['message'] ?? '');
 $reply_to_id = intval($body['reply_to_id'] ?? 0) ?: null;

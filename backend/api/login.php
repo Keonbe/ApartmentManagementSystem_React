@@ -68,7 +68,7 @@ function adopt_guest_chat($conn, $userId, $token) {
     }
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 
 if (!$input) {
     echo json_encode(["message" => "No data received", "valid" => false]);

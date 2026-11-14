@@ -13,7 +13,7 @@ $auth = require_user($conn);
 $user_id = $auth['id'];
 
 try {
-    $input = json_decode(file_get_contents("php://input"), true);
+    $input = read_json_input();
     $additionalMonths = (int)($input['additionalMonths'] ?? 0);
 
     // The minimum (min_lease_duration, shrunk to what fits under the

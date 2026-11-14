@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$data = json_decode(file_get_contents('php://input'), true);
+$data = read_json_input();
 $token = trim($data['token'] ?? '');
 $new_password = $data['new_password'] ?? '';
 $confirm_password = $data['confirm_password'] ?? '';

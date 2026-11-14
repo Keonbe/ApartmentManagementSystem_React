@@ -30,7 +30,7 @@ $fail = function ($status, $message) use ($conn) {
     exit;
 };
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 $path = is_array($input) ? ($input['path'] ?? null) : null;
 $kind = is_array($input) && isset($input['kind']) ? $input['kind'] : 'glass';
 if (!is_string($kind) || !in_array($kind, SITE_IMAGE_KINDS, true)) {

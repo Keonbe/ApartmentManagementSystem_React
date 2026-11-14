@@ -14,7 +14,7 @@ require_once '../config.php';
 $adminId = require_admin($conn);
 
 try {
-    $data = json_decode(file_get_contents("php://input"), true);
+    $data = read_json_input();
 
     $id = trim($data['id'] ?? '');
     $type = trim($data['type'] ?? '');

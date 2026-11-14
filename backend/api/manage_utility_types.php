@@ -26,7 +26,7 @@ if ($method === 'GET') {
 }
 
 $admin_id = (int)require_admin($conn);
-$in = json_decode(file_get_contents("php://input"), true) ?: [];
+$in = read_json_input();
 
 if ($method === 'DELETE') {
     $id = (int)($in['id'] ?? 0);

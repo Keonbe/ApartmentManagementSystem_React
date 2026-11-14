@@ -75,7 +75,7 @@ function req_id($value) {
 $admin_id = (int)require_admin($conn);
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') req_fail(405, "Method Not Allowed");
 
-$in = json_decode(file_get_contents("php://input"), true);
+$in = read_json_input(['ids']);
 if (!is_array($in)) req_fail(400, "Invalid request body.");
 $action = $in['action'] ?? '';
 if (!in_array($action, ['create', 'update', 'reorder', 'deactivate', 'activate'], true)) req_fail(422, "Unknown action.");

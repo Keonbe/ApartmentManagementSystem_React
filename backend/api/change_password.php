@@ -23,7 +23,7 @@ function fail($code, $message) {
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 if (!is_array($input)) fail(400, "No data received");
 
 $currentPassword = (string)($input["current_password"] ?? '');

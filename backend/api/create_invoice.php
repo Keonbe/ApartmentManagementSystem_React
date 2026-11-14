@@ -15,7 +15,7 @@ $admin_id = require_admin($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $input = json_decode(file_get_contents("php://input"), true);
+        $input = read_json_input();
 
         $unit = trim($input['unit'] ?? '');
         $tenant_name = trim($input['tenantName'] ?? 'Tenant');

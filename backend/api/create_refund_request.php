@@ -21,7 +21,7 @@ function refund_fail($code, $msg) {
 $auth = require_user($conn);
 $actor_id = (int)$auth['id'];
 $actor_role = $auth['role'] === 'admin' ? 'admin' : 'user';
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
+$input = read_json_input();
 
 // A tenant raises for themselves; an admin names the tenant.
 $user_id = $actor_id;

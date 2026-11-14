@@ -22,7 +22,7 @@ function resolve_fail($code, $msg) {
 // `adjusted` (return `amount` more of the deposit: a deposit refund request that
 // is approved at once, so it only waits for the payout). A response is required.
 $admin_id = (int)require_admin($conn);
-$input = json_decode(file_get_contents("php://input"), true) ?: [];
+$input = read_json_input();
 $id = (int)($input['id'] ?? 0);
 $outcome = $input['outcome'] ?? '';
 $response = is_string($input['response'] ?? null) ? trim($input['response']) : '';

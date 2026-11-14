@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // billed once, however it is triggered (see post_invoice_charge()).
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = read_json_input();
 $reservation_id = (int)($input['reservation_id'] ?? 0);
 $action = $input['action'] ?? 'post';
 $period = trim((string)($input['period'] ?? ''));

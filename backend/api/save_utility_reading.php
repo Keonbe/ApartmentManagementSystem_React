@@ -25,7 +25,7 @@ function number_field($input, $key, $default = null) {
     return is_numeric($input[$key]) ? (float)$input[$key] : null;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input(['items']);
 if (!is_array($input)) fail(400, "Invalid JSON");
 
 $room_name = trim((string)($input['room_name'] ?? ''));

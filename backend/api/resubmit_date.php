@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $auth = require_user($conn);
 $user_id = $auth['id'];
-$input = json_decode(file_get_contents("php://input"), true);
+$input = read_json_input();
 if (!is_array($input)) $input = [];
 $app_id = $input['id'] ?? 0;
 $new_date = trim((string)($input['preferred_move_in_date'] ?? ''));

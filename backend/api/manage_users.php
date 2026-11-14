@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
-$data = json_decode(file_get_contents('php://input'), true) ?? [];
+$data = read_json_input();
 $action  = $data['action']  ?? '';
 $user_id = (int)($data['user_id'] ?? 0);
 
