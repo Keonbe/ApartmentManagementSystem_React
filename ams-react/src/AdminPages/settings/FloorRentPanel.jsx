@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axiosConfig';
 import { apiErrorMessage } from '../../utils/apiError';
 import { TH, THEAD, btn } from '../../Components/admin/ui/styles';
+import askConfirm from '../../utils/askConfirm';
 
 // Floor -> fixed monthly rent. Saved with update_system_settings.php
 // (floor_rates). Changing a price never touches occupied units; "Apply to
@@ -64,7 +65,7 @@ export default function FloorRentPanel() {
         setNotice({ ok: true, text: `Floor ${floor}: no vacant unit needs a change (${p.skippedCustom} with a hand-set rent, ${p.skippedOccupied} occupied or reserved).` });
         return;
       }
-      if (!window.confirm(`Set ₱${p.rate} on ${p.updated} vacant unit(s) on floor ${floor}? ${p.skippedCustom} with a hand-set rent and ${p.skippedOccupied} occupied or reserved unit(s) stay as they are.`)) return;
+      if (!(await askConfirm(`Set ₱${p.rate} on ${p.updated} vacant unit(s) on floor ${floor}? ${p.skippedCustom} with a hand-set rent and ${p.skippedOccupied} occupied or reserved unit(s) stay as they are.`))) return;
       const res = await api.post('apply_floor_rate.php', { floor });
       setNotice({ ok: !!res.data.success, text: res.data.success ? `Updated ${res.data.updated} vacant unit(s) on floor ${floor}.` : res.data.message });
     } catch (err) {

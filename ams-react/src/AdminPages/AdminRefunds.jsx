@@ -9,6 +9,7 @@ import FilterTabs from '../Components/admin/ui/FilterTabs';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 import DepositReviews from '../Components/admin/DepositReviews';
+import askConfirm from '../utils/askConfirm';
 
 const FILTERS = ['all', 'Pending Review', 'Info Requested', 'Approved', 'Refunded', 'Rejected', 'Cancelled'];
 
@@ -88,8 +89,8 @@ export default function AdminRefunds() {
     okText, () => setText((p) => ({ ...p, [r.id]: '' })));
 
   // Money returns to the payer's own GCash / card / bank through PayMongo.
-  const refundOnline = (r) => {
-    if (window.confirm(`Refund ${peso(r.amount)} to ${r.tenantName} through PayMongo? This sends the money back and cannot be undone.`)) {
+  const refundOnline = async (r) => {
+    if ((await askConfirm(`Refund ${peso(r.amount)} to ${r.tenantName} through PayMongo? This sends the money back and cannot be undone.`, { title: 'Refund through PayMongo', confirmLabel: 'Send refund' }))) {
       act(r, 'mark_refunded', 'Refund sent through PayMongo.', { gateway: true });
     }
   };

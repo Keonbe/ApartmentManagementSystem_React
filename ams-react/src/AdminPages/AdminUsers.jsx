@@ -21,6 +21,7 @@ import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { personName } from '../utils/personName';
+import askConfirm from '../utils/askConfirm';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
@@ -195,7 +196,7 @@ const AdminUsers = () => {
 
   const handleSetRole = async (user, newRole) => {
     const verb = newRole === 'admin' ? 'grant admin access to' : 'revoke admin access from';
-    if (!window.confirm(`Are you sure you want to ${verb} ${personName(user)}? They will be signed out and must sign in again.`)) return;
+    if (!(await askConfirm(`Are you sure you want to ${verb} ${personName(user)}? They will be signed out and must sign in again.`))) return;
     try {
       const res = await api.post('/manage_users.php', { action: 'set_role', user_id: user.id, role: newRole });
       if (res.data.success) {

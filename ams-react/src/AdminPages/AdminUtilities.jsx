@@ -24,6 +24,7 @@ import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { personName } from '../utils/personName';
+import askConfirm from '../utils/askConfirm';
 
 // sync_utility_to_invoice.php: a separate invoice's due date is today to +10 days.
 const SYNC_DUE_MAX_DAYS = 10;
@@ -233,7 +234,7 @@ export default function AdminUtilities() {
     if (file) {
       const fileError = checkFile(file, FILE_RULES.document);
       if (fileError) { alert(fileError); return; }
-    } else if (!window.confirm('Remove the bill file from this reading?')) {
+    } else if (!(await askConfirm('Remove the bill file from this reading?'))) {
       return;
     }
     const fd = new FormData();
@@ -260,7 +261,7 @@ export default function AdminUtilities() {
   }, [readings]);
 
   const handleDelete = async (reading) => {
-    if (!window.confirm(`Delete the ${formatBillingPeriod(reading.billing_period)} reading for Unit ${reading.room_name}? You can record it again afterwards.`)) return;
+    if (!(await askConfirm(`Delete the ${formatBillingPeriod(reading.billing_period)} reading for Unit ${reading.room_name}? You can record it again afterwards.`))) return;
     setSyncingId(reading.id);
     try {
       const res = await api.post('/delete_utility_reading.php', { id: reading.id });

@@ -26,6 +26,7 @@ import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import LoadError from '../Components/admin/ui/LoadError';
 import Modal from '../Components/admin/Modal';
+import askConfirm from '../utils/askConfirm';
 
 // update_system_settings.php: 0–30 days before due; every 1–30 days when overdue.
 const REMINDER_VALIDATORS = {
@@ -227,7 +228,7 @@ const AdminNotifications = () => {
   const handleMarkAllRead = () => post('mark_notification_read.php', {}, 'Could not mark notifications as read.');
   const handleArchiveAll = async () => {
     if (archivingAll) return;
-    if (!window.confirm('Clear your processed notifications? Requests still awaiting a decision are kept.')) return;
+    if (!(await askConfirm('Clear your processed notifications? Requests still awaiting a decision are kept.'))) return;
 
     setArchivingAll(true);
     setNotice(null);

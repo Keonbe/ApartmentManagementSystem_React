@@ -11,6 +11,7 @@ import CharCount from './form/CharCount';
 import { blockNonNumericKeys, invalidCls } from './form/formHelpers';
 import Modal from './admin/Modal';
 import { TH, THEAD, btn } from './admin/ui/styles';
+import askConfirm from '../utils/askConfirm';
 
 // Building expenses entered by an admin (manage_expenses.php). The report adds
 // these to the maintenance costs it already derives, so repairs don't go here.
@@ -97,7 +98,7 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
   };
 
   const remove = async (expense) => {
-    if (!window.confirm(`Delete this ${peso(expense.amount)} expense?`)) return;
+    if (!(await askConfirm(`Delete this ${peso(expense.amount)} expense?`))) return;
     setError('');
     try {
       await api.post('manage_expenses.php', { action: 'delete', id: expense.id });

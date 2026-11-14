@@ -1662,6 +1662,7 @@ const translations = {
     'services.popularTag': 'Sikat',
     'services.essentialTag': 'Pangunahin',
     'services.servicesAvailable': 'magagamit na serbisyo',
+    'confirm.title': 'Please confirm',
     'serviceCatalog.heading': 'Karagdagang Serbisyo',
     'serviceCatalog.subtext': 'Opsyonal na bayad na dagdag na serbisyo na maaari mong i-book para sa iyong yunit. Ang bayad ay idaragdag sa iyong buwanang invoice kapag natapos na ang serbisyo.',
     'serviceCatalog.back': 'Bumalik sa Serbisyo',
@@ -2782,3 +2783,4 @@ export function useLang() {
     t,
   };
 }
+    'confirm.title': 'Pakikumpirma',

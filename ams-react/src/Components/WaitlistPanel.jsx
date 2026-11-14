@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faListOl, faTrashAlt, faBell } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { TH, THEAD } from './admin/ui/styles';
+import askConfirm from '../utils/askConfirm';
 
 // Basic unit waitlist (manage_waitlist.php). Entries are added from an inquiry's
 // detail view. When a unit frees up, the first entry is marked Notified and an
@@ -30,7 +31,7 @@ export default function WaitlistPanel({ onOpenInquiry }) {
   }, []);
 
   const remove = async (entry) => {
-    if (!window.confirm(`Remove ${entry.fullName} from the waitlist for Unit ${entry.roomName}?`)) return;
+    if (!(await askConfirm(`Remove ${entry.fullName} from the waitlist for Unit ${entry.roomName}?`))) return;
     setError(null);
     try {
       await api.post('manage_waitlist.php', { action: 'remove', id: entry.id });

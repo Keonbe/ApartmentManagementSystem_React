@@ -42,6 +42,7 @@ import EmptyState from '../Components/admin/ui/EmptyState';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
+import askConfirm from '../utils/askConfirm';
 
 const UNIT_TYPES = ['Studio', '1BR', '2BR'];
 const FIELD_CLS = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white';
@@ -116,7 +117,7 @@ const AdminUnits = () => {
   };
 
   const handleCompleteMaintenance = async (unit) => {
-    if (!window.confirm(`Mark maintenance for Unit ${unit.id} as completed? The unit will return to Available status.`)) return;
+    if (!(await askConfirm(`Mark maintenance for Unit ${unit.id} as completed? The unit will return to Available status.`))) return;
     setCompletingMaintenanceId(unit.id);
     try {
       const res = await api.post('set_unit_maintenance.php', {
@@ -941,7 +942,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
   };
 
   const handleDeleteImage = async (path) => {
-    if (!window.confirm('Remove this showcase image?')) return;
+    if (!(await askConfirm('Remove this showcase image?'))) return;
     setGalleryError('');
     setDeletingImagePath(path);
     try {

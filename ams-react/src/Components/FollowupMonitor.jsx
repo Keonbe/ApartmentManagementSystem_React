@@ -5,6 +5,7 @@ import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { btn, badge } from './admin/ui/styles';
 import Modal from './admin/Modal';
+import askConfirm from '../utils/askConfirm';
 
 const peso = (n) => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -59,7 +60,7 @@ export default function FollowupMonitor({ onChanged }) {
 
   const remindAll = async () => {
     if (busyKey) return;
-    if (!window.confirm(`Send a reminder to everyone on this list (${remindable})? Anyone already reminded in the last day is skipped.`)) return;
+    if (!(await askConfirm(`Send a reminder to everyone on this list (${remindable})? Anyone already reminded in the last day is skipped.`))) return;
     setBusyKey('all');
     setNotice(null);
     try {

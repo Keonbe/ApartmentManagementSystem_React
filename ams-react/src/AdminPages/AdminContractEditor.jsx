@@ -21,6 +21,7 @@ import { printElement } from '../utils/print';
 import { btn } from '../Components/admin/ui/styles';
 import Spinner from '../Components/admin/ui/Spinner';
 import { LIMITS } from '../utils/validation';
+import askConfirm from '../utils/askConfirm';
 
 // Simple GCash validation: 11-digit PH mobile (09xx) or +639xx, or the literal '*********'
 const isValidGcashNumber = (num) => {
@@ -436,9 +437,9 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
     }
   };
 
-  const handleDiscard = () => {
+  const handleDiscard = async () => {
     if (!savedJson) return;
-    if (window.confirm('Discard all unsaved changes and revert to the saved version?')) {
+    if ((await askConfirm('Discard all unsaved changes and revert to the saved version?'))) {
       setDraft(JSON.parse(savedJson));
       setNote('');
       setConflict(null);
@@ -446,7 +447,7 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
   };
 
   const handleResetDefault = async () => {
-    if (!window.confirm('Reset all terms, sections and clauses to system defaults? Landlord details and accounts will remain.')) return;
+    if (!(await askConfirm('Reset all terms, sections and clauses to system defaults? Landlord details and accounts will remain.'))) return;
     try {
       const def = await fetchDefaultContractTemplate();
       update((d) => {
@@ -461,7 +462,7 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
   };
 
   const handleLoadVersion = async (v) => {
-    if (!window.confirm(`Load Version ${v.version} into the editor? You can review it before saving.`)) return;
+    if (!(await askConfirm(`Load Version ${v.version} into the editor? You can review it before saving.`))) return;
     try {
       const data = await fetchContractTemplate(v.id, { full: true });
       setDraft(data.template);
@@ -634,8 +635,8 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
                 <button aria-label="Delete section"
                   type="button"
                   className={DANGER_BTN}
-                  onClick={() => {
-                    if (window.confirm(`Delete Section ${roman(si + 1)} and its ${section.clauses.length} clause(s)?`)) {
+                  onClick={async () => {
+                    if ((await askConfirm(`Delete Section ${roman(si + 1)} and its ${section.clauses.length} clause(s)?`))) {
                       update((d) => { d.terms.sections.splice(si, 1); });
                     }
                   }}
@@ -672,8 +673,8 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
                           <button aria-label="Delete clause"
                             type="button"
                             className={DANGER_BTN}
-                            onClick={() => {
-                              if (window.confirm(`Remove clause #${ci + 1}?`)) {
+                            onClick={async () => {
+                              if ((await askConfirm(`Remove clause #${ci + 1}?`))) {
                                 update((d) => { d.terms.sections[si].clauses.splice(ci, 1); });
                               }
                             }}
@@ -790,8 +791,8 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
                   <button aria-label="Delete account"
                     type="button"
                     className={DANGER_BTN}
-                    onClick={() => {
-                      if (window.confirm(`Remove ${a.label || 'this account'}?`)) {
+                    onClick={async () => {
+                      if ((await askConfirm(`Remove ${a.label || 'this account'}?`))) {
                         update((d) => { d.payment_accounts.splice(i, 1); });
                       }
                     }}

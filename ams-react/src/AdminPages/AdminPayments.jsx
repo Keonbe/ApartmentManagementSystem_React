@@ -29,6 +29,7 @@ import { Skeleton, SkeletonBlock, SkeletonList, SkeletonRows } from '../Componen
 import useLoadState from '../hooks/useLoadState';
 import { invoiceOwed } from '../utils/invoiceBalance';
 import { personName } from '../utils/personName';
+import askConfirm from '../utils/askConfirm';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -152,7 +153,7 @@ const AdminPayments = () => {
   };
 
   const handleBatchReminders = async () => {
-    if (!window.confirm('Send in-app due date reminders to all tenants with pending or overdue bills?')) return;
+    if (!(await askConfirm('Send in-app due date reminders to all tenants with pending or overdue bills?'))) return;
     setBatchSending(true);
     try {
       const res = await api.post('/send_payment_reminder.php', { all: true });
@@ -320,8 +321,8 @@ const AdminPayments = () => {
           // Proof data is invoice-scoped. Assign nulls too so a previous/paid
           // invoice can never leak its proof metadata into the selected bill.
           t.proofOfPaymentPath = sel.proof_of_payment_path || null;
-          t.paymentReference = sel.payment_reference || null;
           t.rejectedProofPath = sel.rejected_proof_path || null;
+          t.paymentReference = sel.payment_reference || null;
           t.senderName = sel.sender_name || null;
           if (sel.split_parts?.length) t.splitParts = sel.split_parts;
           if (sel.payment_gateway) t.paymentGateway = sel.payment_gateway;
@@ -752,7 +753,7 @@ const handleMarkAsPaid = async () => {
   const [releasing, setReleasing] = useState(false);
   const handleReleaseCheckout = async () => {
     if (!activeTenant?.pendingInvoiceId || releasing) return;
-    if (!window.confirm(`Cancel ${activeTenant.name}'s online checkout?\n\nCheck the PayMongo dashboard first: if this checkout was paid there, do not cancel it — the payment will be confirmed automatically.`)) return;
+    if (!(await askConfirm(`Cancel ${activeTenant.name}'s online checkout?\n\nCheck the PayMongo dashboard first: if this checkout was paid there, do not cancel it — the payment will be confirmed automatically.`))) return;
     setReleasing(true);
     try {
       const res = await api.post('/release_checkout_session.php', { invoice_id: activeTenant.pendingInvoiceId });
@@ -1401,13 +1402,13 @@ const handleMarkAsPaid = async () => {
                               ))}
                             </div>
                           )}
-                          {activeTenant.proofOfPaymentPath && !activeTenant.splitParts?.length && (
                           {activeTenant.rejectedProofPath && !activeTenant.proofOfPaymentPath && (
                             <p className="m-0 pt-2 text-label text-slate-700">
                               Last rejected proof:{' '}
                               <a href={getBackendAssetUrl(activeTenant.rejectedProofPath)} target="_blank" rel="noreferrer" className="font-bold text-indigo-700 underline">open the file</a>
                             </p>
                           )}
+                          {activeTenant.proofOfPaymentPath && !activeTenant.splitParts?.length && (
                             <div className="pt-2 flex items-center gap-2 flex-wrap">
                               <button
                                 type="button"
@@ -1842,7 +1843,7 @@ const handleMarkAsPaid = async () => {
 
       {/* Adjust Invoice Modal — adjust_invoice.php */}
       {adjustForm && (
-        <Modal title="Adjust Invoice" onClose={() => setAdjustForm(null)} busy={adjusting} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4 overflow-hidden" onSubmit={submitAdjust} noValidate>
+        <Modal title="Adjust Invoice" onClose={() => setAdjustForm(null)} busy={adjusting} dirty={!!(adjustForm.reason || '').trim() || adjustForm.dueDate !== adjustForm.originalDue || ADJUST_LINES.some(([key, column]) => String(Number(activeTenant?.adjustInvoice?.[column] || 0)) !== String(adjustForm[key]))} as="form" overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4 overflow-hidden" onSubmit={submitAdjust} noValidate>
             <div className="p-6">
               <h3 className="text-title font-bold text-slate-800 mb-1 mt-0">Adjust Invoice</h3>
               <p className="text-label text-slate-500 m-0 mb-4"><span className="font-mono">{adjustForm.invoiceId}</span> · {adjustForm.period}. The change is logged and the tenant is notified of the new total.</p>

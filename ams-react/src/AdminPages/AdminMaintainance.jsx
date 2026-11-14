@@ -24,6 +24,7 @@ import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 import LoadError from '../Components/admin/ui/LoadError';
+import askConfirm from '../utils/askConfirm';
 import {
   MAINTENANCE_CATEGORIES, MAINTENANCE_URGENCIES, MAINTENANCE_DEFAULT_URGENCY, MAINTENANCE_TRANSITIONS, MAINTENANCE_STATUS_STYLES,
   urgencyWeight, urgencyColor
@@ -912,7 +913,7 @@ const AdminMaintainance = () => {
   const closeDetail = () => { setSelectedId(null); setActionModal(null); };
 
   const moveTo = async (status) => {
-    if (!selectedReq || !window.confirm(`Move ${selectedReq.code} to ${status}?`)) return;
+    if (!selectedReq || !(await askConfirm(`Move ${selectedReq.code} to ${status}?`))) return;
     await update(selectedReq.dbId, status ? { status } : {});
   };
 

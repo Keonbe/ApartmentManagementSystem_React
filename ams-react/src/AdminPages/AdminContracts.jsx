@@ -33,6 +33,7 @@ import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
 import { personName } from '../utils/personName';
+import askConfirm from '../utils/askConfirm';
 
 const MAX_LEASE_MONTHS = 24;
 const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500';
@@ -529,7 +530,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     await refreshContract(contractId);
   };
 
+  const [clearingEviction, setClearingEviction] = useState(false);
   const handleClearEviction = async (contractId) => {
+    if (clearingEviction) return;
+    if (!(await askConfirm('Clear the eviction flag? The contract returns to active and the tenant is no longer under eviction review.', { title: 'Clear eviction flag', confirmLabel: 'Clear flag', tone: 'primary' }))) return;
+    setClearingEviction(true);
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'clear' });
       if (res.data.success) {
@@ -540,6 +545,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     } catch(err) {
       console.error(err);
       alert(apiErrorMessage(err, 'Failed to clear eviction flag.'));
+    } finally {
+      setClearingEviction(false);
     }
   };
 
@@ -558,9 +565,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     const target = contracts.find(c => c.id === contractId);
     if (!groundForm.ground) throw new Error('Choose the legal ground.');
     const depositHeld = target?.depositStatus === 'Held';
-    if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released.'
+    if (!(await askConfirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released.'
       + (depositHeld ? ' What is left of the security deposit after unpaid bills is returned to the tenant.' : '')
-      + ' Continue?')) {
+      + ' Continue?'))) {
       return;
     }
     let res;
@@ -1317,7 +1324,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                             <FontAwesomeIcon icon={faGavel} /> Flag for Eviction
                           </button>
                         ) : (
-                          <button onClick={() => handleClearEviction(selectedContract.id)} className={btn('success', 'sm')}>
+                          <button onClick={() => handleClearEviction(selectedContract.id)} disabled={clearingEviction} className={btn('success', 'sm')}>
                             <FontAwesomeIcon icon={faCheckCircle} /> Clear Eviction Flag
                           </button>
                         )}

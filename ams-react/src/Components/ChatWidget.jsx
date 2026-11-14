@@ -26,6 +26,8 @@ import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
 import { useLang, dateLocale } from '../config/i18n';
 import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
 import ResolutionCheck from './chat/ResolutionCheck';
+import askConfirm from '../utils/askConfirm';
+import ComplaintPanel from './ComplaintPanel';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
@@ -89,7 +91,7 @@ const ChatWidget = () => {
     // the server (action=end_chat): it stays readable on this device, but no
     // more messages, files or answers can be sent in it.
     const endGuestChat = async () => {
-        if (!window.confirm(t('chat.endGuestConfirm'))) return;
+        if (!(await askConfirm(t('chat.endGuestConfirm')))) return;
         try {
             await api.post('guest_chat.php', { action: 'end_chat' }, { headers: { 'X-Guest-Token': guestToken } });
             applyGuestResponse(await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } }));

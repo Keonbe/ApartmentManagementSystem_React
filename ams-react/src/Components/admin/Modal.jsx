@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import useDialog, { openDialogCount } from '../../hooks/useDialog';
+import ConfirmDialog from '../ConfirmDialog';
 
 // The shell of every admin pop-up: backdrop + card with the dialog role and
 // name, focus moved in and kept inside, Esc and a backdrop press to close, focus
@@ -10,6 +11,9 @@ import useDialog, { openDialogCount } from '../../hooks/useDialog';
 //
 // title      accessible name (aria-label); or labelledBy = id of a visible heading
 // busy       while true nothing closes it (a save in flight is never cut off)
+// dirty      true while the form holds unsaved input: Esc and a backdrop press then ask
+//            "Discard changes?" instead of closing (the card's own Cancel/X buttons
+//            call onClose directly and are the caller's choice)
 // className  the card's look; modal-card-anim is always added (phone layout and
 //            print rules key off it)
 // as="form"  the card is the form; extra props (onSubmit, noValidate) go to the card
@@ -20,14 +24,20 @@ const DEFAULT_OVERLAY = 'flex items-center justify-center bg-black/50 backdrop-b
 export default function Modal({
   title, labelledBy, onClose, busy = false, role = 'dialog', as: Card = 'div',
   className = DEFAULT_CARD, overlayClassName = DEFAULT_OVERLAY, z, cardRef,
-  closeOnBackdrop = true, children, ...cardProps
+  closeOnBackdrop = true, dirty = false, children, ...cardProps
 }) {
-  const close = () => { if (!busy) onClose?.(); };
+  const [askDiscard, setAskDiscard] = useState(false);
+  const close = () => {
+    if (busy) return;
+    if (dirty) { setAskDiscard(true); return; }
+    onClose?.();
+  };
   // cardRef (an object ref) is shared with the caller, e.g. the receipt prints its card.
   const dialogRef = useDialog(true, close, cardRef);
   const [depth] = useState(openDialogCount);
 
   return (
+    <>
     <div
       className={`fixed inset-0 modal-overlay-anim ${overlayClassName}`}
       style={{ zIndex: z ?? 50 + depth * 10 }}
@@ -48,5 +58,16 @@ export default function Modal({
         {children}
       </Card>
     </div>
+    {askDiscard && (
+      <ConfirmDialog
+        title="Discard changes?"
+        message="What you entered has not been saved."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onConfirm={() => { setAskDiscard(false); onClose?.(); }}
+        onClose={() => setAskDiscard(false)}
+      />
+    )}
+    </>
   );
 }
