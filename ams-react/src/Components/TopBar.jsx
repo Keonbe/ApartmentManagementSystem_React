@@ -7,7 +7,7 @@ import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
     faBell, faFileContract,
-    faHome, faCompass, faConciergeBell, faBed, faBullhorn, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
+    faHome, faCompass, faConciergeBell, faBed, faBullhorn, faBroom, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import {
     TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, PAYMENT_WATCH_POLL_MS,
@@ -444,6 +444,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         isLoggedIn && hasRentedRoom && link('/services', t('nav.services'), faConciergeBell, SERVICE_PATHS),
         // Announcements has its own link (it was a Services card).
         isLoggedIn && hasRentedRoom && link('/announcements', t('nav.announcements'), faBullhorn),
+        isLoggedIn && hasRentedRoom && link('/housekeeping', t('nav.housekeeping'), faBroom),
         // Payment History and My Refunds live in the account area (Profile Settings side menu).
     ].filter(Boolean);
     // Phones list the rooms page for tenants too, last.

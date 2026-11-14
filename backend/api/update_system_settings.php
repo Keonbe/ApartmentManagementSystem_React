@@ -185,6 +185,24 @@ foreach ($input as $key => $value) {
         if ($clean === null) $refuse($problem, ["cctvIncidentTypes" => $problem]);
         $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
     }
+    // Housekeeping schedule (Settings -> House Rules): up to 14 rows of { day, what, time }.
+    if ($key === 'garbage_schedule') {
+        $decoded = json_decode($value, true);
+        $is_list = is_array($decoded) && ($decoded === [] || array_keys($decoded) === range(0, count($decoded) - 1));
+        if (!$is_list || count($decoded) > 14) $refuse("The schedule must be a list of up to 14 rows.");
+        $days = ['Every day', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        $clean = [];
+        foreach ($decoded as $row) {
+            $day = is_array($row) ? ($row['day'] ?? null) : null;
+            $what = is_array($row) && is_string($row['what'] ?? null) ? trim($row['what']) : '';
+            $time = is_array($row) && is_string($row['time'] ?? '') ? trim((string)($row['time'] ?? '')) : '';
+            if (!is_string($day) || !in_array($day, $days, true)) $refuse("Each row needs a day of the week (or Every day).");
+            if ($what === '' || mb_strlen($what) > 60) $refuse("Say what is collected, in 1 to 60 characters.");
+            if (mb_strlen($time) > 30) $refuse("The time can be at most 30 characters.");
+            $clean[] = ['day' => $day, 'what' => $what, 'time' => $time];
+        }
+        $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
+    }
     // No young children on these floors (default 3F, because of the stairs).
     if ($key === 'child_restricted_floors') {
         $decoded = json_decode($value, true);

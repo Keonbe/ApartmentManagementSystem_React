@@ -17,6 +17,7 @@ import LeasingPanel from './settings/LeasingPanel';
 import NotificationsPanel from './settings/NotificationsPanel';
 import MaintenancePanel from './settings/MaintenancePanel';
 import HouseRulesPanel from './settings/HouseRulesPanel';
+import GarbageSchedulePanel from './settings/GarbageSchedulePanel';
 import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import CctvPanel from './settings/CctvPanel';
@@ -265,7 +266,7 @@ const AdminOtherSettings = () => {
 
             {/* Tab Content Panels */}
             {activeTab === 'site' && <AdminContractEditor embedded siteOnly />}
-            {activeTab === 'house-rules' && <HouseRulesPanel />}
+            {activeTab === 'house-rules' && <><HouseRulesPanel /><GarbageSchedulePanel /></>}
             {activeTab === 'floor-rent' && <FloorRentPanel />}
             {activeTab === 'utility-types' && <UtilityTypesPanel />}
             {activeTab === 'cctv' && <CctvPanel />}

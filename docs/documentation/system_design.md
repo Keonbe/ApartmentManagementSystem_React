@@ -781,7 +781,7 @@ ALTER TABLE maintenance_requests
 | FR-2.2 | The system shall store the applicant's `user_id` FK on the `rent_applications` record at submission time. | ✅ |
 | FR-2.3 | The system shall allow users to preview and retake uploaded images before submission. | ✅ |
 | FR-2.4 | The system shall provide an application tracking page (`/track-application`) showing current status and pending initial payment. | ✅ |
-| FR-2.5 | The system shall allow rejected applicants to resubmit or update their application. | 🔲 |
+| FR-2.5 | The system shall allow rejected applicants to resubmit or update their application. | ✅ (resubmission of a Rejected or Declined application, `rent_application.php` with `appId`) |
 | FR-2.6 | The system shall validate all input fields with appropriate min/max limits (plate numbers, contact numbers, etc.). | 🔲 |
 | FR-2.7 | The system shall support upload of Police Clearance and Utility Bill (Proof of Billing) as additional application documents. | 🔲 |
 

@@ -41,6 +41,7 @@ const UserPaymentHistory = lazy(() => import('./UserPages/UserPaymentHistory'));
 const UserRefunds = lazy(() => import('./UserPages/UserRefunds'));
 const UserVisitors = lazy(() => import('./UserPages/UserVisitors'));
 const UserUtilities = lazy(() => import('./UserPages/UserUtilities'));
+const Housekeeping = lazy(() => import('./UserPages/Housekeeping'));
 const ServiceBooking = lazy(() => import('./UserPages/ServiceBooking'));
 const ServiceCatalog = lazy(() => import('./UserPages/ServiceCatalog'));
 import NotFound from './UserPages/NotFound';
@@ -325,6 +326,7 @@ function AppContent() {
         <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><AccountLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></AccountLayout></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/visitor-management" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><ServiceRouteGuard settingKey="service_visitor_management_active"><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserVisitors /></BaseAppLayout></ServiceRouteGuard></TenantProtectedRoute>} />
+        <Route path="/housekeeping" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><Housekeeping /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/user-utilities" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserUtilities /></BaseAppLayout></TenantProtectedRoute>} />
         
         {/* AUTH PATHS */}
