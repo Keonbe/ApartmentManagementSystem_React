@@ -1056,7 +1056,7 @@ The same pattern applies to each status-change endpoint. After the existing `cre
 >
 > The sweep is also the natural place to **drain** the queue (C7): after the reminder loops, call `process_notification_queue($conn, 20)` — the same function `process_queue.php` wraps. One tenant's poll then carries at most 20 sends, and the next poll carries the next 20.
 
-> **Status (2026-09-26).** The **lease-end reminder** now goes out by SMS and email. `send_lease_end_reminders()` dispatches `sms_lease_reminder_template()` + `email_lease_reminder_template()` after its once-per-lease claim. It is wrapped in try/catch, and the mode is `_admin_action_mode()`: sync on the `log` drivers, otherwise the configured mode, which is `queue` by default. **Rent-due and overdue reminders from the sweep are still in-app only.** The design below is not yet wired; when it is, use `sms_payment_template()` (§1.5a), not `"AMS: " . $message`.
+> **Status (2026-11-14).** The **lease-end reminder** dispatches `sms_lease_reminder_template()` + `email_lease_reminder_template()` after its once-per-lease claim. The daily due-rent and overdue loops now also pass `sms_payment_template()` to `dispatch_system_notification()` after `claim_invoice_reminder()`. SMS is queued when real-provider dispatch is configured and respects the central SMS channel/opt-out/preference gates, the daily provider cap and queued quiet-hours deferral. The sweep itself does not call the provider; a scheduled `process_queue.php` drain processes queued jobs. As before, admin actions use `_admin_action_mode()`: sync only with both `log` drivers, otherwise configured queue mode.
 
 The sweep already calls `create_notification()` for rent-due and overdue reminders (lines 1641, 1660). Add SMS/email dispatch alongside:
 
@@ -1649,7 +1649,7 @@ Complete map of every event that triggers a notification, the endpoint that fire
 | Occupancy change | `process_tenant_request.php` | occupancy_change_request | `AMS: Your {request label} is now {decision}.` | `👥 Occupancy Request — {decision}` |
 | Rent due (admin reminder) | `send_payment_reminder.php` | rent_due | `AMS: Payment of PHP {amount} for Unit {room} is due {date} ({n} days left). Please pay via your tenant portal.` | `Payment Reminder - Unit {room}` |
 | Overdue (admin reminder) | `send_payment_reminder.php` | overdue | `AMS: Payment of PHP {amount} for Unit {room} was due {date} ({n} days overdue). Please pay now to avoid further penalties.` | `Payment Reminder - Unit {room}` |
-| Rent due / overdue (sweep) | `config.php` sweep | rent_due / overdue | **Not sent yet**, in-app only (§2.5). Use `sms_payment_template()` when wired | — |
+| Rent due / overdue (sweep) | `config.php` → `run_notification_sweep()` | rent_due / overdue | `sms_payment_template()`; same due-today/upcoming and overdue wording as the admin reminder rows above | `Payment Reminder - Unit {room}` |
 | Payment confirmed | `paymongo_webhook.php` | payment_received | **Not sent**, in-app only | — |
 | Lease expiring | `config.php` sweep (`send_lease_end_reminders()`) | contract_update | `AMS: Your lease for Unit {room} ends {date} ({n} days left). To stay, request an extension in My Room or contact the office.` | `Lease Expiring Soon - Unit {room}` |
 

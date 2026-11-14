@@ -180,7 +180,7 @@ The frontend connects via `VITE_CHAT_SOCKET_URL` (default `http://localhost:3001
 
 ### Step 5: Background tasks (for SMS/email)
 
-- [process_queue.php](backend/cron/process_queue.php) delivers queued SMS/email. Schedule it every minute ([run_queue.bat](backend/cron/run_queue.bat) is provided for Windows Task Scheduler).
+- [process_queue.php](backend/cron/process_queue.php) delivers queued SMS/email. Schedule it every minute with Windows Task Scheduler ([run_queue.bat](backend/cron/run_queue.bat)) or Linux/cPanel cron (`php /absolute/path/to/backend/cron/process_queue.php`).
 - [daily_sweep.php](backend/cron/daily_sweep.php) runs the daily reminder/billing sweep.
 - SMS and email ship on **dry-run drivers** that record messages without sending them. Go-live steps: [sms_email_implementation.md](docs/features/sms_email_implementation.md), Appendix C.
 

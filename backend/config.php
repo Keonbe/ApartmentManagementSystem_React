@@ -5773,7 +5773,8 @@ function run_notification_sweep($conn, $force = false) {
             create_notification($conn, $inv['user_id'], 'rent_due', $title, $message);
             try {
                 require_once __DIR__ . '/api/services/send_notification.php';
-                dispatch_system_notification($conn, (int)$inv['user_id'], 'rent_due', $title, null,
+                dispatch_system_notification($conn, (int)$inv['user_id'], 'rent_due', $title,
+                    sms_payment_template($inv['total_amount'], $inv['room_name'], $inv['due_date'], 'rent_due', '', $today),
                     email_payment_reminder_template(notify_recipient_name($conn, $inv['user_id']), $inv, false));
             } catch (Throwable $notification_error) {
                 error_log('Could not dispatch due payment reminder email: ' . $notification_error->getMessage());
@@ -5800,7 +5801,8 @@ function run_notification_sweep($conn, $force = false) {
             create_notification($conn, $inv['user_id'], 'overdue', $title, $message);
             try {
                 require_once __DIR__ . '/api/services/send_notification.php';
-                dispatch_system_notification($conn, (int)$inv['user_id'], 'overdue', $title, null,
+                dispatch_system_notification($conn, (int)$inv['user_id'], 'overdue', $title,
+                    sms_payment_template($inv['total_amount'], $inv['room_name'], $inv['due_date'], 'overdue', '', $today),
                     email_payment_reminder_template(notify_recipient_name($conn, $inv['user_id']), $inv, true));
             } catch (Throwable $notification_error) {
                 error_log('Could not dispatch overdue payment email: ' . $notification_error->getMessage());

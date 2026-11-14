@@ -180,6 +180,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-13. Built from `TASK.md` a
 ## In progress
 
 | # | Task | Category | Description | Status | Priority | Start | End |
+| 210 | Automated rent due/overdue SMS reminders | Feature | `run_notification_sweep()` now dispatches `sms_payment_template()` alongside in-app/email after the existing atomic invoice reminder claim; `process_queue.php` documents Linux/cPanel CLI cron alongside Windows Task Scheduler; verification must remain provider-credit safe | In progress | High | 2026-11-14 | — |
 | 209 | Unify rent application legal notice modal | UI/UX · Privacy | Match the registration legal modal's two-tab layout; reuse the RA 10173 Privacy Notice, rename the application terms, correct occupancy wording in English and Filipino, retain the green agreement action | In progress | Medium | 2026-11-14 | — |
 |---|------|----------|-------------|--------|----------|-------|-----|
 | 57 | Browser check: admin round 3-4 refactors | Test | Checked 2026-11-13: contract editor loads and version times show in Manila time, messages search box filters, announcements has its file input, top bar bell opens. Not exercised: saving a contract, search results, uploading an announcement attachment, notice dialogs | In progress | Medium | 2026-10-26 | — |
