@@ -188,9 +188,9 @@
 /* Glass: the bar and the buttons let a little of the backdrop through. */
 .ut-glass .chat-fab,
 .ut-glass .back-to-top {
-  background-color: rgb(59 66 118 / 0.82);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  /* No backdrop blur on these small floating buttons: each one re-blurs what
+     scrolls under it every frame. A near-opaque tint reads the same. */
+  background-color: rgb(59 66 118 / 0.92);
 }
 
 /* The bar's tint and blur sit on a layer behind its content, not on the <nav>:
@@ -205,9 +205,11 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-color: rgb(59 66 118 / 0.82);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  background-color: rgb(59 66 118 / 0.86);
+  /* A smaller radius and no saturate pass: this strip is re-blurred on every
+     scroll frame, the most expensive thing Glass draws. */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   pointer-events: none;
 }
 
@@ -284,6 +286,10 @@ body:has(.chat-window) .back-to-top {
   overflow: hidden;
   pointer-events: none;
   background-color: #0b1120;
+  /* Its own layer, painted once: the photo (and its blur) is not redone while
+     the page scrolls over it. */
+  contain: strict;
+  will-change: transform;
 }
 
 .ut-backdrop-img {
@@ -293,6 +299,7 @@ body:has(.chat-window) .back-to-top {
   height: 100%;
   object-fit: cover;
   animation: fadeIn 0.6s ease both;
+  will-change: transform;
 }
 
 .ut-backdrop-tint {
