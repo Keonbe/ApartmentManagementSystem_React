@@ -71,9 +71,10 @@ function contract_template_default($conn) {
             ['id' => 'acct-cash', 'type' => 'cash', 'label' => 'Cash', 'account_number' => '', 'account_name' => '', 'note' => ct_text('May be handed directly to the apartment Owner.', 'Maaaring iabot nang direkta sa May-ari ng apartment.')],
         ],
         'variables' => [
-            ['key' => 'occupancy_limit', 'label' => 'Occupancy limit (people)', 'value' => '4'],
-            ['key' => 'excess_occupant_fee', 'label' => 'Fee per extra occupant', 'value' => '₱1,000'],
-            ['key' => 'move_out_notice_days', 'label' => 'Move-out notice (days)', 'value' => '15'],
+            // The admin's Settings (Rental tab) at the time this default is built; saved versions keep what they stored.
+            ['key' => 'occupancy_limit', 'label' => 'Occupancy limit (people)', 'value' => (string)max(1, (int)get_setting($conn, 'included_occupants', 4))],
+            ['key' => 'excess_occupant_fee', 'label' => 'Fee per extra occupant', 'value' => '₱' . number_format((float)get_setting($conn, 'occupant_surcharge_per_person', 1000), 0)],
+            ['key' => 'move_out_notice_days', 'label' => 'Move-out notice (days)', 'value' => (string)max(1, (int)get_setting($conn, 'move_out_min_notice_days', 15))],
         ],
         'terms' => [
             'title'      => ct_text('APARTMENT RENT AGREEMENT', 'KONTRATA SA PAGPAPAUPA NG APARTMENT'),

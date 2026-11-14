@@ -26,6 +26,11 @@ export const SETTINGS_SCHEMA = [
   { key: 'rentCapPercent', db: 'rent_cap_percent', type: 'float', default: 1, min: 0 },                       // most a same-tenant rent may rise per calendar year, in %
   { key: 'rentCapMaxCoveredRent', db: 'rent_cap_max_covered_rent', type: 'float', default: 10000, min: 0 },   // units renting at or below this are covered
   { key: 'rentCapValidUntil', db: 'rent_cap_valid_until', type: 'text', default: '2026-12-31', emptyIsDefault: true }, // when the current resolution ends
+  // Late fee (Payment Options tab). Off by default: the manager charges none. Applied once per overdue invoice by
+  // promote_overdue_invoices(); a percentage is capped at 5% (LATE_FEE_MAX_PERCENT).
+  { key: 'lateFeeEnabled', db: 'late_fee_enabled', type: 'bool', default: false },
+  { key: 'lateFeeType', db: 'late_fee_type', type: 'enum', values: ['flat', 'percent'], default: 'flat' },
+  { key: 'lateFeeValue', db: 'late_fee_value', type: 'float', default: 200, min: 0 },
   { key: 'cancellationFee', db: 'cancellation_fee', type: 'float', default: 0, min: 0 },              // PHP kept when an admin cancels a paid application at the tenant's request
   { key: 'depositRefundDays', db: 'deposit_refund_days', type: 'int', default: 30, min: 1 },          // days after the clearance within which a deposit refund is due
   { key: 'moveInMinDays', db: 'move_in_min_days', type: 'int', default: 0 },                        // a preferred move-in date is at least this many days away (0 = today)

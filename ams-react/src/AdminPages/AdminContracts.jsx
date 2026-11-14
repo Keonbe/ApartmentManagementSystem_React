@@ -213,7 +213,13 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const [overdueThresholdDays, setOverdueThresholdDays] = useState(15);
   const [endingDays, setEndingDays] = useState(30);
   useEffect(() => {
-    getSystemSettings().then(s => { setOverdueThresholdDays(s.overdueThresholdDays); setEndingDays(s.leaseEndReminderDays ?? 30); });
+  // The late fee in force (Settings, Payment Options): the new-contract preview quotes it, or says there is none.
+  const [lateFee, setLateFee] = useState({ enabled: false, type: 'flat', value: 0 });
+    getSystemSettings().then(s => {
+      setOverdueThresholdDays(s.overdueThresholdDays);
+      setEndingDays(s.leaseEndReminderDays ?? 30);
+      setLateFee({ enabled: !!s.lateFeeEnabled, type: s.lateFeeType, value: Number(s.lateFeeValue) || 0 });
+    });
   }, []);
 
   // RA 9653 Sec. 9: arrears are a ground for eviction only once unpaid rent
@@ -850,9 +856,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   <div className="border-t border-slate-200 pt-3">
                     <p className="text-caption text-slate-500 leading-relaxed m-0">
                       This Rent Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
-                      The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
-                      will be charged for payments made after the due date. Whether the security deposit is refunded at move-out
-                      is set in the contract's deposit terms (Settings, then changeable while the contract is a draft). Both parties agree to the terms herein.
+                      The Tenant agrees to pay the monthly rent on or before the due date of each month.{' '}
+                      {lateFee.enabled && lateFee.value > 0
+                        ? `A late fee of ${lateFee.type === 'percent' ? `${lateFee.value}% of the unpaid bill` : formatCurrency(lateFee.value)} is charged once on a bill that becomes overdue. `
+                        : 'No late fee is charged. '}
+                      The unused security deposit is returned at move-out after unpaid rent, utility bills and damage are deducted, as the contract's deposit terms state. Both parties agree to the terms herein.
                     </p>
                   </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-control p-3 text-label text-amber-800">

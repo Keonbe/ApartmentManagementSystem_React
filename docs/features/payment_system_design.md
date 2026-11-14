@@ -80,6 +80,10 @@ For a QR Ph proof under review, Admin Payments offers the supported GCash and Ba
 
 ## 3. Admin Configuration
 
+### 3.0 Late fee (2026-11-14)
+
+Settings → Payment Options → Overdue & Eviction Policy has a **Charge a late fee** switch (`late_fee_enabled`, off by default: the manager charges none), a type (`late_fee_type`: `flat` amount or `percent` of the unpaid bill) and an amount (`late_fee_value`; a percentage is capped at 5%, `LATE_FEE_MAX_PERCENT`). `promote_overdue_invoices()` adds one fee per invoice when it becomes overdue and never to advance-rent invoices. The new-contract preview in Admin → Contracts quotes the fee in force, or says no late fee is charged; the contract template itself has no late-fee clause.
+
 ### 3.1 Settings Model
 
 Payment channel settings live in the existing `system_settings` table (same pattern as service toggles in `AdminServicePage.jsx`).

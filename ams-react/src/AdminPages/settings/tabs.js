@@ -32,6 +32,7 @@ export const SETTINGS_TABS = [
     keys: [
       'paymentWindowDays',
       'overdueThresholdDays',
+      'lateFeeEnabled', 'lateFeeType', 'lateFeeValue',
       'paymentMode', 'paymentSandboxEnabled',
       'paymentChGcashManual', 'paymentChBankManual', 'paymentChQrphManual', 'paymentChInPerson',
       'paymentChGcashSandbox', 'paymentChBankSandbox', 'paymentChMaya',

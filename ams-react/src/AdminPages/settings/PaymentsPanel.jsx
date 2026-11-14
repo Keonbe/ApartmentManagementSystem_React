@@ -152,6 +152,40 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           </WithUnit>
         </Field>
 
+        <div className="rounded-control border border-slate-200 p-3 space-y-3">
+          <ChannelRow
+            label="Charge a late fee"
+            sublabel="Off by default. When on, an invoice that goes overdue gets one late fee, added to its total."
+            checked={settings.lateFeeEnabled}
+            onChange={(on) => updateSetting('lateFeeEnabled', on)}
+          />
+          {settings.lateFeeEnabled && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Late Fee Type" htmlFor="setting-lateFeeType" icon={faDollarSign} hint="A fixed amount, or a percentage of the unpaid bill (at most 5%).">
+                <select
+                  id="setting-lateFeeType" name="lateFeeType"
+                  value={settings.lateFeeType}
+                  onChange={(e) => updateSetting('lateFeeType', e.target.value)}
+                  className={INPUT}
+                >
+                  <option value="flat">Fixed amount (PHP)</option>
+                  <option value="percent">Percent of the bill</option>
+                </select>
+              </Field>
+              <Field label="Late Fee Amount" htmlFor="setting-lateFeeValue" icon={faDollarSign} hint={settings.lateFeeType === 'percent' ? 'Up to 5.' : 'Up to 100,000.'}>
+                <WithUnit suffix={settings.lateFeeType === 'percent' ? '%' : 'PHP'}>
+                  <input
+                    id="setting-lateFeeValue" name="lateFeeValue"
+                    type="number" inputMode="decimal" min="0" max={settings.lateFeeType === 'percent' ? 5 : 100000} step="0.01" required
+                    value={settings.lateFeeValue}
+                    onChange={(e) => updateSetting('lateFeeValue', numberValue(e))}
+                    className={`${INPUT_NUMBER} w-28`}
+                  />
+                </WithUnit>
+              </Field>
+            </div>
+          )}
+        </div>
         <Callout tone="rose" icon={faInfoCircle} title="Eviction Policy (RA 9653)">
           Tenants overdue more than <strong>{settings.overdueThresholdDays} days</strong> are listed for a payment
           follow-up. Unpaid rent becomes a ground for eviction only once it totals three months (RA 9653 Sec. 9);

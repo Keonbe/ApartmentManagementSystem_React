@@ -1001,7 +1001,7 @@ Read/write system-wide configuration. **`get_system_settings.php` answers by cal
 **Known Settings:**
 | Key | Type | Description |
 |-----|------|-------------|
-| `late_fee_enabled` | boolean | Enable automatic late fees |
+| `late_fee_enabled` | boolean | Enable automatic late fees (saved as `1` / `0`; off by default; Settings → Payment Options → Late fee) |
 | `late_fee_type` | string | `flat` or `percent` |
 | `late_fee_value` | decimal | Fee amount or percentage |
 | `occupant_surcharge_per_person` | decimal | Extra rent per person > 4 occupants |
