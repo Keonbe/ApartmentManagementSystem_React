@@ -116,9 +116,9 @@ Smallest set from [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_
 |---|---|---|---|
 | [ ] | Unprioritized | **Enh** Add a lease-extension history tab to the `AdminUnits` detail modal. The `lease_renewals` data already exists. | 2026-09 backlog Room & Occupancy, 2026-09 backlog Unit Management |
 | [x] | Unprioritized | **Enh** Add min/max limits to form inputs, including a plate-number `maxLength` in `ParkingReservation.jsx`. The backend already validates both. Done 2026-09-25 (branch `feature/frontend-validation`): limits come from `utils/validation.js` `LIMITS`, read from SetupDB column sizes. | 2026-09 backlog Registration & Application, 2026-09 backlog Parking Reservation |
-| [ ] | Unprioritized | **Enh** Let a rejected applicant edit and resubmit their application. Today they can only file a new one. | 2026-09 backlog Registration & Application |
-| [ ] | Unprioritized | **Enh** Documents: accept Police Clearance and Proof of Billing uploads, and let an admin request more documents from a tenant (with a notification). | 2026-09 backlog Documents |
-| [ ] | Unprioritized | **Enh** Housekeeping pages (garbage schedule, house rules), and terms for occupancy and tenant responsibility. (House rules and the CCTV incident-only restriction are done.) | 2026-09 backlog Housekeeping, 2026-09 backlog Room & Occupancy, 2026-09 backlog CCTV |
+| [x] | Unprioritized | **Enh** A rejected or declined applicant can edit and resubmit (`rent_application.php` with `appId`, Track Application → Fix and resubmit). Already built; docs corrected 2026-11-14. | 2026-09 backlog Registration & Application |
+| [ ] | Unprioritized | **Enh** Documents: accept Police Clearance and Proof of Billing uploads. (Admins can now ask an applicant for more documents: `request_application_documents.php`, 2026-11-14.) | 2026-09 backlog Documents |
+| [x] | Unprioritized | **Enh** Garbage and housekeeping schedule: Settings → House Rules editor, tenant page `/housekeeping`. Done 2026-11-14 (`garbage_schedule.test.js`). Terms for occupancy and tenant responsibility were done earlier. | 2026-09 backlog Housekeeping |
 
 ## Security
 

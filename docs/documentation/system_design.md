@@ -892,7 +892,7 @@ ALTER TABLE maintenance_requests
 | FR-9.4 | The system shall allow tenants to submit a self-service move-out request from the My Room page. | ✅ |
 | FR-9.5 | The system shall highlight `pending-move-out` tenants in the admin tenant management view. | ✅ |
 | FR-9.6 | The system shall allow admins to restore archived tenants. | ✅ |
-| FR-9.7 | The system shall allow admins to request additional documents from tenants via notifications. | 🔲 |
+| FR-9.7 | The system shall allow admins to request additional documents from tenants via notifications. | ✅ (`request_application_documents.php`: a notice to the applicant, answered by chat or at the office) |
 
 ---
 

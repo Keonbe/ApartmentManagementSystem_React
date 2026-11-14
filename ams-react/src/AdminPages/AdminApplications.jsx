@@ -92,6 +92,9 @@ const AdminApplications = () => {
   const appsFailed = !!errorMsg && applications.length === 0;
   const [loading, setLoading] = useState(true);
   const [approveTarget, setApproveTarget] = useState(null);
+  // "Request documents": the application the admin is asking more documents of, and the result notice.
+  const [docRequestTarget, setDocRequestTarget] = useState(null);
+  const [docRequestNotice, setDocRequestNotice] = useState('');
   const [isApproving, setIsApproving] = useState(false);
   const [moveInTarget, setMoveInTarget] = useState(null);
   const [isConfirmingMoveIn, setIsConfirmingMoveIn] = useState(false);
@@ -1077,6 +1080,16 @@ const AdminApplications = () => {
                  )}
               </div>
 
+              {/* Ask the applicant for more documents (a notice; they answer by chat or at the office) */}
+              {(selectedApp.status === 'Pending Review' || selectedApp.status === 'Approved') && (
+                <div className="mt-6">
+                  <button type="button" onClick={() => { setDocRequestNotice(''); setDocRequestTarget(selectedApp); }} className={btn('secondary', 'md', 'w-full justify-center')}>
+                    <FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /> Request more documents
+                  </button>
+                  {docRequestNotice && <p role="status" className="m-0 mt-2 text-label font-semibold text-emerald-700">{docRequestNotice}</p>}
+                </div>
+              )}
+
               {/* Actions */}
               {(selectedApp.status === 'Pending Review' || selectedApp.status === 'Pending Deposit') && (
                 <div className="flex gap-4 mt-8 pt-6 border-t border-slate-200">
@@ -1192,6 +1205,25 @@ const AdminApplications = () => {
         </ReasonModal>
       )}
       
+      {docRequestTarget && (
+        <ReasonModal
+          title="Request more documents"
+          description={`${docRequestTarget.name || 'The applicant'} gets a notice with your message. They can answer through the support chat or at the office.`}
+          label="Message"
+          placeholder="For example: Please send a clear photo of your NBI clearance."
+          confirmLabel="Send request"
+          tone="indigo"
+          max={500}
+          onConfirm={async (message) => {
+            const res = await api.post('request_application_documents.php', { id: docRequestTarget.id, message });
+            if (!res.data.success) throw new Error(res.data.message || 'Could not send the request.');
+            setDocRequestNotice(res.data.message || 'The applicant was notified.');
+            setDocRequestTarget(null);
+          }}
+          onClose={() => setDocRequestTarget(null)}
+        />
+      )}
+
       {approveTarget && (
         <Modal title="Approve this application?" onClose={() => setApproveTarget(null)} busy={isApproving} overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" className="w-full max-w-md rounded-card bg-white p-6 shadow-raised">
             <h3 className="m-0 text-title font-bold text-slate-800">Approve this application?</h3>
