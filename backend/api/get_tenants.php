@@ -27,7 +27,8 @@ $result = $conn->query("
            lc.id AS contract_id, lc.deposit_amount, lc.deposit_status, lc.deposit_refundable, lc.refund_amount, lc.damage_deduction, lc.utility_deduction, lc.refund_date,
            (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed) AS outstanding,
            (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS overdue_amount,
-           (SELECT MIN(i.due_date) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS oldest_overdue_due
+           (SELECT MIN(i.due_date) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS oldest_overdue_due,
+           u.emergency_name AS cur_emergency_name, u.emergency_relationship AS cur_emergency_relationship, u.emergency_phone AS cur_emergency_phone
     FROM rent_applications ra
     LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
     ORDER BY ra.id DESC
@@ -88,6 +89,12 @@ foreach ($rows as $row) {
         'missingDocuments' => application_missing_document_labels($requirements, $documents),
         'documentsVerifiedAt' => $row['documents_verified_at'] ?? null,
         'previousAddress' => $row['previous_address'] ?? null,
+        // The tenant's current contact (Profile Settings), else the one on the application; null for older records.
+        'emergencyContact' => ($row['cur_emergency_name'] ?? $row['emergency_name'] ?? null) === null ? null : [
+            'name' => $row['cur_emergency_name'] ?? $row['emergency_name'],
+            'relationship' => $row['cur_emergency_relationship'] ?? $row['emergency_relationship'],
+            'phone' => $row['cur_emergency_phone'] ?? $row['emergency_phone'],
+        ],
         'archiveDate' => $row['archive_date'] ?? null,
         'archiveReason' => $row['archive_reason'] ?? null,
         'archiveNotes' => $row['archive_notes'] ?? null,

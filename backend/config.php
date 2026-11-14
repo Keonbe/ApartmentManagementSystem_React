@@ -3172,9 +3172,15 @@ function followup_missing_documents($conn) {
         WHERE ra.status = 'Approved' AND (ra.terms_agreed_at IS NULL OR (ra.documents_verified_at IS NULL AND $missing_docs))");
     while ($res && ($r = $res->fetch_assoc())) $add($r, 'Missing documents', 'A required application document or the terms agreement is missing.', null);
     // Move-in date passed and the tenant never moved in.
-    $res = $conn->query("SELECT id, user_id, first_name, last_name, suffix, room_name, move_in_date FROM rent_applications
+    // An unpaid one lapses by itself (void_lapsed_payments). One that has paid something is never
+    // dropped automatically (money is held), so the admin is told what the choices are.
+    $res = $conn->query("SELECT id, user_id, first_name, last_name, suffix, room_name, move_in_date,
+            EXISTS(SELECT 1 FROM invoices i WHERE i.rent_application_id = rent_applications.id AND (i.status = 'paid' OR i.amount_paid > 0)) AS has_paid
+        FROM rent_applications
         WHERE status = 'Approved' AND move_in_date IS NOT NULL AND move_in_date < CURDATE()");
-    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Move-in deadline passed', 'The scheduled move-in date has passed without a confirmed move-in.', $r['move_in_date']);
+    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Move-in deadline passed', !empty($r['has_paid'])
+        ? 'Paid for the move-in but did not move in. Reschedule the move-in date, or cancel the application: what was paid is returned through Refunds.'
+        : 'The scheduled move-in date has passed without a confirmed move-in.', $r['move_in_date']);
     // Contract still has no signed copy once the rent period has begun.
     $res = $conn->query("SELECT ra.id, ra.user_id, ra.first_name, ra.last_name, ra.suffix, ra.room_name, lc.lease_start
         FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id
@@ -3564,6 +3570,33 @@ function v_enum($value, $label, array $allowed, $required = true) {
 
 function v_id($value, $label) {
     return (filter_var($value, FILTER_VALIDATE_INT) !== false && (int)$value > 0) ? '' : "$label is missing or invalid.";
+}
+
+// Who to call if something happens to a tenant (name, relationship, mobile).
+// Kept on users (current) and copied onto each rent application. Roommate is
+// left out on purpose: it is not someone who can speak for the tenant.
+const EMERGENCY_RELATIONSHIPS = ['Spouse/Partner', 'Parent', 'Child', 'Sibling', 'Relative', 'Friend', 'Other'];
+
+// Checks the three emergency-contact fields. Returns [errors, normalized phone],
+// errors keyed emergencyName / emergencyRelationship / emergencyPhone (empty = ok).
+// $required false allows all three to be empty (clearing it); filling only some
+// of them is always refused. The number must differ from the tenant's own.
+function emergency_contact_check($name, $relationship, $phone, $own_phone, $required = true) {
+    $name = is_scalar($name) ? trim((string)$name) : '';
+    $relationship = is_scalar($relationship) ? trim((string)$relationship) : '';
+    $phone_raw = is_scalar($phone) ? trim((string)$phone) : '';
+    if (!$required && $name === '' && $relationship === '' && $phone_raw === '') return [[], null];
+
+    $normalized = normalize_ph_mobile($phone_raw);
+    $errors = array_filter([
+        'emergencyName' => v_str($name, 'Emergency contact name', 1, 100)
+            ?: (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]|<\s*script/i', $name) ? 'Emergency contact name contains characters that are not allowed.' : ''),
+        'emergencyRelationship' => v_enum($relationship, 'Emergency contact relationship', EMERGENCY_RELATIONSHIPS),
+        'emergencyPhone' => $phone_raw === '' ? 'Emergency contact number is required.'
+            : ($normalized === null ? 'Emergency contact number must be a Philippine mobile number (+63 9XX XXX XXXX).'
+            : (($own_phone !== null && $own_phone === $normalized) ? 'The emergency contact must be someone else: enter a different number from your own.' : '')),
+    ]);
+    return [$errors, $normalized];
 }
 
 // Ends every session a user holds, optionally keeping the caller's own token.

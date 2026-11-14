@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // an ?email= query string is no longer trusted as identity.
     $auth = require_user($conn);
 
-    $stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender, avatar_url FROM users WHERE id = ?");
+    $stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender, avatar_url, emergency_name, emergency_relationship, emergency_phone FROM users WHERE id = ?");
     $stmt->bind_param("i", $auth['id']);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -195,14 +195,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Emergency contact: only touched when the client sends it. All three empty
+    // clears it; filling only some, or using the tenant's own number, is refused.
+    $emergency_sent = isset($input['emergencyName']) || isset($input['emergencyRelationship']) || isset($input['emergencyPhone'])
+        || isset($_POST['emergencyName']) || isset($_POST['emergencyRelationship']) || isset($_POST['emergencyPhone']);
+    $emergency = null;
+    if ($emergency_sent) {
+        $pick = fn($k) => $input[$k] ?? $_POST[$k] ?? '';
+        [$emergency_errors, $emergency_phone_norm] = emergency_contact_check(
+            $pick('emergencyName'), $pick('emergencyRelationship'), $pick('emergencyPhone'),
+            $contact_no === '' ? null : $contact_no, false
+        );
+        if ($emergency_errors) validation_fail($emergency_errors);
+        $emergency = $emergency_phone_norm === null
+            ? [null, null, null]
+            : [trim((string)$pick('emergencyName')), trim((string)$pick('emergencyRelationship')), $emergency_phone_norm];
+    }
+
     // Which fields change, for the audit log — names only, never the values.
-    $before_stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender, email_address FROM users WHERE id = ?");
+    $before_stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender, email_address, emergency_name, emergency_relationship, emergency_phone FROM users WHERE id = ?");
     $before_stmt->bind_param("i", $auth['id']);
     $before_stmt->execute();
     $before = $before_stmt->get_result()->fetch_assoc() ?: [];
     $before_stmt->close();
     $after = ['first_name' => $first_name, 'middle_name' => $middle_name, 'last_name' => $last_name, 'suffix' => $suffix,
               'contact_no' => $contact_no, 'gender' => $gender, 'email_address' => $new_email];
+    if ($emergency !== null) {
+        $after['emergency_name'] = (string)$emergency[0];
+        $after['emergency_relationship'] = (string)$emergency[1];
+        $after['emergency_phone'] = (string)$emergency[2];
+    }
     $changed_fields = array_keys(array_filter($after, fn($v, $k) => (string)($before[$k] ?? '') !== (string)$v, ARRAY_FILTER_USE_BOTH));
 
     $conn->begin_transaction();
@@ -211,6 +233,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt1->bind_param("sssssssi", $first_name, $middle_name, $last_name, $suffix, $contact_no, $gender, $new_email, $auth['id']);
         $stmt1->execute();
         $stmt1->close();
+
+        if ($emergency !== null) {
+            $stmt_e = $conn->prepare("UPDATE users SET emergency_name = ?, emergency_relationship = ?, emergency_phone = ? WHERE id = ?");
+            $stmt_e->bind_param("sssi", $emergency[0], $emergency[1], $emergency[2], $auth['id']);
+            $stmt_e->execute();
+            $stmt_e->close();
+        }
 
         $stmt2 = $conn->prepare("UPDATE rent_applications SET first_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ? WHERE user_id = ?");
         $stmt2->bind_param("sssssi", $first_name, $last_name, $suffix, $contact_no, $new_email, $auth['id']);

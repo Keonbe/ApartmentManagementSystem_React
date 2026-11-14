@@ -819,6 +819,18 @@ const AdminTenants = () => {
                     </div>
                   )}
 
+                  <div className="mt-4 bg-slate-50 rounded-control p-3 border border-slate-100">
+                    <p className="text-label font-medium text-slate-600 mb-1 m-0">Emergency Contact</p>
+                    {selectedTenant.emergencyContact ? (
+                      <p className="text-body font-medium text-slate-700 m-0 wrap-break-word">
+                        {selectedTenant.emergencyContact.name} ({selectedTenant.emergencyContact.relationship}) ·{' '}
+                        <a href={`tel:${selectedTenant.emergencyContact.phone}`} className="text-indigo-700 font-semibold hover:underline">{selectedTenant.emergencyContact.phone}</a>
+                      </p>
+                    ) : (
+                      <p className="text-body text-slate-500 m-0">Not given yet. Ask the tenant to add one in Profile Settings.</p>
+                    )}
+                  </div>
+
                   {/* Verification Documents (Settings → Application Requirements) */}
                   {((selectedTenant.documents || []).length > 0 || (selectedTenant.missingDocuments || []).length > 0 || selectedTenant.documentsVerifiedAt) && (
                     <div className="mt-4 border-t border-slate-100 pt-4">

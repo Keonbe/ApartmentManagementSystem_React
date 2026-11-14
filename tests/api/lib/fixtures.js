@@ -18,3 +18,7 @@ export const invoice = (id) => one(
 // Notifications with this title that name the invoice.
 export const notificationCount = async (userId, title, invoiceId) =>
   (await one('SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND title = ? AND message LIKE ?', [userId, title, `%${invoiceId}%`])).c;
+
+// A valid emergency contact for rent_application.php forms (required on every
+// application). A different number from the demo tenants' own.
+export const EMERGENCY_FIELDS = { emergencyName: 'Lorna Navarro', emergencyRelationship: 'Parent', emergencyPhone: '+639189876543' };

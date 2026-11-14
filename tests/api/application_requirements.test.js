@@ -5,6 +5,7 @@
 // Uploads land in backend/uploads/applications/ (gitignored); anything this
 // file adds there is deleted afterwards.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { EMERGENCY_FIELDS } from './lib/fixtures.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { api, login, loginAs } from './lib/api.js';
@@ -34,7 +35,7 @@ function applicationForm({ docs = {}, previousAddress = 'Blk 4 Lot 2, Brgy. Biga
   const fields = {
     firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@demo.example',
     gender: 'Female', occupants: '1', monthsOfRent: '6', roomName: 'J', monthlyRent: '3500', agreeTerms: 'true',
-    preferredMoveInDate: '', isAsap: '1', ...extra,
+    preferredMoveInDate: '', isAsap: '1', ...EMERGENCY_FIELDS, ...extra,
   };
   if (previousAddress !== null) fields.previousAddress = previousAddress;
   if (appId) fields.appId = String(appId);

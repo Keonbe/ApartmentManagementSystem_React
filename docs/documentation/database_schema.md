@@ -34,6 +34,9 @@ erDiagram
         datetime sms_consent_at
         datetime terms_agreed_at
         varchar terms_version
+        varchar emergency_name "nullable"
+        varchar emergency_relationship
+        varchar emergency_phone "+639XXXXXXXXX"
         datetime email_verified_at
         varchar verification_token
         varchar login_otp
@@ -75,6 +78,9 @@ erDiagram
         varchar email
         varchar gender
         varchar previous_address "nullable; required on new applications"
+        varchar emergency_name "nullable; required on new applications"
+        varchar emergency_relationship
+        varchar emergency_phone "+639XXXXXXXXX"
         int occupants
         int months_of_rent
         varchar room_name FK "-> rooms.id, ON DELETE RESTRICT"
@@ -922,6 +928,7 @@ Columns added since the first version of this document. Types are in the ER diag
 | `maintenance_requests.rejection_reason` | Required (422) when an admin sets Rejected. |
 | `maintenance_requests.reopen_reason` | Set by `reopen_maintenance_request.php` when a tenant says a Completed, not-yet-invoiced ticket is not fixed; the ticket returns to In Progress. |
 | `users.terms_agreed_at`, `terms_version` | Consent at sign-up (RA 10173, migration section `registration_consent` in `2026_11_workstream.sql`): `registration.php` requires `agree_terms` and stores the time and the version of the Terms and Privacy Notice (`TERMS_VERSION`, the "Last updated" date in `legalContent.js`). `NULL` for accounts created earlier. |
+| `users.emergency_name`, `emergency_relationship`, `emergency_phone`; `rent_applications.emergency_*` | Emergency contact (SPRINT 186, migration section `2026_11_emergency_contact` in `2026_11_workstream.sql`): who to call if something happens to a tenant. Required on every new or resubmitted application (`rent_application.php`), copied onto the account, editable in Profile Settings (`profile.php`: all three or none). `relationship` is one of `EMERGENCY_RELATIONSHIPS`, the phone is stored `+639XXXXXXXXX` and must differ from the tenant's own. NULL for records created before 2026-11-14. |
 | `users.email_verified_at`, `verification_token` | Sign-up e-mail check: `registration.php` stores a random 64-hex token and e-mails the link; `verify_email.php` sets `email_verified_at` and clears the token; `login.php` refuses sign-in while it is NULL. The token has no expiry. The `system_settings` row `email_verification_enabled` (`'1'` default, missing = on) switches the check off: sign-up then sets `email_verified_at` at once with no token, and an account still NULL can sign in. |
 | `users.login_otp`, `login_otp_expires_at`, `login_otp_attempts` | The 6-digit sign-in code for an untrusted device (plain text, valid 15 minutes, locked after 3 wrong tries, cleared on success). `login_otp_mode` (`default` / `on` / `off`, `2026_11_workstream.sql`) and the `login_otp_enabled` setting decide who is asked. Admins and `demo.example` accounts outside production are never asked. |
 | `trusted_devices` | A device that passed the code: `user_id` (FK, cascade), `device_token` (SHA-256 of the `ams_trusted_device` cookie, unique), `user_agent`, `ip_address`, `created_at`, `last_used_at`. The only expiry is the 1-year cookie; there is no purge or revoke endpoint. |

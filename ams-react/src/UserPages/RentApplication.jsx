@@ -9,6 +9,8 @@ import { formatAvailable } from '../utils/availableDate';
 import { useLang } from '../config/i18n';
 import { LIMITS, MOVE_IN_WINDOW_DEFAULT, checkMoveInDate, moveInBounds, moveInRangeText, checkIntRange, checkPersonName, checkPhMobile, checkText, toPhLocal10, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
+import EmergencyContactFields from '../Components/form/EmergencyContactFields';
+import { EMERGENCY_NAME_MAX, EMERGENCY_RELATIONSHIPS } from '../config/emergencyContact';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -175,6 +177,12 @@ export default function RentApplication() {
     const [monthsOfRent, setMonthsOfRent] = useState(draft.monthsOfRent || '');
     const [prefMoveInDate, setPrefMoveInDate] = useState(draft.prefMoveInDate || '');
     const [previousAddress, setPreviousAddress] = useState(editApp?.previous_address || draft.previousAddress || '');
+    // Who to call in an emergency: from the resubmitted application, the unsent draft or the profile.
+    const [emergencyName, setEmergencyName] = useState(editApp?.emergency_name || draft.emergencyName || '');
+    const [emergencyRelationship, setEmergencyRelationship] = useState(editApp?.emergency_relationship || draft.emergencyRelationship || '');
+    const [emergencyPhone, setEmergencyPhone] = useState(
+        editApp?.emergency_phone ? toPhLocal10(editApp.emergency_phone) : (draft.emergencyPhone || '')
+    );
     const [isASAP, setIsASAP] = useState(false);
     // Settings → Rental → Minimum Rent Duration (rent_application.php enforces it too).
     const [minMonths, setMinMonths] = useState(1);
@@ -209,6 +217,10 @@ export default function RentApplication() {
                     if (data.gender) {
                         setGender(prev => prev || data.gender);
                     }
+                    // The contact saved in the profile is offered again, ready to confirm.
+                    setEmergencyName(prev => prev || data.emergency_name || '');
+                    setEmergencyRelationship(prev => prev || data.emergency_relationship || '');
+                    if (data.emergency_phone) setEmergencyPhone(prev => prev || toPhLocal10(data.emergency_phone));
                 }
 
             } catch (err) {
@@ -345,9 +357,9 @@ export default function RentApplication() {
     useEffect(() => {
         if (isEditing || !['none', 'rejected'].includes(applicationStatus)) return;
         try {
-            sessionStorage.setItem(draftKey(loggedInUser.id), JSON.stringify({ phoneRawNumber, gender, occupants, monthsOfRent, selectedRoomId, prefMoveInDate, previousAddress }));
+            sessionStorage.setItem(draftKey(loggedInUser.id), JSON.stringify({ phoneRawNumber, gender, occupants, monthsOfRent, selectedRoomId, prefMoveInDate, previousAddress, emergencyName, emergencyRelationship, emergencyPhone }));
         } catch { /* storage full or blocked: the form still works */ }
-    }, [phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, previousAddress, selectedRoomId, isEditing, applicationStatus, loggedInUser.id]);
+    }, [phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, previousAddress, emergencyName, emergencyRelationship, emergencyPhone, selectedRoomId, isEditing, applicationStatus, loggedInUser.id]);
 
     // One check per requirement: a picked file must pass the upload rules; a
     // required one with no file is an error unless it is already on file.
@@ -363,6 +375,10 @@ export default function RentApplication() {
         previousAddress: (v) => checkText(v, { label: t('rent.previousAddress'), min: ADDRESS_MIN, max: ADDRESS_MAX }),
         suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
         contactNo: (v) => checkPhMobile(v),
+        emergencyName: (v) => checkText(v, { label: t('emergency.name'), min: 1, max: EMERGENCY_NAME_MAX }),
+        emergencyRelationship: (v) => (EMERGENCY_RELATIONSHIPS.some((r) => r.value === v) ? '' : t('emergency.errRelationship')),
+        // A mobile number that is not the applicant's own (the server checks the same).
+        emergencyPhone: (v, all) => checkPhMobile(v) || (all?.contactNo && toPhE164(v) === toPhE164(all.contactNo) ? t('emergency.errSameNumber') : ''),
         gender: (v) => (GENDERS.includes(v) ? '' : t('rent.errGender')),
         occupants: (v) => checkIntRange(v === '' ? NaN : v, 1, maxOccupants, 'Number of occupants'),
         monthsOfRent: (v) => checkIntRange(v === '' ? NaN : v, minMonths, MAX_MONTHS, 'Months of rent'),
@@ -383,7 +399,17 @@ export default function RentApplication() {
     requirements.forEach((r) => { docValues[docKey(r.id)] = docFiles[r.id]?.file || null; });
     const values = {
         suffix, contactNo: phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, roomName: selectedRoomId,
-        previousAddress, ...docValues, agreeTerms: agreePrivacy, agreeRules,
+        previousAddress, emergencyName, emergencyRelationship, emergencyPhone, ...docValues, agreeTerms: agreePrivacy, agreeRules,
+    };
+
+    const setEmergency = (field, value, validate = false) => {
+        if (isReadOnly) return;
+        if (field === 'emergencyName') setEmergencyName(value);
+        else if (field === 'emergencyRelationship') setEmergencyRelationship(value);
+        else setEmergencyPhone(value);
+        form.clearError(field);
+        // An empty field is only reported on submit, as for the other fields.
+        if (validate && value !== '') form.validateField(field, { ...values, [field]: value });
     };
 
     // Accepts the file when it passes the upload rules; otherwise the error shows under its card.
@@ -479,7 +505,9 @@ export default function RentApplication() {
         const cleanAddress = previousAddress.trim();
         setSuffix(cleanSuffix);
         setPreviousAddress(cleanAddress);
-        if (!form.validateAll({ ...values, suffix: cleanSuffix, previousAddress: cleanAddress })) return;
+        const cleanEmergencyName = emergencyName.trim();
+        setEmergencyName(cleanEmergencyName);
+        if (!form.validateAll({ ...values, suffix: cleanSuffix, previousAddress: cleanAddress, emergencyName: cleanEmergencyName })) return;
 
         // Display value only: rent_application.php bills the room's own rate.
         const finalMonthlyRent = monthlyRent ?? 0;
@@ -500,6 +528,9 @@ export default function RentApplication() {
         formData.append('roomName', selectedRoomId);
         formData.append('monthlyRent', finalMonthlyRent);
         formData.append('previousAddress', cleanAddress);
+        formData.append('emergencyName', cleanEmergencyName);
+        formData.append('emergencyRelationship', emergencyRelationship);
+        formData.append('emergencyPhone', toPhE164(emergencyPhone));
         formData.append('agreeTerms', agreePrivacy);
         requirements.forEach((r) => {
             const f = docFiles[r.id]?.file;
@@ -705,6 +736,24 @@ export default function RentApplication() {
                                     </select>
                                     <FieldError id="rent-gender" error={form.errors.gender} className="m-0" />
                                 </div>
+                            </div>
+
+                            <div className="space-y-3 pt-2">
+                                <div>
+                                    <h4 className="text-base font-extrabold m-0 text-slate-900">{t('emergency.title')}</h4>
+                                    <p className="text-slate-500 text-xs mt-1 m-0 font-medium">{t('emergency.hint')}</p>
+                                </div>
+                                <EmergencyContactFields
+                                    idPrefix="rent-"
+                                    form={form}
+                                    name={emergencyName}
+                                    relationship={emergencyRelationship}
+                                    phone={emergencyPhone}
+                                    onChange={setEmergency}
+                                    disabled={isReadOnly}
+                                    inputCls={INPUT_CLS}
+                                    labelCls={LABEL_CLS}
+                                />
                             </div>
                         </div>
 

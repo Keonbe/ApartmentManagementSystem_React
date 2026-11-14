@@ -58,6 +58,10 @@ A tenant is only registered as occupied in a room after passing screening and co
 | Tenant | Upload Proof | `invoices.status = 'pending-verification'` | Awaiting payment check |
 | Admin | Verify Payment | `invoices.status = 'paid'` & `rooms.status = 'occupied'` | Occupancy activated |
 
+**An approved applicant who never moves in (2026-11-14, SPRINT 186).** An unpaid one lapses by itself after `payment_window_days` (`void_lapsed_payments()`, hold released, nothing to refund). One who has paid, or part-paid, the move-in bill is never dropped automatically because money is held. Once the scheduled move-in date has passed, the follow-up list (Notifications, `monitor_followups.php`) shows "Paid for the move-in but did not move in. Reschedule the move-in date, or cancel the application: what was paid is returned through Refunds." The admin then reschedules (`schedule_move_in.php`) or cancels from Applications, which releases the room and opens the refund request. Test: `noshow_followup.test.js`.
+
+**Emergency contact (SPRINT 186).** The rent application form asks for a contact person (name, relationship, mobile, different from the applicant's own number). It is stored on the application and the account, edited in Profile Settings, and shown to the admin in Applications and the tenant's detail panel.
+
 ---
 
 ## 3. The Move-Out Workflow

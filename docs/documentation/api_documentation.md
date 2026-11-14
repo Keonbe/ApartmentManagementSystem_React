@@ -218,7 +218,9 @@ Multi-purpose profile endpoint — fetches, updates text fields, uploads/clears 
 | **Auth** | `require_user()` — always operates on caller's own account |
 | **Methods** | GET (fetch), POST + `$_FILES['avatar']` (upload), POST + JSON (text update / clear) |
 
-**GET Response:** `{first_name, middle_name, last_name, suffix, contact_no, gender, avatar_url}`
+**GET Response:** `{first_name, middle_name, last_name, suffix, contact_no, gender, avatar_url, emergency_name, emergency_relationship, emergency_phone}`
+
+**POST (text update), emergency contact (2026-11-14):** `emergencyName`, `emergencyRelationship` (one of `EMERGENCY_RELATIONSHIPS`: Spouse/Partner, Parent, Child, Sibling, Relative, Friend, Other) and `emergencyPhone` (Philippine mobile, stored `+639XXXXXXXXX`, not the tenant's own number). Only touched when the body carries at least one of the keys; all three empty clears it; filling only some answers `422` with `errors` per field (`emergency_contact_check()`). The audit log names the changed fields, never the values.
 
 **POST (avatar upload):** multipart/form-data with `avatar` file field
 - Allowed: JPG, PNG, GIF, WEBP
@@ -270,7 +272,7 @@ Lightweight user list for dropdowns (admin only). Returns `{id, name, email}` fo
 ---
 
 ### `GET` [get_tenants.php](../../backend/api/get_tenants.php)
-Admin-only (`require_admin()`) list of all rent applications with tenant details, document paths, archive info and move-out dates — plus tenant monitoring fields: `paymentStatus` (`overdue` / `due` / `current`, from unpaid invoices), `outstandingBalance`, `overdueBalance`, `daysOverdue`, `leaseEnd` and `moveIn` from the lease contract when one exists, and `contractStatus`. Runs `promote_overdue_invoices()` first.
+Admin-only (`require_admin()`) list of all rent applications with tenant details, document paths, archive info and move-out dates — plus `emergencyContact` (`{name, relationship, phone}` from the tenant's profile, else the application; `null` for older records) and tenant monitoring fields: `paymentStatus` (`overdue` / `due` / `current`, from unpaid invoices), `outstandingBalance`, `overdueBalance`, `daysOverdue`, `leaseEnd` and `moveIn` from the lease contract when one exists, and `contractStatus`. Runs `promote_overdue_invoices()` first.
 
 ---
 
@@ -311,6 +313,7 @@ Submit or resubmit a rent/lease application.
 | `roomName` | string | ✅ |
 | `monthlyRent` | decimal | ✅ |
 | `agreeTerms` | boolean | ✅ |
+| `emergencyName`, `emergencyRelationship`, `emergencyPhone` | string | ✅ every new or resubmitted application (2026-11-14): name 1-100 characters, relationship from `EMERGENCY_RELATIONSHIPS`, a Philippine mobile that differs from `contactNo`; `422` with `errors` per field. Saved on the application and copied to the tenant's account (`users.emergency_*`) |
 | `doc_<requirementId>` | file | one per active requirement (Settings → Application Requirements); replaces the old `validIdFrontFile` / `validIdBackFile` / `nbiFile` |
 | `validIdBackFile` | file | ✅ (first submit) |
 | `nbiFile` | file | ✅ (first submit) |
@@ -327,7 +330,7 @@ Submit or resubmit a rent/lease application.
 ---
 
 ### `GET` [get_applications.php](../../backend/api/get_applications.php)
-Lists all rent applications with user avatars (admin only). Joins `rent_applications` ← `users`.
+Lists all rent applications with user avatars (admin only). Joins `rent_applications` ← `users`. Each row carries `emergency_contact` (`{name, relationship, phone}` as given on that application, `null` for applications from before 2026-11-14). `my_room.php` returns the three `emergency_*` columns of the tenant's application so the resubmit form can pre-fill them.
 
 ---
 

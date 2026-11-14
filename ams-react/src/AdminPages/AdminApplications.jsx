@@ -1050,6 +1050,15 @@ const AdminApplications = () => {
                 <p className="text-body font-semibold text-slate-800 m-0 wrap-break-word">{selectedApp.previous_address || '—'}</p>
               </div>
 
+              <div className="bg-white rounded-card p-4 border border-slate-200 shadow-card">
+                <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize">Emergency Contact</p>
+                <p className="text-body font-semibold text-slate-800 m-0 wrap-break-word">
+                  {selectedApp.emergency_contact
+                    ? `${selectedApp.emergency_contact.name} (${selectedApp.emergency_contact.relationship}) · ${selectedApp.emergency_contact.phone}`
+                    : '—'}
+                </p>
+              </div>
+
               {/* Verification Documents */}
               <div>
                  <h4 className="text-sm font-medium text-slate-800 mb-3 border-b border-slate-200 pb-2">Submitted Documents</h4>

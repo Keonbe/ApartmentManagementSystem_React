@@ -194,6 +194,8 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `parking_guards_orphan_cleanup.test.js` | 4 | The parking guard columns refuse overbooking; the cleanup migration removes only rows whose invoice is gone |
 | `profile_avatar.test.js` | 5 | `profile.php` avatar upload: JPG, PNG and WEBP only; animated GIFs refused by extension and by content |
 | `service_workflow.test.js` | 25 | Add-on services: booking validation, the confirmed visit, tenant-visible progress, free cancel vs cancel request, the final-quantity adjustment at completion |
+| `emergency_contact.test.js` | 18 | Emergency contact: required on every rent application (each missing field named, nothing saved), name length, relationship list (no Roommate), non-mobile and own number refused, array input 400, stored normalized on the application and the account; `profile.php` leaves it alone when the keys are absent, updates it with a names-only audit entry, refuses partial / own-number / bad relationship, clears with all empty, only the caller's own; `get_applications.php` / `get_tenants.php` expose it (2026-11-14) |
+| `noshow_followup.test.js` | 4 | Approved applicant past the move-in date: unpaid keeps the plain follow-up wording, paid or part-paid names the choices (reschedule, or cancel with a refund), the application is untouched, rescheduling clears the item (2026-11-14) |
 
 ## 8. CI
 

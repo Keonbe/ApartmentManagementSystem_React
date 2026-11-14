@@ -122,6 +122,9 @@ erDiagram
         datetime sms_consent_at
         datetime terms_agreed_at
         varchar terms_version
+        varchar emergency_name
+        varchar emergency_relationship
+        varchar emergency_phone
         varchar gender
         varchar email_address UK
         varchar password "bcrypt hash"

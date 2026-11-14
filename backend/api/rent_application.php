@@ -46,6 +46,10 @@ $preferred_move_in_date = (!$is_asap && !empty($_POST['preferredMoveInDate']) &&
 $room_name = trim((string)($_POST['roomName'] ?? ''));
 $monthly_rent = $_POST['monthlyRent'] ?? '';
 $previous_address = trim((string)($_POST['previousAddress'] ?? ''));
+// Who to call in an emergency (name, relationship, mobile), required on every application.
+$emergency_name = trim((string)($_POST['emergencyName'] ?? ''));
+$emergency_relationship = trim((string)($_POST['emergencyRelationship'] ?? ''));
+$emergency_phone = trim((string)($_POST['emergencyPhone'] ?? ''));
 // The applicant is the session user. This read X-User-Id directly, so a caller
 // could submit — or, with appId, overwrite — an application as another user, and
 // the profile sync below would then write onto that user's account.
@@ -158,6 +162,9 @@ $errors = array_filter([
     'roomName' => v_str($room_name, 'Unit', 1, 50),
     'agreeTerms' => $agree_terms ? '' : "You must agree to the Terms & Conditions before submitting your application.",
 ]);
+// The emergency contact must be someone else: a different number from the applicant's own.
+[$emergency_errors, $emergency_phone] = emergency_contact_check($emergency_name, $emergency_relationship, $emergency_phone, $normalized_contact);
+$errors += $emergency_errors;
 $contact_no = $normalized_contact;
 $months_of_rent = (int)$months_of_rent;
 
@@ -261,13 +268,6 @@ foreach ($uploads as $req_id => $u) {
 $replaced_files = []; // files of a resubmission that new uploads replace
 $conn->begin_transaction();
 try {
-    if ($is_update) {
-        // Update existing application and set status to 'Pending Review' and clear
-        // rejection_reason. Restricted to Rejected/Declined applications above and
-        // again here so a concurrent status change can't slip through (H4).
-        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, previous_address = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
-        $stmt->bind_param("ssssssssiisssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $app_id, $user_id);
-        if (!$stmt->execute()) throw new Exception("Application update failed: " . $stmt->error);
     if (!$is_update) {
         // Two submits from one account at the same moment both passed the check above; the user row
         // lock makes the second wait, then see the first one's application.
@@ -281,6 +281,13 @@ try {
             application_fail(409, OPEN_APPLICATION_MESSAGE);
         }
     }
+    if ($is_update) {
+        // Update existing application and set status to 'Pending Review' and clear
+        // rejection_reason. Restricted to Rejected/Declined applications above and
+        // again here so a concurrent status change can't slip through (H4).
+        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, previous_address = ?, emergency_name = ?, emergency_relationship = ?, emergency_phone = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
+        $stmt->bind_param("sssssssssssiisssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $emergency_name, $emergency_relationship, $emergency_phone, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $app_id, $user_id);
+        if (!$stmt->execute()) throw new Exception("Application update failed: " . $stmt->error);
         if ($stmt->affected_rows === 0) {
             $stmt->close();
             $conn->rollback();
@@ -295,8 +302,8 @@ try {
     } else {
         // Insert new application. The legacy valid_id_*/nbi columns stay NULL;
         // the files go to application_documents below.
-        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, previous_address, occupants, months_of_rent, preferred_move_in_date, room_name, monthly_rent, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("issssssssiisss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent);
+        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, previous_address, emergency_name, emergency_relationship, emergency_phone, occupants, months_of_rent, preferred_move_in_date, room_name, monthly_rent, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("isssssssssssiisss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $emergency_name, $emergency_relationship, $emergency_phone, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent);
         if (!$stmt->execute()) throw new Exception("Application insert failed: " . $stmt->error);
         $new_app_id = $stmt->insert_id;
         $stmt->close();
@@ -319,8 +326,8 @@ try {
 
     // 2. Sync profile details to the users table
     if ($user_id > 0) {
-        $user_stmt = $conn->prepare("UPDATE users SET middle_name = ?, suffix = ?, contact_no = ?, gender = ? WHERE id = ?");
-        $user_stmt->bind_param("ssssi", $middle_name, $suffix, $contact_no, $gender, $user_id);
+        $user_stmt = $conn->prepare("UPDATE users SET middle_name = ?, suffix = ?, contact_no = ?, gender = ?, emergency_name = ?, emergency_relationship = ?, emergency_phone = ? WHERE id = ?");
+        $user_stmt->bind_param("sssssssi", $middle_name, $suffix, $contact_no, $gender, $emergency_name, $emergency_relationship, $emergency_phone, $user_id);
         $user_stmt->execute();
         $user_stmt->close();
     }

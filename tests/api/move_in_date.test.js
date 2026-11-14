@@ -2,6 +2,7 @@
 // 365 days ahead, a real YYYY-MM-DD. Enforced by resubmit_date.php and
 // rent_application.php; the date input's `min` alone let 2023-02-01 through.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { EMERGENCY_FIELDS } from './lib/fixtures.js';
 import { api, login } from './lib/api.js';
 import { q, one, setSetting } from './lib/db.js';
 
@@ -117,7 +118,7 @@ describe('rent_application.php preferred move-in date', () => {
     const fields = {
       firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@demo.example',
       gender: 'Female', occupants: '1', monthsOfRent: '6', roomName: 'J', monthlyRent: '3500', agreeTerms: 'true',
-      previousAddress: 'Blk 4 Lot 2, Brgy. Biga, Silang, Cavite', ...extra,
+      previousAddress: 'Blk 4 Lot 2, Brgy. Biga, Silang, Cavite', ...EMERGENCY_FIELDS, ...extra,
     };
     for (const [k, v] of Object.entries(fields)) form.append(k, v);
     return api('rent_application.php', { token: liza, form });

@@ -674,6 +674,39 @@ SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema 
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
 
+-- ===== 2026_11_emergency_contact.sql =====
+-- Emergency contact (SPRINT 186): who to call if something happens to a tenant.
+--   users.emergency_*             the tenant's current contact (edited in Profile Settings)
+--   rent_applications.emergency_* the contact given on that application (a snapshot)
+-- Nullable: accounts and applications created before this have none; the rent
+-- application form requires them for every new or resubmitted application.
+-- Idempotent; guarded for production (MySQL 8, one statement at a time).
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'emergency_name') = 0,
+  'ALTER TABLE `users` ADD COLUMN `emergency_name` varchar(100) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'emergency_relationship') = 0,
+  'ALTER TABLE `users` ADD COLUMN `emergency_relationship` varchar(50) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'emergency_phone') = 0,
+  'ALTER TABLE `users` ADD COLUMN `emergency_phone` varchar(30) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'rent_applications' AND column_name = 'emergency_name') = 0,
+  'ALTER TABLE `rent_applications` ADD COLUMN `emergency_name` varchar(100) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'rent_applications' AND column_name = 'emergency_relationship') = 0,
+  'ALTER TABLE `rent_applications` ADD COLUMN `emergency_relationship` varchar(50) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'rent_applications' AND column_name = 'emergency_phone') = 0,
+  'ALTER TABLE `rent_applications` ADD COLUMN `emergency_phone` varchar(30) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+
 -- ===== 2026_11_announcement_recipients.sql =====
 -- announcements.send_to also holds 'Tenants: 2,3,5' (an announcement addressed to chosen tenants,
 -- by user id, up to ANNOUNCEMENT_MAX_CHOSEN_TENANTS), so it grows from varchar(50). 2026-11-14.

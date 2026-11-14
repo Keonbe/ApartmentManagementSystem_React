@@ -6,6 +6,7 @@
 // - preview_hero settings and upload_preview_image.php.
 // Dates are relative to today, so the suite doesn't depend on the seed's date.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { EMERGENCY_FIELDS } from './lib/fixtures.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -392,7 +393,7 @@ describe('applying for an upcoming unit', () => {
     const fields = {
       firstName: 'Liza', lastName: 'Navarro', contactNo: '+639171234515', email: 'liza.navarro@demo.example',
       gender: 'Female', occupants: '1', monthsOfRent: '6', roomName: room, monthlyRent: '4000', agreeTerms: 'true',
-      previousAddress: 'Blk 4 Lot 2, Brgy. Biga, Silang, Cavite', preferredMoveInDate: '', isAsap: '1', ...extra,
+      previousAddress: 'Blk 4 Lot 2, Brgy. Biga, Silang, Cavite', preferredMoveInDate: '', isAsap: '1', ...EMERGENCY_FIELDS, ...extra,
     };
     for (const [k, v] of Object.entries(fields)) form.append(k, v);
     for (const id of [1, 2]) form.append(`doc_${id}`, new Blob([png(800, 20)], { type: 'image/png' }), `doc${id}.png`);

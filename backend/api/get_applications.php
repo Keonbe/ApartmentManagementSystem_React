@@ -58,6 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'status' => $row['status'] ?? 'Pending Review',
                 'created_at' => $row['created_at'] ?? '',
                 'previous_address' => $row['previous_address'] ?? null,
+                'emergency_contact' => ($row['emergency_name'] ?? null) === null ? null : [
+                    'name' => $row['emergency_name'],
+                    'relationship' => $row['emergency_relationship'],
+                    'phone' => $row['emergency_phone'],
+                ],
                 // Uploaded files, and the labels of active required
                 // requirements with no file (shown as "Missing").
                 'documents' => $documents,

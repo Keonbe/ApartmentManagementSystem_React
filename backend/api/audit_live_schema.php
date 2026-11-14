@@ -43,7 +43,7 @@ $expectedColumns = [
     ],
     'rent_applications' => [
         'previous_address', 'pre_archive_status', 'terms_agreed_at',
-        'documents_verified_at',
+        'documents_verified_at', 'emergency_name', 'emergency_relationship', 'emergency_phone',
     ],
     'password_resets' => ['used'],
     'guest_messages' => [
@@ -59,7 +59,7 @@ $expectedColumns = [
     'house_rules' => ['title_fil', 'description_fil', 'scope'],
     'household_members' => ['age', 'age_category'],
     'notification_log' => ['provider_message_id', 'provider_status'],
-    'users' => ['sms_consent_at', 'terms_agreed_at', 'terms_version'],
+    'users' => ['sms_consent_at', 'terms_agreed_at', 'terms_version', 'emergency_name', 'emergency_relationship', 'emergency_phone'],
 ];
 
 try {

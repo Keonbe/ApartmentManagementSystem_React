@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo, faPen, faUser, faAddressCard, faChevronRight, faTimes, faTrashAlt, faLock } from '@fortawesome/free-solid-svg-icons';
+import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo, faPen, faUser, faAddressCard, faChevronRight, faTimes, faTrashAlt, faLock, faPhone } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../Components/admin/Modal';
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang, t as translate } from '../config/i18n';
-import { LIMITS, checkEmail, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, checkEmail, checkPersonName, checkPhMobile, checkText, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
+import EmergencyContactFields from '../Components/form/EmergencyContactFields';
+import { EMERGENCY_NAME_MAX, EMERGENCY_RELATIONSHIPS } from '../config/emergencyContact';
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -22,6 +24,8 @@ import '../assets/styles/responsive/user/profile-settings.responsive.css';
 const INPUT_CLS = "focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base sm:text-sm";
 const GENDERS = ['Male', 'Female', 'Other'];
 
+const emergencyFilled = (all) => !!(String(all?.emergencyName ?? '').trim() || all?.emergencyRelationship || all?.emergencyPhone);
+
 // Names match profile.php's body keys, so a server field error lands on the input.
 const VALIDATORS = {
     firstName: (v) => checkPersonName(v, { label: translate('profile.firstNameLabel'), max: LIMITS.firstName }),
@@ -29,6 +33,11 @@ const VALIDATORS = {
     lastName: (v) => checkPersonName(v, { label: translate('profile.lastNameLabel'), max: LIMITS.lastName }),
     suffix: (v) => checkPersonName(v, { label: translate('profile.suffixLabel'), max: LIMITS.suffix, required: false }),
     contactNo: (v) => checkPhMobile(v),
+    // Optional here: all three filled, or all three empty (profile.php checks the same).
+    emergencyName: (v, all) => (!emergencyFilled(all) ? '' : checkText(v, { label: translate('emergency.name'), min: 1, max: EMERGENCY_NAME_MAX })),
+    emergencyRelationship: (v, all) => (!emergencyFilled(all) || EMERGENCY_RELATIONSHIPS.some((r) => r.value === v) ? '' : translate('emergency.errRelationship')),
+    emergencyPhone: (v, all) => (!emergencyFilled(all) ? ''
+        : checkPhMobile(v) || (all.contactNo && toPhE164(v) === toPhE164(all.contactNo) ? translate('emergency.errSameNumber') : '')),
     email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
     gender: (v) => (GENDERS.includes(v) ? '' : translate('profile.errGender')),
 };
@@ -71,6 +80,12 @@ export default function ProfileSettings() {
     const [lastName, setLastName] = useState(loggedInUser.last_name || '');
     const [suffix, setSuffix] = useState(loggedInUser.suffix || '');
     const [phoneRawNumber, setPhoneRawNumber] = useState(toPhLocal10(loggedInUser.contact_no));
+    // Emergency contact: not kept in the session, so it comes from profile.php. Until that
+    // has loaded it is not sent on save, so a failed load can never clear a saved contact.
+    const [emergencyName, setEmergencyName] = useState('');
+    const [emergencyRelationship, setEmergencyRelationship] = useState('');
+    const [emergencyPhone, setEmergencyPhone] = useState('');
+    const [emergencyLoaded, setEmergencyLoaded] = useState(false);
     const [email, setEmail] = useState(loggedInUser.email_address || '');
     const [avatarError, setAvatarError] = useState('');
     const [saveError, setSaveError] = useState('');
@@ -96,6 +111,7 @@ export default function ProfileSettings() {
         suffix: loggedInUser.suffix || '',
         gender: loggedInUser.gender || '',
         phone: toPhLocal10(loggedInUser.contact_no),
+        emergencyName: '', emergencyRelationship: '', emergencyPhone: '',
     }));
 
     // Camera Snapshot Simulation States
@@ -132,7 +148,14 @@ export default function ProfileSettings() {
                         suffix: data.suffix || '',
                         gender: data.gender || '',
                         phone: data.contact_no ? toPhLocal10(data.contact_no) : toPhLocal10(loggedInUser.contact_no),
+                        emergencyName: data.emergency_name || '',
+                        emergencyRelationship: data.emergency_relationship || '',
+                        emergencyPhone: data.emergency_phone ? toPhLocal10(data.emergency_phone) : '',
                     };
+                    setEmergencyName(loaded.emergencyName);
+                    setEmergencyRelationship(loaded.emergencyRelationship);
+                    setEmergencyPhone(loaded.emergencyPhone);
+                    setEmergencyLoaded(true);
                     setFirstName(loaded.firstName);
                     setMiddleName(loaded.middleName);
                     setLastName(loaded.lastName);
@@ -236,7 +259,15 @@ export default function ProfileSettings() {
         startCamera();
     };
 
-    const values = { firstName, middleName, lastName, suffix, contactNo: phoneRawNumber, email, gender };
+    const values = { firstName, middleName, lastName, suffix, contactNo: phoneRawNumber, email, gender, emergencyName, emergencyRelationship, emergencyPhone };
+    const setEmergency = (field, value, validate = false) => {
+        if (field === 'emergencyName') setEmergencyName(value);
+        else if (field === 'emergencyRelationship') setEmergencyRelationship(value);
+        else setEmergencyPhone(value);
+        // The three depend on each other (all or none), so a change re-checks the others' errors.
+        ['emergencyName', 'emergencyRelationship', 'emergencyPhone'].forEach((n) => form.clearError(n));
+        if (validate) form.validateField(field, { ...values, [field]: value });
+    };
     const setters = { firstName: setFirstName, middleName: setMiddleName, lastName: setLastName, suffix: setSuffix, email: setEmail, gender: setGender };
 
     const change = (name) => (e) => {
@@ -260,7 +291,8 @@ export default function ProfileSettings() {
     const isDirty = !!selectedFile
         || firstName !== saved.firstName || middleName !== saved.middleName
         || lastName !== saved.lastName || suffix !== saved.suffix
-        || gender !== saved.gender || phoneRawNumber !== saved.phone;
+        || gender !== saved.gender || phoneRawNumber !== saved.phone
+        || (emergencyLoaded && (emergencyName !== saved.emergencyName || emergencyRelationship !== saved.emergencyRelationship || emergencyPhone !== saved.emergencyPhone));
 
     const discardChanges = () => {
         setFirstName(saved.firstName);
@@ -269,11 +301,14 @@ export default function ProfileSettings() {
         setSuffix(saved.suffix);
         setGender(saved.gender);
         setPhoneRawNumber(saved.phone);
+        setEmergencyName(saved.emergencyName);
+        setEmergencyRelationship(saved.emergencyRelationship);
+        setEmergencyPhone(saved.emergencyPhone);
         setTempAvatar(null);
         setSelectedFile(null);
         setSaveError('');
         setAvatarError('');
-        ['firstName', 'middleName', 'lastName', 'suffix', 'gender', 'contactNo'].forEach((n) => form.clearError(n));
+        ['firstName', 'middleName', 'lastName', 'suffix', 'gender', 'contactNo', 'emergencyName', 'emergencyRelationship', 'emergencyPhone'].forEach((n) => form.clearError(n));
     };
 
 
@@ -290,7 +325,9 @@ export default function ProfileSettings() {
             lastName: lastName.trim(),
             suffix: suffix.trim(),
             email: normalizeEmail(email),
+            emergencyName: emergencyName.trim(),
         };
+        setEmergencyName(clean.emergencyName);
         setFirstName(clean.firstName);
         setMiddleName(clean.middleName);
         setLastName(clean.lastName);
@@ -332,7 +369,13 @@ export default function ProfileSettings() {
                 lastName: clean.lastName,
                 suffix: clean.suffix,
                 contactNo: fullContactNumber,
-                gender: gender
+                gender: gender,
+                // Sent only once the saved contact has loaded; all three empty clears it.
+                ...(emergencyLoaded ? {
+                    emergencyName: clean.emergencyName,
+                    emergencyRelationship,
+                    emergencyPhone: emergencyPhone ? toPhE164(emergencyPhone) : '',
+                } : {}),
             };
 
             const res = await api.post('/profile.php', profileData, {
@@ -363,6 +406,7 @@ export default function ProfileSettings() {
                 setSaved({
                     firstName: clean.firstName, middleName: clean.middleName, lastName: clean.lastName,
                     suffix: clean.suffix, gender, phone: phoneRawNumber,
+                    emergencyName: clean.emergencyName, emergencyRelationship, emergencyPhone,
                 });
                 // TopBar re-reads the user and avatar (was a full page reload).
                 window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
@@ -569,6 +613,25 @@ export default function ProfileSettings() {
                                 </div>
                                 <p id="profile-email-hint" className="m-0 text-xs text-slate-500">{t('profile.emailLocked')}</p>
                             </div>
+                        </div>
+                    </section>
+
+                    <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <SectionHeader icon={faPhone} title={t('emergency.title')} hint={t('emergency.hint')} />
+                        <div className="p-5 sm:p-8 space-y-3">
+                            <EmergencyContactFields
+                                idPrefix="profile-"
+                                form={form}
+                                name={emergencyName}
+                                relationship={emergencyRelationship}
+                                phone={emergencyPhone}
+                                onChange={setEmergency}
+                                disabled={!emergencyLoaded}
+                                required={false}
+                                inputCls={INPUT_CLS}
+                                labelCls="text-sm font-bold text-slate-700"
+                            />
+                            <p className="m-0 text-xs text-slate-500">{t('emergency.profileHint')}</p>
                         </div>
                     </section>
 
