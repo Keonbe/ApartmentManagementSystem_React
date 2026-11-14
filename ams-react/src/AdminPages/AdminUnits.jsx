@@ -7,7 +7,7 @@ import {
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
   faHistory, faLayerGroup, faSync, faWrench,
   faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive, faSpinner,
-  faCheck
+  faCheck, faCalendarAlt
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
@@ -1017,6 +1017,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
     { key: 'gallery', label: 'Gallery', icon: faImages },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
     { key: 'occupancyHistory', label: 'Occupancy History', icon: faHistory },
+    { key: 'extensions', label: 'Extensions', icon: faCalendarAlt },
     { key: 'maintenance', label: 'Maintenance', icon: faWrench },
   ];
 
@@ -1397,6 +1398,40 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
                   <p className="text-body text-slate-500 m-0">This unit is currently vacant.</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Extensions Tab: every rent extension recorded for this unit, across tenants */}
+          {activeTab === 'extensions' && (
+            <div className="space-y-4">
+              <h4 className="text-body font-bold text-slate-700 m-0 flex items-center gap-2">
+                <FontAwesomeIcon icon={faCalendarAlt} className="text-indigo-500" aria-hidden="true" />
+                Rent Extensions for This Unit
+              </h4>
+              {(() => {
+                const extensions = (unit.leaseHistory || []).filter((l) => l.event === 'Rent Extended');
+                if (extensions.length === 0) {
+                  return <p className="text-body text-slate-600 m-0">No rent extension has been recorded for this unit.</p>;
+                }
+                return (
+                  <ul className="m-0 list-none space-y-2 p-0">
+                    {[...extensions].reverse().map((ext, idx) => (
+                      <li key={idx} className="rounded-control border border-slate-200 bg-white p-3 text-label">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-slate-800">{ext.tenant || 'Tenant'}</span>
+                          <span className="text-caption text-slate-600">{ext.date}</span>
+                        </div>
+                        <p className="m-0 mt-1 text-slate-700">{ext.oldEnd} → {ext.newEnd} <span className="text-slate-600">({ext.addedMonths} month{ext.addedMonths === 1 ? '' : 's'} added)</span></p>
+                        {ext.previousRent != null && ext.rentAtRenewal != null && (
+                          <p className="m-0 mt-0.5 text-slate-600">
+                            Rent {ext.previousRent === ext.rentAtRenewal ? `unchanged at ${formatCurrency(ext.rentAtRenewal)}` : `${formatCurrency(ext.previousRent)} → ${formatCurrency(ext.rentAtRenewal)}`}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </div>
           )}
 

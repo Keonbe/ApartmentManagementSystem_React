@@ -66,7 +66,8 @@ try {
         // Extension events: per room for the "Previous Extensions" list, and
         // per contract so each Occupancy History stay shows its own.
         $res = $conn->query("
-            SELECT ra.room_name, ra.id AS application_id, lr.contract_id, lr.added_months, lr.previous_lease_end, lr.new_lease_end, lr.created_at
+            SELECT ra.room_name, ra.id AS application_id, lr.contract_id, lr.added_months, lr.previous_lease_end, lr.new_lease_end, lr.created_at,
+                   lr.previous_rent, lr.rent_at_renewal, ra.first_name, ra.last_name, ra.suffix
             FROM lease_renewals lr
             JOIN lease_contracts lc ON lc.id = lr.contract_id
             JOIN rent_applications ra ON ra.id = lc.rent_application_id
@@ -177,7 +178,12 @@ try {
                 'date' => $row['created_at'] ? substr($row['created_at'], 0, 10) : null,
                 'detail' => "Extended by {$row['added_months']} month(s)",
                 'oldEnd' => $row['previous_lease_end'],
-                'newEnd' => $row['new_lease_end']
+                'newEnd' => $row['new_lease_end'],
+                'addedMonths' => (int)$row['added_months'],
+                // Admin only (the Extensions tab): who extended, and the rent before and after.
+                'tenant' => $is_admin ? person_name($row) : null,
+                'previousRent' => $is_admin && $row['previous_rent'] !== null ? (float)$row['previous_rent'] : null,
+                'rentAtRenewal' => $is_admin && $row['rent_at_renewal'] !== null ? (float)$row['rent_at_renewal'] : null,
             ];
         }
 
