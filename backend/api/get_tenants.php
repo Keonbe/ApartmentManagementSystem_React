@@ -30,6 +30,7 @@ $result = $conn->query("
            (SELECT MIN(i.due_date) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS oldest_overdue_due,
            u.emergency_name AS cur_emergency_name, u.emergency_relationship AS cur_emergency_relationship, u.emergency_phone AS cur_emergency_phone
     FROM rent_applications ra
+    LEFT JOIN users u ON u.id = ra.user_id
     LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
     ORDER BY ra.id DESC
 ");
