@@ -33,6 +33,15 @@
   }
 }
 
+/* Short desktop windows (or high zoom): a map tied to the viewport height would
+   shrink to a sliver, so let it scroll with the page at a fixed height. */
+@media (min-width: 1024px) and (max-height: 560px) {
+  .preview-map-wrapper {
+    position: static !important;
+    height: 360px !important;
+  }
+}
+
 /* Hero banner: stack image + text vertically on phones */
 @media (max-width: 639px) {
   .preview-hero-banner {

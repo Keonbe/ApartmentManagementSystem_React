@@ -162,6 +162,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-13. Built from `TASK.md` a
 | 146 | Defense: make doc numbers agree | Docs | One set of numbers after a full API run (82 test files, 1,826 tests, about 10 minutes; 161 endpoint files; 51 tables) in `api_testing.md` (12 test files added to its table), `README.md` and `qa_gap_audit.md`; `security_audit.md` rows D-7, L-1, CH-4, D-9, C-3 and its header corrected against the code and CH-1 marked fixed. The same corrections are made in the panel audit (§A.13, RD-04, RD-05) and the ISO 25010 evidence map, which are now local files, not tracked (listed in `.gitignore`). CI now installs the chat server for `chat_socket.test.js`. Left as history: the 2026-11-06 numbers in `progress_report.md`. Still open: checklist Module 11 "5/5" wording while A-1 is open | Done | High | 2026-11-12 | 2026-11-13 |
 | 207 | Local load and volume check | Test | `tests/load/run.mjs` (own scratch DB and port; seed then 2,107 invoices, 1,007 requests, 5,000 messages, 10,019 log rows): no N+1, unpaged lists grow (`get_invoices` 2 MB), `get_conversations.php` 1.1 s (row 206); results and limits in `docs/audits/2026-11-13_load_check.md`, ISO map items 4 and 6 and audit X-01..X-05 updated (SPRINT 153 part) | Done | Medium | 2026-11-13 | 2026-11-13 |
 | 208 | SUS session kit | Docs | `docs/audits/sus_session_kit.md` (briefing, task cards, observer sheet, SUS in English and Filipino, scoring, results template) and `sus_scoring_template.csv`; the session itself is row 148 | Done | Medium | 2026-11-13 | 2026-11-13 |
+| 69 | Preview page layout | UI/UX | The map is `100dvh`-based with a minimum height and stops sticking on short windows (`preview.responsive.css`); the page scrolls as a whole | Done | Low | 2026-11-14 | 2026-11-14 |
 
 ## In progress
 
@@ -177,7 +178,6 @@ Project window: 2026-06-30 (first commit) → 2026-11-13. Built from `TASK.md` a
 | # | Task | Category | Description | Status | Priority | Start | End |
 |---|------|----------|-------------|--------|----------|-------|-----|
 | 67 | Screen-reader pass | Accessibility | Not done on admin or tenant pages | Open | Medium | — | — |
-| 69 | Preview page layout | UI/UX | Viewport-locked list and hero | Open | Low | — | — |
 | 71 | Translate shared strings | Feature | Validation templates, refund labels, relative time, server messages | Open | Low | — | — |
 | 73 | Payments phase 3 | Feature | Move-out disposition as payments plus balance invoice, proration, advance refund payout | Open | Medium | — | — |
 | 74 | SMS delivery | Feature | Rent-due/overdue SMS needs admin contact number, scheduled task, sender approval | Open | Low | — | — |

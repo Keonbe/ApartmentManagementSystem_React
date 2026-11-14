@@ -247,7 +247,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
 
                 {/*Right Column: Maps Embed. Sticks below the TopBar (76px) while the page
                    scrolls on large screens.*/}
-                <div className="preview-map-wrapper lg:col-span-5 h-[400px] lg:h-[calc(100vh-76px-4rem)] lg:sticky lg:top-[calc(76px+2rem)] bg-white rounded-[2rem] border-2 border-brand shadow-xl overflow-hidden flex animate-slide-up" style={{animationDelay: '0.1s'}}>
+                <div className="preview-map-wrapper lg:col-span-5 h-[400px] lg:h-[calc(100dvh-76px-4rem)] lg:min-h-[320px] lg:sticky lg:top-[calc(76px+2rem)] bg-white rounded-[2rem] border-2 border-brand shadow-xl overflow-hidden flex animate-slide-up" style={{animationDelay: '0.1s'}}>
                     <iframe
                         src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
                         className="w-full h-full border-0 flex-grow min-h-0 grayscale-[20%] contrast-125 transition-all duration-700 hover:grayscale-0 hover:contrast-100 rounded-2xl"
