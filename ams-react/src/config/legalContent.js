@@ -79,7 +79,7 @@ const en = {
         li: [
           'the unit is marked vacant and your household record is ended;',
           'unpaid invoices are cancelled, and unpaid advance months are cancelled;',
-          'advance rent that was paid for months not yet reached is marked for refund, and Management is notified;',
+          'advance rent that was paid for months not yet reached is marked for refund, and a refund request is opened for it for Management to review;',
           'your parking permit is released and pending visitor pre-registrations are cancelled;',
           'your active contract is terminated with the recorded reason;',
           'your account can no longer sign in.',
@@ -280,7 +280,7 @@ const fil = {
         li: [
           'ang unit ay mamarkahang bakante at tatapusin ang household record mo;',
           'kakanselahin ang mga hindi nabayarang invoice at hindi nabayarang advance months;',
-          'ang advance na nabayaran para sa mga buwang hindi pa dumarating ay mamamarkahang refund-due, at aabisuhan ang Pamunuan;',
+          'ang advance na nabayaran para sa mga buwang hindi pa dumarating ay mamamarkahang ibabalik, at magbubukas ng refund request para dito na susuriin ng Pamunuan;',
           'ire-release ang parking permit mo at kakanselahin ang mga nakabinbing pre-registration ng bisita;',
           'wawakasan ang aktibong kontrata mo kasama ang naitalang dahilan;',
           'hindi na makaka-sign in ang account mo.',

@@ -1003,7 +1003,13 @@ function tenancy_payment_in_review($conn, $app_id) {
     return 'Invoice ' . $row['id'] . ' ' . $why . '. Verify or reject it in Payments first, then try again.';
 }
 
-function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
+// $opts: keep_owed (move-out clearance and termination, which settle the
+// deposit first: only an unpaid advance-rent invoice is cancelled, and a bill
+// the deposit did not reach stays owed), actor_id (the admin, recorded on the
+// advance refund request). Also returns 'advance_refund_id' /
+// 'advance_refund_amount' when a refund request was opened for prepaid months
+// not reached: send notify_refund_raised() after commit.
+function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good', array $opts = []) {
     $stmt = $conn->prepare("SELECT first_name, last_name, suffix, room_name, user_id FROM rent_applications WHERE id = ?");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
@@ -1034,7 +1040,8 @@ function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
     // settling it. Tagging cancel_reason means restore_tenant.php can
     // reinstate exactly the invoices THIS call cancelled, not ones cancelled
     // for an unrelated reason (H6).
-    $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'scheduled')");
+    $owed_filter = !empty($opts['keep_owed']) ? " AND advance_months IS NOT NULL" : "";
+    $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'scheduled')$owed_filter");
     $cancel_inv->bind_param("si", $reason, $app_id);
     $cancel_inv->execute();
     $invoices_cancelled = $cancel_inv->affected_rows;
@@ -1049,16 +1056,33 @@ function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
     $refund = $refund_q->get_result()->fetch_assoc();
     $refund_q->close();
     $advance_refund_due = round((float)$refund['total'], 2);
+    $advance_refund_id = null;
+    $advance_refund_amount = 0.0;
     if ($advance_refund_due > 0) {
         $conn->query("UPDATE advance_credits SET status = 'refund-due' WHERE rent_application_id = " . (int)$app_id . " AND status = 'available'");
         $months = (int)$refund['months'];
-        $admin = $conn->query("SELECT id FROM users WHERE role = 'admin' AND is_archived = 0 ORDER BY id LIMIT 1");
-        $admin_row = $admin ? $admin->fetch_assoc() : null;
-        if ($admin_row) {
-            create_notification($conn, (int)$admin_row['id'], 'billing', 'Advance Rent Refund Due',
-                "$full_name moved out ($reason) with $months prepaid month(s) not yet reached. ₱" . number_format($advance_refund_due, 2) . " of advance rent is due back to the tenant.");
+        // The refund request opens here, like the deposit's, for the months no
+        // request of the tenant's already holds; the credits are held on it
+        // (the same hold as create_refund_request.php).
+        $free_q = $conn->prepare("SELECT COUNT(*) AS months, COALESCE(SUM(amount), 0) AS total FROM advance_credits WHERE rent_application_id = ? AND status = 'refund-due' AND refund_request_id IS NULL FOR UPDATE");
+        $free_q->bind_param("i", $app_id);
+        $free_q->execute();
+        $free = $free_q->get_result()->fetch_assoc();
+        $free_q->close();
+        $free_total = round((float)$free['total'], 2);
+        if ($free_total > 0 && $user_id) {
+            $actor = (int)($opts['actor_id'] ?? 0);
+            $free_months = (int)$free['months'];
+            $advance_refund_id = insert_refund_request($conn, $user_id, (int)$app_id, 'advance', null, $free_total,
+                "Advance rent for $free_months prepaid month(s) not reached when the tenancy ended ($reason).", $actor ?: null, $actor ? 'admin' : 'system');
+            $hold = $conn->prepare("UPDATE advance_credits SET refund_request_id = ? WHERE rent_application_id = ? AND status = 'refund-due' AND refund_request_id IS NULL");
+            $hold->bind_param("ii", $advance_refund_id, $app_id);
+            if (!$hold->execute()) throw new Exception("Could not hold the advance rent for its refund.");
+            $hold->close();
+            $advance_refund_amount = $free_total;
         }
-        log_activity($conn, null, 'billing', 'Advance Refund Due', "Application $app_id: $months month(s), ₱" . number_format($advance_refund_due, 2), 0);
+        log_activity($conn, null, 'billing', 'Advance Refund Due', "Application $app_id: $months month(s), ₱" . number_format($advance_refund_due, 2)
+            . ($advance_refund_id ? " (refund request #$advance_refund_id)" : ""), 0);
     }
 
     $parking_released = 0;
@@ -1080,6 +1104,8 @@ function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
         'user_id' => $user_id,
         'invoices_cancelled' => $invoices_cancelled,
         'advance_refund_due' => $advance_refund_due,
+        'advance_refund_id' => $advance_refund_id,
+        'advance_refund_amount' => $advance_refund_amount,
         'parking_released' => $parking_released,
         'visitors_cancelled' => $visitors_cancelled,
     ];
@@ -4097,15 +4123,184 @@ function notice_shortfall_deduction($conn, array $ctx, $monthly_rent) {
     return ['days' => $days, 'amount' => round((float)$monthly_rent / 30 * $days, 2)];
 }
 
+// ── Move-out settlement records ──
+// What settle_deposit() works out is also written to the ledger, so the bills
+// and the balance it reports are the ones the system holds:
+//   - an invoice the deposit covers is 'paid' with a 'Security deposit' row in
+//     payment_transactions (not cancelled), a part-covered one keeps its balance;
+//   - deductions the deposit does not reach become one 'Move-out balance'
+//     invoice the former tenant can pay.
+// No reference is stored on these rows: the same contract would repeat on
+// several invoices and read as a reused payment reference.
+const MOVE_OUT_BALANCE_PERIOD = 'Move-out balance';
+// On payment_transactions.payment_method and invoices.payment_method; shown as
+// is in Payment History, receipts and the admin ledger.
+const DEPOSIT_PAYMENT_METHOD = 'Security deposit';
+// Deduction category => the invoice line it is billed on, in the order the
+// deposit covers them (after the unpaid invoices).
+const MOVE_OUT_DEDUCTION_COLUMNS = [
+    'unpaid_rent' => 'base_rent', 'electricity' => 'electricity', 'water' => 'water',
+    'damage' => 'maintenance', 'other' => 'maintenance',
+];
+
+// Clearance deductions as [category => amount]: the itemized lines
+// ([{category, amount}]) when given, else the two totals (damage, and utility
+// billed as electricity).
+function move_out_deductions_by_category($lines, $damage, $utility) {
+    if (!is_array($lines)) return ['damage' => (float)$damage, 'electricity' => (float)$utility];
+    $out = [];
+    foreach ($lines as $line) {
+        $category = (string)($line['category'] ?? '');
+        if (!isset(MOVE_OUT_DEDUCTION_COLUMNS[$category])) $category = 'other';
+        $out[$category] = ($out[$category] ?? 0) + (float)($line['amount'] ?? 0);
+    }
+    return $out;
+}
+
+// Spends $pool (deposit + interest) for one application, in the caller's
+// transaction: the owed invoices oldest first, then $deductions
+// ([category => amount]); bills the uncovered deductions. Returns ['applied'
+// (to invoices), 'paid_invoices' => [ids], 'balance_invoice_id',
+// 'balance_invoice_amount']. Throws on a failed write.
+function apply_deposit_to_invoices($conn, $app_id, $pool, array $deductions, $admin_id) {
+    $app_id = (int)$app_id;
+    $recorder = (int)$admin_id ?: null;
+    $pool_cents = max(0, (int)round((float)$pool * 100));
+    $out = ['applied' => 0.0, 'paid_invoices' => [], 'balance_invoice_id' => null, 'balance_invoice_amount' => 0.0];
+
+    $q = $conn->prepare("SELECT i.id, i.total_amount, i.amount_paid FROM invoices i
+                         WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i') . "
+                         ORDER BY (i.due_date IS NULL), i.due_date, i.created_at, i.id FOR UPDATE");
+    $q->bind_param("i", $app_id);
+    $q->execute();
+    $owed = $q->get_result()->fetch_all(MYSQLI_ASSOC);
+    $q->close();
+
+    $applied_cents = 0;
+    if ($pool_cents > 0 && $owed) {
+        $tx = $conn->prepare("INSERT INTO payment_transactions (invoice_id, amount, payment_method, recorded_by) VALUES (?, ?, '" . DEPOSIT_PAYMENT_METHOD . "', ?)");
+        $full = $conn->prepare("UPDATE invoices SET status = 'paid', amount_paid = total_amount, proof_amount = NULL, payment_method = ?, paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
+        $part = $conn->prepare("UPDATE invoices SET amount_paid = amount_paid + ? WHERE id = ? AND status IN " . billing_open_status_sql());
+        foreach ($owed as $inv) {
+            if ($pool_cents <= 0) break;
+            $balance_cents = invoice_balance_cents($inv);
+            if ($balance_cents <= 0) continue;
+            $take = min($balance_cents, $pool_cents);
+            $amount = $take / 100;
+            $tx->bind_param("sdi", $inv['id'], $amount, $recorder);
+            if (!$tx->execute()) throw new Exception("Could not record the deposit against invoice {$inv['id']}.");
+            if ($take === $balance_cents) {
+                // Parts received earlier stay on the ledger beside the deposit's.
+                $method = (float)$inv['amount_paid'] > 0 ? 'split' : DEPOSIT_PAYMENT_METHOD;
+                $full->bind_param("ss", $method, $inv['id']);
+                $full->execute();
+                $won = $full->affected_rows === 1;
+                $out['paid_invoices'][] = $inv['id'];
+            } else {
+                $part->bind_param("ds", $amount, $inv['id']);
+                $part->execute();
+                $won = $part->affected_rows === 1;
+            }
+            if (!$won) throw new Exception("Invoice {$inv['id']} changed while the deposit was being applied. Try again.");
+            $pool_cents -= $take;
+            $applied_cents += $take;
+        }
+        $tx->close();
+        $full->close();
+        $part->close();
+    }
+    $out['applied'] = $applied_cents / 100;
+
+    // What is left of the pool covers the deductions; the rest is billed.
+    $lines = ['base_rent' => 0, 'electricity' => 0, 'water' => 0, 'maintenance' => 0];
+    foreach (MOVE_OUT_DEDUCTION_COLUMNS as $category => $column) {
+        $cents = max(0, (int)round((float)($deductions[$category] ?? 0) * 100));
+        $covered = min($cents, $pool_cents);
+        $pool_cents -= $covered;
+        $lines[$column] += $cents - $covered;
+    }
+    $short_cents = array_sum($lines);
+    if ($short_cents > 0) {
+        $u = $conn->prepare("SELECT user_id FROM rent_applications WHERE id = ?");
+        $u->bind_param("i", $app_id);
+        $u->execute();
+        $owner = $u->get_result()->fetch_assoc();
+        $u->close();
+        $user_id = $owner && $owner['user_id'] ? (int)$owner['user_id'] : null;
+
+        $invoice_id = 'INV-' . date('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+        $period = MOVE_OUT_BALANCE_PERIOD;
+        $due = date('Y-m-d', strtotime('+' . deposit_refund_days($conn) . ' days'));
+        [$rent, $electricity, $water, $maintenance, $total] = [$lines['base_rent'] / 100, $lines['electricity'] / 100, $lines['water'] / 100, $lines['maintenance'] / 100, $short_cents / 100];
+        $ins = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, electricity, water, maintenance, total_amount, billing_period, status, due_date)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
+        $ins->bind_param("siidddddss", $invoice_id, $user_id, $app_id, $rent, $electricity, $water, $maintenance, $total, $period, $due);
+        if (!$ins->execute()) throw new Exception("Could not create the move-out balance invoice.");
+        $ins->close();
+        $out['balance_invoice_id'] = $invoice_id;
+        $out['balance_invoice_amount'] = $total;
+    }
+    return $out;
+}
+
+// Undoes apply_deposit_to_invoices() for a tenancy that is restored: the
+// move-out balance invoice is cancelled, and the invoices the deposit paid are
+// owed again. The caller owns the transaction. Throws when the balance invoice
+// already has a payment (the debt it billed was collected).
+function reverse_deposit_application($conn, $app_id) {
+    $app_id = (int)$app_id;
+    $period = MOVE_OUT_BALANCE_PERIOD;
+    $b = $conn->prepare("SELECT id, status, amount_paid FROM invoices WHERE rent_application_id = ? AND billing_period = ? AND status <> 'cancelled' FOR UPDATE");
+    $b->bind_param("is", $app_id, $period);
+    $b->execute();
+    $balance_rows = $b->get_result()->fetch_all(MYSQLI_ASSOC);
+    $b->close();
+    foreach ($balance_rows as $row) {
+        if ((float)$row['amount_paid'] > 0 || in_array($row['status'], ['paid', 'pending-verification', 'processing'], true)) {
+            throw new Exception("The move-out balance (invoice {$row['id']}) already has a payment, so this tenancy cannot be restored.");
+        }
+        $c = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Tenancy restored' WHERE id = ?");
+        $c->bind_param("s", $row['id']);
+        $c->execute();
+        $c->close();
+    }
+
+    $t = $conn->prepare("SELECT pt.invoice_id, SUM(pt.amount) AS amount FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id
+                         WHERE i.rent_application_id = ? AND pt.payment_method = '" . DEPOSIT_PAYMENT_METHOD . "' GROUP BY pt.invoice_id");
+    $t->bind_param("i", $app_id);
+    $t->execute();
+    $paid_rows = $t->get_result()->fetch_all(MYSQLI_ASSOC);
+    $t->close();
+    // Columns are assigned left to right: status is read before it is changed.
+    $reopen = $conn->prepare("UPDATE invoices SET amount_paid = GREATEST(0, amount_paid - ?),
+            payment_method = IF(status = 'paid', NULL, payment_method), paid_at = IF(status = 'paid', NULL, paid_at),
+            status = IF(status = 'paid', IF(due_date IS NOT NULL AND due_date < CURDATE(), 'overdue', 'pending'), status)
+        WHERE id = ?");
+    $drop = $conn->prepare("DELETE FROM payment_transactions WHERE invoice_id = ? AND payment_method = '" . DEPOSIT_PAYMENT_METHOD . "'");
+    foreach ($paid_rows as $row) {
+        $amount = (float)$row['amount'];
+        $reopen->bind_param("ds", $amount, $row['invoice_id']);
+        if (!$reopen->execute()) throw new Exception("Could not reopen invoice {$row['invoice_id']}.");
+        $drop->bind_param("s", $row['invoice_id']);
+        $drop->execute();
+    }
+    $reopen->close();
+    $drop->close();
+    return ['invoices_reopened' => count($paid_rows), 'balance_invoices_cancelled' => count($balance_rows)];
+}
+
 // Settles the held deposit of one contract. The caller owns the transaction.
-//   $opts: damage, utility (deductions entered at clearance), kind
+//   $opts: damage, utility (deductions entered at clearance), deductions (the
+//   same amounts itemized as [{category, amount}]; without it damage is billed
+//   as damage and utility as electricity), kind
 //   ('move_out' | 'terminate'), prior_status, set_expired (clearance marks the
 //   contract expired), notice_deduction (the admin's amount for unserved notice,
 //   0 up to notice_shortfall_deduction(); omitted = that suggestion), waive_reason
 //   (why it was lowered; required when it is), interest (bank interest earned on
 //   the deposit, returned with it), admin_id, user_id.
 // Returns ['contract_id', 'deposit', 'interest', 'open_total', 'balance', 'status',
-//   'refund_amount', 'notice_deduction', 'notice_days', 'refund_id'] or null when
+//   'refund_amount', 'notice_deduction', 'notice_days', 'refund_id', 'deposit_applied',
+//   'paid_invoices', 'balance_invoice_id', 'balance_invoice_amount'] or null when
 //   the contract is not settled here (none, or already settled). refund_id is set
 //   when a refund request was opened: send notify_refund_raised() after commit.
 //   Throws when a lowered notice deduction has no reason.
@@ -4134,7 +4329,9 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     $deposit = $held ? round((float)$c['deposit_amount'], 2) : 0.0;
     $pool = round($deposit + $interest, 2);
 
-    $o = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
+    // Locked: apply_deposit_to_invoices() below pays these same rows, so a
+    // payment landing in between cannot leave the refund worked out on a stale total.
+    $o = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i') . " FOR UPDATE");
     $o->bind_param("i", $app_id);
     $o->execute();
     $open_total = round((float)$o->get_result()->fetch_assoc()['open_total'], 2);
@@ -4184,6 +4381,12 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
         $f->close();
     }
 
+    // The same sums on the ledger: invoices paid from the deposit, and a
+    // balance invoice for the deductions it did not reach.
+    $by_category = move_out_deductions_by_category($opts['deductions'] ?? null, $damage, $utility);
+    $by_category['unpaid_rent'] = ($by_category['unpaid_rent'] ?? 0) + $notice;
+    $ledger = apply_deposit_to_invoices($conn, $app_id, $pool, $by_category, (int)($opts['admin_id'] ?? 0));
+
     $refund_id = null;
     $user_id = (int)($opts['user_id'] ?? 0);
     if ($refund > 0 && $user_id > 0) {
@@ -4198,6 +4401,8 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
         'contract_id' => $c['id'], 'deposit' => $deposit, 'interest' => $interest, 'open_total' => $open_total, 'balance' => $balance,
         'status' => $status, 'refund_amount' => $refund, 'notice_deduction' => $notice, 'notice_days' => $notice > 0 ? $suggested['days'] : 0,
         'refund_id' => $refund_id,
+        'deposit_applied' => $ledger['applied'], 'paid_invoices' => $ledger['paid_invoices'],
+        'balance_invoice_id' => $ledger['balance_invoice_id'], 'balance_invoice_amount' => $ledger['balance_invoice_amount'],
     ];
 }
 

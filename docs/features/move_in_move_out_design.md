@@ -96,7 +96,13 @@ A tenant requesting to end their lease triggers a workflow that flags their inte
    ├── room status changes: Occupied -> Vacant (tenant_name cleared, last_tenant logged)
    ├── tenant status changes: pending-move-out -> moved-out
    ├── clearance breakdown stored in archive_notes & audit activity logs
-   └── lingering pending invoices for past application set to 'cancelled'
+   ├── unpaid invoices the deposit covers -> 'paid' (payment_method 'Security deposit'),
+   │   oldest first; one it only part-covers keeps its balance and stays owed
+   ├── deductions the deposit does not reach -> one 'Move-out balance' invoice
+   │   (due in deposit_refund_days; paid at the office, the admin records it)
+   ├── prepaid months not reached -> 'refund-due' and an 'advance' refund request opens
+   └── only an unpaid advance-rent invoice is set to 'cancelled' (2026-11-14, SPRINT 73:
+       apply_deposit_to_invoices() and end_tenancy() in config.php)
               │
               ▼
    4. ARCHIVING (ADMIN)
@@ -110,7 +116,7 @@ A tenant requesting to end their lease triggers a workflow that flags their inte
 | Actor | Action | DB Transition | Result |
 |---|---|---|---|
 | Tenant | Request End | `rent_applications.status = 'pending-move-out'` & `requested_move_out_date` | Notice countdown active; tenant retains room portal access |
-| Admin | Complete Out | `rent_applications.status = 'moved-out'` & `rooms.status = 'vacant'` | Deposit deductions logged; room released; past pending invoices cancelled |
+| Admin | Complete Out | `rent_applications.status = 'moved-out'` & `rooms.status = 'vacant'` | Deposit deductions logged; room released; covered invoices paid from the deposit, any shortfall invoiced as "Move-out balance", unused advance rent sent to Refunds |
 | Admin | Archive | `users.is_archived = 1` | Account deactivated, history kept |
 
 ---

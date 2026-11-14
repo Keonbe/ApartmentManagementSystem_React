@@ -102,6 +102,8 @@ export default function UserPaymentHistory() {
             paidInAdvance,
             // Month settled from a credit: payment_reference is the advance invoice.
             paidFromAdvance: inv.paid_from_advance ? inv.payment_reference : null,
+            // Settled from the security deposit at the move-out clearance.
+            paidFromDeposit: !!inv.paid_from_deposit,
             advanceMonths: inv.advance_months || 0,
             bundleKey: isBundleKey(inv.payment_group) ? inv.payment_group : null,
             amount: parseFloat(inv.total_amount),
@@ -253,6 +255,9 @@ export default function UserPaymentHistory() {
                     )}
                     {paid && inv.paid_from_advance && (
                         <p className="m-0 mt-1 text-sm font-semibold text-emerald-700">{t('paymentHistory.paidFromAdvance', { ref: inv.payment_reference })}</p>
+                    )}
+                    {paid && inv.paid_from_deposit && (
+                        <p className="m-0 mt-1 text-sm font-semibold text-emerald-700">{t('paymentHistory.paidFromDeposit')}</p>
                     )}
                     {charges && <p className="m-0 mt-1 text-sm text-slate-500">{charges}</p>}
                 </div>
@@ -506,6 +511,8 @@ export default function UserPaymentHistory() {
                                 )}
                                 {receiptData.paidFromAdvance ? (
                                     <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">{t('paymentHistory.paidFromAdvance', { ref: receiptData.paidFromAdvance })}</p>
+                                ) : receiptData.paidFromDeposit ? (
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">{t('paymentHistory.paidFromDeposit')}</p>
                                 ) : receiptData.advanceMonths > 0 ? (
                                     <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">{t(receiptData.advanceMonths === 1 ? 'paymentHistory.advanceNoteOne' : 'paymentHistory.advanceNoteMany', { n: receiptData.advanceMonths })}</p>
                                 ) : receiptData.paidInAdvance && (

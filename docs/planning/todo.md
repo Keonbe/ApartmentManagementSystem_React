@@ -203,6 +203,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | Move-out settlement records: bills the deposit covers are marked paid from it, a shortfall is billed as a "Move-out balance" invoice, unused advance rent opens its refund request automatically. Done 2026-11-14 (`move_out_settlement.test.js`). Still open: proration, and a way for a former tenant to pay that invoice online. | SPRINT 211 / 73, audit P-04, LI-1 |
 | [x] | 2026-11-14 Complaints (7.7): a `complaints` table and `messages.complaint_id`; the tenant files from the chat widget, the admin works Open / In Review / Resolved in Message Manager. | SPRINT 189 |
 | [x] | 2026-11-14 Emergency contact on the application and Profile; clearer follow-up for a paid applicant who missed the move-in. | SPRINT 186 |
 | [x] | 2026-11-14 Part-payment receipts, en/fil strings for PayBills, Payment History, validation and refund labels, Preview map height. | SPRINT 69, 71, 75, 77 |

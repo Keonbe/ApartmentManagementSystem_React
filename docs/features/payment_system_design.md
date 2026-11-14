@@ -386,6 +386,24 @@ flowchart LR
 | PHP HTTP Client | `cURL` (already available in XAMPP) |
 | SDK | None needed — raw cURL is sufficient for this scale |
 
+## Move-out settlement records (2026-11-14, SPRINT 73)
+
+At a move-out clearance or a contract termination `settle_deposit()` works out deposit + interest − unpaid invoices − deductions, as before. `apply_deposit_to_invoices()` (`backend/config.php`) now writes that result to the ledger in the same transaction. No amount changed.
+
+| Case | Before | Now |
+|---|---|---|
+| The deposit covers an unpaid invoice | Invoice `cancelled`, reason "Settled from deposit" | Invoice `paid`, `payment_method` `Security deposit`, with a `payment_transactions` row of that method (no reference, so it never reads as a reused reference) |
+| The deposit covers part of an invoice | Invoice left open at its full amount, or cancelled when it was still `pending` | `amount_paid` raised by the part; the invoice stays open with the balance |
+| Deductions (damage, utilities, notice rent) the deposit does not reach | Only in `balance_due`, a notification and the activity log | One invoice, `billing_period` `Move-out balance`, due `deposit_refund_days` after the clearance |
+| Prepaid months not reached | Credits `refund-due`, one admin notified | Credits `refund-due` and held on an `advance` refund request that `end_tenancy()` opens |
+
+- Order: the pool pays invoices oldest due date first, then deductions as notice rent, electricity, water, damage, other.
+- Invariant (tested): after a clearance the open invoice balances add up to the reported `balance_due`.
+- Reports: revenue is paid invoices' `total_amount − security_deposit`, so a bill paid from the deposit is counted once, when it is settled (the same pattern as `Advance credit`).
+- Undo: `restore_tenant.php` → `reverse_deposit_application()` reopens those invoices, cancels the balance invoice and the automatic advance refund request; refused once the balance invoice has a payment.
+- Limits: a former tenant cannot open Pay Bills, so the balance invoice is paid at the office and recorded by the admin (cash on a `pending` or `overdue` bill is allowed). Rent is still billed by whole months; proration stays open (SPRINT 73, delimitation DE-10). Move-outs before this change keep their "Settled from deposit" rows.
+- Tests: `tests/api/move_out_settlement.test.js`.
+
 ## Tenant payment screens (2026-11)
 Details in [tenant_pages.md](tenant_pages.md) §4. Pay Bills lays out the statement and the "how to pay" column side by side and offers: manual (GCash / bank with reference and proof), in person (scheduled date, morning / afternoon), online PayMongo checkout, **split payment** (portions kept in `payment_proof_parts` until the admin confirms; each confirmed portion becomes a `payment_transactions` row), partial amounts capped at the balance, **pay all together** (bundle, `BND-` key, one combined receipt) and **pay in advance** (`advance_payment.php`, `advance_credits`). Payment History groups open, paid (by year) and cancelled bills with printable receipts; an open bill with recorded instalments also offers one receipt per portion (`RCT-<invoice>-<payment_transactions.id>`, built client-side from the ledger rows `get_invoices.php` returns, so no extra column). Online payments can be refunded through PayMongo (My Refunds, `refund_requests`).
 

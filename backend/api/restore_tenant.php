@@ -95,6 +95,9 @@ if ($id > 0) {
                 $conn->query("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES ($od_id, " . (int)$admin_id . ", 'admin', 'cancel', 'Tenancy restored: the deposit is held again')");
                 resolve_admin_queue($conn, 'refund_request', $od_id);
             }
+            // The deposit is held again, so the invoices it paid are owed again and
+            // the move-out balance invoice goes (refused once that one has a payment).
+            reverse_deposit_application($conn, (int)$id);
             $ctr_stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active', deposit_status = 'Held', damage_deduction = 0.00, utility_deduction = 0.00, refund_amount = 0.00, refund_date = NULL, termination_reason = NULL, terminated_at = NULL WHERE id = ?");
             $ctr_stmt->bind_param("s", $app['contract_id']);
             $ctr_stmt->execute();
@@ -140,6 +143,24 @@ if ($id > 0) {
             $cr_stmt->execute();
             $credits_reserved = $cr_stmt->affected_rows;
             $cr_stmt->close();
+
+            // The refund request end_tenancy() opened for those months is cancelled
+            // with them (a paid-out one left its credits 'refunded', not
+            // 'refund-due'); a request the tenant raised themselves is left alone.
+            $adv_q = $conn->prepare("SELECT DISTINCT r.id FROM refund_requests r JOIN advance_credits c ON c.refund_request_id = r.id
+                                     WHERE c.rent_application_id = ? AND c.status = 'refund-due' AND r.type = 'advance' AND r.raised_by_role <> 'user'
+                                       AND r.status IN ('Pending Review', 'Info Requested', 'Approved')");
+            $adv_q->bind_param("i", $id);
+            $adv_q->execute();
+            $adv_rows = $adv_q->get_result()->fetch_all(MYSQLI_ASSOC);
+            $adv_q->close();
+            foreach ($adv_rows as $ar) {
+                $ar_id = (int)$ar['id'];
+                $conn->query("UPDATE refund_requests SET status = 'Cancelled' WHERE id = $ar_id");
+                $conn->query("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES ($ar_id, " . (int)$admin_id . ", 'admin', 'cancel', 'Tenancy restored: the prepaid months are in use again')");
+                $conn->query("UPDATE advance_credits SET refund_request_id = NULL WHERE refund_request_id = $ar_id");
+                resolve_admin_queue($conn, 'refund_request', $ar_id);
+            }
 
             $ca_stmt = $conn->prepare("UPDATE advance_credits SET status = 'available' WHERE rent_application_id = ? AND status = 'refund-due'");
             $ca_stmt->bind_param("i", $id);

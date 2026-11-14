@@ -342,17 +342,22 @@ if ($action === 'edit') {
         ]);
         $open_total = $settled ? $settled['open_total'] : 0.0;
 
-        $vacated = end_tenancy($conn, $app_id, 'Contract Terminated');
+        // No deposit settled here (the contract had none to settle): the
+        // deductions are still billed on a move-out balance invoice.
+        $balance_invoice_id = $settled ? $settled['balance_invoice_id'] : null;
+        $balance_invoice_amount = $settled ? $settled['balance_invoice_amount'] : 0.0;
+        if (!$settled) {
+            $unsettled = apply_deposit_to_invoices($conn, $app_id, 0,
+                move_out_deductions_by_category(null, max(0.0, (float)($input['damage_deduction'] ?? 0)), max(0.0, (float)($input['utility_deduction'] ?? 0))), $admin_id);
+            $balance_invoice_id = $unsettled['balance_invoice_id'];
+            $balance_invoice_amount = $unsettled['balance_invoice_amount'];
+        }
+
+        // The deposit already paid the invoices it covers (apply_deposit_to_invoices());
+        // what is still open is owed, so only an unpaid advance-rent invoice is cancelled.
+        $vacated = end_tenancy($conn, $app_id, 'Contract Terminated', 'Good', ['keep_owed' => true, 'actor_id' => $admin_id]);
         if ($vacated === null) {
             throw new Exception("The application behind this contract no longer exists.");
-        }
-        // A deposit that covered what was owed also clears those invoices
-        // (otherwise the tenant would pay them twice: once from the deposit, once again).
-        if ($settled && $settled['balance'] <= 0 && $settled['open_total'] > 0) {
-            $clear = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Settled from deposit' WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
-            $clear->bind_param("i", $app_id);
-            $clear->execute();
-            $clear->close();
         }
 
         $conn->commit();
@@ -361,20 +366,33 @@ if ($action === 'edit') {
             notify_refund_raised($conn, $settled['refund_id'], $settled['refund_amount'], 'a returned security deposit');
             log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$settled['refund_id']}: ₱" . number_format($settled['refund_amount'], 2) . " (security deposit, contract $contract_id)");
         }
+        if ($vacated['advance_refund_id']) {
+            notify_refund_raised($conn, $vacated['advance_refund_id'], $vacated['advance_refund_amount'], 'advance rent not used at move-out');
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$vacated['advance_refund_id']}: ₱" . number_format($vacated['advance_refund_amount'], 2) . " (advance rent, contract $contract_id)");
+        }
         if ($vacated['user_id']) {
             create_notification($conn, $vacated['user_id'], 'contract_update', 'Rent Contract Terminated',
                 "Your rent contract ($contract_id) has been terminated (" . ejectment_ground_label($ground) . "): $reason. Your unit has been marked vacant."
                 . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : "")
-                . ($ground !== 'mutual' ? " If you do not agree, only a court can order you to leave." : ""));
+                . ($settled && $settled['paid_invoices'] ? " Your deposit paid " . count($settled['paid_invoices']) . " unpaid bill(s); see Payment History." : "")
+                . ($vacated['advance_refund_id'] ? " A refund request of ₱" . number_format($vacated['advance_refund_amount'], 2) . " was opened for the advance rent you did not use. Follow it under My Refunds." : "")
+                . ($balance_invoice_id ? " ₱" . number_format($balance_invoice_amount, 2) . " not covered by your deposit is billed as $balance_invoice_id (" . MOVE_OUT_BALANCE_PERIOD . "). Please settle it at the management office." : "")
+                . ($ground !== 'mutual' ? " If you do not agree, only a court can order you to leave." : ""),
+                'Resolved', $balance_invoice_id ? "invoice:$balance_invoice_id" : null);
         }
         $details = "Contract: $contract_id, Ground: " . ejectment_ground_label($ground) . ", Reason: $reason"
             . ($settled ? "; deposit " . $settled['status'] . ($settled['refund_amount'] > 0 ? " (refund ₱" . number_format($settled['refund_amount'], 2) . ")" : "") . ($settled['interest'] > 0 ? " incl. ₱" . number_format($settled['interest'], 2) . " interest" : "") : "")
+            . ($settled && $settled['deposit_applied'] > 0 ? "; ₱" . number_format($settled['deposit_applied'], 2) . " of the deposit paid " . count($settled['paid_invoices']) . " invoice(s) in full" : "")
+            . ($balance_invoice_id ? "; move-out balance invoice $balance_invoice_id ₱" . number_format($balance_invoice_amount, 2) : "")
             . ($open_total > 0 ? "; ₱" . number_format($open_total, 2) . " open at termination" : "")
             . ($vacated['parking_released'] ? "; parking released" : "")
             . ($vacated['visitors_cancelled'] ? "; visitor pre-registrations cancelled" : "");
         log_activity($conn, $admin_id, 'contract', "Terminated Contract & Ended Tenancy", $details);
 
-        echo json_encode(["success" => true, "message" => "Contract terminated and tenancy ended."]);
+        $response = ["success" => true, "message" => "Contract terminated and tenancy ended."];
+        if ($balance_invoice_id) $response["balance_invoice"] = ['id' => $balance_invoice_id, 'amount' => $balance_invoice_amount];
+        if ($vacated['advance_refund_id']) $response["advance_refund"] = ['id' => $vacated['advance_refund_id'], 'amount' => $vacated['advance_refund_amount']];
+        echo json_encode($response);
     } catch (Exception $e) {
         $conn->rollback();
         http_response_code(409);

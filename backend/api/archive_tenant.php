@@ -54,7 +54,7 @@ if ($id > 0) {
         // it), cancels open invoices tagged with this reason, releases
         // parking and cancels pending visitor pre-registrations — the same
         // cleanup ordinary move-out and contract termination do (M3).
-        $vacated = end_tenancy($conn, (int)$id, 'Archived');
+        $vacated = end_tenancy($conn, (int)$id, 'Archived', 'Good', ['actor_id' => $admin_id]);
 
         // Close out any still-active contract so the daily sweep doesn't later
         // send an already-archived tenant a "Lease Contract Expired" notice
@@ -78,6 +78,12 @@ if ($id > 0) {
         log_activity($conn, $admin_id, 'tenant', "Archived Tenant", "Application ID: $id, Reason: $archiveReason" . ($archiveNotes ? ", Notes: $archiveNotes" : "") . ($parking_released ? "; parking released" : "") . ($visitors_cancelled ? "; visitor pre-registrations cancelled" : ""));
 
         $conn->commit();
+        // Prepaid months not reached: the refund request end_tenancy() opened
+        // reaches the admin queue only once the archive is saved.
+        if ($vacated && $vacated['advance_refund_id']) {
+            notify_refund_raised($conn, $vacated['advance_refund_id'], $vacated['advance_refund_amount'], 'advance rent not used at move-out');
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$vacated['advance_refund_id']}: ₱" . number_format($vacated['advance_refund_amount'], 2) . " (advance rent, application #$id)");
+        }
         echo json_encode(["success" => true]);
     } catch (Exception $e) {
         $conn->rollback();

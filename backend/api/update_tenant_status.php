@@ -174,6 +174,8 @@ if ($id > 0 && !empty($status)) {
         }
         $refunds_raised = [];
         $deposit_refund_raised = null;
+        $advance_refund_raised = null;
+        $balance_invoice = ['id' => null, 'amount' => 0.0];
         $settled = null;
 
         $requested_move_out_date = null;
@@ -403,7 +405,7 @@ if ($id > 0 && !empty($status)) {
             $deposit_app = $deposit_pre->get_result()->fetch_assoc() ?: [];
             $deposit_pre->close();
             $settled = settle_deposit($conn, $id, null, [
-                'damage' => $damage_deduction, 'utility' => $utility_deduction, 'kind' => 'move_out',
+                'damage' => $damage_deduction, 'utility' => $utility_deduction, 'deductions' => $deduction_lines, 'kind' => 'move_out',
                 'prior_status' => $current_status,
                 'notice_deduction' => $input['notice_deduction'] ?? null, 'interest' => $input['deposit_interest'] ?? 0,
                 'set_expired' => true, 'waive_reason' => $input['waive_forfeiture_reason'] ?? '',
@@ -412,13 +414,17 @@ if ($id > 0 && !empty($status)) {
             $settled_contract_id = $settled ? $settled['contract_id'] : null;
             if ($settled) {
                 $balance = $settled['balance'];
+                $balance_invoice = ['id' => $settled['balance_invoice_id'], 'amount' => $settled['balance_invoice_amount']];
             } else {
-                // No deposit to settle (never paid, or settled before): everything owed stays owed.
+                // No deposit to settle (never paid, or settled before): everything owed stays
+                // owed, and the deductions are billed on a move-out balance invoice.
                 $open_q = $conn->prepare("SELECT COALESCE(SUM(" . invoice_balance_sql('i') . "), 0) AS open_total FROM invoices i WHERE i.rent_application_id = ? AND " . invoice_owed_where_sql('i'));
                 $open_q->bind_param("i", $id);
                 $open_q->execute();
                 $balance = round((float)$open_q->get_result()->fetch_assoc()['open_total'] + $damage_deduction + $utility_deduction, 2);
                 $open_q->close();
+                $unsettled = apply_deposit_to_invoices($conn, $id, 0, move_out_deductions_by_category($deduction_lines, $damage_deduction, $utility_deduction), $admin_id);
+                $balance_invoice = ['id' => $unsettled['balance_invoice_id'], 'amount' => $unsettled['balance_invoice_amount']];
             }
             if ($settled && $settled['refund_id']) $deposit_refund_raised = ['id' => $settled['refund_id'], 'amount' => $settled['refund_amount']];
 
@@ -442,17 +448,12 @@ if ($id > 0 && !empty($status)) {
                 $notes_stmt->close();
             }
 
-            $vacated = end_tenancy($conn, $id, 'Moved Out', $room_condition);
-
-            // The deposit covers the balance in full: clear whatever end_tenancy()
-            // left open (overdue/processing/payment-failed) instead of leaving a
-            // debt the tenant already paid off through the deposit. Otherwise the
-            // remainder stays due and is reported back to the admin at clearance.
-            if ($balance <= 0) {
-                $clear_stmt = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Settled from deposit' WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
-                $clear_stmt->bind_param("i", $id);
-                $clear_stmt->execute();
-                $clear_stmt->close();
+            // The deposit already paid the invoices it covers (settle_deposit() →
+            // apply_deposit_to_invoices()); whatever is still open is owed, so
+            // end_tenancy() cancels only an unpaid advance-rent invoice.
+            $vacated = end_tenancy($conn, $id, 'Moved Out', $room_condition, ['keep_owed' => true, 'actor_id' => $admin_id]);
+            if ($vacated && $vacated['advance_refund_id']) {
+                $advance_refund_raised = ['id' => $vacated['advance_refund_id'], 'amount' => $vacated['advance_refund_amount']];
             }
 
             if ($vacated && $vacated['user_id']) {
@@ -461,7 +462,11 @@ if ($id > 0 && !empty($status)) {
                     . ($deduction_summary ? " Deductions from your deposit: " . implode("; ", $deduction_summary) . "." : "")
                     . ($settled && $settled['notice_deduction'] > 0 ? " ₱" . number_format($settled['notice_deduction'], 2) . " was deducted as rent for {$settled['notice_days']} day(s) of move-out notice not given." : "")
                     . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit" . ($settled['interest'] > 0 ? " (with ₱" . number_format($settled['interest'], 2) . " interest)" : "") . " will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : "")
-                    . ($balance > 0 ? " An outstanding balance of ₱" . number_format($balance, 2) . " remains after your deposit." : ""));
+                    . ($settled && $settled['paid_invoices'] ? " Your deposit paid " . count($settled['paid_invoices']) . " unpaid bill(s); see Payment History." : "")
+                    . ($advance_refund_raised ? " A refund request of ₱" . number_format($advance_refund_raised['amount'], 2) . " was opened for the advance rent you did not use. Follow it under My Refunds." : "")
+                    . ($balance > 0 ? " An outstanding balance of ₱" . number_format($balance, 2) . " remains after your deposit." : "")
+                    . ($balance_invoice['id'] ? " ₱" . number_format($balance_invoice['amount'], 2) . " of it is billed as {$balance_invoice['id']} (" . MOVE_OUT_BALANCE_PERIOD . "). Please settle it at the management office." : ""),
+                    'Resolved', $balance_invoice['id'] ? "invoice:{$balance_invoice['id']}" : null);
             }
 
             log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance",
@@ -470,7 +475,9 @@ if ($id > 0 && !empty($status)) {
                     . ($settled['notice_deduction'] > 0 ? " (notice deduction ₱" . number_format($settled['notice_deduction'], 2) . ")" : "")
                     . ($settled['interest'] > 0 ? " (interest ₱" . number_format($settled['interest'], 2) . ")" : "") : "")
                 . (trim((string)($input['waive_forfeiture_reason'] ?? '')) !== '' ? "; notice deduction lowered: " . trim((string)$input['waive_forfeiture_reason']) : "")
-                . ($balance > 0 ? "; balance due after deposit: ₱" . number_format($balance, 2) : "; deposit covered the balance in full"));
+                . ($settled && $settled['deposit_applied'] > 0 ? "; ₱" . number_format($settled['deposit_applied'], 2) . " of the deposit paid " . count($settled['paid_invoices']) . " invoice(s) in full" : "")
+                . ($balance > 0 ? "; balance due after deposit: ₱" . number_format($balance, 2) : "; deposit covered the balance in full")
+                . ($balance_invoice['id'] ? "; move-out balance invoice {$balance_invoice['id']} ₱" . number_format($balance_invoice['amount'], 2) : ""));
         } else {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         }
@@ -537,6 +544,10 @@ if ($id > 0 && !empty($status)) {
             notify_refund_raised($conn, $deposit_refund_raised['id'], $deposit_refund_raised['amount'], 'a returned security deposit');
             log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$deposit_refund_raised['id']}: ₱" . number_format($deposit_refund_raised['amount'], 2) . " (security deposit, application #$id)");
         }
+        if ($advance_refund_raised) {
+            notify_refund_raised($conn, $advance_refund_raised['id'], $advance_refund_raised['amount'], 'advance rent not used at move-out');
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$advance_refund_raised['id']}: ₱" . number_format($advance_refund_raised['amount'], 2) . " (advance rent, application #$id)");
+        }
         // Queue the approval email only after the transaction commits. Notification
         // failures must never roll back a completed application approval.
         if (in_array($status, ['Approved', 'Rejected', 'Declined', 'Cancelled'], true) && !empty($tenant_id)) {
@@ -563,6 +574,9 @@ if ($id > 0 && !empty($status)) {
         if ($cancellation_fee_kept > 0) $response["cancellation_fee_kept"] = round($cancellation_fee_kept, 2);
         if ($status === 'moved-out') {
             $response["balance_due"] = $balance > 0 ? round($balance, 2) : 0;
+            if ($balance_invoice['id']) $response["balance_invoice"] = $balance_invoice;
+            if ($settled) $response["invoices_paid_from_deposit"] = count($settled['paid_invoices']);
+            if ($advance_refund_raised) $response["advance_refund"] = $advance_refund_raised;
             if ($settled) {
                 $response["deposit"] = ['status' => $settled['status'], 'refund_amount' => $settled['refund_amount'],
                     'notice_deduction' => $settled['notice_deduction'], 'notice_days' => $settled['notice_days'], 'interest' => $settled['interest']];

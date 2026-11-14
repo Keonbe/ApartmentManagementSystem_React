@@ -260,6 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'period_end' => $covered[1] ?? null,
                 'advance_months' => isset($row['advance_months']) ? (int)$row['advance_months'] : null,
                 'paid_from_advance' => ($row['payment_method'] ?? '') === 'Advance credit',
+                'paid_from_deposit' => ($row['payment_method'] ?? '') === DEPOSIT_PAYMENT_METHOD,
                 'billing_period' => $row['billing_period'] ?? null,
                 'scheduled_date' => $row['scheduled_date'] ?? null,
                 'scheduled_time_slot' => $row['scheduled_time_slot'] ?? null,

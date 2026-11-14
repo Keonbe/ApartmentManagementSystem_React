@@ -1759,9 +1759,12 @@ flowchart TD
     E --> F{"Clearance with no<br/>move-out notice?"}
     F -->|Yes| G["unpaid_rent line: rent for the<br/>notice days (lowered only with a reason)"]
     F -->|No| H
-    G --> H{"pool - deductions - unpaid invoices > 0"}
+    G --> P["apply_deposit_to_invoices():<br/>unpaid invoices paid from the pool, oldest first<br/>(payment row 'Security deposit')"]
+    P --> H{"pool - deductions - unpaid invoices > 0"}
     H -->|Yes| I["deposit refund request<br/>(due in deposit_refund_days)"]
-    H -->|No| D["Applied to Bills/Damages<br/>(balance stays payable)"]
+    H -->|No| D["Applied to Bills/Damages"]
+    D --> Q["Uncovered deductions billed on a<br/>'Move-out balance' invoice;<br/>bills not reached stay owed"]
+    N --> Q
     I --> J["Admin approves and records the payout<br/>deposit_status = Refunded"]
     D --> K["Tenant may ask for a review<br/>(deposit_reviews)"]
     I --> K

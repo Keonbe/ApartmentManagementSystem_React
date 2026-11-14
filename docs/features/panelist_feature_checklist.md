@@ -625,7 +625,7 @@ Source: [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_panel_poli
 
 | # | Limitation | Covered off-system by |
 |---|---|---|
-| LI-1 | The balance left after the deposit at move-out is recorded, not invoiced or collected | Settlement agreed between manager and former tenant (SPRINT 73) |
+| LI-1 | The balance left after the deposit at move-out is invoiced (a *Move-out balance* invoice plus any bill the deposit did not reach, 2026-11-14), but collection is not enforced: a former tenant cannot use Pay Bills and reminders stop after move-out | Paid at the office and recorded by the admin; settlement terms agreed between manager and former tenant |
 | LI-2 | Part-payments are recorded, no installment schedule is enforced | Admin moves due dates as agreed |
 | LI-3 | Refunds are tracked to "Refunded" with method and reference; the payout itself happens in the bank or e-wallet app (PayMongo refunds excepted) | Admin records the reference |
 | LI-4 | Cash payments rely on one admin's confirmation, no second approver | Owner reviews the activity log |

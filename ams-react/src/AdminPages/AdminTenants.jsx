@@ -222,6 +222,9 @@ const AdminTenants = () => {
   // owed and itemized; the rest is always returned.
   const clearanceInterest = clearanceDeposit > 0 ? Math.max(0, money(depositInterest)) : 0;
   const clearanceRemaining = Math.max(0, Math.round((clearanceDeposit + clearanceInterest - deductionTotal - clearanceOwed) * 100) / 100);
+  // The deposit pays the unpaid invoices first; deductions it does not reach
+  // are billed on a "Move-out balance" invoice (apply_deposit_to_invoices()).
+  const clearanceBilled = Math.min(deductionTotal, Math.max(0, Math.round((deductionTotal + clearanceOwed - clearanceDeposit - clearanceInterest) * 100) / 100));
 
   const handleConfirmClearance = async () => {
     if (!clearanceTarget || savingAction) return;
@@ -250,7 +253,14 @@ const AdminTenants = () => {
       });
 
       if (res.data.success) {
-        alert("Move-out clearance completed successfully. Room is now marked vacant.");
+        const peso = (n) => `₱${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        const d = res.data;
+        alert([
+          "Move-out clearance completed successfully. Room is now marked vacant.",
+          d.invoices_paid_from_deposit > 0 ? `${d.invoices_paid_from_deposit} unpaid invoice(s) were paid from the deposit.` : '',
+          d.balance_invoice ? `Move-out balance invoice ${d.balance_invoice.id} for ${peso(d.balance_invoice.amount)} was created.` : '',
+          d.advance_refund ? `A refund request of ${peso(d.advance_refund.amount)} was opened for unused advance rent. See Refunds.` : '',
+        ].filter(Boolean).join('\n'));
         setShowClearanceModal(false);
         setClearanceTarget(null);
         fetchTenants();
@@ -1302,6 +1312,12 @@ const AdminTenants = () => {
                         <span>Less: unpaid invoices</span>
                         <span className="font-semibold">-₱{clearanceOwed.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                       </div>
+                    )}
+                    {clearanceOwed > 0 && clearanceDeposit > 0 && (
+                      <p className="m-0 text-label text-slate-600">Unpaid invoices are marked paid from the deposit, oldest first. Any the deposit does not reach stay owed.</p>
+                    )}
+                    {clearanceBilled > 0 && (
+                      <p className="m-0 text-label font-semibold text-red-600">₱{clearanceBilled.toLocaleString(undefined, { minimumFractionDigits: 2 })} of the deductions will be billed to the tenant as a Move-out balance invoice.</p>
                     )}
                     {clearanceDeposit > 0 && (
                       <div className="rounded-control bg-white border border-indigo-100 p-3 space-y-1.5 mt-1">
