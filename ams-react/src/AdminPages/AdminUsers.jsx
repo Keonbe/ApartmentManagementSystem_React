@@ -363,7 +363,7 @@ const AdminUsers = () => {
                         <td className="px-4 py-3">
                           <RoleBadge role={u.role} />
                         </td>
-                        <td className="px-4 py-3">{renderUserActions(u, 'w-7 h-7', 'justify-end gap-1')}</td>
+                        <td className="px-4 py-3">{renderUserActions(u, 'w-9 h-9', 'justify-end gap-1')}</td>
                       </tr>
                     ))}
                   </tbody>

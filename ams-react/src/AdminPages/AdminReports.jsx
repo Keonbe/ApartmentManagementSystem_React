@@ -619,7 +619,7 @@ const AdminReports = () => {
             
             {/* PRINT-ONLY BUSINESS REPORT HEADER */}
             <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6 text-center">
-              <h1 className="text-2xl font-medium tracking-tight text-slate-900">Apartment Complex Management System</h1>
+              <h2 className="text-2xl font-medium tracking-tight text-slate-900">Apartment Complex Management System</h2>
               <p className="text-sm text-slate-600 mt-1">Official Management Performance & Financial Audit Report</p>
               <div className="grid grid-cols-2 mt-4 text-label text-left text-slate-700 bg-slate-100 p-3 rounded-control">
                 <div>
@@ -1563,7 +1563,7 @@ const AdminReports = () => {
 
                   {/* SVG Line Chart */}
                   <div className="relative h-48 pb-5 pt-3">
-                    <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
+                    <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none" role="img" aria-label="Occupancy rate trend line chart. The figures are in the table below.">
                       {/* Grid Lines */}
                       <line x1="40" y1="20" x2="480" y2="20" stroke="#f1f5f9" strokeWidth="1" />
                       <line x1="40" y1="65" x2="480" y2="65" stroke="#f1f5f9" strokeWidth="1" />
@@ -1642,6 +1642,12 @@ const AdminReports = () => {
                     </div>
                   </div>
 
+                  <table className="sr-only">
+                    <caption>Occupancy rate by period</caption>
+                    <thead><tr><th scope="col">Period</th><th scope="col">Occupancy rate</th></tr></thead>
+                    <tbody>{trendPoints.map((p, i) => <tr key={i}><th scope="row">{p.label}</th><td>{p.occupancyRate ?? 0}%</td></tr>)}</tbody>
+                  </table>
+
                   <div className="flex items-center gap-1.5 mt-2 text-caption text-slate-500 border-t border-slate-50 pt-3">
                     <span className="w-3.5 h-1 bg-emerald-600 inline-block rounded-full"></span> 
                     Active Rent Occupancy Percentage Trend Line
@@ -1660,7 +1666,7 @@ const AdminReports = () => {
                   <div className="flex flex-col sm:flex-row items-center gap-6 py-4 justify-around">
                     {/* Donut Circle */}
                     <div className="relative w-36 h-36 flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
                         <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="8" />
                         {(() => {
                           const total = data.maintenance.total || 1;
@@ -1773,7 +1779,7 @@ const AdminReports = () => {
 
                   <div className="flex flex-col sm:flex-row items-center gap-6 py-4 justify-around">
                     <div className="relative w-36 h-36 flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
                         <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="8" />
                         {(() => {
                           const total = data.reservations.roomApps + data.reservations.parkingCount || 1;
@@ -2647,7 +2653,7 @@ const AdminReports = () => {
                           AMS
                         </div>
                         <div>
-                          <h1 className="text-lg font-medium text-slate-900 tracking-tight m-0">APARTMENT MANAGEMENT SYSTEM</h1>
+                          <h2 className="text-lg font-medium text-slate-900 tracking-tight m-0">APARTMENT MANAGEMENT SYSTEM</h2>
                           <p className="text-label text-slate-600 font-medium m-0">Property Rental & Financial Administration</p>
                         </div>
                       </div>

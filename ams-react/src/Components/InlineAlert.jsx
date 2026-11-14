@@ -17,7 +17,7 @@ export default function InlineAlert({ tone = 'error', children, onDismiss, class
             <FontAwesomeIcon icon={t.icon} className={`mt-0.5 shrink-0 ${t.iconCls}`} aria-hidden="true" />
             <div className="min-w-0 flex-1 leading-relaxed">{children}</div>
             {onDismiss && (
-                <button type="button" onClick={onDismiss} aria-label="Dismiss" className="shrink-0 -m-1 p-1 min-w-[28px] min-h-[28px] bg-transparent border-0 cursor-pointer opacity-70 hover:opacity-100 text-current">
+                <button type="button" onClick={onDismiss} aria-label="Dismiss" className="shrink-0 -m-2.5 p-1 min-w-[44px] min-h-[44px] inline-flex items-center justify-center bg-transparent border-0 cursor-pointer opacity-70 hover:opacity-100 text-current">
                     <FontAwesomeIcon icon={faTimes} />
                 </button>
             )}

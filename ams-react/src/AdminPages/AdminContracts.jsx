@@ -744,8 +744,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                         </td>
                         <td className="py-3 px-4"><span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span></td>
                         <td className="py-3 px-4 text-right">
-                          <button type="button" aria-label={`View contract ${c.id} for ${c.tenant}`} title="View contract" onClick={() => openPreview(c)} className="w-7 h-7 rounded-control text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
-                          <button type="button" aria-label={`Download contract ${c.id} for ${c.tenant} as PDF`} title="Download as PDF" onClick={() => handleDownloadContract(c)} className="w-7 h-7 rounded-control text-slate-500 hover:text-slate-700 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
+                          <button type="button" aria-label={`View contract ${c.id} for ${c.tenant}`} title="View contract" onClick={() => openPreview(c)} className="w-9 h-9 rounded-control text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
+                          <button type="button" aria-label={`Download contract ${c.id} for ${c.tenant} as PDF`} title="Download as PDF" onClick={() => handleDownloadContract(c)} className="w-9 h-9 rounded-control text-slate-500 hover:text-slate-700 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
                         </td>
                       </tr>
                     );

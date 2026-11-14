@@ -275,6 +275,8 @@ export default function ViewContract() {
     return (
         <div className="view-contract-root w-full min-h-[calc(100vh-76px)] bg-slate-100 py-10 px-4 md:px-12 box-border flex flex-col items-center print:bg-white print:py-0 print:px-0">
             
+            <h1 className="sr-only print:hidden">{t('contract.heading')}</h1>
+
             {/* Control Actions Toolbar Bar Panel Layout (Hidden on Print) */}
             <div className="view-contract-controls animate-fade-in w-full max-w-3xl flex flex-wrap justify-between items-center gap-4 mb-6 print:hidden select-none">
                 <button

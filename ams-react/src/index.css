@@ -308,6 +308,14 @@ input.no-spinner {
   outline-offset: 2px;
 }
 
+/* Text fields that took `outline-none` (bare search boxes inside a pill, inline
+   editors) had no focus indication at all. They get the same ring unless they
+   draw their own focus border/ring or use .focus-glow. */
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), textarea):focus-visible:not([class*="focus:ring"]):not([class*="focus:border"]):not([class*="focus-visible:ring"]):not(.focus-glow) {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+
 /* Room under the page content for the floating chat button (fixed bottom-right,
    about 5.5rem tall with its offset), so it never sits on the last rows or the
    last row's actions. Pages scroll in `main > .overflow-y-auto`. */
