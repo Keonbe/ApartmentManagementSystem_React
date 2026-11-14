@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~8 min, 1,726 tests (77 files; run on 2026-11-11)
+npm test           # ~10 min, 1,826 tests (82 files; run on 2026-11-13)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -173,6 +173,18 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | Tests fail only after a crashed run | A stale `ams_test` is harmless: the next run drops and rebuilds it |
 | Failure you want to poke at | `KEEP_TEST_DB=1 npx vitest run <file>`, then query `ams_test` |
 | New migration breaks the build step | The suite builds from `SetupDB.sql`; mirror the migration there (per CLAUDE.md) |
+| `application_lifecycle.test.js` | 8 | Every `rent_applications.status` write goes through `transition_application()` / `archive_application()` / `restore_application()`: locked row, move checked against `APPLICATION_TRANSITIONS`, target columns reset in one guarded update |
+| `balance_rules.test.js` | 4 | "Still owed" is one rule (`invoice_balance_sql`, `invoice_owed_where_sql`): the balance on open bills, never an unpaid advance-rent invoice; reports, tenants list and deposit decision agree |
+| `charge_posting.test.js` | 20 | `post_invoice_charge()` / `reverse_invoice_charge()`: service, maintenance and parking charges claim first, land on the tenant's adjustable invoice for the month, and back out exactly what was posted |
+| `chat_socket.test.js` | 11 | The Socket.IO relay (`websocket-server/server.js`, started as its own process on port 3091 against `ams_test`): refuses no, malformed, unknown, expired or archived-user tokens; sender from the session whatever the payload says (also typing); a third user receives nothing; the `send_message.php` checks and the 2,000-character limit; replies only inside a conversation; a logout ends the sender's access; 20 messages per 10 seconds; no body in the server log (2026-11-13) |
+| `clearance_pending_payment.test.js` | 4 | Move-out clearance and contract termination return 409 while a bill is `pending-verification` or `processing`, change nothing, and go through once it is settled (M3-75, 2026-11-13) |
+| `demo_seed.test.js` | 8 | `seed_demo_full.sql` / `seed_demo_reset.sql`: the demo set loads on a live-style database, every workflow state shows up through the real endpoints, and the reset removes it |
+| `guest_chat_links.test.js` | 11 | Guest inquiry chat: a repeat inquiry never receives an existing conversation's token, one-time "continue" links (`guest_chat_resume.php`), reply emails throttled to one per unseen batch |
+| `input_validation.test.js` | 13 | Per-field validation (`validation_fail`): a refused request answers 422 with every bad field in `errors` keyed by the form's field names, and nothing is written |
+| `maintenance_workflow.test.js` | 10 | Scheduled visit, tenant-visible progress, tenant cancel request on work under way, "not fixed" reopen, the tenant-charge notice |
+| `parking_guards_orphan_cleanup.test.js` | 4 | The parking guard columns refuse overbooking; the cleanup migration removes only rows whose invoice is gone |
+| `profile_avatar.test.js` | 5 | `profile.php` avatar upload: JPG, PNG and WEBP only; animated GIFs refused by extension and by content |
+| `service_workflow.test.js` | 25 | Add-on services: booking validation, the confirmed visit, tenant-visible progress, free cancel vs cancel request, the final-quantity adjustment at completion |
 
 ## 8. CI
 

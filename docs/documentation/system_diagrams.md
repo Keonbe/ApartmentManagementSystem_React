@@ -120,6 +120,8 @@ erDiagram
         tinyint sms_opt_out
         tinyint email_opt_out
         datetime sms_consent_at
+        datetime terms_agreed_at
+        varchar terms_version
         varchar gender
         varchar email_address UK
         varchar password "bcrypt hash"

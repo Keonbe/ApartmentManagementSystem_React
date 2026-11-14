@@ -20,7 +20,7 @@ function email_verification_enabled($conn) {
 // Records this sign-in on users.last_login_at and says whether it was the
 // account's first (the column was NULL). The NULL check and the stamp are one
 // UPDATE, so two sign-ins at once cannot both count as the first. A server
-// without the 2026_11_last_login migration yet treats every sign-in as a
+// without the 2026_11_workstream migration yet treats every sign-in as a
 // return visit instead of failing it.
 function record_sign_in($conn, $userId) {
     $userId = (int)$userId;
@@ -48,7 +48,7 @@ function login_otp_globally_enabled($conn) {
 function login_needs_device_code($conn, $userId) {
     $mode = 'default';
     // Read on its own and guarded: a server that has not run the
-    // 2026_11_login_otp_controls migration yet keeps asking as before instead
+    // 2026_11_workstream migration yet keeps asking as before instead
     // of failing every sign-in on an unknown column.
     try {
         $stmt = $conn->prepare('SELECT login_otp_mode FROM users WHERE id = ?');

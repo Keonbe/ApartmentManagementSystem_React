@@ -352,7 +352,7 @@ flowchart LR
 |---|---|
 | PayMongo secret key exposure | Stored server-side only; never sent to frontend |
 | Webhook spoofing | Verify `paymongo-signature` header using webhook secret |
-| Double payment | Check invoice status before creating checkout session; idempotent webhook handler |
+| Double payment | The bill is claimed (`processing`) before a checkout session opens; the webhook handler is idempotent. A paid event for a bill that is already paid, including one paid at the desk after its checkout was released (no stored PayMongo payment id), opens one `online_payment` refund request per payment id instead of being dropped (2026-11-13, `paymongo_webhook.php`, test M3-74) |
 | Sandbox → Production confusion | `payment_gateway` column tracks environment; admin UI clearly labels "TEST MODE" |
 | API key storage | Keys in `system_settings` table, accessible only via admin-guarded endpoints |
 

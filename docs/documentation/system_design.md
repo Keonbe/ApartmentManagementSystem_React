@@ -55,6 +55,20 @@ AMS has two main actor roles:
 | **Tenant (User)** | Protected user portal | `/services`, `/my-room`, `/pay-bills`, etc. |
 | **Administrator** | Admin panel | `/admin-dashboard`, `/admin-*` |
 
+### 1.1 Contribution and novelty
+
+AMS does not claim a new technique. Its contribution is a set of rules that a small property needs and that general property-management products leave to the manager, fitted to the workflow described in the manager interview ([manager_interview_comparison.md](../features/manager_interview_comparison.md)). Each is in the code and has tests; none is claimed beyond what is listed.
+
+| # | What is distinctive | How it works | Evidence |
+|---|---|---|---|
+| 1 | **A guest's inquiry chat continues into the tenant's account.** A signed-out visitor chats with the office, and after sign-up the same conversation becomes the tenant's. | A guest thread has a private token and one-time e-mailed resume links (the token is never put in a URL). On sign-in `adopt_guest_chat()` moves the thread into `messages`. | `guest_chat.php`, `guest_chat_resume.php`, [chat_design.md](../features/chat_design.md); `tests/api/guest_chat*.test.js` |
+| 2 | **A reused payment reference is caught.** The same GCash, bank or QR reference cannot quietly settle two bills. | References are normalized, stored in an indexed column and compared per payment channel under a lock; the admin sees a warning or a block, set by `duplicate_reference_policy`. | `find_reference_reuse()`, `payment_double_submitted()` in `backend/config.php`; `tests/api/reference_reuse.test.js` |
+| 3 | **One balance rule everywhere.** What a tenant still owes is the same number on every screen, report and the deposit settlement. | All comparisons use integer centavos through `invoice_balance_cents()` and one SQL fragment for "still owed". | `backend/config.php`; `ams-react/src/utils/invoiceBalance.js`; `tests/api/balance_rules.test.js` |
+| 4 | **The deposit is settled by itemized lines, and the tenant can contest them.** | Unpaid rent, damage and utilities are separate lines; under RA 9653 Sec. 7 nothing else is kept except rent for unserved notice days (lowered only with a reason), and the rest is returned with any bank interest; the tenant can request one review within a set time. | `settle_deposit()`, `deposit_deductions`, `deposit_reviews`; `tests/api/deposit_*.test.js` |
+| 5 | **Prepaid rent is a ledger, not a note.** A tenant can pay months ahead; each month is used as it comes due, and months not reached are returned at move-out. | `advance_credits` rows move from reserved to used or refund-due, and unpaid advances lapse. | `advance_payment.php`, `end_tenancy()`; `tests/api/invoice_refund.test.js` (advance credits at move-out) |
+
+What AMS does **not** claim: new cryptography, a new payment protocol, accounting or tax software, or support for more than one property. See [panel_policy_gap_audit](../audits/2026-11-12_panel_policy_gap_audit.md) Part B for the stated limits.
+
 ---
 
 ## 2. Database — Entity Relationship Diagram

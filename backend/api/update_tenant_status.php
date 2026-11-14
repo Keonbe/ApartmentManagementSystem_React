@@ -139,6 +139,16 @@ if ($id > 0 && !empty($status)) {
             exit;
         }
 
+        // A payment still under review would be charged to the deposit and then
+        // cancelled by end_tenancy(); the admin settles it first.
+        if ($status === 'moved-out' && ($in_review = tenancy_payment_in_review($conn, (int)$id))) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => $in_review]);
+            $conn->rollback();
+            $conn->close();
+            exit;
+        }
+
         // Money paid on an approved application that management rejects or cancels goes
         // back through Refunds. A rejection is refunded in full. A cancellation opens the
         // same cancellation refund request as the tenant's own (request_application_cancellation.php),

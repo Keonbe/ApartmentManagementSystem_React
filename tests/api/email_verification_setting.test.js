@@ -13,7 +13,7 @@ let admin;
 const post = (json, token = admin) => api('login_otp_settings.php', { token, json });
 const signIn = (email, password) => api('login.php', { json: { email_address: email, password } });
 const register = (email) => api('registration.php', { json: {
-  first_name: 'Vera', last_name: 'Fication', email_address: email, password: 'Tenant#1234', conPassword: 'Tenant#1234',
+  first_name: 'Vera', last_name: 'Fication', email_address: email, password: 'Tenant#1234', conPassword: 'Tenant#1234', agree_terms: true,
 } });
 
 beforeAll(async () => {

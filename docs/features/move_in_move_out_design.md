@@ -85,6 +85,10 @@ A tenant requesting to end their lease triggers a workflow that flags their inte
               ▼
    3. COMPLETE MOVE-OUT (ADMIN)
    Admin clicks "Complete Move Out" & submits Move-Out Clearance Modal in AdminTenants.jsx
+   ├── refused (409) while an invoice is 'pending-verification' (a proof waiting) or 'processing'
+   │   (an online checkout open): verify or reject it first, so a payment under review is never
+   │   charged to the deposit and then cancelled (tenancy_payment_in_review(); contract
+   │   termination has the same guard)
    ├── room status changes: Occupied -> Vacant (tenant_name cleared, last_tenant logged)
    ├── tenant status changes: pending-move-out -> moved-out
    ├── clearance breakdown stored in archive_notes & audit activity logs

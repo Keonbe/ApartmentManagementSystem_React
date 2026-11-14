@@ -224,13 +224,15 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         // not rewrite the row.
         if ($inv_row['status'] === 'paid' && $status === 'paid') {
             // A different payment on a bill that is already paid is a double
-            // payment; the same payment again is just PayMongo retrying.
+            // payment; the same payment again is just PayMongo retrying. A bill
+            // paid at the desk has no stored PayMongo payment, so any online
+            // payment on it is a double payment too (raised once per payment id).
             $stored = $conn->prepare("SELECT paymongo_payment_id FROM invoices WHERE ? IN (id, payment_group) AND paymongo_payment_id IS NOT NULL LIMIT 1");
             $stored->bind_param("s", $invoice_id);
             $stored->execute();
             $stored_payment = $stored->get_result()->fetch_assoc()['paymongo_payment_id'] ?? null;
             $stored->close();
-            if ($stored_payment && $payment_id && $stored_payment !== $payment_id) {
+            if ($payment_id && $stored_payment !== $payment_id) {
                 raise_unapplied_payment($conn, $payment_id, $paid_centavos, $inv_row['user_id'], $invoice_id, "the bill was already paid");
             }
             http_response_code(200);

@@ -170,6 +170,7 @@ Creates a new tenant user account.
 | `email_address` | string | ✅ |
 | `password` | string | ✅ |
 | `conPassword` | string | ✅ |
+| `agree_terms` | boolean | ✅ must be `true` (RA 10173: agreement to the Terms and the Privacy Notice). Refused with "You must agree to the Terms and the Privacy Notice to create an account." before the rate limit is used. Stored as `users.terms_agreed_at` (now) and `users.terms_version` (`TERMS_VERSION` in `registration.php`, the "Last updated" date of `legalContent.js`; `2026-11-03`). Accounts created before 2026-11-13 have `NULL` in both |
 
 ---
 
@@ -334,6 +335,7 @@ Admin endpoint for the full tenant lifecycle — approve, reject, schedule move-
 |----------|--------|
 | **Auth** | `require_admin()` |
 | **Allowed Statuses** | `Approved`, `Rejected`, `Declined`, `pending-move-out`, `moved-out` |
+| **Clearance guard (2026-11-13)** | `moved-out` returns **409** while one of the tenant's invoices is `pending-verification` (a proof waiting for the admin) or `processing` (an online checkout in progress), naming the invoice: "Invoice X has a payment under verification. Verify or reject it in Payments first, then try again." Checked by `tenancy_payment_in_review()` before the deposit is settled, so a bill is never charged to the deposit and then cancelled. `update_contract_status.php` `terminate` returns the same 409. |
 
 **On Approval (`Approved`):**
 1. Validates documents + terms agreement exist
@@ -1178,7 +1180,7 @@ Endpoints added or split out after the modules above were written (verified agai
 
 | Endpoint | Auth | Request | Response / errors | Effects |
 |---|---|---|---|---|
-| `POST` [send_message.php](../../backend/api/send_message.php) (`save_message.php` just includes it) | signed-in session (no role check; see security_audit CH-3) | `receiver_id`, `message`, `reply_to_id`, `attachment` (JPG/PNG/GIF/WEBP 10 MB, MP4/WEBM/MOV 25 MB) | `{message{...}}`; 400; 404; 413; 415 | `messages`; log `chat`. Realtime delivery is the Socket.IO sidecar's job |
+| `POST` [send_message.php](../../backend/api/send_message.php) (`save_message.php` just includes it) | signed-in session (no role check; see security_audit CH-3) | `receiver_id`, `message`, `reply_to_id`, `attachment` (JPG/PNG/GIF/WEBP 10 MB, MP4/WEBM/MOV 25 MB) | `{message{...}}`; 400 (including a message over 2,000 characters, the same limit as the socket); 404; 413; 415 | `messages`; log `chat`. Realtime delivery is the Socket.IO sidecar's job; the sidecar authenticates the session token on connect and applies the same checks (see chat_design.md "Security") |
 | `GET` [get_chat_history.php](../../backend/api/get_chat_history.php) | signed-in session | `other_user_id`, `mark_as_read` | `{messages[]}`; 400; 401 | optionally marks received messages read |
 | `GET` [get_conversations.php](../../backend/api/get_conversations.php) | signed-in session | `search` | `{conversations[]}` with last message, `unread_count`, `is_active_tenant` and `archived` (not renting now (`active` / `pending-move-out` / `approved`), not an admin, and no message for 6 months) | none |
 | `GET` [get_admin_user.php](../../backend/api/get_admin_user.php) | signed-in session | - | `{user}` (lowest-id admin); 404 | none |
@@ -1222,7 +1224,7 @@ Behaviour that the sections above no longer describe fully. The code wins; endpo
 | pay_bill.php | A non-cash method needs a proof already stored by `upload_payment_proof.php` (422 otherwise). "In-Person Payment" is stored as `Cash on Hand`. `invoiceId` may be an advance-payment group id. A cash declaration queues an admin item. |
 | upload_payment_proof.php | Also takes `amount` (instalment, checked against the balance), `bank_name` (required for bank methods) and `sender_name`; the proof file is required. Tenants get 403 when pay-bills is off, `payment_mode` is `sandbox` or the channel is off. |
 | create_checkout_session.php | Body `{invoice_id, channel}`; channels `gcash`, `gcash_sandbox`, `paymaya`, `maya`, `bank`, `bank_sandbox`, `card`; `invoice_id` may be an advance group id. |
-| paymongo_webhook.php | Authenticated by the `Paymongo-Signature` header (HMAC-SHA256 over `t.payload`, 300 s freshness; 400 / 401 / 500 on failure). Handles `checkout_session.payment.paid` (settles any open, non-paid invoice), `payment.failed` (`processing` -> `payment-failed`, tenant notified) and refund events (`refund_requests.gateway_status`). An amount mismatch goes to `pending-verification` with an admin queue item; stale or cancelled payments call `raise_unapplied_payment`. |
+| paymongo_webhook.php | Authenticated by the `Paymongo-Signature` header (HMAC-SHA256 over `t.payload`, 300 s freshness; 400 / 401 / 500 on failure). Handles `checkout_session.payment.paid` (settles any open, non-paid invoice), `payment.failed` (`processing` -> `payment-failed`, tenant notified) and refund events (`refund_requests.gateway_status`). An amount mismatch goes to `pending-verification` with an admin queue item; stale or cancelled payments call `raise_unapplied_payment`, and so does a paid event on a bill that is already paid with no stored PayMongo payment (a bill paid at the desk: one refund request per payment id, 2026-11-13). |
 | service_request.php | Fields `serviceId`, `preferredDate` (<= `SERVICE_MAX_ADVANCE_DAYS`), `preferredTimeSlot` (morning / afternoon), `quantity` (whole for `item`, 1 for `session`), `notes`, optional `uploadedFile` (JPG/PNG/GIF/WEBP/PDF). Needs an active tenancy (403), a duplicate booking is 409, a full slot is 409, a disabled category blocks the booking. |
 | maintenance_request.php | File field `uploadedFile`; 403 when `service_maintenance_active` is off or the tenant has no active tenancy; response includes `id`. |
 | cancel_request.php | Body `{id, type}` with `type` Maintenance, CCTV, Parking or Service. Only `Pending` rows cancel directly; an `In Progress` maintenance ticket and a service that is not free to cancel become a cancel request (`requested:true`). |

@@ -52,3 +52,7 @@ tests/api/.test-cache/
 # npm dependencies (install with npm install) and the stray uploaded slot QR photo
 node_modules/
 backend/qr_codes/*.jpg
+/docs/audits/2026-11-10_iso25010_evidence_map.md
+/docs/audits/2026-11-10_real_world_test_guide.md
+/docs/audits/2026-11-10_ui_ux_heuristic_audit.md
+/docs/audits/2026-11-12_panel_policy_gap_audit.md

@@ -988,6 +988,21 @@ function release_application_holds($conn, $app_id, $user_id, $cancel_reason, arr
 // 'user_id' => ?int, 'invoices_cancelled' => int, 'advance_refund_due' => float,
 // 'parking_released' => int,
 // 'visitors_cancelled' => int].
+function tenancy_payment_in_review($conn, $app_id) {
+    // A proof waiting for the admin, or an online checkout still open, is money
+    // the tenant may already have paid. Clearing or terminating now would take
+    // that bill from the deposit and then cancel it, so the caller refuses until
+    // the admin has verified or rejected it (audit P-05).
+    $stmt = $conn->prepare("SELECT id, status FROM invoices WHERE rent_application_id = ? AND status IN ('pending-verification', 'processing') ORDER BY id LIMIT 1");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) return null;
+    $why = $row['status'] === 'processing' ? 'has an online payment in progress' : 'has a payment under verification';
+    return 'Invoice ' . $row['id'] . ' ' . $why . '. Verify or reject it in Payments first, then try again.';
+}
+
 function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
     $stmt = $conn->prepare("SELECT first_name, last_name, suffix, room_name, user_id FROM rent_applications WHERE id = ?");
     $stmt->bind_param("i", $app_id);

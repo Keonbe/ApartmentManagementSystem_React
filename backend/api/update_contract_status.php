@@ -304,6 +304,14 @@ if ($action === 'edit') {
 
     $app_id = (int)$contract['rent_application_id'];
 
+    // A payment still under review would be charged to the deposit and then
+    // cancelled by end_tenancy(); the admin settles it first.
+    if ($in_review = tenancy_payment_in_review($conn, $app_id)) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => $in_review]);
+        exit;
+    }
+
     $conn->begin_transaction();
     try {
         // Not closed here — the shared cleanup at the bottom of the file

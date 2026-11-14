@@ -41,6 +41,13 @@ if ($sender_id === $receiver_id) {
     exit;
 }
 
+// Keep equal to MAX_MESSAGE_LENGTH in websocket-server/server.js.
+if (mb_strlen($message) > 2000) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => "Messages can be up to 2000 characters."]);
+    exit;
+}
+
 try {
     // Check both people and the reply target before anything is written to disk,
     // so a refused message never leaves an orphaned attachment behind.

@@ -259,7 +259,7 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
 - **Frontend:** React 19, React Router 7, Axios, Tailwind CSS 4, Font Awesome, socket.io-client.
 - **Backend:** PHP 8 REST endpoints (no framework), MySQLi prepared statements for all request input.
 - **Chat server:** Node.js with Express 5, Socket.IO 4 and mysql2 ([websocket-server/](websocket-server)).
-- **Quality:** Vitest API suite (~390 tests) plus CI: ESLint + production build, PHP syntax checks and PHPStan, schema/seed/migration validation on MariaDB, and a live-endpoint smoke test ([ci.yml](.github/workflows/ci.yml)).
+- **Quality:** Vitest API suite (1,826 tests in 82 files; see docs/documentation/api_testing.md) plus CI: ESLint + production build, PHP syntax checks and PHPStan, schema/seed/migration validation on MariaDB, and a live-endpoint smoke test ([ci.yml](.github/workflows/ci.yml)).
 - **Auth:** login issues a session token stored in the `sessions` table. The frontend sends it as `Authorization: Bearer …`, and `require_admin()` / `require_user()` / `require_owner_or_admin()` resolve identity from it; client-sent identity headers are overwritten. A 401 signs the user out.
 - **Uploads:** extension + MIME allowlists; private files are served only through `download_file.php`.
 - **Audit logging:** `log_activity()` into `activity_logs` for every write.

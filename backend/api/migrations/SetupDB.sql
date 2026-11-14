@@ -472,6 +472,8 @@ CREATE TABLE `users` (
   `sms_opt_out` tinyint(1) NOT NULL DEFAULT 0,
   `email_opt_out` tinyint(1) NOT NULL DEFAULT 0,
   `sms_consent_at` datetime DEFAULT NULL,
+  `terms_agreed_at` datetime DEFAULT NULL,
+  `terms_version` varchar(20) DEFAULT NULL,
   `gender` varchar(20) DEFAULT NULL,
   `email_address` varchar(190) NOT NULL,
   `password` varchar(200) NOT NULL,

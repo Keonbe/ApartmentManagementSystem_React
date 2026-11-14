@@ -648,3 +648,18 @@ WHERE `setting_key` = 'late_fee_value'
   AND CAST(`setting_value` AS DECIMAL(10,2)) > 5;
 
 
+-- ===== 2026_11_registration_consent.sql =====
+-- Registration consent (RA 10173), 2026-11-13.
+--   users.terms_agreed_at  when the person ticked the Terms and Privacy Notice box
+--   users.terms_version    the version of those texts they agreed to (the
+--                          "Last updated" date of ams-react/src/config/legalContent.js)
+-- Accounts created before this have NULL in both.
+-- Idempotent; guarded for production (MySQL 8, one statement at a time).
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'terms_agreed_at') = 0,
+  'ALTER TABLE `users` ADD COLUMN `terms_agreed_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'terms_version') = 0,
+  'ALTER TABLE `users` ADD COLUMN `terms_version` varchar(20) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;

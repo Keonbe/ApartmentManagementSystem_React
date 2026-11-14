@@ -24,12 +24,12 @@ try {
     $find->execute(); $thread = $find->get_result()->fetch_assoc(); $find->close();
     if (!$thread) { http_response_code(404); echo json_encode(['success'=>false,'message'=>'Conversation not found']); exit; }
 
-    // "Did this answer your question?" (2026_11_guest_chat_resolution.sql).
+    // "Did this answer your question?" (2026_11_workstream.sql).
     // The admin asks with action=resolution_check once they have replied; the
     // guest answers it with action=resolution_answer (resolved / not_yet). The
     // widget offers "End chat on this device" only after a resolved answer.
     $action = (string)($body['action'] ?? '');
-    // An ended chat (action=end_chat, 2026_11_guest_chat_end.sql) stays readable
+    // An ended chat (action=end_chat, 2026_11_workstream.sql) stays readable
     // on the guest's device, but nobody can send, ask or answer in it any more.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($thread['guest_chat_ended_at'])) {
         http_response_code(409); echo json_encode(['success'=>false,'message'=>'This chat has ended.']); exit;

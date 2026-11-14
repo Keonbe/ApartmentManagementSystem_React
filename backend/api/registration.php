@@ -37,6 +37,15 @@ if (mb_strlen($email_address) > 190) fail("Email address must be 190 characters 
 if ($pw_error = password_policy_error($password)) fail($pw_error);
 if ($password !== $confirmPass) fail("Confirmed password does not match");
 
+// RA 10173: the person must agree to the Terms and the Privacy Notice, and the
+// version they agreed to is stored. Bump TERMS_VERSION with the "Last updated"
+// date in ams-react/src/config/legalContent.js. Checked before the rate limit
+// so a refused form does not use up an attempt.
+const TERMS_VERSION = '2026-11-03';
+if (!filter_var($input["agree_terms"] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+    fail("You must agree to the Terms and the Privacy Notice to create an account.");
+}
+
 // Audit M13: at most REGISTRATION_MAX_PER_IP attempts per IP per window. Every
 // attempt that reaches the email check counts, so the form can't be used to
 // test many addresses for an existing account either.
@@ -62,8 +71,9 @@ $verification_token = $needs_verification ? bin2hex(random_bytes(32)) : null;
 $verified_sql = $needs_verification ? 'NULL' : 'NOW()';
 
 // No role column is written: every self-registered account is a tenant ('user' default).
-$stmt = $conn->prepare("INSERT INTO users (first_name, middle_name, last_name, suffix, email_address, password, verification_token, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, $verified_sql)");
-$stmt->bind_param("sssssss", $first_name, $middle_name, $last_name, $suffix, $email_address, $hashed_password, $verification_token);
+$terms_version = TERMS_VERSION;
+$stmt = $conn->prepare("INSERT INTO users (first_name, middle_name, last_name, suffix, email_address, password, verification_token, email_verified_at, terms_agreed_at, terms_version) VALUES (?, ?, ?, ?, ?, ?, ?, $verified_sql, NOW(), ?)");
+$stmt->bind_param("ssssssss", $first_name, $middle_name, $last_name, $suffix, $email_address, $hashed_password, $verification_token, $terms_version);
 
 if ($stmt->execute()) {
     $new_user_id = (int)$stmt->insert_id;

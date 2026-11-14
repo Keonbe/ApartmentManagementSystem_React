@@ -59,7 +59,7 @@ $expectedColumns = [
     'house_rules' => ['title_fil', 'description_fil', 'scope'],
     'household_members' => ['age', 'age_category'],
     'notification_log' => ['provider_message_id', 'provider_status'],
-    'users' => ['sms_consent_at'],
+    'users' => ['sms_consent_at', 'terms_agreed_at', 'terms_version'],
 ];
 
 try {

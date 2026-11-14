@@ -484,7 +484,7 @@ flowchart TD
 
 > Related Docs: [chat_design.md](chat_design.md) (read its "As built" section)
 >
-> ⚠️ The Socket.IO server does not authenticate connections yet — see [security_audit.md §6e](../audits/security_audit.md) CH-1.
+> The Socket.IO server authenticates connections since 2026-11-13 (session token on connect, sender from the session; see [chat_design.md](chat_design.md) "Security" and [security_audit.md §6e](../audits/security_audit.md) CH-1). Any signed-in user can still message any other (CH-3, SPRINT 167).
 
 - [ ] **7.1 Admin → Tenant Messaging** 🔧 — Admin replies from the `/admin-messages` inbox (`AdminMessages.jsx`, socket or `send_message.php`); cannot yet start a thread with a tenant who hasn't written first
 - [x] **7.2 Tenant → Admin Messaging** ✅ — `ChatWidget.jsx` "support chat" opens the admin thread (`get_admin_user.php`), live over Socket.IO with HTTP fallback

@@ -32,6 +32,8 @@ erDiagram
         tinyint sms_opt_out
         tinyint email_opt_out
         datetime sms_consent_at
+        datetime terms_agreed_at
+        varchar terms_version
         datetime email_verified_at
         varchar verification_token
         varchar login_otp
@@ -918,8 +920,9 @@ Columns added since the first version of this document. Types are in the ER diag
 | `maintenance_requests.acknowledged_at`, `started_at`, `resolved_at` | Timestamps for leaving Pending, first move to In Progress (kept on reopen) and move to Completed (cleared when leaving Completed). |
 | `maintenance_requests.rejection_reason` | Required (422) when an admin sets Rejected. |
 | `maintenance_requests.reopen_reason` | Set by `reopen_maintenance_request.php` when a tenant says a Completed, not-yet-invoiced ticket is not fixed; the ticket returns to In Progress. |
+| `users.terms_agreed_at`, `terms_version` | Consent at sign-up (RA 10173, migration section `registration_consent` in `2026_11_workstream.sql`): `registration.php` requires `agree_terms` and stores the time and the version of the Terms and Privacy Notice (`TERMS_VERSION`, the "Last updated" date in `legalContent.js`). `NULL` for accounts created earlier. |
 | `users.email_verified_at`, `verification_token` | Sign-up e-mail check: `registration.php` stores a random 64-hex token and e-mails the link; `verify_email.php` sets `email_verified_at` and clears the token; `login.php` refuses sign-in while it is NULL. The token has no expiry. The `system_settings` row `email_verification_enabled` (`'1'` default, missing = on) switches the check off: sign-up then sets `email_verified_at` at once with no token, and an account still NULL can sign in. |
-| `users.login_otp`, `login_otp_expires_at`, `login_otp_attempts` | The 6-digit sign-in code for an untrusted device (plain text, valid 15 minutes, locked after 3 wrong tries, cleared on success). `login_otp_mode` (`default` / `on` / `off`, `2026_11_login_otp_controls.sql`) and the `login_otp_enabled` setting decide who is asked. Admins and `demo.example` accounts outside production are never asked. |
+| `users.login_otp`, `login_otp_expires_at`, `login_otp_attempts` | The 6-digit sign-in code for an untrusted device (plain text, valid 15 minutes, locked after 3 wrong tries, cleared on success). `login_otp_mode` (`default` / `on` / `off`, `2026_11_workstream.sql`) and the `login_otp_enabled` setting decide who is asked. Admins and `demo.example` accounts outside production are never asked. |
 | `trusted_devices` | A device that passed the code: `user_id` (FK, cascade), `device_token` (SHA-256 of the `ams_trusted_device` cookie, unique), `user_agent`, `ip_address`, `created_at`, `last_used_at`. The only expiry is the 1-year cookie; there is no purge or revoke endpoint. |
 | `rent_applications.terms_agreed_at` | When the applicant accepted the Terms (set on submit / resubmit, or by an admin assigning a tenant directly); approval is blocked while empty. |
 | `rent_applications.preferred_move_in_date`, `move_in_date`, `move_in_notified_at` | The applicant's requested date (NULL = ASAP), the date the admin confirms with `schedule_move_in.php` (today to +365 days, used as `lease_start` at move-in) and when the tenant was told. |

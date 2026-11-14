@@ -1,6 +1,6 @@
 # QA gap audit: QA reference manual vs AMS tests
 
-Audit date: 2026-11-06. Scope: the INP input matrix (§4), API checks (§3D), database checks (§3E) and security checks (§3F) of the QA Reference Manual, compared with `tests/api` (49 files, ~514 tests) and `module_verification_guide.md` (`M<module>-NN` IDs).
+Audit date: 2026-11-06. Scope: the INP input matrix (§4), API checks (§3D), database checks (§3E) and security checks (§3F) of the QA Reference Manual, compared with `tests/api` as it was then (49 files, ~514 tests; 82 files and 1,826 tests on 2026-11-13, see [api_testing.md](api_testing.md)) and `module_verification_guide.md` (`M<module>-NN` IDs).
 
 **Method and limits.** Status comes from grep and name matching, plus targeted reads. "Covered" means a test exists, not that it is exhaustive. Rows marked *unverified* still need a read of the test bodies before anyone relies on them. Gap rows were re-checked by grepping `tests/api` for the endpoint name.
 

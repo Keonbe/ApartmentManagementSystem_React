@@ -366,6 +366,11 @@ jobs:
         working-directory: tests/api
         run: npm ci
 
+      # chat_socket.test.js starts websocket-server/server.js as its own process.
+      - name: Install chat server dependencies
+        working-directory: websocket-server
+        run: npm ci
+
       - name: Run API integration tests
         working-directory: tests/api
         run: npm test

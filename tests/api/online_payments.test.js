@@ -87,6 +87,21 @@ describe('a collected payment AMS cannot apply becomes a refund request', () => 
     expect((await row('INV-OP-TWICE')).paymongo_payment_id).toBe('pay_op_first');
   });
 
+  it('M3-74 a late online payment on a bill paid at the desk → one refund request, bill untouched', async () => {
+    await addInvoice('INV-OP-LATE', { amount: 1500, status: 'paid', sessionId: 'cs_op_late', intentId: 'pi_op_late' });
+    await q("UPDATE invoices SET payment_method = 'cash', paid_at = NOW() WHERE id = 'INV-OP-LATE'");
+    const late = paidEvent({ sessionId: 'cs_op_late', invoiceId: 'INV-OP-LATE', amountCentavos: 150000, paymentId: 'pay_op_late' });
+    expect((await sendWebhook(late)).body).toMatchObject({ message: 'Already recorded' });
+    await sendWebhook(late); // PayMongo retries: still one request
+    const rows = await unapplied('pay_op_late');
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0].amount)).toBe(1500);
+    const inv = await row('INV-OP-LATE');
+    expect(inv.status).toBe('paid');
+    expect(inv.payment_method).toBe('cash');
+    expect(inv.paymongo_payment_id).toBeNull();
+  });
+
   it('M3-66 an event for an invoice AMS never had is ignored', async () => {
     await sendWebhook(paidEvent({ sessionId: 'cs_x', invoiceId: 'INV-NOPE', amountCentavos: 150000, paymentId: 'pay_op_nope' }));
     expect(await unapplied('pay_op_nope')).toHaveLength(0);

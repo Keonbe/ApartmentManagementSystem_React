@@ -1051,6 +1051,8 @@ Automated in `tests/api/online_payments.test.js` (webhook events signed locally;
 | M3-71 | `online_payment` request | Refunded from its own `paymongo_payment_id` |
 | M3-72 | `get_refund_requests.php` (admin) | `canRefundOnline` true only when a PayMongo payment exists |
 | M3-73 | `payment.refund.updated` succeeded, retry, then failed | Status follows; repeat changes nothing; failed → one admin alert |
+| M3-74 | Signed paid event for a bill already paid at the desk (`payment_method` cash, no stored `pay_…` id), sent twice | `200 "Already recorded"`; exactly one `online_payment` refund request for that payment id; the bill stays `paid` by cash (2026-11-13) |
+| M3-75 | Move-out clearance or contract termination while a bill is `pending-verification` or `processing` (`tests/api/clearance_pending_payment.test.js`) | `409` naming the invoice; application and contract unchanged; after the bill is settled or cancelled the action goes through (2026-11-13) |
 
 ---
 

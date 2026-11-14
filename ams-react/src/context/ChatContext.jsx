@@ -33,6 +33,9 @@ export const ChatProvider = ({ children }) => {
 
         const socket = io(CHAT_SOCKET_URL, {
             transports: ['websocket'],
+            // The server only accepts a live session. Read on every (re)connect
+            // so a fresh sign-in is picked up.
+            auth: (cb) => cb({ token: sessionStorage.getItem('sessionToken') || localStorage.getItem('sessionToken') || '' }),
             autoConnect: true,
             reconnection: true,
             reconnectionAttempts: 5,
@@ -41,8 +44,8 @@ export const ChatProvider = ({ children }) => {
         socketRef.current = socket;
 
         socket.on('connect', () => {
+            // The server joins this user's own room from the session token.
             setSocketStatus('live');
-            socket.emit('join', userId);
         });
 
         socket.on('connect_error', () => {
@@ -295,12 +298,16 @@ export const ChatProvider = ({ children }) => {
         try {
             const socket = socketRef.current;
             if (socket && socket.connected && !attachment) {
-                socket.emit('send_message', {
-                    sender_id: userId,
-                    receiver_id: receiver,
-                    message: message.trim(),
-                    reply_to_id: replyToId,
+                // The server says who sent it (from the session) and answers
+                // with an acknowledgement, so a refused message is not lost.
+                const ack = await new Promise((resolve) => {
+                    socket.timeout(8000).emit('send_message', {
+                        receiver_id: receiver,
+                        message: message.trim(),
+                        reply_to_id: replyToId,
+                    }, (err, res) => resolve(err ? { ok: false, error: 'The message could not be confirmed. Please check the conversation.' } : res));
                 });
+                if (!ack?.ok) throw new Error(ack?.error || 'Failed to send message');
             } else {
                 let response;
                 if (attachment) {
@@ -335,7 +342,6 @@ export const ChatProvider = ({ children }) => {
         const socket = socketRef.current;
         if (socket && socket.connected && userId && receiverId) {
             socket.emit('typing', {
-                sender_id: userId,
                 receiver_id: receiverId,
                 is_typing: Boolean(isTypingNow),
             });

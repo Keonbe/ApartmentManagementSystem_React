@@ -16,7 +16,7 @@ import '../assets/styles/responsive/user/registration.responsive.css';
 const INPUT_CLS = "block px-3.5 pb-2 pt-5 w-full text-base sm:text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border";
 const LABEL_CLS = "absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text";
 
-const EMPTY = { firstname: '', middlename: '', lastname: '', suffix: '', email: '', password: '', conPassword: '' };
+const EMPTY = { firstname: '', middlename: '', lastname: '', suffix: '', email: '', password: '', conPassword: '', agreeTerms: false };
 
 const VALIDATORS = {
     firstname: (v) => checkPersonName(v, { label: translate('profile.firstNameLabel'), max: LIMITS.firstName }),
@@ -26,6 +26,7 @@ const VALIDATORS = {
     email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
     password: (v) => checkNewPassword(v),
     conPassword: (v, all) => checkPasswordMatch(all.password, v),
+    agreeTerms: (v) => (v ? '' : translate('reg.agreeRequired')),
 };
 
 // A floating-label input with its error below. `trailing` is the show/hide
@@ -81,6 +82,11 @@ export default function Registration({ onLoginRedirect }) {
         }
     };
 
+    const handleAgree = (e) => {
+        setValues({ ...values, agreeTerms: e.target.checked });
+        form.clearError('agreeTerms');
+    };
+
     // Trim text (and lowercase email) when leaving a field, then check it.
     const handleBlur = (name) => () => {
         let v = values[name];
@@ -117,7 +123,8 @@ export default function Registration({ onLoginRedirect }) {
             suffix: clean.suffix,
             email_address: clean.email,
             password: clean.password,
-            conPassword: clean.conPassword
+            conPassword: clean.conPassword,
+            agree_terms: clean.agreeTerms,
         };
 
         setIsSubmitting(true);
@@ -287,16 +294,28 @@ export default function Registration({ onLoginRedirect }) {
                                 </div>
                             )}
 
-                            <p className="text-[11px] text-slate-500 text-center m-0 leading-relaxed">
-                                {t('reg.agreePrefix')}{' '}
-                                <button type="button" onClick={() => setLegalDoc('terms')} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer text-[11px]">
-                                    {t('reg.termsLink')}
-                                </button>{' '}
-                                {t('reg.and')}{' '}
-                                <button type="button" onClick={() => setLegalDoc('privacy')} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer text-[11px]">
-                                    {t('reg.privacyLink')}
-                                </button>.
-                            </p>
+                            <div>
+                                <label htmlFor="reg-agreeTerms" className="flex items-start gap-2 text-[11px] text-slate-600 leading-relaxed cursor-pointer">
+                                    <input
+                                        {...form.fieldA11y('agreeTerms')}
+                                        type="checkbox"
+                                        checked={values.agreeTerms}
+                                        onChange={handleAgree}
+                                        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-indigo-600"
+                                    />
+                                    <span>
+                                        {t('reg.agreePrefix')}{' '}
+                                        <button type="button" onClick={() => setLegalDoc('terms')} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer text-[11px]">
+                                            {t('reg.termsLink')}
+                                        </button>{' '}
+                                        {t('reg.and')}{' '}
+                                        <button type="button" onClick={() => setLegalDoc('privacy')} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer text-[11px]">
+                                            {t('reg.privacyLink')}
+                                        </button>.
+                                    </span>
+                                </label>
+                                <FieldError id="reg-agreeTerms" error={form.errors.agreeTerms} />
+                            </div>
 
                             <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2 disabled:opacity-70">
                                 {isSubmitting ? t('reg.creating') : t('reg.submit')}

@@ -267,6 +267,33 @@ Admin settings are read via [`get_system_settings.php`](../../backend/api/get_sy
 
 ---
 
+## 3.1 Running Costs (checked 2026-11-13)
+
+> Published rates, **not invoices**. Rates change and the sources below are the providers' pages and third-party listings; confirm each figure at signup and record it here. Every amount excludes anything not stated.
+
+| Cost | Rate | Source | Notes |
+|---|---|---|---|
+| **Hosting** | Own hardware: ₱0 plus electricity and internet. Shared hosting about $3–10/month, VPS about $5–12/month. | [cicd_pipeline.md](../deployment/cicd_pipeline.md) §Deployment Targets | The full stack (PHP, MariaDB, Node chat server) needs a server, not static hosting. Hosting prices are estimates, not quotes. |
+| **PayMongo, online payments** | QR Ph 1.5%, GCash 2.5%, Maya 2.0%, GrabPay 2.2%, cards about 3.5% + ₱15; +1% for foreign cards. VAT included. No setup or monthly fee; charged only on successful payments. | [PayMongo fees and rates](https://developers.paymongo.com/docs/fees-and-rates) | Newer pages quote the same rates without VAT (for example GCash 2.23%). Charged on each online payment, to the merchant. Cash and uploaded proof of payment have no gateway fee. |
+| **SMS (Semaphore)** | ₱0.56 per 160-character message, excluding VAT. The priority route (for time-critical texts) uses 2 credits per message. Long texts are billed per segment. The first custom sender name is free. | [semaphore.co](https://www.semaphore.co), [API docs](https://api.semaphore.co/docs), [FAQ](https://api.semaphore.co/faq) | An older third-party listing gave ₱0.50, which is what [sms_email_implementation.md](../features/sms_email_implementation.md) §0.3 uses. Texts with `₱` or emoji bill as several segments; the app converts `₱` to `PHP` (`gsm7_safe()`). |
+| **Email** | Not costed. Uses the owner's SMTP mailbox; limits depend on the provider. | — | The email driver ships as `log` (dry run); no provider is configured. |
+| **Domain and certificate** | Not recorded in the repository. | — | Needed for the production site. |
+
+**Worked example: 30 tenants paying ₱4,000 rent a month** (volumes from [sms_email_implementation.md](../features/sms_email_implementation.md) §0.3).
+
+| Line | Monthly amount | How |
+|---|---|---|
+| SMS, if every event type goes by SMS | ₱134–₱286 | 240–510 messages × ₱0.56 |
+| SMS, only a few event types (for example overdue rent) | Much lower | The SMS channel ships off (`notifications_sms_enabled` = 0), so the cost starts only when an admin turns it on |
+| PayMongo, everyone pays online by GCash | about ₱3,000 | 30 × ₱4,000 × 2.5% |
+| PayMongo, everyone pays online by QR Ph | about ₱1,800 | 30 × ₱4,000 × 1.5% |
+| PayMongo, everyone pays cash or by uploaded proof | ₱0 | No gateway |
+| Hosting | ₱0 to about $12 | Own hardware, or shared hosting or a VPS |
+
+The gateway fee scales with how much is paid online, so the owner decides it by choosing which payment methods to offer. The system itself has no per-user licence cost.
+
+---
+
 ## 4. Deployment Decision Guide
 
 | Scenario | Recommended Deployment |
