@@ -486,7 +486,7 @@ erDiagram
         varchar tag "Maintenance | Reminder | Policy | Urgent"
         varchar title
         text body
-        varchar send_to "default: All Tenants"
+        varchar send_to "All Tenants, Unit X or Tenants: 2,3,5 (chosen tenants by user id); varchar(600), 2026-11-14"
         longtext channels "JSON array string: SMS, Email"
         varchar status "default: sent"
         datetime scheduled_date

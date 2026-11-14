@@ -22,7 +22,7 @@ if ($public) {
     // The attachment is returned only to someone who can open it: a recipient
     // (the same file sits on their notification) or an admin. A link to anyone
     // else would just be a 403.
-    $stmt = $conn->prepare("SELECT a.id, a.tag, a.title, a.body, a.created_at, a.is_pinned,
+    $stmt = $conn->prepare("SELECT a.id, a.tag, a.title, a.body, a.created_at, a.is_pinned, a.send_to,
                                    CASE WHEN a.attachment_path IS NOT NULL AND (
                                             ? = 1 OR EXISTS (SELECT 1 FROM notifications n WHERE n.user_id = ? AND n.attachment_path = a.attachment_path)
                                         ) THEN a.attachment_path END AS attachment_path
@@ -42,7 +42,11 @@ $announcements = [];
 while ($row = $result->fetch_assoc()) {
     if (!$public) {
         $row['channels'] = json_decode($row['channels'], true);
+    } elseif ($viewer['role'] !== 'admin' && $row['send_to'] !== 'All Tenants') {
+        // Addressed to one unit or to chosen tenants: only those people see it in the feed.
+        if (!in_array($viewer_id, announcement_recipients($conn, $row['send_to']), true)) continue;
     }
+    if ($public) unset($row['send_to']);
     $announcements[] = $row;
 }
 

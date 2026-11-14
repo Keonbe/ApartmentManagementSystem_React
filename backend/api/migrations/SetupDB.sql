@@ -55,7 +55,7 @@ CREATE TABLE `announcements` (
   `tag` varchar(50) NOT NULL,
   `title` varchar(255) NOT NULL,
   `body` text NOT NULL,
-  `send_to` varchar(50) NOT NULL DEFAULT 'All Tenants',
+  `send_to` varchar(600) NOT NULL DEFAULT 'All Tenants',
   `channels` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`channels`)),
   `status` varchar(50) NOT NULL DEFAULT 'sent',
   `scheduled_date` datetime DEFAULT NULL,

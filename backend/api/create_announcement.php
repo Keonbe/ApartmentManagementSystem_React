@@ -195,6 +195,31 @@ if (strcasecmp($send_to, 'Specific unit') === 0) {
         exit;
     }
     $send_to_label = "Unit $unit";
+} elseif (strcasecmp($send_to, 'Selected tenants') === 0) {
+    // tenantIds: user ids, as a list (JSON body) or JSON text (form post with an attachment).
+    $raw_ids = $input['tenantIds'] ?? [];
+    if (is_string($raw_ids)) $raw_ids = json_decode($raw_ids, true);
+    if (!is_array($raw_ids) || !$raw_ids || array_keys($raw_ids) !== range(0, count($raw_ids) - 1)) {
+        validation_fail(['tenantIds' => 'Choose at least one tenant to send this announcement to.']);
+    }
+    $chosen = [];
+    foreach ($raw_ids as $raw_id) {
+        if (!is_int($raw_id) && !(is_string($raw_id) && ctype_digit($raw_id))) {
+            validation_fail(['tenantIds' => 'The chosen tenants are not valid.']);
+        }
+        $chosen[(int)$raw_id] = true;
+    }
+    $chosen = array_keys($chosen);
+    sort($chosen);
+    if (count($chosen) > ANNOUNCEMENT_MAX_CHOSEN_TENANTS) {
+        validation_fail(['tenantIds' => 'Choose at most ' . ANNOUNCEMENT_MAX_CHOSEN_TENANTS . ' tenants, or send to everyone.']);
+    }
+    $send_to_label = 'Tenants: ' . implode(',', $chosen);
+    // Every chosen person must be a current tenant: a stale list after a move-out is refused.
+    $current = announcement_recipients($conn, $send_to_label);
+    if (count($current) !== count($chosen)) {
+        validation_fail(['tenantIds' => 'Some of the chosen people are no longer current tenants. Reload the list and choose again.']);
+    }
 } else {
     $send_to_label = 'All Tenants';
 }

@@ -674,3 +674,13 @@ SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema 
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
 
+-- ===== 2026_11_announcement_recipients.sql =====
+-- announcements.send_to also holds 'Tenants: 2,3,5' (an announcement addressed to chosen tenants,
+-- by user id, up to ANNOUNCEMENT_MAX_CHOSEN_TENANTS), so it grows from varchar(50). 2026-11-14.
+-- Idempotent; guarded for production.
+
+SET @s = IF((SELECT COALESCE(MAX(character_maximum_length), 0) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'announcements' AND column_name = 'send_to') < 600,
+  'ALTER TABLE `announcements` MODIFY COLUMN `send_to` varchar(600) NOT NULL DEFAULT ''All Tenants''', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+

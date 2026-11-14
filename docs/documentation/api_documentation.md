@@ -947,7 +947,8 @@ Admin broadcasts an announcement to all tenants via in-app notifications.
 | Field | Type | Required |
 |-------|------|----------|
 | `tag` | string | ❌ (default: `General`) |
-| `title` | string | ✅ |
+| `sendTo` | string | ❌ (`All tenants` default, `Specific unit` with `unit`, or `Selected tenants` with `tenantIds`) |
+| `tenantIds` | int[] (JSON text in a form post) | ✅ for `Selected tenants`: 1 to 100 user ids, all current tenants; stored as the label `Tenants: 2,3,5` in `announcements.send_to` (varchar 600); 422 `tenantIds` otherwise |
 | `body` | string | ✅ |
 | `sendTo` | string | ❌ |
 | `channels` | array | ❌ (default: `['in-app']`) |

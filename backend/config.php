@@ -5408,8 +5408,12 @@ function purge_expired_cctv_footage($conn) {
 // send_due_announcements() from the poll in get_notifications.php and
 // cron/process_queue.php. Both use the same three steps below.
 const ANNOUNCEMENT_MAX_SCHEDULE_DAYS = 365;
+// Most tenants one announcement can be addressed to by name (the list is stored in announcements.send_to).
+const ANNOUNCEMENT_MAX_CHOSEN_TENANTS = 100;
 
-// $send_to_label is the stored label: 'All Tenants' or 'Unit X'.
+// $send_to_label is the stored label: 'All Tenants', 'Unit X' or 'Tenants: 2,3,5' (chosen
+// tenants, by user id). Only people who are tenants right now are ever returned, so a chosen
+// tenant who has since moved out or been archived is dropped (a scheduled send re-checks).
 function announcement_recipients($conn, $send_to_label) {
     $sql = "SELECT DISTINCT ra.user_id FROM rent_applications ra
             JOIN users u ON u.id = ra.user_id
@@ -5424,7 +5428,22 @@ function announcement_recipients($conn, $send_to_label) {
     $stmt->execute();
     $ids = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'user_id'));
     $stmt->close();
+    if (strncmp($send_to_label, 'Tenants: ', 9) === 0) {
+        $chosen = announcement_label_tenant_ids($send_to_label);
+        $ids = array_values(array_intersect($ids, $chosen));
+    }
     return $ids;
+}
+
+// The user ids in a 'Tenants: 2,3,5' label (empty for any other label).
+function announcement_label_tenant_ids($send_to_label) {
+    if (strncmp($send_to_label, 'Tenants: ', 9) !== 0) return [];
+    $ids = [];
+    foreach (explode(',', substr($send_to_label, 9)) as $part) {
+        $part = trim($part);
+        if ($part !== '' && ctype_digit($part) && (int)$part > 0) $ids[(int)$part] = true;
+    }
+    return array_keys($ids);
 }
 
 function announcement_notification_type($tag) {

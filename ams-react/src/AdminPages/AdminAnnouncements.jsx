@@ -20,8 +20,16 @@ import { btn } from '../Components/admin/ui/styles';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
+import askConfirm from '../utils/askConfirm';
 
-const SEND_TO = ['All tenants', 'Specific unit'];
+const SEND_TO = ['All tenants', 'Specific unit', 'Selected tenants'];
+// send_to is stored as 'All Tenants', 'Unit B' or 'Tenants: 2,3,5' (user ids); this is the history label.
+const audienceLabel = (sendTo) => {
+  const m = /^Tenants: (.+)$/.exec(sendTo || '');
+  if (!m) return sendTo;
+  const n = m[1].split(',').filter(Boolean).length;
+  return `${n} selected tenant${n === 1 ? '' : 's'}`;
+};
 const TYPES = ['General', 'Urgent', 'Reminder'];
 
 const channelIcons = { 'in-app': faDesktop, 'sms': faMobileAlt, 'email': faEnvelope };
@@ -35,7 +43,7 @@ const tagStyleMap = { Urgent: 'bg-red-100 text-red-800', Reminder: 'bg-blue-100 
 const CURRENT_STATUSES = ['active', 'Approved', 'pending-move-out'];
 // draftId / draftAttachment: a reopened draft and the file it already holds;
 // removeAttachment drops that file on the next save or send.
-const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'], attachment: null, draftId: null, draftAttachment: null, removeAttachment: false, schedule: false, scheduledAt: '' };
+const EMPTY_FORM = { sendTo: 'All tenants', unit: '', tenantIds: [], type: 'General', title: '', body: '', channels: ['in-app'], attachment: null, draftId: null, draftAttachment: null, removeAttachment: false, schedule: false, scheduledAt: '' };
 
 const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-control bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
 const LABEL = 'block text-label font-medium text-slate-600 mb-1';
@@ -99,6 +107,7 @@ const AdminAnnouncements = () => {
   const fields = useFieldErrors({
     sendTo: (v) => (SEND_TO.includes(v) ? '' : 'Choose who receives this.'),
     unit: (v, all) => (all.sendTo !== 'Specific unit' ? '' : v ? '' : 'Choose the unit to send this announcement to.'),
+    tenantIds: (v, all) => (all.sendTo !== 'Selected tenants' ? '' : (v || []).length ? '' : 'Choose at least one tenant.'),
     tag: (v) => (TYPES.includes(v) ? '' : 'Choose a type.'),
     title: (v) => checkText(v, { label: 'Title', min: TITLE_MIN, max: LIMITS.announcementTitle }),
     body: (v, all) => {
@@ -110,7 +119,7 @@ const AdminAnnouncements = () => {
       return '';
     },
   }, { idPrefix: 'announce-' });
-  const values = { sendTo: form.sendTo, unit: form.unit, tag: form.type, title: form.title, body: form.body };
+  const values = { sendTo: form.sendTo, unit: form.unit, tenantIds: form.tenantIds, tag: form.type, title: form.title, body: form.body };
   const setField = (key, value, formKey = key) => {
     setForm(p => ({ ...p, [formKey]: value }));
     fields.clearError(key);
@@ -204,9 +213,25 @@ const AdminAnnouncements = () => {
   );
 
   const specific = form.sendTo === 'Specific unit';
+  const chosenMode = form.sendTo === 'Selected tenants';
   const recipientCount = specific
     ? (units.find(u => u.name === form.unit)?.count || 0)
-    : tenants.length;
+    : chosenMode ? form.tenantIds.length : tenants.length;
+
+  // The tenant checklist: one entry per person (a unit can have several), filtered by a search box.
+  const [tenantQuery, setTenantQuery] = useState('');
+  const tenantChoices = useMemo(() => {
+    const seen = new Set();
+    return tenants
+      .filter(t => t.user_id && !seen.has(t.user_id) && seen.add(t.user_id))
+      .map(t => ({ id: Number(t.user_id), name: String(t.name || '').trim() || `Tenant ${t.user_id}`, unit: t.unit }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [tenants]);
+  const visibleChoices = tenantChoices.filter(c => `${c.name} unit ${c.unit}`.toLocaleLowerCase().includes(tenantQuery.trim().toLocaleLowerCase()));
+  const toggleTenant = (id) => {
+    setForm(p => ({ ...p, tenantIds: p.tenantIds.includes(id) ? p.tenantIds.filter(x => x !== id) : [...p.tenantIds, id] }));
+    fields.clearError('tenantIds');
+  };
 
   const handleSend = async (draft) => {
     if (sending) return;
@@ -249,6 +274,7 @@ const AdminAnnouncements = () => {
         body: clean.body,
         sendTo: form.sendTo,
         unit: specific ? form.unit : '',
+        ...(chosenMode ? { tenantIds: form.tenantIds } : {}),
         channels: form.channels,
         draft,
         ...(scheduling ? { scheduledAt: form.scheduledAt } : {}),
@@ -262,7 +288,7 @@ const AdminAnnouncements = () => {
       let config;
       if (form.attachment) {
         body = new FormData();
-        Object.entries(payload).forEach(([key, value]) => body.append(key, key === 'channels' ? JSON.stringify(value) : String(value)));
+        Object.entries(payload).forEach(([key, value]) => body.append(key, key === 'channels' || key === 'tenantIds' ? JSON.stringify(value) : String(value)));
         body.append('attachment', form.attachment);
         // Without this axios turns the form into JSON (its default type) and drops the file.
         config = { headers: { 'Content-Type': 'multipart/form-data' } };
@@ -285,7 +311,7 @@ const AdminAnnouncements = () => {
 
   // History buttons on a scheduled announcement.
   const sendScheduledNow = async (item) => {
-    if (sending || !window.confirm(`Send "${item.title}" now instead of ${item.scheduledLabel}?`)) return;
+    if (sending || !(await askConfirm(`Send "${item.title}" now instead of ${item.scheduledLabel}?`))) return;
     setSending(`now-${item.id}`);
     try {
       const res = await api.post('create_announcement.php', { action: 'sendNow', id: item.id });
@@ -330,10 +356,12 @@ const AdminAnnouncements = () => {
   // stored as "All Tenants" or "Unit <name>".
   const openDraft = (item) => {
     const unitMatch = /^Unit (.+)$/.exec(item.send_to || '');
+    const tenantsMatch = /^Tenants: (.+)$/.exec(item.send_to || '');
     setForm({
       ...EMPTY_FORM,
-      sendTo: unitMatch ? 'Specific unit' : 'All tenants',
+      sendTo: tenantsMatch ? 'Selected tenants' : unitMatch ? 'Specific unit' : 'All tenants',
       unit: unitMatch ? unitMatch[1] : '',
+      tenantIds: tenantsMatch ? tenantsMatch[1].split(',').map(Number).filter(Boolean) : [],
       type: TYPES.includes(item.tag) ? item.tag : 'General',
       title: item.title || '',
       body: item.body || '',
@@ -399,7 +427,7 @@ const AdminAnnouncements = () => {
               <div className={`grid grid-cols-1 gap-3 mb-3 ${specific ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                 <div>
                   <label htmlFor="announce-sendTo" className={LABEL}>Send to</label>
-                  <select {...fields.fieldA11y('sendTo')} value={form.sendTo} onChange={e => { setForm(p => ({ ...p, sendTo: e.target.value, unit: '' })); fields.clearError('sendTo'); fields.clearError('unit'); }} className={INPUT + invalidCls(fields.errors.sendTo)}>
+                  <select {...fields.fieldA11y('sendTo')} value={form.sendTo} onChange={e => { setForm(p => ({ ...p, sendTo: e.target.value, unit: '', tenantIds: [] })); fields.clearError('sendTo'); fields.clearError('tenantIds'); fields.clearError('unit'); }} className={INPUT + invalidCls(fields.errors.sendTo)}>
                     {SEND_TO.map(s => <option key={s}>{s}</option>)}
                   </select>
                   <FieldError id="announce-sendTo" error={fields.errors.sendTo} />
@@ -475,6 +503,29 @@ const AdminAnnouncements = () => {
                   </select>
                   <FieldError id="announce-tag" error={fields.errors.tag} />
                 </div>
+
+              {chosenMode && (
+                <fieldset className="mb-3 m-0 rounded-control border border-slate-200 p-3">
+                  <legend className="px-1 text-label font-medium text-slate-600">Tenants ({form.tenantIds.length} chosen)</legend>
+                  <input
+                    type="search"
+                    aria-label="Search tenants"
+                    placeholder="Search by name or unit"
+                    value={tenantQuery}
+                    onChange={e => setTenantQuery(e.target.value)}
+                    className={`${INPUT} mb-2`}
+                  />
+                  <div className="max-h-56 overflow-y-auto space-y-0.5">
+                    {visibleChoices.length ? visibleChoices.map(c => (
+                      <label key={c.id} className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded px-2 text-sm text-slate-800 hover:bg-slate-50">
+                        <input type="checkbox" className="h-5 w-5 accent-indigo-600" checked={form.tenantIds.includes(c.id)} onChange={() => toggleTenant(c.id)} />
+                        <span>{c.name} <span className="text-slate-600">· Unit {c.unit}</span></span>
+                      </label>
+                    )) : <p className="m-0 px-2 py-2 text-sm text-slate-600">{tenantChoices.length ? 'No tenant matches that search.' : 'No current tenants.'}</p>}
+                  </div>
+                  <FieldError id="announce-tenantIds" error={fields.errors.tenantIds} />
+                </fieldset>
+              )}
               </div>
 
               <div className="mb-3">
@@ -681,7 +732,7 @@ const AdminAnnouncements = () => {
                     )}
                     <div className="flex items-center flex-wrap gap-3 text-caption text-slate-500">
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faCalendarAlt} /> {item.date}</span>
-                      <span className="flex items-center gap-1"><FontAwesomeIcon icon={faUsers} /> {item.send_to} · {item.recipients} recipients</span>
+                      <span className="flex items-center gap-1"><FontAwesomeIcon icon={faUsers} /> {audienceLabel(item.send_to)} · {item.recipients} recipients</span>
                       <div className="flex items-center gap-1">
                         {item.channels.map(ch => (
                           <span key={ch} className="w-5 h-5 rounded-control bg-slate-100 flex items-center justify-center" title={ch}>
