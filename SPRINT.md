@@ -173,9 +173,11 @@ Project window: 2026-06-30 (first commit) → 2026-11-13. Built from `TASK.md` a
 | 69 | Preview page layout | UI/UX | The map is `100dvh`-based with a minimum height and stops sticking on short windows (`preview.responsive.css`); the page scrolls as a whole | Done | Low | 2026-11-14 | 2026-11-14 |
 | 71 | Translate shared strings | Feature | Validation templates, refund labels, relative time, API fallbacks in English and Filipino; `config/i18n.test.js` checks en/fil key and placeholder parity. Server `message` text stays English | Done | Low | 2026-11-14 | 2026-11-14 |
 | 75 | English-only strings | Feature | About 190 PayBills, UserPaymentHistory and TopBar strings moved to `t()` keys (en/fil) | Done | Low | 2026-11-14 | 2026-11-14 |
+| 211 | Move-out settlement records | Feature | At clearance and termination the deposit pays the invoices it covers (`paid`, "Security deposit", no longer cancelled), deductions it does not reach are billed on a "Move-out balance" invoice and bills not reached stay owed, so open balances equal the reported balance; unused advance rent opens its refund request by itself; restore reverses both. No amounts changed, no schema change (`apply_deposit_to_invoices()`, `reverse_deposit_application()`, `end_tenancy()` opts; `move_out_settlement.test.js`). UI not yet clicked through in a browser | Done | Medium | 2026-11-14 | 2026-11-14 |
 | 77 | Receipts for part-payments | Feature | Each recorded portion of an open bill has its own receipt (`RCT-<invoice>-<tx id>`: this payment, paid so far, balance left); the final settlement keeps the full receipt. Frontend only | Done | Medium | 2026-11-14 | 2026-11-14 |
 | 186 | Emergency contact and paid no-show | Feature | Emergency contact (name, relationship, mobile) on the application and Profile, shown to the admin (`2026_11_emergency_contact`); a paid applicant who missed the move-in gets a clearer follow-up: reschedule, or cancel with the refund through Refunds | Done | Low | 2026-11-14 | 2026-11-14 |
 | 189 | Complaints as flagged chat | Feature | `complaints` table + `messages.complaint_id` (`2026_11_complaints`); tenant files from the chat widget, admin works Open / In Review / Resolved from Message Manager, queue item and tenant notification; the socket applies the same flag. Checklist 7.7 | Done | Medium | 2026-11-14 | 2026-11-14 |
+| 210 | CI fixes: PHPStan baseline count and API test runner timezone | DevOps/CI | Update phpstan-baseline.neon count to 13 for registration.php, sync MariaDB and PHP test runner time zones to +08:00 (Asia/Manila), add MariaDB wait step in ci.yml, and document PHPStan in AGENTS.md | Done | High | 2026-11-14 | 2026-11-14 |
 
 ## In progress
 
@@ -192,7 +194,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-13. Built from `TASK.md` a
 | # | Task | Category | Description | Status | Priority | Start | End |
 |---|------|----------|-------------|--------|----------|-------|-----|
 | 67 | Screen-reader pass | Accessibility | Not done on admin or tenant pages | Open | Medium | — | — |
-| 73 | Payments phase 3 | Feature | Move-out disposition as payments plus balance invoice, proration, advance refund payout | Open | Medium | — | — |
+| 73 | Payments phase 3: proration | Feature | Partial-month rent (mid-month move-in or move-out) is still computed by the manager; whole-month billing is delimitation DE-10, so not before the defense. The other two parts (move-out records, advance refund request) are done in row 211 | Open | Low | — | — |
 | 74 | SMS delivery | Feature | Rent-due/overdue SMS needs admin contact number, scheduled task, sender approval | Open | Low | — | — |
 | 76 | More API tests | Test | KB-B22 send rollback, KB-D01/D02 parallel sends, KB-F06 rooms query count, KB-E07 attachment visibility; then React Testing Library / Playwright | Open | Low | — | — |
 | 79 | Bank option for "paid outside the system" | Feature | UserUtilities offers GCash / Maya / Other only, no bank picker | Open | Low | — | — |

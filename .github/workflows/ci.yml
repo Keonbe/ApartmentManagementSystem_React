@@ -328,6 +328,8 @@ jobs:
     name: Backend (API Integration Tests)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      TZ: "Asia/Manila"
 
     # The harness builds and drops its own ams_test database from SetupDB.sql +
     # seed_mock_data.sql, so the service only needs the root password.
@@ -336,6 +338,7 @@ jobs:
         image: mariadb:10.11
         env:
           MARIADB_ROOT_PASSWORD: root
+          TZ: "Asia/Manila"
         ports:
           - 3306:3306
         options: >-
@@ -361,6 +364,13 @@ jobs:
           node-version: "20.19"
           cache: npm
           cache-dependency-path: tests/api/package-lock.json
+
+      - name: Wait for MariaDB to be ready
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -u root -proot --silent; do
+            echo "Waiting for MariaDB..."
+            sleep 2
+          done
 
       - name: Install API test dependencies
         working-directory: tests/api

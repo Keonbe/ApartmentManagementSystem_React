@@ -69,7 +69,7 @@ describe('create_reservation.php', () => {
   it('refuses a unit that is already held and a unit with a pending application', async () => {
     expect((await reserve(admin, { room_name: 'QA1', reserved_for_name: 'Dee' })).body.success).toBe(false);
     await addRoom('QA7');
-    await q("INSERT INTO rent_applications (user_id, room_name, status, monthly_rent) VALUES (3, 'QA7', 'Pending Review', 4000)");
+    await q("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, status, monthly_rent, created_at) VALUES (3, 'Applicant', 'Seven', '09171234567', 'app7@demo.example', 'Female', 1, 6, 'QA7', 'Pending Review', 4000, NOW())");
     const pending = await one("SELECT id FROM rent_applications WHERE room_name = 'QA7' AND status = 'Pending Review'");
     expect(pending).not.toBeNull(); // the fixture must exist or this test proves nothing
     expect((await reserve(admin, { room_name: 'QA7', reserved_for_name: 'Eve' })).body.success).toBe(false);

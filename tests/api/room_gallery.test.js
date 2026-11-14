@@ -58,6 +58,7 @@ describe('room gallery items', () => {
     const res = await api('delete_room_image.php', { token: admin, json: { room_id: ROOM, path: P1 } });
     expect(res.body.gallery).toEqual([{ path: P2, alt: 'Keep me', fit: 'wide' }]);
     const stored = await one('SELECT gallery FROM rooms WHERE id = ?', [ROOM]);
-    expect(JSON.parse(stored.gallery)).toEqual([{ path: P2, alt: 'Keep me', fit: 'wide' }]);
+    const parsed = typeof stored.gallery === 'string' ? JSON.parse(stored.gallery) : stored.gallery;
+    expect(parsed).toEqual([{ path: P2, alt: 'Keep me', fit: 'wide' }]);
   });
 });

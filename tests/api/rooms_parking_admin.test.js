@@ -125,7 +125,7 @@ describe('archive_room.php', () => {
     expect((await arch(admin, { id: 'RH' })).status).toBe(409);
 
     await q("INSERT INTO rooms (id, type, floor, monthly_rent, status, occupants) VALUES ('RA', 'Studio', '6F', 3000, 'vacant', 0)");
-    await q("INSERT INTO rent_applications (user_id, room_name, status, monthly_rent) VALUES (3, 'RA', 'Pending Review', 3000)");
+    await q("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, status, monthly_rent, created_at) VALUES (3, 'Applicant', 'RA', '09171234567', 'appra@demo.example', 'Female', 1, 6, 'RA', 'Pending Review', 3000, NOW())");
     expect((await arch(admin, { id: 'RA' })).status).toBe(409);
   });
 

@@ -20,6 +20,7 @@ async function ping() {
 export default async function setup() {
   try {
     mysql('SELECT 1');
+    mysql("SET GLOBAL time_zone = '+08:00';");
   } catch (e) {
     throw new Error(`MySQL is not reachable. Start XAMPP MySQL first (C:\\xampp\\mysql_start.bat).\n${e.message}`);
   }
@@ -42,10 +43,17 @@ export default async function setup() {
   dumpScratch();
   console.log(`[api-tests] built ${DB.database} in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 
-  const server = spawn(PHP_BIN, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT], {
+  const server = spawn(PHP_BIN, [
+    '-d', 'post_max_size=50M',
+    '-d', 'upload_max_filesize=50M',
+    '-d', 'memory_limit=256M',
+    '-S', `127.0.0.1:${PORT}`,
+    '-t', ROOT,
+  ], {
     cwd: ROOT,
     env: {
       ...process.env,
+      TZ: 'Asia/Manila',
       AMS_TEST_MODE: '1',
       DB_HOST: DB.host,
       DB_PORT: String(DB.port),

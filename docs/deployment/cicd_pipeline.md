@@ -588,7 +588,7 @@ The `Run frontend unit tests (Vitest)` step in `ci.yml` already runs `npm test`.
 
 The backend is tested over HTTP rather than with PHPUnit: `tests/api/` is a small Node project where Vitest calls the real PHP endpoints and checks the database with `mysql2`. Run it with `cd tests/api && npm install && npm test`. It builds a scratch `ams_test` database from `SetupDB.sql` + `seed_mock_data.sql` and serves the API with `php -S` on port 8091 (`AMS_TEST_MODE=1`, which makes `config.php` read `DB_*` from the environment and refuse any database not named `*_test`).
 
-It runs in CI as the `api-tests` job (MariaDB service, PHP 8.2, `TEST_DB_PASS` / `PHP_BIN` / `MYSQL_BIN_DIR` set; the defaults are the XAMPP paths).
+It runs in CI as the `api-tests` job (MariaDB service with `TZ: Asia/Manila` and health wait, PHP 8.2 with `Asia/Manila` timezone, `TEST_DB_PASS` / `PHP_BIN` / `MYSQL_BIN_DIR` set; the defaults are the XAMPP paths).
 
 ---
 

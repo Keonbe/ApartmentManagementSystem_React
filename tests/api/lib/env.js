@@ -1,5 +1,6 @@
 // Shared settings for the API suite. Everything here points at the scratch
 // database and the test PHP server, never at the dev ams_db or Apache.
+process.env.TZ = 'Asia/Manila';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
