@@ -114,6 +114,39 @@ export default function UserPaymentHistory() {
         };
     };
 
+    // A receipt for one recorded portion of a bill that is not fully paid yet
+    // (id 'TX-<payment_transactions.id>'). Numbered from the portion's own id, so
+    // no new column is needed; the full receipt follows when the bill is paid.
+    const buildPartReceipt = (inv, tx) => {
+        const portions = [...(inv.payment_transactions || [])].sort((a, b) => Number(a.id) - Number(b.id));
+        const upTo = portions.slice(0, portions.findIndex((p) => String(p.id) === String(tx.id)) + 1);
+        const paidSoFar = upTo.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const billTotal = parseFloat(inv.total_amount) || 0;
+        return {
+            ...buildReceipt(inv),
+            rctId: `RCT-${inv.id}-${tx.id}`,
+            date: formatDate(tx.created_at),
+            status: 'PART',
+            isPart: true,
+            method: tx.bank_name || tx.payment_method || t('paymentHistory.notAvailable'),
+            reference: tx.reference_number || null,
+            paymentTransactions: [],
+            proofPath: null,
+            amount: parseFloat(tx.amount) || 0,
+            paidSoFar,
+            balance: Math.max(0, Math.round((billTotal - paidSoFar) * 100) / 100),
+        };
+    };
+    const partOf = (id) => {
+        if (!String(id || '').startsWith('TX-')) return null;
+        const txId = String(id).slice(3);
+        for (const inv of invoices) {
+            const tx = (inv.payment_transactions || []).find((p) => String(p.id) === txId);
+            if (tx) return { inv, tx };
+        }
+        return null;
+    };
+
     // Combined payments ('BND-…'): the bills paid together, keyed by group.
     const combinedPayments = Object.values(invoices.reduce((acc, inv) => {
         if (inv.status === 'paid' && isBundleKey(inv.payment_group)) {
@@ -151,7 +184,9 @@ export default function UserPaymentHistory() {
 
     const combinedForReceipt = isBundleKey(receiptInvoiceId) ? combinedPayments.find(c => c.key === receiptInvoiceId) : null;
     const receiptInvoice = invoices.find(i => i.id === receiptInvoiceId && i.status === 'paid');
+    const partForReceipt = partOf(receiptInvoiceId);
     const receiptData = combinedForReceipt ? buildCombinedReceipt(combinedForReceipt)
+        : partForReceipt ? buildPartReceipt(partForReceipt.inv, partForReceipt.tx)
         : receiptInvoice ? buildReceipt(receiptInvoice) : null;
     const showReceipt = !!receiptData;
     const receiptDialogRef = useDialog(showReceipt, () => setReceiptInvoiceId(null));
@@ -238,6 +273,11 @@ export default function UserPaymentHistory() {
                             <FontAwesomeIcon icon={faDownload} aria-hidden="true" /> {t('paymentHistory.viewReceipt')}
                         </button>
                     )}
+                    {partPaid && (inv.payment_transactions || []).map((tx) => (
+                        <button key={tx.id} type="button" onClick={() => setReceiptInvoiceId(`TX-${tx.id}`)} className={RECEIPT_BTN}>
+                            <FontAwesomeIcon icon={faDownload} aria-hidden="true" /> {t('paymentHistory.partReceiptBtn', { amount: formatCurrency(tx.amount) })}
+                        </button>
+                    ))}
                 </div>
             </li>
         );
@@ -422,8 +462,8 @@ export default function UserPaymentHistory() {
                         </div>
                         <div className="receipt-modal-body p-4 sm:p-6 space-y-4 text-sm text-slate-800 overflow-y-auto flex-grow">
                             <div className="flex justify-between gap-4 border-b border-slate-200 pb-3">
-                                <div><p className="m-0 text-xs text-slate-500">Date</p><p className="m-0 mt-0.5 font-semibold">{receiptData.date}</p></div>
-                                <div className="text-right"><p className="m-0 text-xs text-slate-500">Status</p><p className="m-0 mt-0.5 font-bold text-emerald-700">{receiptData.status === 'PAID' ? 'Paid' : receiptData.status}</p></div>
+                                <div><p className="m-0 text-xs text-slate-500">{t('paymentHistory.date')}</p><p className="m-0 mt-0.5 font-semibold">{receiptData.date}</p></div>
+                                <div className="text-right"><p className="m-0 text-xs text-slate-500">{t('paymentHistory.statusLabel')}</p><p className={`m-0 mt-0.5 font-bold ${receiptData.isPart ? 'text-amber-700' : 'text-emerald-700'}`}>{receiptData.isPart ? t('paymentHistory.partPayment') : receiptData.status === 'PAID' ? t('paymentHistory.paid') : receiptData.status}</p></div>
                             </div>
                             <div className="flex justify-between gap-4 border-b border-slate-200 pb-3">
                                 <div>
@@ -483,9 +523,16 @@ export default function UserPaymentHistory() {
                                 </div>
                             )}
                             <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-slate-200">
-                                <p className="m-0 font-bold text-slate-700 text-base">{t('paymentHistory.totalPaid')}</p>
+                                <p className="m-0 font-bold text-slate-700 text-base">{receiptData.isPart ? t('paymentHistory.thisPayment') : t('paymentHistory.totalPaid')}</p>
                                 <p className="m-0 text-2xl font-bold text-slate-900 tabular-nums">{formatCurrency(receiptData.amount)}</p>
                             </div>
+                            {receiptData.isPart && (
+                                <div className="space-y-1">
+                                    <div className="flex justify-between gap-4 text-sm"><span className="text-slate-600">{t('paymentHistory.paidSoFar')}</span><span className="font-semibold tabular-nums">{formatCurrency(receiptData.paidSoFar)}</span></div>
+                                    <div className="flex justify-between gap-4 text-sm"><span className="text-slate-600">{t('paymentHistory.balanceRemaining')}</span><span className="font-semibold tabular-nums">{formatCurrency(receiptData.balance)}</span></div>
+                                    <p className="m-0 pt-1 text-xs text-slate-500">{t('paymentHistory.partNote')}</p>
+                                </div>
+                            )}
                         </div>
                         <div className="receipt-modal-footer flex gap-2 p-3 sm:p-4 bg-slate-50 border-t border-slate-200 print-hide shrink-0">
                             <button type="button" onClick={() => printElement(receiptRef.current)} className="flex-1 flex items-center justify-center gap-2 min-h-[44px] bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">

@@ -76,6 +76,33 @@ describe('desk part-payments (record_payment_admin.php, partial: true)', () => {
     expect(await notificationCount(2, 'Part Payment Received', id)).toBe(1);
   });
 
+  it('the tenant list carries every recorded portion of an open part-paid bill, so each can have its own receipt', async () => {
+    const id = 'INV-TEST-PP-RCT';
+    await addBill(id);
+    expect((await desk(id, 600, { ref: undefined })).status).toBe(200);
+    await bookVisit(id);
+    expect((await desk(id, 400)).status).toBe(200);
+
+    const mine = await api('get_invoices.php', { token: maria, query: { userId: 2 } });
+    expect(mine.status).toBe(200);
+    const row = mine.body.invoices.find((i) => i.id === id);
+    expect(row).toMatchObject({ status: 'pending', amount_paid: expect.anything() });
+    expect(Number(row.amount_paid)).toBe(1000);
+    expect(row.payment_transactions.map((p) => Number(p.amount))).toEqual([600, 400]);
+    // What the receipt prints: a stable id, the method and the time of each portion.
+    for (const p of row.payment_transactions) {
+      expect(p).toMatchObject({ id: expect.anything(), payment_method: 'cash', created_at: expect.any(String) });
+    }
+    expect(Number(row.payment_transactions[0].id)).toBeLessThan(Number(row.payment_transactions[1].id));
+
+    // Another tenant never sees them.
+    const theirs = await api('get_invoices.php', { token: jose, query: { userId: 3 } });
+    expect(theirs.body.invoices.some((i) => i.id === id)).toBe(false);
+    // ...and cannot ask for Maria's list by her id.
+    const snoop = await api('get_invoices.php', { token: jose, query: { userId: 2 } });
+    expect(JSON.stringify(snoop.body)).not.toContain(id);
+  });
+
   describe('refused amounts leave the bill unchanged', () => {
     const id = 'INV-TEST-PP-NEG';
     beforeAll(() => addBill(id, { paid: 600 })); // balance 900
