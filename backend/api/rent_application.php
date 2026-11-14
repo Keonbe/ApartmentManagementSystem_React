@@ -24,20 +24,26 @@ function application_fail($code, $message, $field = null) {
     exit;
 }
 
-$first_name = $_POST['firstName'] ?? '';
-$middle_name = $_POST['middleName'] ?? '';
-$last_name = $_POST['lastName'] ?? '';
-$suffix = $_POST['suffix'] ?? '';
-$contact_no = $_POST['contactNo'] ?? '';
-$email = $_POST['email'] ?? '';
-$gender = $_POST['gender'] ?? '';
+// A form field sent as an array (name[]=x) would reach the string casts below as the text "Array".
+foreach ($_POST as $post_key => $post_value) {
+    if (is_array($post_value)) application_fail(400, "Field '$post_key' must be a single value.", (string)$post_key);
+}
+
+// Text fields are saved trimmed (the length checks below already ignored the padding).
+$first_name = trim((string)($_POST['firstName'] ?? ''));
+$middle_name = trim((string)($_POST['middleName'] ?? ''));
+$last_name = trim((string)($_POST['lastName'] ?? ''));
+$suffix = trim((string)($_POST['suffix'] ?? ''));
+$contact_no = trim((string)($_POST['contactNo'] ?? ''));
+$email = trim((string)($_POST['email'] ?? ''));
+$gender = trim((string)($_POST['gender'] ?? ''));
 $occupants = $_POST['occupants'] ?? '';
 $months_of_rent = $_POST['monthsOfRent'] ?? '';
 $is_asap = !empty($_POST['isAsap']) && $_POST['isAsap'] === '1';
 $preferred_move_in_date = (!$is_asap && !empty($_POST['preferredMoveInDate']) && $_POST['preferredMoveInDate'] !== 'Any time')
     ? $_POST['preferredMoveInDate']
     : null;
-$room_name = $_POST['roomName'] ?? '';
+$room_name = trim((string)($_POST['roomName'] ?? ''));
 $monthly_rent = $_POST['monthlyRent'] ?? '';
 $previous_address = trim((string)($_POST['previousAddress'] ?? ''));
 // The applicant is the session user. This read X-User-Id directly, so a caller
@@ -58,20 +64,20 @@ $app_id = empty($app_id) ? null : (int)$app_id;
 
 $agree_terms = filter_var($_POST['agreeTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-if ($app_id === null && !empty($user_id)) {
-    $dup_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1");
-    $dup_stmt->bind_param("i", $user_id);
-    $dup_stmt->execute();
-    $dup_res = $dup_stmt->get_result();
-    if ($dup_res->num_rows > 0) {
-        $dup_row = $dup_res->fetch_assoc();
-        $st = strtolower($dup_row['status']);
-        if ($st === 'pending review' || $st === 'approved' || $st === 'active' || $st === 'pending-move-out') {
-            echo json_encode(["success" => false, "message" => "You already have an active or pending rent application. You cannot submit another one unless it is rejected."]);
-            exit;
-        }
-    }
-    $dup_stmt->close();
+// The caller's newest application still claims a unit (ROOM_CLAIMING_APPLICATION_STATUSES: under
+// review, action required, approved, moved in, moving out). One such application at a time.
+function user_has_open_application($conn, $user_id) {
+    $stmt = $conn->prepare("SELECT status FROM rent_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row && in_array(strtolower($row['status']), array_map('strtolower', ROOM_CLAIMING_APPLICATION_STATUSES), true);
+}
+const OPEN_APPLICATION_MESSAGE = "You already have an active or pending rent application. You cannot submit another one unless it is rejected.";
+
+if ($app_id === null && !empty($user_id) && user_has_open_application($conn, $user_id)) {
+    application_fail(409, OPEN_APPLICATION_MESSAGE);
 }
 
 if ($app_id !== null) {
@@ -262,6 +268,19 @@ try {
         $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, previous_address = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
         $stmt->bind_param("ssssssssiisssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $app_id, $user_id);
         if (!$stmt->execute()) throw new Exception("Application update failed: " . $stmt->error);
+    if (!$is_update) {
+        // Two submits from one account at the same moment both passed the check above; the user row
+        // lock makes the second wait, then see the first one's application.
+        $lock = $conn->prepare("SELECT id FROM users WHERE id = ? FOR UPDATE");
+        $lock->bind_param("i", $user_id);
+        $lock->execute();
+        $lock->close();
+        if (user_has_open_application($conn, $user_id)) {
+            $conn->rollback();
+            $discard_moved();
+            application_fail(409, OPEN_APPLICATION_MESSAGE);
+        }
+    }
         if ($stmt->affected_rows === 0) {
             $stmt->close();
             $conn->rollback();

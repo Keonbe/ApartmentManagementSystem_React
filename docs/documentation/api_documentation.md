@@ -296,7 +296,7 @@ Submit or resubmit a rent/lease application.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `require_user()` (session; tenant role only, 403 otherwise) |
+| **Duplicate Guard** | `409` while the account's newest application is still open (`ROOM_CLAIMING_APPLICATION_STATUSES`: Pending Review, Action Required, Approved, active, pending-move-out). The check repeats inside the transaction under a `users` row lock, so two simultaneous submits leave one application |
 | **Content-Type** | `multipart/form-data` |
 | **Duplicate Guard** | Blocks if user has active/pending application |
 
@@ -319,6 +319,8 @@ Submit or resubmit a rent/lease application.
 **File Validation:** JPG/PNG/PDF only, max 10MB, server-side MIME check
 
 **Side Effects:**
+**Other checks:** a field sent as an array is a `400`; text fields are saved trimmed; `monthsOfRent` is the admin minimum to 24 and the rent saved is the unit's own, never `monthlyRent`; an occupied unit is a `409` (`tests/api/application_submit.test.js`).
+
 - Syncs profile fields to `users` table
 - Creates admin notification
 
