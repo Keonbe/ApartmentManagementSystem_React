@@ -26,6 +26,7 @@ const NAV_GROUPS = [
     title: 'General',
     icon: faComments,
     items: [
+      { to: '/admin-reports', icon: faChartBar, label: 'Reports' },
       { to: '/admin-messages', icon: faEnvelope, label: 'Messages' },
       { to: '/admin-notifications', icon: faBell, label: 'Notifications' },
       { to: '/admin-announcements', icon: faBullhorn, label: 'Announcements' },
@@ -72,7 +73,6 @@ const NAV_GROUPS = [
     icon: faUserGear,
     items: [
       { to: '/admin-users', icon: faUsersCog, label: 'Users' },
-      { to: '/admin-reports', icon: faChartBar, label: 'Reports' },
       { to: '/admin-activity-logs', icon: faHistory, label: 'Activity Log' },
       { to: '/admin-requirements', icon: faIdCard, label: 'Document Requirements' },
       { to: '/admin-other-settings', icon: faCogs, label: 'Other Settings' },

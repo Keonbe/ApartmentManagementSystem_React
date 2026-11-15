@@ -14,6 +14,7 @@ import api from '../api/axiosConfig';
 import { HOME_CONTENT_DEFAULTS, parseHomeContent } from './homeContent';
 import { SCHEMA_DEFAULTS, parseSchemaSettings, encodeSchemaSettings } from './settingsSchema';
 import { PREVIEW_HERO_DEFAULTS, parsePreviewHero } from './previewHero';
+import { MY_ROOM_LAYOUT_DEFAULTS, parseMyRoomLayout, parseGarbageSchedule, encodeGarbageSchedule } from './myRoomPage';
 
 // QR Ph slots in Payment Options (QRPH_SLOT_COUNT in config.php). There were 5;
 // slots stored above 3 are dropped when the settings load, and an active slot
@@ -37,7 +38,11 @@ const DEFAULTS = {
   homeContent: HOME_CONTENT_DEFAULTS,
 
   // Preview page hero (Other Settings → Preview Page); see config/previewHero.js.
-  previewHero: PREVIEW_HERO_DEFAULTS
+  previewHero: PREVIEW_HERO_DEFAULTS,
+
+  // My Room sections and the garbage schedule (Other Settings → My Room); see config/myRoomPage.js.
+  myRoomLayout: MY_ROOM_LAYOUT_DEFAULTS,
+  garbageSchedule: [],
 };
 
 // A whole number within [min, max]; anything else (missing, garbled) is the
@@ -95,6 +100,8 @@ export const getSystemSettings = async ({ strict = false } = {}) => {
         ...parseGlassAppearance(dbSettings),
         homeContent: parseHomeContent(dbSettings.home_content),
         previewHero: parsePreviewHero(dbSettings.preview_hero),
+        myRoomLayout: parseMyRoomLayout(dbSettings.my_room_layout),
+        garbageSchedule: parseGarbageSchedule(dbSettings.garbage_schedule),
       };
     }
     if (strict) throw new Error(response.data?.message || 'The settings did not load.');
@@ -119,6 +126,9 @@ export const saveSystemSettings = async (settings) => {
       glass_tint: settings.glassTint || DEFAULTS.glassTint,
       home_content: parseHomeContent(settings.homeContent),
       preview_hero: parsePreviewHero(settings.previewHero),
+      // Sent only when loaded, so a partial settings object cannot empty them.
+      ...(settings.myRoomLayout ? { my_room_layout: parseMyRoomLayout(settings.myRoomLayout) } : {}),
+      ...(Array.isArray(settings.garbageSchedule) ? { garbage_schedule: encodeGarbageSchedule(settings.garbageSchedule) } : {}),
     };
     await api.post('update_system_settings.php', payload);
   } catch (e) {

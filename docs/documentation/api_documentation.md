@@ -1000,7 +1000,7 @@ The audit trail, filtered and paged on the server. `require_admin()`.
 ---
 
 ### `GET` / `POST` [get_system_settings.php](../../backend/api/get_system_settings.php) / [update_system_settings.php](../../backend/api/update_system_settings.php)
-Read/write system-wide configuration. **`get_system_settings.php` answers by caller** (since 2026-11-11; `PUBLIC_SETTING_KEYS` and `ADMIN_ONLY_SETTING_KEYS` in `backend/config.php`): a logged-out visitor gets only the public allowlist (system name, contact details, currency, Home and Preview content, Glass theme, language switch, floor rates, age and occupancy rules, inquiry and move-in limits); a tenant gets everything except the operational keys (SMTP, email driver, SMS, notification schedule and dispatch, sweep timestamps, sign-in code and email-verification switches, landlord details, maintenance budget); an admin gets everything with credentials masked. A key in neither list reaches tenants and admins but stays hidden from visitors until it is added to the allowlist. `update_system_settings.php` is `require_admin()`: keys must match `[A-Za-z0-9_]`, arrays are stored as JSON, only changed values are written, and the activity-log entry names the keys that changed (secret keys shown as "value hidden"). Response includes `changed`.
+Read/write system-wide configuration. **`get_system_settings.php` answers by caller** (since 2026-11-11; `PUBLIC_SETTING_KEYS` and `ADMIN_ONLY_SETTING_KEYS` in `backend/config.php`): a logged-out visitor gets only the public allowlist (system name, contact details, currency, Home and Preview content, Glass theme, language switch, floor rates, age and occupancy rules, inquiry and move-in limits); a tenant gets everything except the operational keys (SMTP, email driver, SMS, notification schedule and dispatch, sweep timestamps, sign-in code and email-verification switches, landlord details, maintenance budget); an admin gets everything with credentials masked. A key in neither list reaches tenants and admins but stays hidden from visitors until it is added to the allowlist. `update_system_settings.php` is `require_admin()`: keys must match `[A-Za-z0-9_]`, arrays are stored as JSON, only changed values are written, and the activity-log entry names the keys that changed (secret keys shown as "value hidden"). Response includes `changed`. Structured keys are checked and stored canonical, among them `garbage_schedule` (list of up to 14 `{day, what, time, period}`; `period` is `morning`, `afternoon`, `evening` or `""`) and `my_room_layout` (`{sections: [{id, show}]}` over the six My Room section ids; a left-out section is appended shown, `room` is always shown, an unknown or repeated id or a non-boolean `show` is refused with 422); both may be posted as JSON or as JSON text.
 
 **Known Settings:**
 | Key | Type | Description |
@@ -1035,8 +1035,24 @@ Returns dashboard statistics for admin. `require_admin()`; runs `promote_overdue
 
 ---
 
+### `GET` [get_reports.php](../../backend/api/get_reports.php)
+Admin → Reports (since 2026-11-15). One report over a date range, cut into periods. Logic in `backend/reports.php`.
+
+| Property | Detail |
+|----------|--------|
+| **Auth** | `require_admin()` (401 without a session, 403 for a tenant); runs `promote_overdue_invoices()` first |
+| **Parameters** | `report` = `financial` · `collections` · `billing` · `occupancy` · `maintenance` · `utilities` · `leasing` · `services`; `from`, `to` (`YYYY-MM-DD`, both included); `group` = `day` · `week` (Monday–Sunday) · `month` · `year` |
+| **Limits** | At most 366 days, 260 weeks, 120 months or 25 years of periods (`REPORT_MAX_PERIODS`); dates 2000–2099. `utilities` is grouped by month at the least (meter readings are monthly) and says so in `note` |
+| **Response** | `{success, report, title, from, to, group, previous: {from, to}, generatedAt, note?, summary: [{key, label, value, format, hint?, previous?}], chart: {kind: bar\|line, format, series: [{key, label, tone}]}, periods: {columns, rows, totals}, tables: [{key, title, note?, columns, rows, totals?}]}`. `format` = `money` · `int` · `number` · `percent` · `hours` · `text` · `date`; a statement row may carry `_style` (`section`, `subtotal`, `total`). Detail lists stop at 2,000 rows with a note |
+| **Money rules** | As `dashboard_stats.php`: money is dated by when it arrived (an installment on its own day, each column taking its share; any other paid bill whole on `paid_at`), security deposits are never revenue, advance-rent invoices are left out; expenses = finished repairs the building paid (actual cost, else estimate) + `expenses` + `report_overhead_pct` |
+| **Previous range** | The same number of whole months before (a month → the month before, a year → the year before), else the same number of days; each summary figure carries `previous` except the "today" ones (occupancy today, overdue today, open today, parking in use) |
+| **Errors** | `422` with `errors.report` / `from` / `to` / `group`; `500` "The report could not be built" |
+| **Tests** | `tests/api/reports.test.js` |
+
+The page draws this answer and saves the same answer as Excel (`ams-react/src/utils/xlsx.js`, no library) or PDF (`jspdf` + `jspdf-autotable`, loaded on demand).
+
 ### `GET` [get_report_data.php](../../backend/api/get_report_data.php)
-Generates detailed report data for `/admin-reports` and its exports — the largest API file.
+The Reports page's data until 2026-11-15 (monthly / quarterly / yearly); no page calls it now. Kept with its tests (`balance_rules`, `deposit_review`, `expenses_reports`) until it is removed.
 
 | Property | Detail |
 |----------|--------|
@@ -1426,7 +1442,8 @@ All endpoints return JSON with this shape on error:
 | 70 | [get_system_settings.php](../../backend/api/get_system_settings.php) | GET | System | Public (filtered by caller) | Read settings (visitors: allowlist; tenants: no operational keys; admins: all, secret keys masked) |
 | 71 | [update_system_settings.php](../../backend/api/update_system_settings.php) | POST | System | Admin | Write settings |
 | 72 | [dashboard_stats.php](../../backend/api/dashboard_stats.php) | GET | System | Admin | Dashboard statistics |
-| 73 | [get_report_data.php](../../backend/api/get_report_data.php) | GET | System | Admin | Export reports |
+| 73 | [get_report_data.php](../../backend/api/get_report_data.php) | GET | System | Admin | Old report data (no page calls it since 2026-11-15) |
+| 73a | [get_reports.php](../../backend/api/get_reports.php) | GET | System | Admin | Reports by range and period (page, Excel, PDF) |
 | 74 | [submit_inquiry.php](../../backend/api/submit_inquiry.php) | POST | Inquiry | Public | Submit unit inquiry |
 | 75 | [get_inquiries.php](../../backend/api/get_inquiries.php) | GET | Inquiry | Admin | List inquiries |
 | 76 | [update_inquiry_status.php](../../backend/api/update_inquiry_status.php) | POST | Inquiry | Admin | Manage inquiry lifecycle |

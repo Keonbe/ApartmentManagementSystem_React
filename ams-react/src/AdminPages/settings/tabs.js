@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faIdCard, faImage, faHouse, faAddressCard, faVideo, faHourglassHalf, faEye, faKey, faLanguage } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faIdCard, faImage, faHouse, faAddressCard, faVideo, faHourglassHalf, faEye, faKey, faLanguage, faBed } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -97,6 +97,13 @@ export const SETTINGS_TABS = [
     keys: ['homeContent'],
   },
   {
+    id: 'my-room',
+    label: 'My Room',
+    icon: faBed,
+    description: "The order and visibility of the sections on a tenant's My Room page, and the garbage collection days its Garbage card shows.",
+    keys: ['myRoomLayout', 'garbageSchedule'],
+  },
+  {
     id: 'site',
     label: 'Site Maintenance',
     icon: faAddressCard,
@@ -158,7 +165,7 @@ export const OTHER_SETTINGS_GROUPS = [
     key: 'operations',
     title: 'Operations & Tenant Site',
     accentDot: 'bg-sky-500',
-    tabIds: ['site', 'notifications', 'maintenance', 'cctv', 'home-page', 'preview-page', 'glass-mode', 'language'],
+    tabIds: ['site', 'notifications', 'maintenance', 'cctv', 'home-page', 'preview-page', 'my-room', 'glass-mode', 'language'],
   },
   {
     key: 'policies',
