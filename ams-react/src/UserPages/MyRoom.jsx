@@ -14,7 +14,8 @@ import GarbageScheduleCard from '../Components/tenant/GarbageScheduleCard';
 import { MY_ROOM_LAYOUT_DEFAULTS } from '../config/myRoomPage';
 import MyRoomSkeleton, { BillSkeleton, HouseholdSkeleton } from '../Components/tenant/MyRoomSkeleton';
 import SuccessModal from '../Components/SuccessModal';
-import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
+import { readStoredUser } from '../utils/readStoredUser';
+import useInvoiceWatch,{ AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import useDialog from '../hooks/useDialog';
 import { isPastDue } from '../utils/billingPeriod';
 import { addDays, checkDate, checkIntRange } from '../utils/validation';
@@ -67,16 +68,17 @@ export default function MyRoom() {
         return () => { alive = false; };
     }, []);
 
-    const [loggedInUser] = useState(() => {
-        const sessionData = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
-        return sessionData ? JSON.parse(sessionData) : null;
-    });
+    const [loggedInUser] = useState(() => readStoredUser());
 
     const activeEmail = loggedInUser?.email_address || "";
     const activeFirstName = loggedInUser?.first_name || "";
 
     const [loading, setLoading] = useState(true);
+    // error = a text key for "there is no room to show" (a real answer);
+    // loadFailed = the request itself failed, which says nothing about the room,
+    // so it gets a retry instead of the no-room page.
     const [error, setError] = useState(null);
+    const [loadFailed, setLoadFailed] = useState(false);
     const [roomDetails, setRoomDetails] = useState({
         name: "Unassigned",
         type: "Studio Apartment",
@@ -100,7 +102,7 @@ export default function MyRoom() {
     // range. Called again after a request is sent, instead of reloading the page.
     const loadRoom = useCallback(async () => {
         if (!activeEmail) {
-            setError("No active user session found.");
+            setError('myRoom.noSession');
             setLoading(false);
             return;
         }
@@ -158,12 +160,14 @@ export default function MyRoom() {
                     });
                 }
                 setError(null);
+                setLoadFailed(false);
             } else {
-                setError("No active room assignments found.");
+                setError('myRoom.noRoom');
+                setLoadFailed(false);
             }
         } catch (err) {
             console.error("Failed to fetch room details:", err);
-            setError("Failed to connect to the server.");
+            setLoadFailed(true);
         } finally {
             setLoading(false);
         }
@@ -198,7 +202,7 @@ export default function MyRoom() {
     // The next bill, from the invoices themselves (the same list Pay Bills uses):
     // the earliest-due bill still to pay, else one awaiting confirmation. An
     // advance-rent invoice is an optional prepayment, not a bill, so it is left out.
-    const { invoices, loaded: invoicesLoaded } = useInvoiceWatch();
+    const { invoices, loaded: invoicesLoaded, loadError: invoicesError, refresh: refreshInvoices } = useInvoiceWatch();
     const byDueDate = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
     const bills = invoices.filter(i => !i.advance_months);
     const nextBill = bills.filter(i => PAYABLE_STATUSES.includes(i.status)).sort(byDueDate)[0]
@@ -385,18 +389,38 @@ export default function MyRoom() {
 
     if (loading || !settingsLoaded) return <MyRoomSkeleton />;
 
+    // The request failed: say so and offer a retry, not "you have no room".
+    // (A room already on screen from an earlier load stays; only a first load
+    // that never succeeded gets this page.)
+    if (loadFailed && !error && roomDetails.name === 'Unassigned') {
+        return (
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 text-slate-900 px-4">
+                <section role="alert" className="bg-white p-8 rounded-2xl border border-slate-200 text-center max-w-md">
+                    <p className="m-0 text-sm text-slate-700">{t('common.loadFailed')}</p>
+                    <button
+                        type="button"
+                        onClick={() => { setLoading(true); loadRoom(); }}
+                        className="mt-6 min-h-[44px] px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold border-0 cursor-pointer"
+                    >
+                        {t('common.retry')}
+                    </button>
+                </section>
+            </div>
+        );
+    }
+
     if (error) {
         return (
             <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 text-slate-900 px-4">
                 <section className="bg-white p-8 rounded-2xl border border-slate-200 text-center max-w-md">
-                    <h1 className="m-0 text-2xl font-bold">No room to show</h1>
-                    <p className="m-0 mt-2 text-sm text-slate-600">{error}</p>
+                    <h1 className="m-0 text-2xl font-bold">{t('myRoom.noRoomTitle')}</h1>
+                    <p className="m-0 mt-2 text-sm text-slate-600">{t(error)}</p>
                     <button
                         type="button"
                         onClick={() => navigate('/preview')}
                         className="mt-6 min-h-[44px] px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold border-0 cursor-pointer"
                     >
-                        Browse available rooms
+                        {t('myRoom.browseRooms')}
                     </button>
                 </section>
             </div>
@@ -522,6 +546,13 @@ export default function MyRoom() {
                                         {t('myRoom.payRentBalance')}
                                     </button>
                                 )}
+                            </div>
+                        ) : invoicesError ? (
+                            <div role="alert" className="mt-3 flex flex-wrap items-center gap-3">
+                                <p className="m-0 text-sm text-rose-700">{t('common.loadFailed')}</p>
+                                <button type="button" onClick={refreshInvoices} className="min-h-[44px] px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold cursor-pointer">
+                                    {t('common.retry')}
+                                </button>
                             </div>
                         ) : (
                             <p className="m-0 mt-3 text-base font-semibold text-emerald-700 animate-fade-in">You're all paid up. No open bill right now.</p>

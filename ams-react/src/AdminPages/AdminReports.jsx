@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
@@ -58,7 +59,7 @@ const metricColor = (m) => {
 
 const preparedByName = () => {
   try {
-    return personName(JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}')) || 'Administrator';
+    return personName(readStoredUser({})) || 'Administrator';
   } catch {
     return 'Administrator';
   }

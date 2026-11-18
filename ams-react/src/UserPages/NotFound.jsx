@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import { readRoomCache } from '../config/tenantHome';
+import { readStoredUser } from '../utils/readStoredUser';
 
 // Catch-all route (audit L8): unknown paths used to render a blank page.
 export default function NotFound() {
   const { t } = useLang();
-  const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || 'null');
+  const user = readStoredUser();
   // A tenant's home is My Room (App.jsx keeps tenants off Home).
   const home = user?.role === 'admin' ? '/admin-dashboard' : readRoomCache(user?.id)?.kind === 'tenant' ? '/my-room' : '/home';
 

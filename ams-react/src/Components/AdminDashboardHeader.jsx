@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBell, faSignOutAlt, faUserCog, faBars, faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
@@ -32,7 +33,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const [notifications, setNotifications] = useState([]);
   const [adminEmail, setAdminEmail] = useState(() => {
     try {
-      const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+      const user = readStoredUser({});
       return user.email_address || user.email || 'admin@gmail.com';
     } catch {
       return 'admin@gmail.com';
@@ -42,7 +43,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   useEffect(() => {
     const refreshAdminEmail = () => {
       try {
-        const user = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+        const user = readStoredUser({});
         setAdminEmail(user.email_address || user.email || 'admin@gmail.com');
       } catch {
         setAdminEmail('admin@gmail.com');
@@ -95,7 +96,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     setSelectedNotification(list[0]);
     window.dispatchEvent(new CustomEvent(ADMIN_PAYMENTS_EVENT));
   }, []);
-  const adminId = JSON.parse(sessionStorage.getItem('loggedInUser') || '{}').id;
+  const adminId = readStoredUser({}).id;
   usePaymentAlerts(notifications, {
     storageKey: adminId ? `ams_admin_alert_mark_${adminId}` : null,
     match: isIncomingAlert,

@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api/axiosConfig';
 import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
@@ -35,7 +36,7 @@ export default function useInvoiceWatch({ onTransition, onFirstLoad } = {}) {
   });
 
   const refresh = useCallback(async () => {
-    const user = JSON.parse(sessionStorage.getItem('loggedInUser') || '{}');
+    const user = readStoredUser({});
     if (!user.id) return;
     try {
       const res = await api.get(`/get_invoices.php?userId=${user.id}`);

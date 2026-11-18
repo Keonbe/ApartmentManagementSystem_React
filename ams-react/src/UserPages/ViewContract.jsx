@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -53,7 +54,7 @@ export default function ViewContract() {
         setLanguage(lang === 'fil' ? 'tl' : 'en');
     }
 
-    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
+    const loggedInUser = readStoredUser();
 
     // ?email= is the admin preview path only; tenants read their own contract
     // through ?userId=, which the backend scopes to the X-User-Id header.

@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye, faExpand, faDownload, faFilePdf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { publicAssetUrl } from '../api/fileUrl';
+import { readStoredUser } from '../utils/readStoredUser';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';
@@ -246,8 +247,7 @@ export default function PaymentUpload() {
         setUploading(true);
         setError('');
 
-        const loggedInUserStr = sessionStorage.getItem("loggedInUser");
-        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : {};
+        const loggedInUser = readStoredUser({});
         const userId = loggedInUser.id || '';
 
         const formData = new FormData();

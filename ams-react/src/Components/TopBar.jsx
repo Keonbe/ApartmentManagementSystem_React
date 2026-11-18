@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -179,14 +180,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const avatarButtonRef = useRef(null);
     const menuButtonRef = useRef(null);
 
-    const [loggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
+    const [loggedInUser] = useState(readStoredUser({}));
     const [dbAvatarUrl, setDbAvatarUrl] = useState(loggedInUser.avatar_url || ''); // Real-time avatar tracker
     // Profile Settings saved a new name or photo: re-read them here (that page
     // used to reload the whole app so the bar would show the change).
     const [nameOverride, setNameOverride] = useState(null);
     useEffect(() => {
         const onProfileUpdated = () => {
-            const u = JSON.parse(sessionStorage.getItem('loggedInUser') || '{}');
+            const u = readStoredUser({});
             setDbAvatarUrl(u.avatar_url || '');
             const fullName = personName(u);
             if (fullName) setNameOverride(fullName);

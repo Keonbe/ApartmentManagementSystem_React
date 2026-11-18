@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X } from 'lucide-react';
 import SuccessModal from '../Components/SuccessModal';
@@ -142,7 +143,7 @@ export default function RentApplication() {
     const location = useLocation();
     const { t, lang } = useLang();
 
-    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+    const loggedInUser = readStoredUser({});
     const defaultFirstName = loggedInUser.first_name || '';
     const defaultMiddleName = loggedInUser.middle_name || '';
     const defaultLastName = loggedInUser.last_name || '';

@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -64,7 +65,7 @@ export default function TrackApplication() {
     const [cancellationFee, setCancellationFee] = useState(0);
     const [requestingCancellation, setRequestingCancellation] = useState(false);
     const [cancellationError, setCancellationError] = useState('');
-    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+    const loggedInUser = readStoredUser({});
     const activeEmail = loggedInUser.email_address || '';
 
     const fetchApplication = useCallback(async () => {

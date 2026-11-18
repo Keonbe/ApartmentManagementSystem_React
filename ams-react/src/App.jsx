@@ -45,6 +45,8 @@ const ServiceBooking = lazy(() => import('./UserPages/ServiceBooking'));
 const ServiceCatalog = lazy(() => import('./UserPages/ServiceCatalog'));
 import NotFound from './UserPages/NotFound';
 import { personName } from './utils/personName';
+import { readStoredUser } from './utils/readStoredUser';
+import ErrorBoundary from './Components/ErrorBoundary';
 
 // Admin Pages
 const AdminDashboard = lazy(() => import('./AdminPages/AdminDashboard'));
@@ -74,9 +76,7 @@ const AdminMessages = lazy(() => import('./AdminPages/AdminMessages'));
 
 function ProtectedRoute({ children }) {
   useLocation();
-  const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
-  
-  if (!loggedInUser) {
+  if (!readStoredUser()) {
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -84,13 +84,12 @@ function ProtectedRoute({ children }) {
 
 function AdminProtectedRoute({ children }) {
   useLocation();
-  const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
-  
-  if (!loggedInUserStr) {
+  const loggedInUser = readStoredUser();
+
+  if (!loggedInUser) {
     return <Navigate to="/login" replace />;
   }
-  
-  const loggedInUser = JSON.parse(loggedInUserStr);
+
   if (loggedInUser.role !== 'admin') {
     return <Navigate to="/home" replace />;
   }
@@ -100,13 +99,12 @@ function AdminProtectedRoute({ children }) {
 
 // FIXED: Added isCheckingRoom check to prevent premature redirecting on refresh
 function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
-  const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
-  
-  if (!loggedInUserStr) {
+  const loggedInUser = readStoredUser();
+
+  if (!loggedInUser) {
     return <Navigate to="/login" replace />;
   }
-  
-  const loggedInUser = JSON.parse(loggedInUserStr);
+
   if (loggedInUser.role === 'admin') {
     return children;
   }
@@ -141,8 +139,7 @@ function AdminSettingsRedirect() {
 function BaseAppLayout({ children, hasRentedRoom, forceTheme }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
-  const loggedInUser = JSON.parse(loggedInUserStr || "null");
+  const loggedInUser = readStoredUser();
   const isLoggedIn = loggedInUser !== null;
   const username = isLoggedIn ? personName(loggedInUser) : null;
 
@@ -200,7 +197,7 @@ function HomeRoute({ hasRentedRoom, isCheckingRoom, children }) {
   return children;
 }
 
-const currentUser = () => JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "null");
+const currentUser = () => readStoredUser();
 
 // While the room check runs: the top bar's strip and a page skeleton, in the
 // tenant's own theme (was a dark "Loading session..." screen).
@@ -297,6 +294,7 @@ function AppContent() {
     <RoomStatusContext.Provider value={roomStatus}>
     <ChatProvider>
       <>
+      <ErrorBoundary resetKey={location.pathname}>
       <Suspense fallback={null}>
       <Routes>
         {/* PUBLIC ROUTES */}
@@ -368,6 +366,7 @@ function AppContent() {
         <Route path="*" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><NotFound /></BaseAppLayout>} />
       </Routes>
       </Suspense>
+      </ErrorBoundary>
         {!['/login', '/register', '/admin-messages'].includes(location.pathname)
           && ((sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')) || localStorage.getItem('ams_guest_token'))
           && (location.pathname.startsWith('/admin')

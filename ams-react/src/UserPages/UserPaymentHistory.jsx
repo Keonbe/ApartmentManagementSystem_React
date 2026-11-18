@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -39,7 +40,7 @@ export default function UserPaymentHistory() {
     const location = useLocation();
     const { t } = useLang();
 
-    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+    const loggedInUser = readStoredUser({});
     // Opened directly when arriving from a "Payment confirmed" notice.
     const [receiptInvoiceId, setReceiptInvoiceId] = useState(location.state?.receiptId || null);
     const [notice, setNotice] = useState(null);

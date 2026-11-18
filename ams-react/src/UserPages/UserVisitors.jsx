@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -44,7 +45,7 @@ import { Bone } from '../Components/tenant/Skeleton';
 
 export default function UserVisitors() {
   const { t } = useLang();
-  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+  const loggedInUser = readStoredUser({});
 
   const [visitors, setVisitors] = useState([]);
   const [tenantRoom, setTenantRoom] = useState('');

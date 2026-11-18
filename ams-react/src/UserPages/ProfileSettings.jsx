@@ -14,6 +14,7 @@ import { EMERGENCY_NAME_MAX, EMERGENCY_RELATIONSHIPS } from '../config/emergency
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import { readStoredUser } from '../utils/readStoredUser';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import SuccessModal from '../Components/SuccessModal';
@@ -73,7 +74,7 @@ function FormField({ id, label, optional, error, className = '', children }) {
 
 export default function ProfileSettings() {
     const { t } = useLang();
-    const [loggedInUser, setLoggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
+    const [loggedInUser, setLoggedInUser] = useState(() => readStoredUser({}));
 
     const [firstName, setFirstName] = useState(loggedInUser.first_name || '');
     const [middleName, setMiddleName] = useState(loggedInUser.middle_name || '');
@@ -86,6 +87,10 @@ export default function ProfileSettings() {
     const [emergencyRelationship, setEmergencyRelationship] = useState('');
     const [emergencyPhone, setEmergencyPhone] = useState('');
     const [emergencyLoaded, setEmergencyLoaded] = useState(false);
+    // The profile read failed: the emergency contact stays locked and a banner
+    // offers a retry (profileTry re-runs the load).
+    const [profileLoadFailed, setProfileLoadFailed] = useState(false);
+    const [profileTry, setProfileTry] = useState(0);
     const [email, setEmail] = useState(loggedInUser.email_address || '');
     const [avatarError, setAvatarError] = useState('');
     const [saveError, setSaveError] = useState('');
@@ -156,6 +161,7 @@ export default function ProfileSettings() {
                     setEmergencyRelationship(loaded.emergencyRelationship);
                     setEmergencyPhone(loaded.emergencyPhone);
                     setEmergencyLoaded(true);
+                    setProfileLoadFailed(false);
                     setFirstName(loaded.firstName);
                     setMiddleName(loaded.middleName);
                     setLastName(loaded.lastName);
@@ -175,13 +181,16 @@ export default function ProfileSettings() {
                         sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
                         setLoggedInUser(updatedUser);
                     }
+                } else {
+                    setProfileLoadFailed(true);
                 }
             } catch (error) {
                 console.error("Failed to load profile data:", error);
+                setProfileLoadFailed(true);
             }
         };
         fetchProfile();
-    }, [loggedInUser.email_address]);
+    }, [loggedInUser.email_address, profileTry]);
 
     // Handle profile image file change. True when a valid file was picked.
     const handleFileChange = (e) => {
@@ -452,6 +461,19 @@ export default function ProfileSettings() {
                         {t('profile.subtext')}
                     </p>
                 </header>
+
+                {profileLoadFailed && (
+                    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                        <span>{t('common.loadFailed')}</span>
+                        <button
+                            type="button"
+                            onClick={() => setProfileTry((n) => n + 1)}
+                            className="min-h-[44px] rounded-xl border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-800 cursor-pointer hover:bg-rose-100"
+                        >
+                            {t('common.retry')}
+                        </button>
+                    </div>
+                )}
 
                 {/* Identity card: click the photo to change it */}
                 <section className="profile-settings-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">

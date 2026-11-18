@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -24,7 +25,7 @@ const PASSWORD_VALIDATORS = {
 };
 
 const AdminAccountSettings = () => {
-  const storedUser = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+  const storedUser = readStoredUser({});
   const [firstName, setFirstName] = useState(storedUser.first_name || '');
   const [lastName, setLastName] = useState(storedUser.last_name || '');
   const [email, setEmail] = useState(storedUser.email_address || '');

@@ -10,6 +10,9 @@ export const translations = {
     // --- Shared ---
     'common.retry': 'Try again',
     'common.loadFailed': 'This could not be loaded. Check your connection and try again.',
+    'common.errorTitle': 'Something went wrong',
+    'common.errorBody': 'This page hit an unexpected problem. Your data is safe. Try again, or go back to the home page.',
+    'common.goHome': 'Go to home',
 
     // --- TopBar / Nav ---
     'nav.home': 'Home',
@@ -963,6 +966,10 @@ export const translations = {
     'myRoom.occupantsTitle': 'No. Occupants',
     'myRoom.updateOccupants': 'Update Occupants',
     'myRoom.nextBillDue': 'Next Bill Due',
+    'myRoom.noRoomTitle': 'No room to show',
+    'myRoom.noRoom': 'No active room assignments found.',
+    'myRoom.noSession': 'No active user session found.',
+    'myRoom.browseRooms': 'Browse available rooms',
     'myRoom.payRentBalance': 'Pay Rent Balance',
     'myRoom.extendLease': 'Extend Rent Term',
     'myRoom.terminateTenancy': 'Terminate Tenancy',
@@ -1676,6 +1683,9 @@ export const translations = {
     // --- Shared ---
     'common.retry': 'Subukan ulit',
     'common.loadFailed': 'Hindi ito ma-load. Tingnan ang iyong koneksyon at subukan ulit.',
+    'common.errorTitle': 'May nangyaring mali',
+    'common.errorBody': 'May hindi inaasahang problema sa pahinang ito. Ligtas ang iyong data. Subukan ulit, o bumalik sa home page.',
+    'common.goHome': 'Pumunta sa home',
 
     // --- TopBar / Nav ---
     'nav.home': 'Home',
@@ -2628,6 +2638,10 @@ export const translations = {
     'myRoom.occupantsTitle': 'Bilang ng Kasama',
     'myRoom.updateOccupants': 'I-update ang mga Kasama',
     'myRoom.nextBillDue': 'Susunod na Bayarin',
+    'myRoom.noRoomTitle': 'Walang kuwartong maipapakita',
+    'myRoom.noRoom': 'Walang aktibong kuwartong nakatalaga sa iyo.',
+    'myRoom.noSession': 'Walang aktibong session ng user.',
+    'myRoom.browseRooms': 'Tingnan ang mga available na kuwarto',
     'myRoom.payRentBalance': 'Bayaran ang Upa',
     'myRoom.extendLease': 'Pahabain ang Pag-upa',
     'myRoom.terminateTenancy': 'Wakasan ang Pag-upa',

@@ -1,3 +1,4 @@
+import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -55,7 +56,7 @@ const greeting = () => {
 };
 const adminFirstName = () => {
   try {
-    return JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}').first_name || '';
+    return readStoredUser({}).first_name || '';
   } catch {
     return '';
   }
