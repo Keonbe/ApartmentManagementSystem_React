@@ -1,9 +1,13 @@
 <?php
-// Notification queue drain (checklist 6.6 / 6.7) for Windows Task Scheduler:
+// Notification queue drain (checklist 6.6 / 6.7) for Windows Task Scheduler
+// or Linux/cPanel cron:
 //
 //   Program:   C:\xampp\php\php.exe
 //   Arguments: C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\process_queue.php
 //   Trigger:   Every 1 minute
+//
+//   Linux/cPanel cron (use the host's PHP CLI path and absolute script path):
+//   * * * * * /usr/local/bin/php /home/USER/public_html/backend/cron/process_queue.php
 //
 //   php backend/cron/process_queue.php            drain the default 20 jobs
 //   php backend/cron/process_queue.php --limit=5  drain at most 5

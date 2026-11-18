@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { Fragment, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight } from '@fortawesome/free-solid-svg-icons';
@@ -10,6 +10,8 @@ import ImportantInfo from '../Components/tenant/ImportantInfo';
 import HouseRulesAccordion from '../Components/tenant/HouseRulesAccordion';
 import useAllRules from '../hooks/useAllRules';
 import RentTermCard from '../Components/tenant/RentTermCard';
+import GarbageScheduleCard from '../Components/tenant/GarbageScheduleCard';
+import { MY_ROOM_LAYOUT_DEFAULTS } from '../config/myRoomPage';
 import MyRoomSkeleton, { BillSkeleton, HouseholdSkeleton } from '../Components/tenant/MyRoomSkeleton';
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
@@ -45,12 +47,22 @@ export default function MyRoom() {
     // person and Maximum Occupants per Unit (were hardcoded as 4, ₱1,000 and 8).
     const [occupancy, setOccupancy] = useState(() => occupancyFrom(null));
     const maxOccupants = occupancy.max;
+    // Other Settings → My Room: the order and visibility of the sections, and the
+    // garbage schedule. The skeleton stays up until they load, so the page does
+    // not reorder itself after showing. (getSystemSettings never rejects: on a
+    // failure it returns the defaults.)
+    const [myRoomLayout, setMyRoomLayout] = useState(MY_ROOM_LAYOUT_DEFAULTS);
+    const [garbageSchedule, setGarbageSchedule] = useState([]);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
     useEffect(() => {
         let alive = true;
         getSystemSettings().then((s) => {
             if (!alive) return;
             setMoveOutNotice({ min: s.moveOutMinNoticeDays || DEFAULT_MOVE_OUT_MIN_DAYS, max: s.moveOutMaxNoticeDays || DEFAULT_MOVE_OUT_MAX_DAYS });
             setOccupancy(occupancyFrom(s));
+            setMyRoomLayout(s.myRoomLayout || MY_ROOM_LAYOUT_DEFAULTS);
+            setGarbageSchedule(s.garbageSchedule || []);
+            setSettingsLoaded(true);
         });
         return () => { alive = false; };
     }, []);
@@ -371,7 +383,7 @@ export default function MyRoom() {
     // A panel with an error stays open so the message is seen.
     const [openPanel, setOpenPanel] = useState(null);
 
-    if (loading) return <MyRoomSkeleton />;
+    if (loading || !settingsLoaded) return <MyRoomSkeleton />;
 
     if (error) {
         return (
@@ -410,6 +422,8 @@ export default function MyRoom() {
         setOpenPanel('extend');
         document.getElementById('manage-extend')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
+    // "Manage your rent" hidden by the admin: no Extend buttons that lead to it.
+    const rentActionsShown = myRoomLayout.sections.some((s) => s.id === 'manageRent' && s.show);
     const daysLeft = moveOutDaysLeft;
 
     const quickLinks = [
@@ -447,7 +461,7 @@ export default function MyRoom() {
             text: `${!extensionBlocked ? 'Extend it to keep your room.'
                 : overdueListed && overdueBlock ? 'Pay the overdue bill first, then extend it to keep your room.'
                 : `Extending is not available right now. ${extension.reason}`}`,
-            action: !extensionBlocked ? { label: 'Extend rent', onClick: openExtend }
+            action: !extensionBlocked ? (rentActionsShown ? { label: 'Extend rent', onClick: openExtend } : undefined)
                 : overdueBlock && !overdueListed ? { label: 'Go to Pay Bills', onClick: () => navigate('/pay-bills') }
                 : undefined,
         });
@@ -465,6 +479,266 @@ export default function MyRoom() {
         }
     }
 
+    // What My Room shows, by section id (config/myRoomPage.js); the admin
+    // orders them and switches them off in Other Settings → My Room.
+    const sectionNodes = {
+        important: <ImportantInfo items={importantItems} />,
+        // The key tag, and what the tenant checks most beside it.
+        room: (
+            <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-3 md:gap-6 items-stretch">
+                <RoomKeyTag
+                    room={roomDetails.name}
+                    type={roomDetails.type}
+                    floor={roomDetails.floor}
+                    monthlyRent={fmtMoney(roomDetails.monthlyRent)}
+                    rentUntil={expectedEnd ? fmtDay(expectedEnd) : ''}
+                    statusLabel={keyTagStatus.label}
+                    statusTone={keyTagStatus.tone}
+                />
+
+                <div className="flex flex-col gap-4 min-w-0">
+                    <section aria-labelledby="next-bill-heading" className={`${PANEL} p-4 sm:p-6`}>
+                        <h2 id="next-bill-heading" className="m-0 text-base font-semibold text-slate-700">{t('myRoom.nextBillDue')}</h2>
+                        {!invoicesLoaded ? (
+                            <BillSkeleton />
+                        ) : nextBill ? (
+                            <div className="mt-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-fade-in">
+                                <div>
+                                    <p className="m-0 text-3xl font-extrabold text-slate-900 tabular-nums">{fmtMoney(nextBillOwed)}</p>
+                                    <p className="m-0 mt-1 text-sm text-slate-600">
+                                        {nextBill.billing_period || 'Your bill'}
+                                        {' · '}
+                                        {nextBillAwaiting ? (
+                                            <span className="font-semibold text-sky-700">being confirmed by management</span>
+                                        ) : isPastDue(nextBill) ? (
+                                            <span className="font-semibold text-rose-700">overdue since {fmtDay(nextBill.due_date)}</span>
+                                        ) : (
+                                            <>due {fmtDay(nextBill.due_date)}</>
+                                        )}
+                                    </p>
+                                </div>
+                                {!nextBillAwaiting && (
+                                    <button type="button" onClick={() => navigate('/pay-bills')} className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold border-0 cursor-pointer shrink-0 transition-[background-color,transform] active:scale-[0.97]">
+                                        {t('myRoom.payRentBalance')}
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="m-0 mt-3 text-base font-semibold text-emerald-700 animate-fade-in">You're all paid up. No open bill right now.</p>
+                        )}
+                    </section>
+
+                    {term && !movedOut && (
+                        <RentTermCard
+                            start={fmtDay(term.start)}
+                            end={fmtDay(expectedEnd)}
+                            elapsedPct={term.elapsedPct}
+                            daysLeft={daysUntilExpiration}
+                            onExtend={rentActionsShown && !movingOut && !extensionBlocked ? openExtend : undefined}
+                        />
+                    )}
+
+                    <nav aria-label="Room shortcuts" className="grid grid-cols-2 gap-2 mt-auto">
+                        {quickLinks.map((link) => (
+                            <button
+                                key={link.to}
+                                type="button"
+                                onClick={() => navigate(link.to)}
+                                className="group flex items-center gap-3 min-h-[52px] px-3 sm:px-4 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-200 text-left text-sm font-semibold text-slate-900 cursor-pointer transition-[background-color,border-color,box-shadow] hover:shadow-md"
+                            >
+                                <span aria-hidden="true" className="w-8 h-8 shrink-0 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center transition-colors group-hover:bg-indigo-600 group-hover:text-white">
+                                    <FontAwesomeIcon icon={link.icon} />
+                                </span>
+                                <span className="flex-1 min-w-0">{link.label}</span>
+                                <FontAwesomeIcon icon={faChevronRight} className="text-xs text-slate-400 transition-[translate] group-hover:translate-x-0.5" aria-hidden="true" />
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+            </div>
+        ),
+        garbage: !movedOut && <GarbageScheduleCard rows={garbageSchedule} />,
+        // Household and its related occupancy and house-rules controls.
+        household: (
+            <div className="flex flex-col gap-4">
+                {household === null && !householdError ? <HouseholdSkeleton /> : (
+                    <HouseholdPanel
+                        data={household}
+                        error={householdError}
+                        onChanged={loadHousehold}
+                        addOpen={addMemberOpen}
+                        onAddOpenChange={setAddMemberOpen}
+                        monthlyRent={roomDetails.monthlyRent}
+                        occupancy={occupancy}
+                        occupantChangeAction={!movedOut ? (
+                            <Disclosure
+                                id="manage-occupants"
+                                icon={faUsers}
+                                title="Change number of occupants"
+                                summary={`Currently ${currentOccupants} ${currentOccupants === 1 ? 'person' : 'people'}. Management approves changes.`}
+                                open={openPanel === 'occupants' || !!fields.errors.occupants}
+                                onToggle={() => toggle('occupants')}
+                            >
+                                <form onSubmit={handleUpdateOccupants} className="m-0 grid gap-3 sm:max-w-md" noValidate>
+                                    <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-800">Number of occupants (1 to {maxOccupants})</label>
+                                    <input
+                                        type="text"
+                                        {...fields.fieldA11y('occupants')}
+                                        inputMode="numeric"
+                                        min="1"
+                                        max={maxOccupants}
+                                        step="1"
+                                        value={occupants}
+                                        onKeyDown={blockNonDigitKeys}
+                                        onChange={(e) => handleOccupantChange(e.target.value)}
+                                        onPaste={(e) => sanitizeDigitPaste(e, handleOccupantChange)}
+                                        onBlur={() => occupants !== currentOccupants && fields.validateField('occupants', fieldValues)}
+                                        className={`${INPUT}${invalidCls(fields.errors.occupants)}`}
+                                        required
+                                    />
+                                    <p className="m-0 text-sm text-slate-600">
+                                        {occupancyRuleText(t, occupancy)}
+                                        {Number.isInteger(Number(occupants)) && Number(occupants) >= 1 && Number(occupants) <= maxOccupants && occupancyExtraText(t, occupancy, occupants) && <strong className="text-amber-800"> {occupancyExtraText(t, occupancy, occupants)}</strong>}
+                                    </p>
+                                    <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
+                                    <button type="submit" disabled={!!busy} className={`${BTN_PRIMARY} justify-self-start`}>
+                                        {busy === 'occupants' ? 'Sending…' : 'Send request'}
+                                    </button>
+                                </form>
+                            </Disclosure>
+                        ) : null}
+                    />
+                )}
+            </div>
+        ),
+        // Both future-rent actions together, after Household by default.
+        manageRent: !movedOut && (
+            <section aria-labelledby="manage-rent-heading" className="space-y-4">
+                <h2 id="manage-rent-heading" className="m-0 text-xl font-bold text-slate-900">Manage your rent</h2>
+                <div className={`${PANEL} overflow-hidden`}>
+                    <div id="manage-extend">
+                        <Disclosure
+                            id="manage-extend-panel"
+                            icon={faCalendarPlus}
+                            title={t('myRoom.extendLease')}
+                            summary={extensionBlocked
+                                ? 'Not available right now. Open to see why.'
+                                : !hasExtensionRange
+                                    ? 'No extension months are currently available.'
+                                    : `Add ${minExtension} to ${maxExtension} months. Management approves the request.`}
+                            open={extendOpen}
+                            onToggle={() => toggle('extend')}
+                        >
+                            <form onSubmit={handleExtendRent} className="m-0 grid gap-3 sm:max-w-md" noValidate>
+                                <p className="m-0 text-sm leading-relaxed text-slate-600">
+                                    Each added month is billed a week before it starts.
+                                    {extension?.maxMonthsAhead != null ? ` Your rent can reach at most ${extension.maxMonthsAhead} month(s) from today.` : ''}
+                                    {extension?.deadline && !extensionBlocked ? ` Requests close on ${formatAvailable(extension.deadline)}.` : ''}
+                                </p>
+                                {extensionBlocked && (
+                                    <div role="status" className="flex flex-col items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                                        <p className="m-0 flex items-start gap-2">
+                                            <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5 shrink-0 text-amber-700" aria-hidden="true" />
+                                            {extension.reason}
+                                        </p>
+                                        {extension.overdueTotal > 0 && (
+                                            <button type="button" onClick={() => navigate('/pay-bills')} className="min-h-[44px] px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold border-0 cursor-pointer">
+                                                Go to Pay Bills
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                                <label htmlFor="myroom-additionalMonths" className="text-sm font-bold text-slate-800">
+                                    Months to add ({minExtension} to {maxExtension})
+                                </label>
+                                <input
+                                    type="text"
+                                    {...fields.fieldA11y('additionalMonths')}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    min={minExtension}
+                                    max={maxExtension}
+                                    step="1"
+                                    value={additionalMonths}
+                                    onKeyDown={blockNonDigitKeys}
+                                    onChange={(e) => handleExtensionChange(e.target.value)}
+                                    onPaste={(e) => sanitizeDigitPaste(e, (digitsOnly) => {
+                                        handleExtensionChange(digitsOnly);
+                                    })}
+                                    onBlur={() => fields.validateField('additionalMonths', fieldValues)}
+                                    disabled={extensionBlocked || !hasExtensionRange}
+                                    className={`${INPUT} disabled:opacity-60${fields.errors.additionalMonths ? ' !border-rose-500 focus:!border-rose-500 focus:!ring-rose-500/30 text-rose-600' : ' focus:!ring-indigo-500/30'}`}
+                                    required
+                                />
+                                <FieldError id="myroom-additionalMonths" error={fields.errors.additionalMonths} className="m-0" />
+                                <button type="submit" disabled={!!busy || extensionBlocked || !extensionValueValid} className={`${BTN_PRIMARY} justify-self-start disabled:opacity-50 disabled:cursor-not-allowed`}>
+                                    {busy === 'extend' ? 'Sending…' : 'Send extension request'}
+                                </button>
+                            </form>
+                        </Disclosure>
+                    </div>
+                </div>
+
+        {/* Red warning card is paired with the extension action above. */}
+        <section aria-labelledby="end-rent-heading" className="flex items-start gap-4 rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 sm:p-6">
+            <span aria-hidden="true" className="hidden sm:flex w-11 h-11 shrink-0 rounded-xl bg-rose-600 text-white items-center justify-center shadow-lg shadow-rose-600/30">
+                <FontAwesomeIcon icon={faSignOutAlt} />
+            </span>
+            <div className="flex-1 min-w-0">
+            <h2 id="end-rent-heading" className="m-0 text-lg font-bold text-rose-900">Ending your rent</h2>
+            {movingOut ? (
+                <div className="mt-3 space-y-1 text-sm text-slate-700">
+                    <p className="m-0">
+                        Your move-out date is <strong className="text-slate-900">{roomDetails.requestedMoveOutDate ? fmtDay(roomDetails.requestedMoveOutDate) : 'not set yet'}</strong>
+                        {daysLeft !== null && (daysLeft > 0 ? `, ${daysLeft} day${daysLeft === 1 ? '' : 's'} from now.` : ', today.')}
+                    </p>
+                    <p className="m-0 text-slate-600">Management will contact you about the room inspection and your deposit.</p>
+                </div>
+        ) : movedOut ? (
+                roomDetails.depositDeductions?.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                        <p className="m-0 text-sm font-semibold text-slate-700">Deducted from your security deposit</p>
+                        {roomDetails.depositDeductions.map((d, i) => (
+                            <div key={i} className="flex justify-between gap-3 text-sm text-slate-600">
+                                <span className="min-w-0"><strong className="text-slate-800">{d.label || d.category}</strong>{d.reason ? `: ${d.reason}` : ''}</span>
+                                <span className="font-semibold text-slate-900 shrink-0 tabular-nums">{fmtMoney(d.amount)}</span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="m-0 mt-3 text-sm text-slate-600">Your rent has ended.</p>
+                )
+        ) : (
+                <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p className="m-0 text-sm leading-relaxed text-slate-700">
+                        Give notice {moveOutNotice.min} to {moveOutNotice.max} days before your move-out date. Management then arranges the room inspection and your deposit.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleEndRent}
+                        className="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold border-0 cursor-pointer shrink-0 shadow-lg shadow-rose-600/25 transition-[background-color,transform] active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+                    >
+                        <FontAwesomeIcon icon={faSignOutAlt} aria-hidden="true" /> {t('myRoom.endRentTerm')}
+                    </button>
+                </div>
+            )}
+            </div>
+        </section>
+            </section>
+        ),
+        houseRules: !movedOut && household?.hasLease !== false && (
+            <div className="pb-6">
+                <HouseRulesAccordion
+                    rules={houseRules}
+                    loading={loadingHouseRules}
+                    error={houseRulesError}
+                    open={houseRulesOpen}
+                    onToggle={() => setHouseRulesOpen((current) => !current)}
+                />
+            </div>
+        ),
+    };
+
     return (
         <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-10 sm:pb-10 px-4 md:px-12">
 
@@ -479,260 +753,7 @@ export default function MyRoom() {
                     </p>
                 </header>
 
-                <ImportantInfo items={importantItems} />
-
-                {/* The key tag, and what the tenant checks most beside it. */}
-                <div className="my-room-top grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-3 md:gap-6 items-stretch">
-                    <RoomKeyTag
-                        room={roomDetails.name}
-                        type={roomDetails.type}
-                        floor={roomDetails.floor}
-                        monthlyRent={fmtMoney(roomDetails.monthlyRent)}
-                        rentUntil={expectedEnd ? fmtDay(expectedEnd) : ''}
-                        statusLabel={keyTagStatus.label}
-                        statusTone={keyTagStatus.tone}
-                    />
-
-                    <div className="flex flex-col gap-4 min-w-0">
-                        <section aria-labelledby="next-bill-heading" className={`${PANEL} p-4 sm:p-6`}>
-                            <h2 id="next-bill-heading" className="m-0 text-base font-semibold text-slate-700">{t('myRoom.nextBillDue')}</h2>
-                            {!invoicesLoaded ? (
-                                <BillSkeleton />
-                            ) : nextBill ? (
-                                <div className="mt-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 animate-fade-in">
-                                    <div>
-                                        <p className="m-0 text-3xl font-extrabold text-slate-900 tabular-nums">{fmtMoney(nextBillOwed)}</p>
-                                        <p className="m-0 mt-1 text-sm text-slate-600">
-                                            {nextBill.billing_period || 'Your bill'}
-                                            {' · '}
-                                            {nextBillAwaiting ? (
-                                                <span className="font-semibold text-sky-700">being confirmed by management</span>
-                                            ) : isPastDue(nextBill) ? (
-                                                <span className="font-semibold text-rose-700">overdue since {fmtDay(nextBill.due_date)}</span>
-                                            ) : (
-                                                <>due {fmtDay(nextBill.due_date)}</>
-                                            )}
-                                        </p>
-                                    </div>
-                                    {!nextBillAwaiting && (
-                                        <button type="button" onClick={() => navigate('/pay-bills')} className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold border-0 cursor-pointer shrink-0 transition-[background-color,transform] active:scale-[0.97]">
-                                            {t('myRoom.payRentBalance')}
-                                        </button>
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="m-0 mt-3 text-base font-semibold text-emerald-700 animate-fade-in">You're all paid up. No open bill right now.</p>
-                            )}
-                        </section>
-
-                        {term && !movedOut && (
-                            <RentTermCard
-                                start={fmtDay(term.start)}
-                                end={fmtDay(expectedEnd)}
-                                elapsedPct={term.elapsedPct}
-                                daysLeft={daysUntilExpiration}
-                                onExtend={!movingOut && !extensionBlocked ? openExtend : undefined}
-                            />
-                        )}
-
-                        <nav aria-label="Room shortcuts" className="grid grid-cols-2 gap-2 mt-auto">
-                            {quickLinks.map((link) => (
-                                <button
-                                    key={link.to}
-                                    type="button"
-                                    onClick={() => navigate(link.to)}
-                                    className="group flex items-center gap-3 min-h-[52px] px-3 sm:px-4 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-200 text-left text-sm font-semibold text-slate-900 cursor-pointer transition-[background-color,border-color,box-shadow] hover:shadow-md"
-                                >
-                                    <span aria-hidden="true" className="w-8 h-8 shrink-0 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center transition-colors group-hover:bg-indigo-600 group-hover:text-white">
-                                        <FontAwesomeIcon icon={link.icon} />
-                                    </span>
-                                    <span className="flex-1 min-w-0">{link.label}</span>
-                                    <FontAwesomeIcon icon={faChevronRight} className="text-xs text-slate-400 transition-[translate] group-hover:translate-x-0.5" aria-hidden="true" />
-                                </button>
-                            ))}
-                        </nav>
-                    </div>
-                </div>
-
-                {/* Household and its related occupancy and house-rules controls. */}
-                <div className="flex flex-col gap-4">
-                    {household === null && !householdError ? <HouseholdSkeleton /> : (
-                        <HouseholdPanel
-                            data={household}
-                            error={householdError}
-                            onChanged={loadHousehold}
-                            addOpen={addMemberOpen}
-                            onAddOpenChange={setAddMemberOpen}
-                            monthlyRent={roomDetails.monthlyRent}
-                            occupancy={occupancy}
-                            occupantChangeAction={!movedOut ? (
-                                <Disclosure
-                                    id="manage-occupants"
-                                    icon={faUsers}
-                                    title="Change number of occupants"
-                                    summary={`Currently ${currentOccupants} ${currentOccupants === 1 ? 'person' : 'people'}. Management approves changes.`}
-                                    open={openPanel === 'occupants' || !!fields.errors.occupants}
-                                    onToggle={() => toggle('occupants')}
-                                >
-                                    <form onSubmit={handleUpdateOccupants} className="m-0 grid gap-3 sm:max-w-md" noValidate>
-                                        <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-800">Number of occupants (1 to {maxOccupants})</label>
-                                        <input
-                                            type="text"
-                                            {...fields.fieldA11y('occupants')}
-                                            inputMode="numeric"
-                                            min="1"
-                                            max={maxOccupants}
-                                            step="1"
-                                            value={occupants}
-                                            onKeyDown={blockNonDigitKeys}
-                                            onChange={(e) => handleOccupantChange(e.target.value)}
-                                            onPaste={(e) => sanitizeDigitPaste(e, handleOccupantChange)}
-                                            onBlur={() => occupants !== currentOccupants && fields.validateField('occupants', fieldValues)}
-                                            className={`${INPUT}${invalidCls(fields.errors.occupants)}`}
-                                            required
-                                        />
-                                        <p className="m-0 text-sm text-slate-600">
-                                            {occupancyRuleText(t, occupancy)}
-                                            {Number.isInteger(Number(occupants)) && Number(occupants) >= 1 && Number(occupants) <= maxOccupants && occupancyExtraText(t, occupancy, occupants) && <strong className="text-amber-800"> {occupancyExtraText(t, occupancy, occupants)}</strong>}
-                                        </p>
-                                        <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
-                                        <button type="submit" disabled={!!busy} className={`${BTN_PRIMARY} justify-self-start`}>
-                                            {busy === 'occupants' ? 'Sending…' : 'Send request'}
-                                        </button>
-                                    </form>
-                                </Disclosure>
-                            ) : null}
-                        />
-                    )}
-                </div>
-
-                {/* Keep both future-rent actions together directly after Household. */}
-                {!movedOut && (
-                    <section aria-labelledby="manage-rent-heading" className="space-y-4">
-                        <h2 id="manage-rent-heading" className="m-0 text-xl font-bold text-slate-900">Manage your rent</h2>
-                        <div className={`${PANEL} overflow-hidden`}>
-                            <div id="manage-extend">
-                                <Disclosure
-                                    id="manage-extend-panel"
-                                    icon={faCalendarPlus}
-                                    title={t('myRoom.extendLease')}
-                                    summary={extensionBlocked
-                                        ? 'Not available right now. Open to see why.'
-                                        : !hasExtensionRange
-                                            ? 'No extension months are currently available.'
-                                            : `Add ${minExtension} to ${maxExtension} months. Management approves the request.`}
-                                    open={extendOpen}
-                                    onToggle={() => toggle('extend')}
-                                >
-                                    <form onSubmit={handleExtendRent} className="m-0 grid gap-3 sm:max-w-md" noValidate>
-                                        <p className="m-0 text-sm leading-relaxed text-slate-600">
-                                            Each added month is billed a week before it starts.
-                                            {extension?.maxMonthsAhead != null ? ` Your rent can reach at most ${extension.maxMonthsAhead} month(s) from today.` : ''}
-                                            {extension?.deadline && !extensionBlocked ? ` Requests close on ${formatAvailable(extension.deadline)}.` : ''}
-                                        </p>
-                                        {extensionBlocked && (
-                                            <div role="status" className="flex flex-col items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                                                <p className="m-0 flex items-start gap-2">
-                                                    <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5 shrink-0 text-amber-700" aria-hidden="true" />
-                                                    {extension.reason}
-                                                </p>
-                                                {extension.overdueTotal > 0 && (
-                                                    <button type="button" onClick={() => navigate('/pay-bills')} className="min-h-[44px] px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold border-0 cursor-pointer">
-                                                        Go to Pay Bills
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                        <label htmlFor="myroom-additionalMonths" className="text-sm font-bold text-slate-800">
-                                            Months to add ({minExtension} to {maxExtension})
-                                        </label>
-                                        <input
-                                            type="text"
-                                            {...fields.fieldA11y('additionalMonths')}
-                                            inputMode="numeric"
-                                            pattern="[0-9]*"
-                                            min={minExtension}
-                                            max={maxExtension}
-                                            step="1"
-                                            value={additionalMonths}
-                                            onKeyDown={blockNonDigitKeys}
-                                            onChange={(e) => handleExtensionChange(e.target.value)}
-                                            onPaste={(e) => sanitizeDigitPaste(e, (digitsOnly) => {
-                                                handleExtensionChange(digitsOnly);
-                                            })}
-                                            onBlur={() => fields.validateField('additionalMonths', fieldValues)}
-                                            disabled={extensionBlocked || !hasExtensionRange}
-                                            className={`${INPUT} disabled:opacity-60${fields.errors.additionalMonths ? ' !border-rose-500 focus:!border-rose-500 focus:!ring-rose-500/30 text-rose-600' : ' focus:!ring-indigo-500/30'}`}
-                                            required
-                                        />
-                                        <FieldError id="myroom-additionalMonths" error={fields.errors.additionalMonths} className="m-0" />
-                                        <button type="submit" disabled={!!busy || extensionBlocked || !extensionValueValid} className={`${BTN_PRIMARY} justify-self-start disabled:opacity-50 disabled:cursor-not-allowed`}>
-                                            {busy === 'extend' ? 'Sending…' : 'Send extension request'}
-                                        </button>
-                                    </form>
-                                </Disclosure>
-                            </div>
-                        </div>
-
-                {/* Red warning card is paired with the extension action above. */}
-                <section aria-labelledby="end-rent-heading" className="flex items-start gap-4 rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 sm:p-6">
-                    <span aria-hidden="true" className="hidden sm:flex w-11 h-11 shrink-0 rounded-xl bg-rose-600 text-white items-center justify-center shadow-lg shadow-rose-600/30">
-                        <FontAwesomeIcon icon={faSignOutAlt} />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                    <h2 id="end-rent-heading" className="m-0 text-lg font-bold text-rose-900">Ending your rent</h2>
-                    {movingOut ? (
-                        <div className="mt-3 space-y-1 text-sm text-slate-700">
-                            <p className="m-0">
-                                Your move-out date is <strong className="text-slate-900">{roomDetails.requestedMoveOutDate ? fmtDay(roomDetails.requestedMoveOutDate) : 'not set yet'}</strong>
-                                {daysLeft !== null && (daysLeft > 0 ? `, ${daysLeft} day${daysLeft === 1 ? '' : 's'} from now.` : ', today.')}
-                            </p>
-                            <p className="m-0 text-slate-600">Management will contact you about the room inspection and your deposit.</p>
-                        </div>
-                    ) : movedOut ? (
-                        roomDetails.depositDeductions?.length > 0 ? (
-                            <div className="mt-3 space-y-2">
-                                <p className="m-0 text-sm font-semibold text-slate-700">Deducted from your security deposit</p>
-                                {roomDetails.depositDeductions.map((d, i) => (
-                                    <div key={i} className="flex justify-between gap-3 text-sm text-slate-600">
-                                        <span className="min-w-0"><strong className="text-slate-800">{d.label || d.category}</strong>{d.reason ? `: ${d.reason}` : ''}</span>
-                                        <span className="font-semibold text-slate-900 shrink-0 tabular-nums">{fmtMoney(d.amount)}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="m-0 mt-3 text-sm text-slate-600">Your rent has ended.</p>
-                        )
-                    ) : (
-                        <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <p className="m-0 text-sm leading-relaxed text-slate-700">
-                                Give notice {moveOutNotice.min} to {moveOutNotice.max} days before your move-out date. Management then arranges the room inspection and your deposit.
-                            </p>
-                            <button
-                                type="button"
-                                onClick={handleEndRent}
-                                className="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold border-0 cursor-pointer shrink-0 shadow-lg shadow-rose-600/25 transition-[background-color,transform] active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
-                            >
-                                <FontAwesomeIcon icon={faSignOutAlt} aria-hidden="true" /> {t('myRoom.endRentTerm')}
-                            </button>
-                        </div>
-                    )}
-                    </div>
-                </section>
-                    </section>
-                )}
-
-                {!movedOut && household?.hasLease !== false && (
-                    <div className="pb-6">
-                        <HouseRulesAccordion
-                            rules={houseRules}
-                            loading={loadingHouseRules}
-                            error={houseRulesError}
-                            open={houseRulesOpen}
-                            onToggle={() => setHouseRulesOpen((current) => !current)}
-                        />
-                    </div>
-                )}
+                {myRoomLayout.sections.filter((s) => s.show).map((s) => <Fragment key={s.id}>{sectionNodes[s.id]}</Fragment>)}
             </div>
 
             {/* ─── MOVE OUT SCHEDULING MODAL ─── */}

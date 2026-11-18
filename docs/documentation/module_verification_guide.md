@@ -1547,11 +1547,11 @@ flowchart LR
 ### 9.3 Step-by-Step Workflow
 
 1. **Admin — open the dashboard** · `/admin-dashboard` → `dashboard_stats.php` → revenue, receivables, overdue total and the action queue. Lapsed invoices are promoted to `overdue` on this call.
-2. **Admin — open reports** · `/admin-reports` → choose monthly, quarterly or yearly → `get_report_data.php` and `get_utilities_report_data.php` load together.
-3. **Income tab (8.2)** · income statement: the revenue lines, including late fees when there are any, then maintenance expense and overhead. The overhead line reads *"not configured"* until `report_overhead_pct` exists.
-4. **Streams tab (8.3)** · per-category amounts, shares and growth against the previous period; the categories add up to gross revenue.
-5. **Payments tab** · collection efficiency and the arrears list (each row carries its invoice id and status).
-6. **Export** · *CSV* or *Print* from the tab being viewed.
+2. **Admin — open reports** · Sidebar → General → *Reports* (`/admin-reports`, reworked 2026-11-15) → pick one of eight reports, a range (*Days* from–to, a *Week*, a *Month* or a *Year*, stepped with ‹ ›, or a quick pick) and *Group by* day / week / month / year → `get_reports.php?report=…&from=…&to=…&group=…`. The choice stays in the address bar. `get_report_data.php` and `get_utilities_report_data.php` are no longer called by the page (kept, with their tests).
+3. **Income statement (8.2, 8.3)** · revenue (money received, deposits out, installments on the day received), expenses (repairs the building paid + recorded expenses + `report_overhead_pct`), net income and margin, each against the previous range; the statement lists every revenue stream and expense category with its share; the chart and *By …* table give each period.
+4. **Payments received / Billing and arrears** · receipts by method and every payment; bills issued in the range with collected and still owed, still owed by age today, and the open bills.
+5. **Export** · *Print* (every row, tables unfolded), *Excel* (`.xlsx`: Summary, one sheet per table, ₱ / % / date cells) or *PDF* (A4, summary cards, chart, tables, page numbers), built in the browser from the same answer.
+6. **Tools** · *Generate invoice* (create / adjust, unchanged; the tenant list is the Occupancy report's roster) and *Expenses* (`manage_expenses.php`).
 7. **Configure overhead (optional)** · no UI yet:
    ```sql
    INSERT INTO system_settings (setting_key, setting_value) VALUES ('report_overhead_pct', '10')
@@ -1942,8 +1942,8 @@ flowchart LR
 2. **Admin — export** · *Export CSV* downloads every entry matching the current filters; the export appears in the log under `system`.
 3. **Admin — quick view** · `/admin-dashboard` → *Activity* tab shows the 10 newest entries.
 4. **Admin — monitor tenants (8.4)** · `/admin-tenants` → each unit shows **Overdue ₱…**, **Due ₱…** or **Paid up**, with lease end and days remaining.
-5. **Admin — monitor maintenance (8.5)** · `/admin-reports` → *Maintenance* tab: tickets by status, open tickets by priority (Needs Triage first), tickets filed by category, cost against the period's budget and average resolution time.
-6. **Admin — occupancy and gaps** · *Occupancy* tab (move-ins/move-outs by lease dates, average lease term); *Management Gaps* tab (arrears, pending maintenance, vacant units with the real rent not being collected).
+5. **Admin — monitor maintenance (8.5)** · `/admin-reports` → *Maintenance* report: requests received and finished per period, average time to finish, repair cost by who pays, by category, by urgency and status, open today.
+6. **Admin — occupancy** · *Occupancy and tenants* report: occupancy today and on average over the range, occupancy per period, move-ins and move-outs, rent lost to vacancy, the current tenants. (The old *Management Gaps* tab is gone; arrears are in *Billing and arrears*, open repairs in *Maintenance*.)
 7. **Admin — change a setting** · `/admin-settings` → *Save System Settings* → the log entry lists exactly which keys changed.
 
 ### 11.4 Test Conditions

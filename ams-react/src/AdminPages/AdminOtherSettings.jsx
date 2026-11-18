@@ -17,7 +17,6 @@ import LeasingPanel from './settings/LeasingPanel';
 import NotificationsPanel from './settings/NotificationsPanel';
 import MaintenancePanel from './settings/MaintenancePanel';
 import HouseRulesPanel from './settings/HouseRulesPanel';
-import GarbageSchedulePanel from './settings/GarbageSchedulePanel';
 import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import CctvPanel from './settings/CctvPanel';
@@ -29,6 +28,7 @@ import AdminContractEditor from './AdminContractEditor';
 import LoadError from '../Components/admin/ui/LoadError';
 import ContractEndPanel from './settings/ContractEndPanel';
 import PreviewPagePanel from './settings/PreviewPagePanel';
+import MyRoomPagePanel from './settings/MyRoomPagePanel';
 import LoginOtpPanel from './settings/LoginOtpPanel';
 
 const SETTINGS_FORM_ID = 'other-system-settings-form';
@@ -191,7 +191,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure rent policies, contract end, contact and payment details, notifications, maintenance, the Home and Preview pages, Glass theme and language switch, floor rates, and building rules.
+                Configure rent policies, contract end, contact and payment details, notifications, maintenance, the Home, Preview and My Room pages, Glass theme and language switch, floor rates, and building rules.
               </p>
             </div>
 
@@ -266,7 +266,7 @@ const AdminOtherSettings = () => {
 
             {/* Tab Content Panels */}
             {activeTab === 'site' && <AdminContractEditor embedded siteOnly />}
-            {activeTab === 'house-rules' && <><HouseRulesPanel /><GarbageSchedulePanel /></>}
+            {activeTab === 'house-rules' && <HouseRulesPanel />}
             {activeTab === 'floor-rent' && <FloorRentPanel />}
             {activeTab === 'utility-types' && <UtilityTypesPanel />}
             {activeTab === 'cctv' && <CctvPanel />}
@@ -320,6 +320,9 @@ const AdminOtherSettings = () => {
                 </div>
                 <div data-tab="preview-page" hidden={activeTab !== 'preview-page'} className="space-y-6">
                   <PreviewPagePanel {...panelProps} savedImage={savedSettings?.previewHero?.image ?? ''} />
+                </div>
+                <div data-tab="my-room" hidden={activeTab !== 'my-room'} className="space-y-6">
+                  <MyRoomPagePanel {...panelProps} />
                 </div>
               </form>
             )}

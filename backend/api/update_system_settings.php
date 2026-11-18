@@ -185,7 +185,9 @@ foreach ($input as $key => $value) {
         if ($clean === null) $refuse($problem, ["cctvIncidentTypes" => $problem]);
         $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
     }
-    // Housekeeping schedule (Settings -> House Rules): up to 14 rows of { day, what, time }.
+    // Garbage collection schedule (Other Settings -> My Room; the card on My Room):
+    // up to 14 rows of { day, what, time, period }. period is morning, afternoon,
+    // evening or '' (no particular time; rows saved before periods existed).
     if ($key === 'garbage_schedule') {
         $decoded = json_decode($value, true);
         $is_list = is_array($decoded) && ($decoded === [] || array_keys($decoded) === range(0, count($decoded) - 1));
@@ -199,9 +201,33 @@ foreach ($input as $key => $value) {
             if (!is_string($day) || !in_array($day, $days, true)) $refuse("Each row needs a day of the week (or Every day).");
             if ($what === '' || mb_strlen($what) > 60) $refuse("Say what is collected, in 1 to 60 characters.");
             if (mb_strlen($time) > 30) $refuse("The time can be at most 30 characters.");
-            $clean[] = ['day' => $day, 'what' => $what, 'time' => $time];
+            $period = is_array($row) ? ($row['period'] ?? '') : '';
+            if (!in_array($period, ['', 'morning', 'afternoon', 'evening'], true)) $refuse("Choose morning, afternoon or evening for each row.");
+            $clean[] = ['day' => $day, 'what' => $what, 'time' => $time, 'period' => $period];
         }
         $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
+    }
+    // My Room page (Other Settings -> My Room): the order of its sections and
+    // which show. Each known section once; one left out is appended, shown; the
+    // room tag always shows. Ids match config/myRoomPage.js.
+    if ($key === 'my_room_layout') {
+        $known = ['important', 'room', 'garbage', 'household', 'manageRent', 'houseRules'];
+        $decoded = json_decode($value, true);
+        $list = is_array($decoded) ? ($decoded['sections'] ?? null) : null;
+        if (!is_array($list) || ($list && array_keys($list) !== range(0, count($list) - 1))) $refuse("The My Room layout must be a list of sections.");
+        $clean = [];
+        foreach ($list as $item) {
+            $id = is_array($item) ? ($item['id'] ?? null) : null;
+            if (!is_string($id) || !in_array($id, $known, true)) $refuse("The My Room layout has a section this page does not know.");
+            if (isset($clean[$id])) $refuse("Each My Room section can be listed only once.");
+            $show = $item['show'] ?? true;
+            if (!is_bool($show)) $refuse("Choose whether each My Room section is shown.");
+            $clean[$id] = ['id' => $id, 'show' => $id === 'room' ? true : $show];
+        }
+        foreach ($known as $id) {
+            if (!isset($clean[$id])) $clean[$id] = ['id' => $id, 'show' => true];
+        }
+        $value = json_encode(['sections' => array_values($clean)]);
     }
     // No young children on these floors (default 3F, because of the stairs).
     if ($key === 'child_restricted_floors') {

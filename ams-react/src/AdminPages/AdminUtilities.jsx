@@ -506,7 +506,7 @@ export default function AdminUtilities() {
 
                   <button
                     type="button"
-                    onClick={() => navigate('/admin-reports?tab=utilities')}
+                    onClick={() => navigate('/admin-reports?report=utilities')}
                     className={btn('success', 'sm', 'ml-2')}
                   >
                     <FontAwesomeIcon icon={faChartLine} />

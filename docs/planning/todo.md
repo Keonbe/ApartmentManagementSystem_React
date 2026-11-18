@@ -117,7 +117,7 @@ Smallest set from [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_
 | [x] | Unprioritized | **Enh** Add min/max limits to form inputs, including a plate-number `maxLength` in `ParkingReservation.jsx`. The backend already validates both. Done 2026-09-25 (branch `feature/frontend-validation`): limits come from `utils/validation.js` `LIMITS`, read from SetupDB column sizes. | 2026-09 backlog Registration & Application, 2026-09 backlog Parking Reservation |
 | [x] | Unprioritized | **Enh** A rejected or declined applicant can edit and resubmit (`rent_application.php` with `appId`, Track Application → Fix and resubmit). Already built; docs corrected 2026-11-14. | 2026-09 backlog Registration & Application |
 | [ ] | Unprioritized | **Enh** Documents: accept Police Clearance and Proof of Billing uploads. (Admins can now ask an applicant for more documents: `request_application_documents.php`, 2026-11-14.) | 2026-09 backlog Documents |
-| [x] | Unprioritized | **Enh** Garbage and housekeeping schedule: Settings → House Rules editor, tenant page `/housekeeping`. Done 2026-11-14 (`garbage_schedule.test.js`). Terms for occupancy and tenant responsibility were done earlier. | 2026-09 backlog Housekeeping |
+| [x] | Unprioritized | **Enh** Garbage and housekeeping schedule: Settings → House Rules editor, tenant page `/housekeeping`. Done 2026-11-14 (`garbage_schedule.test.js`). Moved 2026-11-15 to a Garbage collection card on My Room (week view, morning / afternoon / evening), edited in Other Settings → My Room, which also orders and hides My Room's sections (`my_room_layout.test.js`). Terms for occupancy and tenant responsibility were done earlier. | 2026-09 backlog Housekeeping |
 
 ## Security
 
