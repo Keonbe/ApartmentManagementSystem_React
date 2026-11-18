@@ -38,6 +38,17 @@ describe('email verification', () => {
     expect(row.verification_token).toBeNull();
     expect((await api('verify_email.php', { json: { token: TOKEN } })).body.success).toBe(false); // the link works once
   });
+
+  it('limits attempts: 30 an hour per address, valid link or not', async () => {
+    await q("DELETE FROM rate_limit_events WHERE action = 'verify_email'");
+    for (let i = 0; i < 30; i++) {
+      expect((await api('verify_email.php', { json: { token: 'c'.repeat(64) } })).status).toBe(200);
+    }
+    const refused = await api('verify_email.php', { json: { token: 'c'.repeat(64) } });
+    expect(refused.status).toBe(429);
+    expect(refused.body.success).toBe(false);
+    await q("DELETE FROM rate_limit_events WHERE action = 'verify_email'");
+  });
 });
 
 describe('device sign-in code', () => {

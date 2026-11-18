@@ -3,7 +3,7 @@
 // session token, the sender is the session's user whatever the payload claims,
 // and a message passes the same checks as send_message.php.
 // The server runs as its own Node process against the scratch ams_test.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { io } from 'socket.io-client';
@@ -89,27 +89,35 @@ describe('connecting', () => {
   });
 });
 
+// Chat is between a tenant and the office only (security_audit CH-3), so every
+// conversation below is tenant <-> admin. A message counts toward the sender's
+// 20-per-10-seconds cap through the messages table, so earlier messages are
+// aged out and the cap is not carried from one test into the next.
+beforeEach(async () => {
+  await q('UPDATE messages SET created_at = created_at - INTERVAL 2 MINUTE');
+});
+
 describe('sending', () => {
   it('stores the message from the session user, whatever sender_id the payload claims', async () => {
-    const [mariaSock, joseSock] = await Promise.all([connect(maria), connect(jose)]);
-    const incoming = next(joseSock, 'receive_message');
-    const ack = await send(mariaSock, { sender_id: JOSE, receiver_id: JOSE, message: ' hello from maria ' });
+    const [mariaSock, adminSock] = await Promise.all([connect(maria), connect(admin)]);
+    const incoming = next(adminSock, 'receive_message');
+    const ack = await send(mariaSock, { sender_id: JOSE, receiver_id: adminId, message: ' hello from maria ' });
     expect(ack.ok).toBe(true);
 
     const got = await incoming;
-    expect(got).toMatchObject({ sender_id: MARIA, receiver_id: JOSE, message: 'hello from maria' });
+    expect(got).toMatchObject({ sender_id: MARIA, receiver_id: adminId, message: 'hello from maria' });
     const row = await one('SELECT sender_id, receiver_id, message FROM messages WHERE id = ?', [got.id]);
-    expect(row).toEqual({ sender_id: MARIA, receiver_id: JOSE, message: 'hello from maria' });
+    expect(row).toEqual({ sender_id: MARIA, receiver_id: adminId, message: 'hello from maria' });
 
     const log = await one("SELECT performed_by, category, details FROM activity_logs WHERE action = 'send_message' ORDER BY id DESC LIMIT 1");
-    expect(log).toEqual({ performed_by: MARIA, category: 'system', details: `Messaged user ${JOSE}` });
+    expect(log).toEqual({ performed_by: MARIA, category: 'system', details: `Messaged user ${adminId}` });
   });
 
   it('a third user never receives it, and cannot join someone else\'s room', async () => {
-    const [mariaSock, adminSock] = await Promise.all([connect(maria), connect(admin)]);
-    adminSock.emit('join', JOSE); // the old trusting handshake: the id is ignored now
-    const quiet = silent(adminSock, 'receive_message');
-    const ack = await send(mariaSock, { receiver_id: JOSE, message: 'private to jose' });
+    const [mariaSock, joseSock] = await Promise.all([connect(maria), connect(jose)]);
+    joseSock.emit('join', adminId); // the old trusting handshake: the id is ignored now
+    const quiet = silent(joseSock, 'receive_message');
+    const ack = await send(mariaSock, { receiver_id: adminId, message: 'private to the office' });
     expect(ack.ok).toBe(true);
     expect(await quiet).toBe(true);
   });
@@ -125,11 +133,13 @@ describe('sending', () => {
     const socket = await connect(maria);
     const before = await countMessages();
     const cases = [
-      [{ receiver_id: JOSE, message: '   ' }, /Missing required fields/],
+      [{ receiver_id: adminId, message: '   ' }, /Missing required fields/],
       [{ receiver_id: MARIA, message: 'to myself' }, /yourself/],
       [{ receiver_id: 999999, message: 'nobody' }, /User not found/],
-      [{ receiver_id: JOSE, message: 'x'.repeat(2001) }, /2000 characters/],
-      [{ receiver_id: JOSE, message: 'reply', reply_to_id: 999999 }, /Reply target/],
+      [{ receiver_id: adminId, message: 'x'.repeat(2001) }, /2000 characters/],
+      [{ receiver_id: adminId, message: 'reply', reply_to_id: 999999 }, /Reply target/],
+      // Tenant to tenant is not chat any more.
+      [{ receiver_id: JOSE, message: 'hello neighbour' }, /management office/],
     ];
     for (const [payload, message] of cases) {
       const ack = await send(socket, payload);
@@ -139,27 +149,45 @@ describe('sending', () => {
     expect(await countMessages()).toBe(before);
 
     // Exactly the limit is fine.
-    expect((await send(socket, { receiver_id: JOSE, message: 'y'.repeat(2000) })).ok).toBe(true);
+    expect((await send(socket, { receiver_id: adminId, message: 'y'.repeat(2000) })).ok).toBe(true);
+  });
+
+  it('refuses a message to an archived account and a message between two admins', async () => {
+    const adminSock = await connect(admin);
+    const before = await countMessages();
+
+    await q('UPDATE users SET is_archived = 1 WHERE id = ?', [JOSE]);
+    const toArchived = await send(adminSock, { receiver_id: JOSE, message: 'are you there' });
+    await q('UPDATE users SET is_archived = 0 WHERE id = ?', [JOSE]);
+    expect(toArchived).toMatchObject({ ok: false, code: 'forbidden' });
+    expect(toArchived.error).toMatch(/no longer active/);
+
+    const created = await q("INSERT INTO users (first_name, last_name, email_address, password, role) VALUES ('Second', 'Admin', 'second.admin@demo.example', 'x', 'admin')");
+    const otherAdmin = created.insertId;
+    const adminToAdmin = await send(adminSock, { receiver_id: otherAdmin, message: 'staff chat' });
+    await q('DELETE FROM users WHERE id = ?', [otherAdmin]);
+    expect(adminToAdmin).toMatchObject({ ok: false, code: 'forbidden' });
+
+    expect(await countMessages()).toBe(before);
   });
 
   it('replies only inside the same conversation', async () => {
-    const [mariaSock, joseSock] = await Promise.all([connect(maria), connect(jose)]);
-    const first = await send(mariaSock, { receiver_id: JOSE, message: 'question' });
-    expect((await send(joseSock, { receiver_id: MARIA, message: 'answer', reply_to_id: first.message.id })).ok).toBe(true);
-    // The admin has no part in that conversation.
-    const adminSock = await connect(admin);
-    expect((await send(adminSock, { receiver_id: MARIA, message: 'sneaky', reply_to_id: first.message.id })).ok).toBe(false);
+    const [mariaSock, adminSock, joseSock] = await Promise.all([connect(maria), connect(admin), connect(jose)]);
+    const first = await send(mariaSock, { receiver_id: adminId, message: 'question' });
+    expect((await send(adminSock, { receiver_id: MARIA, message: 'answer', reply_to_id: first.message.id })).ok).toBe(true);
+    // Jose's thread with the office is a different conversation.
+    expect((await send(joseSock, { receiver_id: adminId, message: 'sneaky', reply_to_id: first.message.id })).ok).toBe(false);
   });
 
   it('a session that ends stops the sender: the next message is refused and the socket closed', async () => {
     const token = await loginAs('maria');
     const socket = await connect(token);
-    expect((await send(socket, { receiver_id: JOSE, message: 'still signed in' })).ok).toBe(true);
+    expect((await send(socket, { receiver_id: adminId, message: 'still signed in' })).ok).toBe(true);
 
     await api('logout.php', { token });
     const closed = new Promise((resolve) => socket.once('disconnect', resolve));
     const before = await countMessages();
-    const ack = await send(socket, { receiver_id: JOSE, message: 'after logout' });
+    const ack = await send(socket, { receiver_id: adminId, message: 'after logout' });
     expect(ack).toMatchObject({ ok: false, code: 'unauthorized' });
     await closed;
     expect(await countMessages()).toBe(before);
@@ -168,14 +196,23 @@ describe('sending', () => {
   it('slows a flood: more than 20 messages in a few seconds are refused', async () => {
     const socket = await connect(await loginAs('maria'));
     const acks = [];
-    for (let i = 0; i < 24; i++) acks.push(await send(socket, { receiver_id: JOSE, message: `flood ${i}` }));
+    for (let i = 0; i < 24; i++) acks.push(await send(socket, { receiver_id: adminId, message: `flood ${i}` }));
     expect(acks.filter((a) => a.ok).length).toBeLessThanOrEqual(20);
     expect(acks.some((a) => a.code === 'rate_limited')).toBe(true);
   });
 
+  it('the cap also holds across many sockets of one account (counted from the messages table)', async () => {
+    const token = await loginAs('maria');
+    const sockets = await Promise.all([1, 2, 3, 4].map(() => connect(token)));
+    const acks = [];
+    for (let i = 0; i < 24; i++) acks.push(await send(sockets[i % 4], { receiver_id: adminId, message: `spread ${i}` }));
+    expect(acks.filter((a) => a.ok).length).toBe(20);
+    expect(acks.slice(20).every((a) => a.code === 'rate_limited')).toBe(true);
+  });
+
   it('keeps message bodies out of the server log', async () => {
     const socket = await connect(await loginAs('maria'));
-    await send(socket, { receiver_id: JOSE, message: 'a-secret-body-1234' });
+    await send(socket, { receiver_id: adminId, message: 'a-secret-body-1234' });
     expect(server.output()).not.toContain('a-secret-body-1234');
   });
 });
@@ -190,9 +227,7 @@ describe('complaints over the socket (SPRINT 189)', () => {
     expect(toOffice.message.complaint_id).toBe(complaintId);
     expect((await one('SELECT complaint_id FROM messages WHERE id = ?', [toOffice.message.id])).complaint_id).toBe(complaintId);
 
-    // To another tenant, or from a tenant with no complaint: ordinary chat.
-    const toNeighbour = await send(mariaSock, { receiver_id: JOSE, message: 'Hi Jose' });
-    expect(toNeighbour.message.complaint_id).toBeNull();
+    // From a tenant with no complaint: ordinary chat.
     const other = await send(joseSock, { receiver_id: adminId, message: 'A question about my bill' });
     expect(other.message.complaint_id).toBeNull();
 

@@ -1,7 +1,7 @@
 // send_message.php (and its alias save_message.php), get_chat_history.php, get_conversations.php.
 // The chat endpoints read X-User-Id, which config.php rewrites from the session, so the identity is the
 // bearer token's. QA guide: chat section (C10).
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { api, loginAs } from './lib/api.js';
@@ -24,7 +24,49 @@ beforeAll(async () => {
   adminId = (await one("SELECT id FROM users WHERE email_address = 'admin@gmail.com'")).id;
 });
 
+// A message counts toward the sender's 20-per-10-seconds cap, so earlier messages
+// are aged out and the cap is not carried from one test into the next.
+beforeEach(async () => {
+  await q('UPDATE messages SET created_at = created_at - INTERVAL 2 MINUTE');
+});
+
 describe('send_message.php', () => {
+  it('is chat between a tenant and the office only (CH-3): no tenant to tenant, no admin to admin', async () => {
+    const before = (await one('SELECT COUNT(*) AS c FROM messages')).c;
+    const toTenant = await send(maria, { receiver_id: JOSE, message: 'hello neighbour' });
+    expect(toTenant.status).toBe(403);
+    expect(toTenant.body.message).toMatch(/management office/);
+
+    const created = await q("INSERT INTO users (first_name, last_name, email_address, password, role) VALUES ('Second', 'Admin', 'second.admin@demo.example', 'x', 'admin')");
+    const toAdmin = await send(admin, { receiver_id: created.insertId, message: 'staff chat' });
+    await q('DELETE FROM users WHERE id = ?', [created.insertId]);
+    expect(toAdmin.status).toBe(403);
+
+    expect((await one('SELECT COUNT(*) AS c FROM messages')).c).toBe(before);
+    // The office can still write to a tenant, and a tenant to the office.
+    expect((await send(admin, { receiver_id: MARIA, message: 'office to tenant' })).body.success).toBe(true);
+  });
+
+  it('refuses a message to an archived account', async () => {
+    await q('UPDATE users SET is_archived = 1 WHERE id = ?', [JOSE]);
+    const res = await send(admin, { receiver_id: JOSE, message: 'are you there' });
+    await q('UPDATE users SET is_archived = 0 WHERE id = ?', [JOSE]);
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/no longer active/);
+  });
+
+  it('stops a flood: the 21st message within 10 seconds is a 429, and other accounts are not slowed', async () => {
+    for (let i = 0; i < 20; i++) {
+      expect((await send(maria, { receiver_id: adminId, message: `burst ${i}` })).status).toBe(200);
+    }
+    const refused = await send(maria, { receiver_id: adminId, message: 'one too many' });
+    expect(refused.status).toBe(429);
+    expect(refused.body).toMatchObject({ success: false, code: 'rate_limited' });
+    expect(await one("SELECT id FROM messages WHERE message = 'one too many'")).toBeNull();
+
+    expect((await send(jose, { receiver_id: adminId, message: 'jose is fine' })).body.success).toBe(true);
+  });
+
   it('needs a session; a forged identity header does not stand in for one', async () => {
     expect((await send(undefined, { receiver_id: adminId, message: 'hi' })).status).toBe(400);
     expect((await api('send_message.php', { headers: { 'X-User-Id': String(MARIA) }, json: { receiver_id: adminId, message: 'forged' } })).status).toBe(400);

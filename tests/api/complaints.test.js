@@ -72,13 +72,11 @@ describe('the conversation follows the complaint', () => {
     complaintId = (await one("SELECT id FROM complaints WHERE user_id = ? AND status = 'Open'", [MARIA])).id;
   });
 
-  it('messages between the tenant and the admin carry its id; a message to another tenant does not', async () => {
+  it('messages between the tenant and the admin carry its id; a message from another tenant does not', async () => {
     const fromTenant = await send(maria, adminId, 'It was loud again last night');
     expect(fromTenant.body.message.complaint_id).toBe(complaintId);
     const fromAdmin = await send(admin, MARIA, 'We have noted it and will talk to the unit above');
     expect(fromAdmin.body.message.complaint_id).toBe(complaintId);
-    const toNeighbour = await send(maria, JOSE, 'Hi Jose');
-    expect(toNeighbour.body.message.complaint_id).toBeNull();
     // Another tenant writing to the admin is not part of Maria's complaint.
     const other = await send(jose, adminId, 'Question about my bill');
     expect(other.body.message.complaint_id).toBeNull();

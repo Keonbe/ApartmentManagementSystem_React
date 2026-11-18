@@ -11,6 +11,8 @@ require_once __DIR__ . '/../config.php';
 
 const MESSAGE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const MESSAGE_VIDEO_MAX_BYTES = 25 * 1024 * 1024;
+const CHAT_RATE_MESSAGES = 20;       // per sender ...
+const CHAT_RATE_WINDOW_SECONDS = 10; // ... per window
 
 $sender_id = intval($_SERVER['HTTP_X_USER_ID'] ?? $_SERVER['HTTP_X_ADMIN_ID'] ?? 0);
 $body = $_POST ?: (read_json_input());
@@ -51,7 +53,7 @@ if (mb_strlen($message) > 2000) {
 try {
     // Check both people and the reply target before anything is written to disk,
     // so a refused message never leaves an orphaned attachment behind.
-    $userCheck = $conn->prepare("SELECT id, role FROM users WHERE id IN (?, ?)");
+    $userCheck = $conn->prepare("SELECT id, role, is_archived FROM users WHERE id IN (?, ?)");
     if (!$userCheck) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
@@ -65,10 +67,46 @@ try {
         exit;
     }
 
+    $roles = [];
+    $archived = [];
+    while ($u = $userResult->fetch_assoc()) {
+        $roles[(int)$u['id']] = $u['role'];
+        $archived[(int)$u['id']] = (int)$u['is_archived'] === 1;
+    }
+
+    // Chat is between a tenant and the office only (security_audit CH-3): no
+    // tenant to tenant, and no admin to admin. An archived account (a former
+    // tenant) cannot be written to; the sender's own session already ended if
+    // they were archived. Same rule in websocket-server/server.js.
+    $pair = [$roles[$sender_id] ?? '', $roles[$receiver_id] ?? ''];
+    sort($pair);
+    if ($pair !== ['admin', 'user']) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "You can only message the management office."]);
+        exit;
+    }
+    if (!empty($archived[$receiver_id])) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "This account is no longer active, so it cannot receive messages."]);
+        exit;
+    }
+
+    // At most CHAT_RATE_MESSAGES per CHAT_RATE_WINDOW_SECONDS per sender, counted
+    // from the messages themselves so it covers the socket path too. Keep equal
+    // to RATE_LIMIT_* in websocket-server/server.js.
+    $rate = $conn->prepare("SELECT COUNT(*) AS n FROM messages WHERE sender_id = ? AND created_at > (NOW() - INTERVAL " . CHAT_RATE_WINDOW_SECONDS . " SECOND)");
+    $rate->bind_param('i', $sender_id);
+    $rate->execute();
+    $recent = (int)($rate->get_result()->fetch_assoc()['n'] ?? 0);
+    $rate->close();
+    if ($recent >= CHAT_RATE_MESSAGES) {
+        http_response_code(429);
+        echo json_encode(["success" => false, "code" => "rate_limited", "message" => "You are sending messages too quickly. Please wait a moment."]);
+        exit;
+    }
+
     // A message between a tenant and the office belongs to the tenant's open
     // complaint, if they have one (the client never says so).
-    $roles = [];
-    while ($u = $userResult->fetch_assoc()) $roles[(int)$u['id']] = $u['role'];
     $tenant_party = ($roles[$sender_id] ?? '') === 'user' ? $sender_id : (($roles[$receiver_id] ?? '') === 'user' ? $receiver_id : null);
     $complaint_id = ($tenant_party !== null && ($roles[$sender_id] ?? '') !== ($roles[$receiver_id] ?? ''))
         ? open_complaint_id($conn, $tenant_party) : null;

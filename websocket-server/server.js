@@ -15,7 +15,7 @@ const mysql = require('mysql2/promise');
 //     activity-log row.
 
 const MAX_MESSAGE_LENGTH = 2000; // keep equal to send_message.php
-const RATE_LIMIT_MESSAGES = 20;  // per socket ...
+const RATE_LIMIT_MESSAGES = 20;  // per socket (and per sender, from the messages table) ... keep equal to send_message.php
 const RATE_LIMIT_WINDOW_MS = 10_000; // ... per window
 
 // Same list as backend/cors.php. Override with ALLOWED_ORIGINS (comma separated).
@@ -138,12 +138,32 @@ io.on('connection', (socket) => {
             }
             if (receiverId === userId) return fail('Cannot send a message to yourself');
 
-            const [people] = await pool.execute('SELECT id, role FROM users WHERE id IN (?, ?)', [userId, receiverId]);
+            const [people] = await pool.execute('SELECT id, role, is_archived FROM users WHERE id IN (?, ?)', [userId, receiverId]);
             if (people.length < 2) return fail('User not found');
+
+            // Chat is between a tenant and the office only, and an archived account
+            // cannot be written to (same rule as send_message.php, security_audit CH-3).
+            const roles = Object.fromEntries(people.map((p) => [Number(p.id), p.role]));
+            const pair = [roles[userId], roles[receiverId]].sort().join('/');
+            if (pair !== 'admin/user') return fail('You can only message the management office.', 'forbidden');
+            const receiver = people.find((p) => Number(p.id) === receiverId);
+            if (Number(receiver.is_archived) === 1) {
+                return fail('This account is no longer active, so it cannot receive messages.', 'forbidden');
+            }
+
+            // The per-socket limit above does not stop one account opening many
+            // sockets, so the same cap is counted from the messages table (the
+            // count send_message.php uses).
+            const [recent] = await pool.execute(
+                `SELECT COUNT(*) AS n FROM messages WHERE sender_id = ? AND created_at > (NOW() - INTERVAL ${RATE_LIMIT_WINDOW_MS / 1000} SECOND)`,
+                [userId],
+            );
+            if (Number(recent[0].n) >= RATE_LIMIT_MESSAGES) {
+                return fail('You are sending messages too quickly. Please wait a moment.', 'rate_limited');
+            }
 
             // A message between a tenant and the office follows the tenant's unresolved
             // complaint (same rule as send_message.php); the client never says so.
-            const roles = Object.fromEntries(people.map((p) => [Number(p.id), p.role]));
             let complaintId = null;
             if (roles[userId] !== roles[receiverId]) {
                 const tenantId = roles[userId] === 'user' ? userId : (roles[receiverId] === 'user' ? receiverId : null);
