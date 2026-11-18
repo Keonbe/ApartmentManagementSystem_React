@@ -380,6 +380,9 @@ if ($action === 'edit') {
 
         $conn->commit();
 
+        // The termination is saved. A failing notice or log line is only logged:
+        // reporting it as a failed termination made a retry hit 409.
+        try {
         if ($settled && $settled['refund_id']) {
             notify_refund_raised($conn, $settled['refund_id'], $settled['refund_amount'], 'a returned security deposit');
             log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$settled['refund_id']}: ₱" . number_format($settled['refund_amount'], 2) . " (security deposit, contract $contract_id)");
@@ -406,15 +409,19 @@ if ($action === 'edit') {
             . ($vacated['parking_released'] ? "; parking released" : "")
             . ($vacated['visitors_cancelled'] ? "; visitor pre-registrations cancelled" : "");
         log_activity($conn, $admin_id, 'contract', "Terminated Contract & Ended Tenancy", $details);
+        } catch (Throwable $after_commit) {
+            error_log('[AMS] update_contract_status terminate: saved, follow-up failed: ' . $after_commit->getMessage());
+        }
 
         $response = ["success" => true, "message" => "Contract terminated and tenancy ended."];
         if ($balance_invoice_id) $response["balance_invoice"] = ['id' => $balance_invoice_id, 'amount' => $balance_invoice_amount];
         if ($vacated['advance_refund_id']) $response["advance_refund"] = ['id' => $vacated['advance_refund_id'], 'amount' => $vacated['advance_refund_amount']];
         echo json_encode($response);
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         $conn->rollback();
-        http_response_code(409);
-        echo json_encode(["success" => false, "message" => public_error_message($e)]);
+        if (!$e instanceof Exception) error_log('[AMS] update_contract_status terminate: ' . $e->getMessage());
+        http_response_code($e instanceof Exception ? 409 : 500);
+        echo json_encode(["success" => false, "message" => $e instanceof Exception ? public_error_message($e) : "Server error. Please try again."]);
     }
 } else {
     http_response_code(422);

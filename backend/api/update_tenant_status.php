@@ -165,7 +165,11 @@ if ($id > 0 && !empty($status)) {
 
         // A payment still under review would be charged to the deposit and then
         // cancelled by end_tenancy(); the admin settles it first.
-        if ($status === 'moved-out' && ($in_review = tenancy_payment_in_review($conn, (int)$id))) {
+        // The same goes for rejecting or cancelling an approved application: a proof
+        // under review is not yet money the refund path can see (amount_paid is 0),
+        // and release_application_holds() would cancel that bill and lose it.
+        $ends_approved = $current_status === 'Approved' && in_array($status, ['Rejected', 'Declined', 'Cancelled'], true);
+        if (($status === 'moved-out' || $ends_approved) && ($in_review = tenancy_payment_in_review($conn, (int)$id))) {
             http_response_code(409);
             echo json_encode(["success" => false, "message" => $in_review]);
             $conn->rollback();
@@ -238,10 +242,9 @@ if ($id > 0 && !empty($status)) {
             // advance credits, reminders and free the room. An Approved
             // application held the room, so it is vacated outright; before that
             // the unit may belong to someone else and is only released if unclaimed.
-            release_application_holds($conn, $id, $cur_row['user_id'] ?? null, "Application $status before move-in", [
-                'room_name' => $cur_row['room_name'], 'vacate_held_room' => $current_status === 'Approved',
-            ]);
-
+            // The refunds below are opened first: release_application_holds()
+            // cancels the open invoices, and a part-paid one that is already
+            // cancelled no longer reaches open_cancellation_refund() (no fee).
             // Money paid on an approved application rejected by management goes
             // back through one admin-origin refund request per paid invoice.
             if ($refund_on_cancel && !empty($cur_row['user_id'])) {
@@ -265,6 +268,10 @@ if ($id > 0 && !empty($status)) {
                     $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, $refund_reason, $admin_id);
                 }
             }
+
+            release_application_holds($conn, $id, $cur_row['user_id'] ?? null, "Application $status before move-in", [
+                'room_name' => $cur_row['room_name'], 'vacate_held_room' => $current_status === 'Approved',
+            ]);
         }
 
         if ($status === 'Approved') {
@@ -321,6 +328,34 @@ if ($id > 0 && !empty($status)) {
                 // room: only claim it if it's still vacant/reserved. If a concurrent
                 // approval already took it, affected_rows is 0 and this approval fails
                 // instead of silently overwriting the other tenant's occupancy.
+                // 'reserved' is also what another approved applicant or a hold for
+                // someone else leaves behind, so the status alone cannot tell
+                // whether this approval may take the unit. Lock the room row,
+                // then refuse when another application already holds it or an
+                // Active hold names a different person.
+                $lock_stmt = $conn->prepare("SELECT status FROM rooms WHERE id = ? FOR UPDATE");
+                $lock_stmt->bind_param("s", $room_name);
+                $lock_stmt->execute();
+                $room_now = $lock_stmt->get_result()->fetch_assoc();
+                $lock_stmt->close();
+                // An occupied unit gets its own message ("still has a tenant") below.
+                $other_stmt =$conn->prepare("SELECT id FROM rent_applications WHERE room_name = ? AND id <> ? AND status IN ('Approved', 'active', 'pending-move-out') LIMIT 1");
+                $other_stmt->bind_param("si", $room_name, $id);
+                $other_stmt->execute();
+                $other_app = $other_stmt->get_result()->fetch_assoc();
+                $other_stmt->close();
+                if ($other_app && ($room_now['status'] ?? '') !== 'occupied') {
+                    throw new Exception("Room $room_name is already held by another approved application (#{$other_app['id']}). Cancel or reject that one first.");
+                }
+                $hold_stmt = $conn->prepare("SELECT id FROM unit_reservations WHERE room_name = ? AND status = 'Active' AND NOT (user_id <=> ? OR LOWER(TRIM(reserved_for_name)) = LOWER(TRIM(?))) LIMIT 1");
+                $hold_stmt->bind_param("sis", $room_name, $user_id, $tenant_name);
+                $hold_stmt->execute();
+                $foreign_hold = $hold_stmt->get_result()->fetch_assoc();
+                $hold_stmt->close();
+                if ($foreign_hold) {
+                    throw new Exception("Room $room_name is on hold for someone else (reservation #{$foreign_hold['id']}). Cancel the hold first.");
+                }
+
                 $room_stmt = $conn->prepare("UPDATE rooms SET status = ?, tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND status IN ('vacant', 'reserved')");
                 $room_stmt->bind_param("ssssis", $room_status, $tenant_name, $lease_start, $lease_end, $app['occupants'], $room_name);
                 $room_stmt->execute();
@@ -343,9 +378,10 @@ if ($id > 0 && !empty($status)) {
 
                 // Close out any active hold on this unit — the applicant has
                 // moved in, so the reservation has served its purpose.
-                $res_stmt = $conn->prepare("UPDATE unit_reservations SET status = 'Converted', released_at = NOW(), released_reason = 'Application approved' WHERE room_name = ? AND status = 'Active'");
+                // Only this applicant's own hold (the check above left no other).
+                $res_stmt = $conn->prepare("UPDATE unit_reservations SET status = 'Converted', released_at = NOW(), released_reason = 'Application approved' WHERE room_name = ? AND status = 'Active' AND (user_id <=> ? OR LOWER(TRIM(reserved_for_name)) = LOWER(TRIM(?)))");
                 if ($res_stmt) {
-                    $res_stmt->bind_param("s", $room_name);
+                    $res_stmt->bind_param("sis", $room_name, $user_id, $tenant_name);
                     $res_stmt->execute();
                     $res_stmt->close();
                 }
@@ -476,6 +512,20 @@ if ($id > 0 && !empty($status)) {
             // apply_deposit_to_invoices()); whatever is still open is owed, so
             // end_tenancy() cancels only an unpaid advance-rent invoice.
             $vacated = end_tenancy($conn, $id, 'Moved Out', $room_condition, ['keep_owed' => true, 'actor_id' => $admin_id]);
+            if ($vacated === null) {
+                // end_tenancy() leaves the unit alone when it is not in this tenant's
+                // name. A unit already vacant (cleared by hand) is fine, but one held
+                // under another name would be left occupied while the tenant is marked
+                // moved out and the deposit settled: roll the whole clearance back.
+                $held_stmt = $conn->prepare("SELECT status, tenant_name FROM rooms WHERE id = ?");
+                $held_stmt->bind_param("s", $cur_row['room_name']);
+                $held_stmt->execute();
+                $held = $held_stmt->get_result()->fetch_assoc();
+                $held_stmt->close();
+                if ($held && !empty($held['tenant_name']) && in_array($held['status'], ['occupied', 'reserved'], true)) {
+                    throw new Exception("Cannot clear this tenant: the unit is recorded under another name. Check the unit in Units, then try again.");
+                }
+            }
             if ($vacated && $vacated['advance_refund_id']) {
                 $advance_refund_raised = ['id' => $vacated['advance_refund_id'], 'amount' => $vacated['advance_refund_amount']];
             }
@@ -556,6 +606,9 @@ if ($id > 0 && !empty($status)) {
         }
 
         $conn->commit();
+        // Everything from here is notice and log work on a change that is saved.
+        // A failure in it is logged, never reported as the clearance failing.
+        try {
         $outcome = $status === 'Cancelled' ? 'cancelled' : 'rejected';
         foreach ($refunds_raised as $rf) {
             notify_refund_raised($conn, $rf['id'], $rf['amount'], "a payment on a $outcome application");
@@ -593,6 +646,9 @@ if ($id > 0 && !empty($status)) {
                 error_log('Could not dispatch application decision email: ' . $notification_error->getMessage());
             }
         }
+        } catch (Throwable $after_commit) {
+            error_log('[AMS] update_tenant_status: saved, follow-up failed: ' . $after_commit->getMessage());
+        }
         $response = ["success" => true];
         if (!empty($refunds_raised)) $response["refunds_raised"] = count($refunds_raised);
         if ($cancellation_fee_kept > 0) $response["cancellation_fee_kept"] = round($cancellation_fee_kept, 2);
@@ -608,9 +664,13 @@ if ($id > 0 && !empty($status)) {
         }
         echo json_encode($response);
 
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
+        // An Error (TypeError and the like) used to skip this block and leave the
+        // transaction open with no JSON. Rolled back here; the message stays
+        // generic for anything that is not a plain Exception.
         $conn->rollback();
-        echo json_encode(["success" => false, "message" => public_error_message($e)]);
+        if (!$e instanceof Exception) error_log('[AMS] update_tenant_status: ' . $e->getMessage());
+        echo json_encode(["success" => false, "message" => $e instanceof Exception ? public_error_message($e) : "Server error. Please try again."]);
     }
 }
 $conn->close();

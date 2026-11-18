@@ -302,7 +302,10 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             // schedule the move-in) and the tenant notification, exactly like a
             // desk payment. Payment never activates the tenancy by itself.
             // An advance payment settles each of its months (settle_payment_key()).
-            $result = settle_payment_key($conn, $invoice_id, $pm_label ?: 'PayMongo (Sandbox)', null, null);
+            // The collected amount goes in so settle_invoice() re-checks it against
+            // the balance under the row lock: a late fee or part-payment that landed
+            // after the check above is refused there instead of being marked paid.
+            $result = settle_payment_key($conn, $invoice_id, $pm_label ?: 'PayMongo (Sandbox)', null, $paid_centavos / 100);
 
             $actor = !empty($inv_row['user_id']) ? (int)$inv_row['user_id'] : null;
 
@@ -316,7 +319,17 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
                     "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a') . " — " . $result['message'], $actor ?? 0);
                 notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Online Payment Needs Review',
                     "An online payment for $invoice_id was received but could not be recorded: " . $result['message']);
-                raise_unapplied_payment($conn, $payment_id, $paid_centavos, $actor, $invoice_id, $result['message']);
+                // Months of a group that did settle before the failure keep their
+                // money; only the rest of what PayMongo collected goes back.
+                $applied_cents = 0;
+                foreach ($group_rows as $row) {
+                    if (in_array($row['id'], $result['invoice_ids'] ?? [], true)) $applied_cents += invoice_balance_cents($row);
+                }
+                $unapplied_cents = (int)$paid_centavos - $applied_cents;
+                if ($unapplied_cents > 0) {
+                    raise_unapplied_payment($conn, $payment_id, $unapplied_cents, $actor, $invoice_id,
+                        $applied_cents > 0 ? $result['message'] . " (" . number_format($applied_cents / 100, 2) . " of it was applied to the months that did settle)" : $result['message']);
+                }
                 http_response_code(200);
                 echo json_encode(["success" => true, "message" => "Payment recorded but needs manual review: " . $result['message']]);
                 $conn->close();

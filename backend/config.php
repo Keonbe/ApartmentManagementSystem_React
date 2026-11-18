@@ -1774,7 +1774,15 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         }
 
         $conn->commit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['ok' => false, 'message' => $e->getMessage(), 'invoice_id' => $invoice_id, 'user_id' => null, 'activated' => false];
+    }
 
+    // The payment is saved. Nothing below may turn it into a failure: a caller
+    // that sees ok=false treats the money as not applied (the PayMongo webhook
+    // would open a refund for it), so a failing notice is only logged.
+    try {
         // The tenant is told the payment landed, and a proof/cash declaration
         // awaiting verification leaves the admin queue — regardless of which
         // channel settled it.
@@ -1816,18 +1824,17 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         if ($advance_months > 0 && !empty($inv_res['user_id'])) {
             generate_due_rent_invoices($conn, (int)$inv_res['user_id']);
         }
-
-        return [
-            'ok' => true,
-            'message' => 'Payment successfully finalized and saved.',
-            'invoice_id' => $invoice_id,
-            'user_id' => $inv_res['user_id'] ?? null,
-            'activated' => $activated,
-        ];
-    } catch (Exception $e) {
-        $conn->rollback();
-        return ['ok' => false, 'message' => $e->getMessage(), 'invoice_id' => $invoice_id, 'user_id' => null, 'activated' => false];
+    } catch (Throwable $after_commit) {
+        error_log("settle_invoice $invoice_id: payment saved, follow-up failed: " . $after_commit->getMessage());
     }
+
+    return [
+        'ok' => true,
+        'message' => 'Payment successfully finalized and saved.',
+        'invoice_id' => $invoice_id,
+        'user_id' => $inv_res['user_id'] ?? null,
+        'activated' => $activated,
+    ];
 }
 
 // ── Installments (manager interview Q9 / Q12) ──
@@ -1884,6 +1891,26 @@ function record_partial_payment($conn, $invoice_id, $parts, $admin_id) {
             return ['ok' => true, 'settled' => true, 'message' => "Final part received. Invoice $invoice_id is paid in full.",
                     'amount_paid' => round((float)$inv['total_amount'], 2), 'balance' => 0.0, 'user_id' => (int)$inv['user_id']];
         }
+
+        // A part with no reference (cash) has nothing for payment_double_submitted()
+        // to match, so a double click recorded it twice. Under the invoice lock held
+        // here, the same amount and method from this admin on this bill within
+        // DOUBLE_SUBMIT_MINUTES is treated as the same click.
+        $dup = $conn->prepare("SELECT 1 FROM payment_transactions WHERE invoice_id = ? AND payment_method = ? AND ROUND(amount * 100) = ? AND recorded_by = ?
+            AND (reference_number IS NULL OR reference_number = '') AND created_at >= NOW() - INTERVAL " . (int)DOUBLE_SUBMIT_MINUTES . " MINUTE LIMIT 1");
+        foreach ($parts as $p) {
+            if (trim((string)($p['reference_number'] ?? '')) !== '') continue;
+            $dup_cents = (int)round((float)$p['amount'] * 100);
+            $dup_admin = (int)$admin_id;
+            $dup->bind_param("ssii", $invoice_id, $p['method'], $dup_cents, $dup_admin);
+            $dup->execute();
+            if ($dup->get_result()->fetch_row()) {
+                $dup->close();
+                $conn->rollback();
+                return $fail("This part (₱" . number_format($dup_cents / 100, 2) . " by " . $p['method'] . ") was already recorded on this bill a moment ago. Check Payment History; if it really is a second part, try again in " . DOUBLE_SUBMIT_MINUTES . " minutes.");
+            }
+        }
+        $dup->close();
 
         $ins = $conn->prepare("INSERT INTO payment_transactions (invoice_id, amount, payment_method, bank_name, reference_number, recorded_by) VALUES (?, ?, ?, ?, ?, ?)");
         $recorder = (int)$admin_id;
@@ -2861,6 +2888,12 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
             error_log('Could not dispatch advance payment confirmation email: ' . $notification_error->getMessage());
         }
     };
+    // The months are already saved when this runs: a failing notice is logged,
+    // never allowed to turn the payment into an error.
+    $notify_inner = $notify;
+    $notify = function () use ($notify_inner, $key) {
+        try { $notify_inner(); } catch (Throwable $notice_error) { error_log("settle_payment_key $key: saved, notice failed: " . $notice_error->getMessage()); }
+    };
     foreach ($rows as $row) {
         $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false, $split_allocations[$row['id']] ?? null, $recorded_by);
         if ($result['ok'] === false) {
@@ -3645,7 +3678,6 @@ function emergency_contact_check($name, $relationship, $phone, $own_phone, $requ
 // complaint carry its id (messages.complaint_id).
 const COMPLAINT_CATEGORIES = ['Maintenance', 'Billing', 'Neighbor', 'Noise', 'Staff', 'Other'];
 const COMPLAINT_TRANSITIONS = [
-
     'Open'      => ['In Review', 'Resolved'],
     'In Review' => ['Resolved', 'Open'],
     'Resolved'  => ['In Review'],

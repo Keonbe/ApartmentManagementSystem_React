@@ -242,7 +242,10 @@ try {
     }
 
     // Never let a settled or cancelled invoice be reopened by attaching a proof.
-    $query .= " AND status IN " . billing_open_status_sql();
+    // 'processing' is excluded: a PayMongo checkout is open on it, and flipping the
+    // bill to pending-verification would leave both a proof and a live session
+    // that can each be settled (the tenant could pay twice).
+    $query .= " AND status IN " . billing_open_status_sql() . " AND status <> 'processing'";
 
     $stmt = $conn->prepare($query);
     $stmt->bind_param($types, ...$params);
@@ -250,6 +253,14 @@ try {
     $updated = $stmt->affected_rows;
     $stmt->close();
     if ($updated === 0) {
+        $busy = $conn->prepare("SELECT 1 FROM invoices WHERE ? IN (id, payment_group) AND status = 'processing' LIMIT 1");
+        $busy->bind_param("s", $invoice_id);
+        $busy->execute();
+        $checkout_open = (bool)$busy->get_result()->fetch_row();
+        $busy->close();
+        if ($checkout_open) {
+            $refuse(409, "An online checkout is in progress for this bill. Finish or cancel it first, then submit your proof.");
+        }
         $refuse(409, "This invoice is not open for payment — it may already be settled or cancelled.");
     }
 
