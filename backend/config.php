@@ -3598,6 +3598,20 @@ function v_id($value, $label) {
     return (filter_var($value, FILTER_VALIDATE_INT) !== false && (int)$value > 0) ? '' : "$label is missing or invalid.";
 }
 
+// The form (multipart / urlencoded) twin of read_json_input(): a field posted as a
+// list (title[]=x) reaches trim() / strtolower() as a TypeError and a 500. Every
+// key in $keys must be a single value or the request is refused with 400.
+function require_scalar_post(array $keys, ?array $source = null) {
+    $source ??= $_POST;
+    foreach ($keys as $key) {
+        if (isset($source[$key]) && !is_scalar($source[$key])) {
+            http_response_code(400);
+            echo json_encode(["success" => false, "message" => "Field '$key' must be a single value.", "field" => $key]);
+            exit;
+        }
+    }
+}
+
 // Who to call if something happens to a tenant (name, relationship, mobile).
 // Kept on users (current) and copied onto each rent application. Roommate is
 // left out on purpose: it is not someone who can speak for the tenant.
@@ -3631,19 +3645,6 @@ function emergency_contact_check($name, $relationship, $phone, $own_phone, $requ
 // complaint carry its id (messages.complaint_id).
 const COMPLAINT_CATEGORIES = ['Maintenance', 'Billing', 'Neighbor', 'Noise', 'Staff', 'Other'];
 const COMPLAINT_TRANSITIONS = [
-// The form (multipart / urlencoded) twin of read_json_input(): a field posted as a
-// list (title[]=x) reaches trim() / strtolower() as a TypeError and a 500. Every
-// key in $keys must be a single value or the request is refused with 400.
-function require_scalar_post(array $keys, ?array $source = null) {
-    $source ??= $_POST;
-    foreach ($keys as $key) {
-        if (isset($source[$key]) && !is_scalar($source[$key])) {
-            http_response_code(400);
-            echo json_encode(["success" => false, "message" => "Field '$key' must be a single value.", "field" => $key]);
-            exit;
-        }
-    }
-}
 
     'Open'      => ['In Review', 'Resolved'],
     'In Review' => ['Resolved', 'Open'],
