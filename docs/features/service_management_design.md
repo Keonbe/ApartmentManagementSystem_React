@@ -68,7 +68,7 @@ flowchart TD
     N --> K
     L --> O{"Cancel a Completed booking?"}
     O -->|Invoice pending / overdue / scheduled / payment-failed| P["Cancelled + charge backed out"]
-    O -->|Paid, under verification, or mid-checkout| Q["Refused — issue a manual credit"]
+    O -->|Paid, under verification, or mid-checkout| Q["Refused — void the payment first or open a refund request"]
 ```
 
 **Status vocabulary:** `Pending → Approved → In Progress → Completed`, plus

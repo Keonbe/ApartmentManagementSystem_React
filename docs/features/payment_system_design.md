@@ -222,6 +222,8 @@ sequenceDiagram
 // 6. log_activity()
 ```
 
+**Settlement rules (2026-11-18).** The paid event passes the amount PayMongo collected into `settle_payment_key()`; `settle_invoice()` re-checks it against the balance under the invoice row lock, so a late fee or part-payment that landed after the webhook's first check is refused and the money becomes a refund request, not a `paid` bill for less than it costs. `settle_invoice()` returns `ok: true` as soon as the payment is committed: the tenant notice, queue updates and the follow-up rent invoices run afterwards and a failure there is only logged (it used to return `ok: false`, and the webhook then opened a refund for money that was applied). A group payment (`ADV-` / `BND-`) settles each month in its own transaction; if one fails, the refund request covers only the months not settled. A bill with an open checkout (`processing`) takes no proof upload (409).
+
 ### 4.3 PayMongo API Keys
 
 - **Test Secret Key:** `sk_test_...` — used server-side in PHP (never exposed to frontend)
@@ -403,6 +405,25 @@ At a move-out clearance or a contract termination `settle_deposit()` works out d
 - Undo: `restore_tenant.php` → `reverse_deposit_application()` reopens those invoices, cancels the balance invoice and the automatic advance refund request; refused once the balance invoice has a payment.
 - Limits: a former tenant cannot open Pay Bills, so the balance invoice is paid at the office and recorded by the admin (cash on a `pending` or `overdue` bill is allowed). Rent is still billed by whole months; proration stays open (SPRINT 73, delimitation DE-10). Move-outs before this change keep their "Settled from deposit" rows.
 - Tests: `tests/api/move_out_settlement.test.js`.
+
+## Void a paid desk payment, and refund payout proof (2026-11-18, SPRINT 182)
+
+**Void.** `void_payment.php` (admin) takes `invoiceId` and a `reason` (5 to 220 characters). The bill is locked and must be `paid`; its payment rows are deleted and it goes back to `pending`, or `overdue` when its due date has passed (so the usual late-fee rules apply again; waive it with *Adjust invoice* if the tenant is not at fault). `amount_paid`, `payment_method`, reference, bank and `paid_at` are cleared. The record is the bill's adjustment history (`invoice_adjustments`: reason "Payment voided: …", admin, `changes {amount_paid: [x, 0]}`, shown in *Adjustment history*) and an activity-log line that names the method, reference and amount. The tenant gets a "Payment Voided" notice with the reason. A second void, or two at once, change nothing (409).
+
+| Refused (409) | Why |
+|---|---|
+| Not `paid` | Nothing to void |
+| Paid online (`payment_gateway`, PayMongo ids) | The money went through the gateway: refund it with a refund request |
+| `payment_group` (advance `ADV-` or combined `BND-` payment), `advance_months` | One bill of a group cannot be undone alone |
+| `Advance credit` / `Security deposit` method | Undone by the flow that did it (prepaid rent, move-out; restore the tenancy) |
+| A refund request exists for the bill (open or refunded) | The money would go back twice |
+| Move-in bill (`security_deposit` > 0) once the application is no longer `Approved` | The tenant has moved in: the deposit is part of the running tenancy. Before that, the contract's `deposit_status` goes back from `Held` to `Pending` |
+
+Reports and the dashboard read `status = 'paid'`, so a voided payment drops out of revenue for the day it was counted. Admin UI: *Void* beside the receipt button in a tenant's payment history (`AdminPayments.jsx`, shown only for payments the server can void). *Not built:* a write-off for the unpaid rest of a part-paid bill (audit P-06); it needs a decision on how the revenue lines are reduced.
+
+**Refund payout (audit P-13).** A refund paid out by hand (`update_refund_request.php`, `mark_refunded` without `gateway`) is sent as a form: `payout_method` from GCash, Maya, Bank transfer, Cash, Other (case-insensitive; anything else is 400), `payout_reference` and `payout_proof` (JPG, PNG, WEBP or PDF up to 10 MB). Anything but Cash needs the reference and the proof (400 / 422); Cash needs neither. The file is checked before anything is written and saved only after the status change has won, as `uploads/refunds/payout_<hex>.<ext>` (`refund_requests.payout_proof_path`, in `2026_11_workstream.sql`); a rolled-back or stale request leaves no file. `download_file.php` opens it for an admin and for the tenant it was paid to. PayMongo refunds are unchanged (no proof). The JSON shape still works for Cash.
+
+Tests: `tests/api/void_payment.test.js`, `tests/api/refund_payout.test.js`.
 
 ## Tenant payment screens (2026-11)
 Details in [tenant_pages.md](tenant_pages.md) §4. Pay Bills lays out the statement and the "how to pay" column side by side and offers: manual (GCash / bank with reference and proof), in person (scheduled date, morning / afternoon), online PayMongo checkout, **split payment** (portions kept in `payment_proof_parts` until the admin confirms; each confirmed portion becomes a `payment_transactions` row), partial amounts capped at the balance, **pay all together** (bundle, `BND-` key, one combined receipt) and **pay in advance** (`advance_payment.php`, `advance_credits`). Payment History groups open, paid (by year) and cancelled bills with printable receipts; an open bill with recorded instalments also offers one receipt per portion (`RCT-<invoice>-<payment_transactions.id>`, built client-side from the ledger rows `get_invoices.php` returns, so no extra column). Online payments can be refunded through PayMongo (My Refunds, `refund_requests`).
