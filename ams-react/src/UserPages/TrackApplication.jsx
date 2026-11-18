@@ -860,7 +860,7 @@ export default function TrackApplication() {
                                         {hasSubmittedPayment ? 'Request Cancellation' : 'Cancel application'}
                                     </button>
                                     <p className="m-0 mt-1 text-sm text-slate-600">
-                                        {hasSubmittedPayment ? 'Subject to lease cancellation terms.' : 'Possible until you move in.'}
+                                        {hasSubmittedPayment ? 'Subject to rent cancellation terms.' : 'Possible until you move in.'}
                                     </p>
                                 </div>
                             )}

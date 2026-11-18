@@ -763,7 +763,7 @@ export default function RentApplication() {
                         <div className="space-y-6">
                             <div className="border-b border-slate-100 pb-3">
                                 <h3 className="text-xl font-black m-0 text-slate-900">Rental Preferences</h3>
-                                <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Specify your residential history, move-in target, and lease terms</p>
+                                <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Specify your residential history, move-in target, and rent terms</p>
                             </div>
 
                             <div className="flex flex-col space-y-1.5">

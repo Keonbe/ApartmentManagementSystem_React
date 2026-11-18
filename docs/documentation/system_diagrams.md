@@ -2,7 +2,7 @@
 
 > **Document Version:** 2.0 — September 2026
 > **Stack:** React 19 (Vite 8) SPA → plain PHP 8 endpoints → MariaDB 10.4 (XAMPP); Node Socket.IO sidecar for chat
-> **Database:** `ams_db` — 31 tables in `backend/api/migrations/SetupDB.sql` (including chat `messages`)
+> **Database:** `ams_db` — 52 tables in `backend/api/migrations/SetupDB.sql`. The ER diagrams in §1 show the original 31; newer tables (refunds, deposit, advance credits, payment transactions, guest chat, trusted devices, application requirements, parking slots and others) are in [database_schema.md](database_schema.md)
 > **Source of truth:** the schema file and `backend/config.php`. [`database_schema.md`](database_schema.md) explains each table in prose; if a diagram and the code disagree, the code wins.
 
 ---
@@ -746,10 +746,10 @@ Mermaid has no UML use-case type, so these diagrams are flowcharts. Actors are r
 | Actor | Who | How the system tells them apart |
 |---|---|---|
 | **Guest** | Anyone not signed in | No session token |
-| **Applicant** | Signed-in user with no active tenancy | `role = 'user'`, no `Approved`/`active`/`pending-move-out` application; `ProtectedRoute` pages only |
+| **Applicant** | Signed-in user with no active tenancy | `role = 'user'`, no `active` / `pending-move-out` application (an `Approved` applicant is still an applicant until the move-in invoice is paid); `ProtectedRoute` pages only |
 | **Tenant** | Signed-in user with a unit | `role = 'user'` + active tenancy; unlocks `TenantProtectedRoute` pages |
 | **Administrator** | Property staff | `role = 'admin'`; every admin endpoint calls `require_admin()` |
-| **Scheduler** | Windows Task Scheduler | Runs `backend/cron/daily_sweep.php` and `process_queue.php` (`run_queue.bat`) |
+| **Scheduler** | Windows Task Scheduler (XAMPP) or Linux/cPanel cron | Runs `backend/cron/daily_sweep.php` and `process_queue.php` (`run_queue.bat`) |
 | **PayMongo** | Online payment gateway | Hosted checkout + `paymongo_webhook.php` |
 | **Semaphore / SMTP** | SMS and email providers | Called by the notification queue drain |
 
@@ -846,7 +846,7 @@ flowchart LR
     subgraph AMS["AMS — signed-in pages"]
         direction TB
         P1(["Submit rent application<br/>/rent-application"])
-        P2(["Upload valid ID (front/back) & NBI clearance"])
+        P2(["Upload the required documents (default: valid ID front/back)"])
         P3(["Agree to terms"])
         P4(["Track application status<br/>/track-application"])
         P5(["Resubmit after rejection"])
@@ -1328,7 +1328,7 @@ flowchart TB
     D1 -->|"user_id"| P23
     P23 -->|"application (Pending Review)"| D5
     P23 -->|"admin queue item: rent_application"| D16
-    App -->|"valid ID front/back, NBI clearance"| P24
+    App -->|"required documents (valid ID front/back by default)"| P24
     P24 -->|"files"| F1
     P24 -->|"file paths"| D5
 

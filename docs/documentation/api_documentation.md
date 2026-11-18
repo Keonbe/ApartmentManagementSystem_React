@@ -2,7 +2,7 @@
 
 > **Base URL:** `http://localhost/ApartmentManagementSystem_React/backend/api/`
 > **Content-Type:** `application/json` (unless file upload)
-> **Total Endpoints:** 155 PHP files in `backend/api/` (about 146 HTTP endpoints; the rest are helpers, includes and CLI-only schema scripts) across 15 modules. Modules 1-14 were written first; module 15 lists the endpoints added since 2026-09 and §15.7 corrects behaviour notes for earlier ones. Re-checked 2026-11-06.
+> **Total Endpoints:** 168 PHP files in `backend/api/` (163 HTTP endpoints: `auth_email.php` is a helper and `apply_live_schema_fix`, `audit_live_schema`, `final_schema_patch` and `sync_live` are CLI-only schema scripts; `save_message.php` and `guest_chat_inbox.php` are aliases that include another endpoint; plus `admin/run_migrations.php` and 8 helpers in `services/`) across 15 modules. Modules 1-14 were written first; module 15 lists the endpoints added since 2026-09 and §15.7 corrects behaviour notes for earlier ones. Re-checked 2026-11-18.
 
 ---
 
@@ -17,14 +17,14 @@
 | 5 | [Lease & Contract Management](#5-lease--contract-management) | 6 | Contracts, documents, lease extensions |
 | 6 | [Billing & Invoices](#6-billing--invoices) | 11 | Invoice generation, payments, PayMongo |
 | 7 | [Utility Management](#7-utility-management) | 5 | Meter readings, corrections, utility billing sync |
-| 8 | [Maintenance Requests](#8-maintenance-requests) | 4 | Tenant maintenance tickets |
+| 8 | [Maintenance Requests](#8-maintenance-requests) | 5 | Tenant maintenance tickets |
 | 9 | [Service Requests](#9-service-requests) | 6 | Bookable services, catalog management |
 | 10 | [Visitor Management](#10-visitor-management) | 3 | Visitor registration, check-in/out |
-| 11 | [Parking Management](#11-parking-management) | 4 | Parking slot reservations |
-| 12 | [Communications & System](#12-communications--system) | 12 | Notifications, announcements, settings, reports |
+| 11 | [Parking Management](#11-parking-management) | 5 | Parking slot reservations |
+| 12 | [Communications & System](#12-communications--system) | 13 | Notifications, announcements, settings, reports |
 | 13 | [Inquiries & Reservations](#13-inquiries--reservations) | 5 | Pre-lease inquiries, unit reservations |
 | 14 | [Scheduled / Cron Tasks](#14-scheduled--cron-tasks) | 6 | Automated expiry and reminder jobs, plus the CCTV request endpoints |
-| 15 | [Endpoints Added Since 2026-09](#15-endpoints-added-since-2026-09) | 62 | Refunds, split / bundle / advance payments, household, guest chat, sign-in code, CCTV footage, site images |
+| 15 | [Endpoints Added Since 2026-09](#15-endpoints-added-since-2026-09) | 73 | Refunds, split / bundle / advance payments, household, guest chat, sign-in code, CCTV footage, site images |
 
 ---
 
@@ -189,7 +189,7 @@ Initiates a password reset flow by generating a SHA-256 hashed token (expires in
 ### `POST` [reset_password.php](../../backend/api/reset_password.php)
 Completes password reset using the token from forgot_password.
 
-**Request Body:** `{email, token, new_password}` — password ≥ 8 chars. On success every session for the account is ended and the reset is logged (`auth`).
+**Request Body:** `{token, new_password, confirm_password}` (all required; the email comes from the stored reset request) — password ≥ 8 chars; a mismatched confirmation is 422 "Passwords do not match." Other failures answer HTTP 200 with `success:false`. On success every session for the account is ended and the reset is logged (`auth`).
 
 ---
 
@@ -311,12 +311,10 @@ Submit or resubmit a rent/lease application.
 | `occupants` | integer | ✅ |
 | `monthsOfRent` | integer | ✅ |
 | `roomName` | string | ✅ |
-| `monthlyRent` | decimal | ✅ |
+| `monthlyRent` | decimal | ignored (the saved rent is the unit's own) |
 | `agreeTerms` | boolean | ✅ |
 | `emergencyName`, `emergencyRelationship`, `emergencyPhone` | string | ✅ every new or resubmitted application (2026-11-14): name 1-100 characters, relationship from `EMERGENCY_RELATIONSHIPS`, a Philippine mobile that differs from `contactNo`; `422` with `errors` per field. Saved on the application and copied to the tenant's account (`users.emergency_*`) |
 | `doc_<requirementId>` | file | one per active requirement (Settings → Application Requirements); replaces the old `validIdFrontFile` / `validIdBackFile` / `nbiFile` |
-| `validIdBackFile` | file | ✅ (first submit) |
-| `nbiFile` | file | ✅ (first submit) |
 | `appId` | integer | ❌ (for resubmission) |
 
 **Other checks:** a field sent as an array is a `400`; text fields are saved trimmed; `monthsOfRent` is the admin minimum to 24 and the rent saved is the unit's own, never `monthlyRent`; an occupied unit is a `409` (`tests/api/application_submit.test.js`).
@@ -340,7 +338,7 @@ Admin endpoint for the full tenant lifecycle — approve, reject, schedule move-
 | Property | Detail |
 |----------|--------|
 | **Auth** | `require_admin()` |
-| **Allowed Statuses** | `Approved`, `Rejected`, `Declined`, `pending-move-out`, `moved-out` |
+| **Allowed Statuses** | `Approved`, `Rejected`, `Declined`, `Cancelled`, `active`, `pending-move-out`, `moved-out`, `Action Required` (further limited by `APPLICATION_TRANSITIONS`) |
 | **Clearance guard (2026-11-13)** | `moved-out` returns **409** while one of the tenant's invoices is `pending-verification` (a proof waiting for the admin) or `processing` (an online checkout in progress), naming the invoice: "Invoice X has a payment under verification. Verify or reject it in Payments first, then try again." Checked by `tenancy_payment_in_review()` before the deposit is settled, so a bill is never charged to the deposit and then cancelled. `update_contract_status.php` `terminate` returns the same 409. |
 
 **On Approval (`Approved`):**
@@ -404,7 +402,7 @@ Admin processes occupancy change or lease extension requests.
 ---
 
 ### `POST` [cancel_request.php](../../backend/api/cancel_request.php)
-Tenant cancels their own pending occupancy/lease request.
+`require_user`. Body `{id (or rawId), type}`; `type` is `Maintenance`, `CCTV`, `Parking` or `Service` (otherwise 422). A Pending row is cancelled directly; an in-progress maintenance ticket or some service bookings become a cancel request instead.
 
 ---
 
@@ -672,7 +670,7 @@ PayMongo webhook receiver — handles `checkout_session.payment.paid` events.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | None (webhook) — validates by matching `checkout_session_id` |
+| **Auth** | None (webhook) — verifies the `Paymongo-Signature` header (HMAC-SHA256; 400/401/500 on failure), then matches `checkout_session_id` |
 | **Idempotent** | Only processes invoices still in `processing` status |
 
 ---
@@ -789,6 +787,7 @@ Tenant submits a maintenance ticket.
 ### `POST` [create_maintenance_request_admin.php](../../backend/api/create_maintenance_request_admin.php)
 Admin creates a maintenance ticket on behalf of a tenant (or for a common area).
 
+Multipart `$_POST` fields (not JSON): `title`, `issueType`, `priority`, `unit`, `description`.
 ---
 
 ### `GET` [get_maintenance_requests.php](../../backend/api/get_maintenance_requests.php)
@@ -852,13 +851,13 @@ Admin updates service request status. On completion, triggers `post_invoice_char
 
 ---
 
-### `GET` / `POST` [manage_service_catalog.php](../../backend/api/manage_service_catalog.php)
+### `POST` [manage_service_catalog.php](../../backend/api/manage_service_catalog.php)
 Admin CRUD for the service catalog. Supports categories, pricing units, quantity limits, lead times.
 
 ---
 
 ### `GET` [get_service_catalog.php](../../backend/api/get_service_catalog.php)
-Returns the active service catalog for tenants (filters by `is_active` + category toggles).
+Returns the active service catalog (filters by `is_active` + category toggles). No `require_*` call, so it is public; an admin (`verify_admin` on `X-Admin-Id`) also sees inactive rows.
 
 ---
 
@@ -957,15 +956,20 @@ Admin broadcasts an announcement to all tenants via in-app notifications.
 |-------|------|----------|
 | `tag` | string | ❌ (default: `General`) |
 | `sendTo` | string | ❌ (`All tenants` default, `Specific unit` with `unit`, or `Selected tenants` with `tenantIds`) |
+| `title` | string | ✅ |
 | `tenantIds` | int[] (JSON text in a form post) | ✅ for `Selected tenants`: 1 to 100 user ids, all current tenants; stored as the label `Tenants: 2,3,5` in `announcements.send_to` (varchar 600); 422 `tenantIds` otherwise |
 | `body` | string | ✅ |
-| `sendTo` | string | ❌ |
 | `channels` | array | ❌ (default: `['in-app']`) |
 
 ---
 
 ### `GET` [get_announcements.php](../../backend/api/get_announcements.php)
 `?public=1` — the tenant feed: `require_user()`, sent announcements only; an announcement addressed to one unit or to chosen tenants is listed only for those people (the audience itself is not returned). Without it — the full list including drafts and channels: `require_admin()`.
+### `POST` [pin_announcement.php](../../backend/api/pin_announcement.php)
+`require_admin`. Body `{id, pinned}`. Only a `sent` announcement can be pinned (404 otherwise) and at most 3 are pinned at once (409). Response `{success, pinned, message}`. Logged as `communication` "Pinned Announcement" / "Unpinned Announcement". `get_announcements.php` returns `is_pinned` and lists pinned first.
+
+---
+
 
 ---
 
@@ -1129,7 +1133,7 @@ Automated reminder sweep — sends notifications to tenants with invoices due wi
 Tenant requests CCTV footage review.
 
 ### `GET` [get_cctv_requests.php](../../backend/api/get_cctv_requests.php)
-Lists CCTV requests. Admin sees all; tenant sees own.
+Lists CCTV requests. `require_admin` (a tenant's own requests come from `get_my_requests.php`).
 
 ### `POST` [update_cctv_status.php](../../backend/api/update_cctv_status.php)
 Admin approves/rejects CCTV footage requests.
@@ -1425,16 +1429,16 @@ All endpoints return JSON with this shape on error:
 | 48 | [get_maintenance_requests.php](../../backend/api/get_maintenance_requests.php) | GET | Maintenance | Admin | List all tickets |
 | 49 | [update_maintenance_status.php](../../backend/api/update_maintenance_status.php) | POST | Maintenance | Admin | Update ticket status |
 | 50 | [service_request.php](../../backend/api/service_request.php) | POST | Service | User | Book a service |
-| 51 | [get_service_requests.php](../../backend/api/get_service_requests.php) | GET | Service | User/Admin | List service bookings |
+| 51 | [get_service_requests.php](../../backend/api/get_service_requests.php) | GET | Service | Admin | List service bookings |
 | 52 | [update_service_status.php](../../backend/api/update_service_status.php) | POST | Service | Admin | Update service status |
-| 53 | [manage_service_catalog.php](../../backend/api/manage_service_catalog.php) | GET/POST | Service | Admin | Catalog CRUD |
+| 53 | [manage_service_catalog.php](../../backend/api/manage_service_catalog.php) | POST | Service | Admin | Catalog CRUD |
 | 54 | [get_service_catalog.php](../../backend/api/get_service_catalog.php) | GET | Service | User | Browse catalog |
 | 55 | [sync_service_to_invoice.php](../../backend/api/sync_service_to_invoice.php) | POST | Service | Admin | Bill service charge |
 | 56 | [get_visitors.php](../../backend/api/get_visitors.php) | GET | Visitor | User/Admin | List visitors |
 | 57 | [check_in_visitor.php](../../backend/api/check_in_visitor.php) | POST | Visitor | User | Register visitor |
 | 58 | [update_visitor_status.php](../../backend/api/update_visitor_status.php) | POST | Visitor | User/Admin | Check out visitor |
 | 59 | [parking_reservation.php](../../backend/api/parking_reservation.php) | POST | Parking | User | Reserve slot |
-| 60 | [get_parking_reservations.php](../../backend/api/get_parking_reservations.php) | GET | Parking | User/Admin | List reservations |
+| 60 | [get_parking_reservations.php](../../backend/api/get_parking_reservations.php) | GET | Parking | Admin | List reservations |
 | 61 | [get_available_parking_slots.php](../../backend/api/get_available_parking_slots.php) | GET | Parking | User | Available slots |
 | 62 | [update_parking_status.php](../../backend/api/update_parking_status.php) | POST | Parking | Admin | Approve/reject parking |
 | 63 | [create_announcement.php](../../backend/api/create_announcement.php) | POST | Comms | Admin | Broadcast announcement |
@@ -1456,11 +1460,11 @@ All endpoints return JSON with this shape on error:
 | 77 | [create_reservation.php](../../backend/api/create_reservation.php) | POST | Inquiry | Admin | Reserve unit for prospect |
 | 78 | [update_reservation_status.php](../../backend/api/update_reservation_status.php) | POST | Inquiry | Admin | Cancel/convert reservation |
 | 79 | [cctv_request.php](../../backend/api/cctv_request.php) | POST | CCTV | User | Request footage |
-| 80 | [get_cctv_requests.php](../../backend/api/get_cctv_requests.php) | GET | CCTV | User/Admin | List CCTV requests |
+| 80 | [get_cctv_requests.php](../../backend/api/get_cctv_requests.php) | GET | CCTV | Admin | List CCTV requests |
 | 81 | [update_cctv_status.php](../../backend/api/update_cctv_status.php) | POST | CCTV | Admin | Process CCTV request |
 | 82 | [expire_contracts.php](../../backend/api/expire_contracts.php) | GET/POST | Sweep | Admin | Auto-expire contracts |
 | 83 | [expire_reservations.php](../../backend/api/expire_reservations.php) | GET/POST | Sweep | Admin | Auto-expire reservations |
-| 84 | [check_due_date_reminders.php](../../backend/api/check_due_date_reminders.php) | GET/POST | Cron | — | Send due date reminders |
+| 84 | [check_due_date_reminders.php](../../backend/api/check_due_date_reminders.php) | GET/POST | Cron | Admin | Send due date reminders ("Run reminder check now"; the scheduled sweep is `cron/daily_sweep.php`) |
 | 85 | [adjust_invoice.php](../../backend/api/adjust_invoice.php) | POST | Added 2026-09+ | Admin | See §15 |
 | 86 | [reject_payment_proof.php](../../backend/api/reject_payment_proof.php) | POST | Added 2026-09+ | Admin | See §15 |
 | 87 | [submit_split_payment.php](../../backend/api/submit_split_payment.php) | POST | Added 2026-09+ | User | See §15 |
@@ -1515,3 +1519,23 @@ All endpoints return JSON with this shape on error:
 | 136 | [upload_qr_image.php](../../backend/api/upload_qr_image.php) | POST | Added 2026-09+ | Admin | See §15 |
 | 137 | [get_notification_log.php](../../backend/api/get_notification_log.php) | GET | Added 2026-11-14 | User | See §15 |
 | 138 | [request_application_documents.php](../../backend/api/request_application_documents.php) | POST | Added 2026-11-14 | Admin | See §15 |
+| 139 | [void_payment.php](../../backend/api/void_payment.php) | POST | Added 2026-11-18 | Admin | See §15 |
+| 140 | [advance_payment.php](../../backend/api/advance_payment.php) | GET/POST | Payments | User | See §15 |
+| 141 | [request_application_cancellation.php](../../backend/api/request_application_cancellation.php) | POST | Applications | User | See §15 |
+| 142 | [get_deposit_statement.php](../../backend/api/get_deposit_statement.php) | GET | Deposit | User | See §15 |
+| 143 | [request_deposit_review.php](../../backend/api/request_deposit_review.php) | POST | Deposit | User | See §15 |
+| 144 | [get_deposit_reviews.php](../../backend/api/get_deposit_reviews.php) | GET | Deposit | Admin | See §15 |
+| 145 | [resolve_deposit_review.php](../../backend/api/resolve_deposit_review.php) | POST | Deposit | Admin | See §15 |
+| 146 | [household_members.php](../../backend/api/household_members.php) | GET/POST | Household | User | See §15 |
+| 147 | [manage_waitlist.php](../../backend/api/manage_waitlist.php) | GET/POST | Inquiries | Admin | See §15 |
+| 148 | [manage_expenses.php](../../backend/api/manage_expenses.php) | GET/POST | Reports | Admin | See §15 |
+| 149 | [monitor_followups.php](../../backend/api/monitor_followups.php) | GET/POST | Follow-ups | Admin | See §15 |
+| 150 | [house_rules.php](../../backend/api/house_rules.php) | GET/POST/PUT/DELETE | Settings | Public read, Admin write | See §15 |
+| 151 | [manage_utility_types.php](../../backend/api/manage_utility_types.php) | GET/POST/PUT/DELETE | Utilities | User read, Admin write | See §15 |
+| 152 | [public_file.php](../../backend/api/public_file.php) | GET | Files | Public | See §15 |
+| 153 | [guest_chat.php](../../backend/api/guest_chat.php) | GET/POST | Guest chat | Guest token | See §15 |
+| 154 | [file_complaint.php](../../backend/api/file_complaint.php) | POST | Complaints | User | See §15 |
+| 155 | [update_complaint_status.php](../../backend/api/update_complaint_status.php) | POST | Complaints | Admin | See §15 |
+| 156 | [get_complaints.php](../../backend/api/get_complaints.php) | GET | Complaints | User/Admin | See §15 |
+| 157 | [login_otp_settings.php](../../backend/api/login_otp_settings.php) | GET/POST | Auth | Admin | See §15 |
+| 158 | [admin/run_migrations.php](../../backend/api/admin/run_migrations.php) | any | Admin | Admin | Runs pending migrations (`cron/migrate.php`); answers `{success, applied, output}`, 500 on failure |
