@@ -36,6 +36,7 @@ function split_fail($message, $code = 422) {
     exit;
 }
 
+require_scalar_post(['invoice_id', 'parts']);
 $key = trim((string)($_POST['invoice_id'] ?? ''));
 $raw_parts = json_decode((string)($_POST['parts'] ?? ''), true);
 if ($key === '') split_fail("Invoice ID is required.");

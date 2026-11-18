@@ -26,6 +26,7 @@ if ($auth['role'] !== 'admin' && get_setting($conn, 'service_maintenance_active'
     exit;
 }
 
+require_scalar_post(['issueType', 'preferredDate', 'preferredTime', 'description']);
 $category = normalize_maintenance_category($_POST['issueType'] ?? '');
 // Priority is an admin call, not a tenant self-declaration — any urgency the
 // client sends is ignored. Every new ticket starts as "Needs Triage" and only
@@ -40,6 +41,8 @@ if (!$category || $preferred_date === '' || $preferred_time === '' || $descripti
     echo json_encode(["success" => false, "message" => "Please fill in all required fields with a valid category."]);
     exit;
 }
+
+if ($e = v_str($description, 'Description', 1, 5000)) validation_fail(['description' => $e]);
 
 $parsed_date = DateTime::createFromFormat('Y-m-d', $preferred_date);
 $today = (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');

@@ -11,12 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+// The admin is whoever the session belongs to, never a client-sent X-Admin-Id
+// (that value used to be written to created_by / handled_by and the activity log).
+$admin_id = require_admin($conn);
 $admin_id_int = (int)$admin_id;
 
 $input = read_json_input();
@@ -35,6 +32,7 @@ if (!in_array($status, $allowed, true)) {
     echo json_encode(["success" => false, "message" => "Invalid status. Allowed: " . implode(', ', $allowed)]);
     exit;
 }
+if ($reason !== '' && ($e = v_str($reason, 'Reason', 1, 255))) validation_fail(['reason' => $e]);
 
 $conn->begin_transaction();
 

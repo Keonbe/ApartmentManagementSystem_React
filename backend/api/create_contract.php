@@ -35,6 +35,19 @@ if (empty($rent_application_id) || empty($lease_start) || empty($lease_end)) {
     exit;
 }
 
+// Field checks (SPRINT 178): "abc" as a deposit used to become 0, a text or fractional
+// application id was cast to an int, and a client-chosen contract id had no format.
+$errors = [];
+if ($e = v_id($rent_application_id, 'Rent application')) $errors['rentApplicationId'] = $e;
+if ($deposit_amount !== null && $deposit_amount !== '' && ($e = v_amount($deposit_amount, 'Deposit', 0, 99999999.99))) $errors['depositAmount'] = $e;
+if (isset($input['id']) && (!is_string($input['id']) || !preg_match('/^[A-Za-z0-9_-]{1,50}$/', $input['id']))) {
+    $errors['id'] = 'Contract ID may use letters, numbers, dashes and underscores, up to 50 characters.';
+}
+if (!is_string($lease_start)) $errors['leaseStart'] = 'Rent start is not a valid date.';
+if (!is_string($lease_end)) $errors['leaseEnd'] = 'Rent end is not a valid date.';
+if ($errors) validation_fail($errors);
+$rent_application_id = (int)$rent_application_id;
+
 $start_dt = DateTime::createFromFormat('Y-m-d', $lease_start);
 $end_dt = DateTime::createFromFormat('Y-m-d', $lease_end);
 // createFromFormat rolls 2031-02-30 over to 2031-03-02, so compare the round trip.

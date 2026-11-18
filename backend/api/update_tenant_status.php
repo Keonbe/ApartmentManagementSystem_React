@@ -22,6 +22,20 @@ $status = $input['status'] ?? '';
 $input['waive_forfeiture_reason'] = is_string($input['waive_forfeiture_reason'] ?? null) ? mb_substr(trim($input['waive_forfeiture_reason']), 0, 200) : '';
 $rejection_reason = $input['rejection_reason'] ?? null;
 
+// A multipart form can carry arrays (status[]=x); none of these fields is a list,
+// and (string)/trim() on one is a warning or a TypeError (SPRINT 178).
+foreach (['id', 'status', 'rejection_reason', 'clearance_notes', 'requested_move_out_date', 'damage_deduction', 'utility_deduction', 'deposit_interest', 'notice_deduction'] as $scalar_field) {
+    if (isset($input[$scalar_field]) && !is_scalar($input[$scalar_field])) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "Field '$scalar_field' must be a single value.", "field" => $scalar_field]);
+        exit;
+    }
+}
+$text_errors = [];
+if ($rejection_reason !== null && ($e = v_str($rejection_reason, 'Reason', 0, 255, false))) $text_errors['rejection_reason'] = $e;
+if (isset($input['clearance_notes']) && ($e = v_str($input['clearance_notes'], 'Clearance notes', 0, 2000, false))) $text_errors['clearance_notes'] = $e;
+if ($text_errors) validation_fail($text_errors);
+
 if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection_reason) === '') {
     http_response_code(422);
     echo json_encode(["success" => false, "message" => "A rejection reason is required."]);
@@ -103,6 +117,16 @@ if ($status === 'moved-out' && array_key_exists('deductions', $input)) {
         if ($amount > 1000000) $refuse_line("$label: the amount can be at most ₱1,000,000.");
         $deduction_lines[] = ['category' => $category, 'reason' => $reason, 'amount' => $amount];
     }
+}
+// The older two-field payload and the deposit interest / notice-day amounts: a
+// number from 0 to 1,000,000 (a negative damage amount would have added money
+// back to the deposit). Checked here, before anything is written.
+if ($status === 'moved-out') {
+    $amount_errors = [];
+    foreach (['damage_deduction' => 'Damage deduction', 'utility_deduction' => 'Utility deduction', 'deposit_interest' => 'Deposit interest', 'notice_deduction' => 'Notice deduction'] as $field => $label) {
+        if (isset($input[$field]) && $input[$field] !== '' && ($e = v_amount($input[$field], $label, 0, 1000000))) $amount_errors[$field] = $e;
+    }
+    if ($amount_errors) validation_fail($amount_errors);
 }
 
 if ($id > 0 && !empty($status)) {

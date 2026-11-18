@@ -28,7 +28,7 @@ beforeAll(async () => {
 
 describe('create_reservation.php', () => {
   it('is for admins only and changes nothing otherwise', async () => {
-    expect((await reserve(undefined, { room_name: 'QA1', reserved_for_name: 'Ann' })).status).toBe(403);
+    expect((await reserve(undefined, { room_name: 'QA1', reserved_for_name: 'Ann' })).status).toBe(401);
     expect((await reserve(maria, { room_name: 'QA1', reserved_for_name: 'Ann' })).status).toBe(403);
     expect(await room('QA1')).toBe('vacant');
   });
@@ -103,7 +103,7 @@ describe('update_reservation_status.php', () => {
   it('is for admins only', async () => {
     const { id } = await mkHold('QA6');
     expect((await setRes(maria, { id, status: 'Cancelled' })).status).toBe(403);
-    expect((await setRes(undefined, { id, status: 'Cancelled' })).status).toBe(403);
+    expect((await setRes(undefined, { id, status: 'Cancelled' })).status).toBe(401);
     expect(await room('QA6')).toBe('reserved');
   });
 
@@ -260,7 +260,7 @@ describe('inquiries: update_inquiry_status.php and get_inquiries.php', () => {
   it('update is for admins only', async () => {
     const id = await addInquiry('Ivy Inquiry', { userId: 2 });
     expect((await inq(maria, { id, status: 'Contacted' })).status).toBe(403);
-    expect((await inq(undefined, { id, status: 'Contacted' })).status).toBe(403);
+    expect((await inq(undefined, { id, status: 'Contacted' })).status).toBe(401);
     expect((await one('SELECT status FROM inquiries WHERE id = ?', [id])).status).toBe('New');
   });
 

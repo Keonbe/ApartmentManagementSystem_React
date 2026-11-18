@@ -29,6 +29,13 @@ try {
         echo json_encode(['success' => false, 'message' => 'Unit number, floor, type, and a positive rent are required. Set a rent for this floor in Settings to skip typing it.']);
         exit();
     }
+    // Too long / too large for the column: a clear 422 instead of a silent cut.
+    $errors = [];
+    if ($e = v_str($id, 'Unit number', 1, 50)) $errors['id'] = $e;
+    if ($e = v_str($type, 'Unit type', 1, 50)) $errors['type'] = $e;
+    if ($e = v_str($floor, 'Floor', 1, 50)) $errors['floor'] = $e;
+    if ($e = v_amount($rent, 'Monthly rent', 0.01, 99999999.99, false)) $errors['rent'] = $e;
+    if ($errors) validation_fail($errors);
     $custom = ($floor_rate === null || abs($floor_rate - (float)$rent) > 0.001) ? 1 : 0;
 
     $archiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");

@@ -20,14 +20,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $unit = trim($input['unit'] ?? '');
         $tenant_name = trim($input['tenantName'] ?? 'Tenant');
 
-        // Audit M8: negative amounts used to be accepted outright.
-        foreach (['baseRent', 'water', 'electricity', 'parking', 'lateFee'] as $field) {
-            if (isset($input[$field]) && $input[$field] !== '' && (!is_numeric($input[$field]) || (float)$input[$field] < 0)) {
-                http_response_code(422);
-                echo json_encode(["success" => false, "message" => "Amounts must be zero or a positive number."]);
-                exit;
-            }
+        // Audit M8: negative amounts used to be accepted outright. SPRINT 178: each
+        // amount is also capped (a decimal(10,2) column; "1e400" is numeric but
+        // infinite), the total must fit, and the free-text fields get a length.
+        $errors = [];
+        foreach (['baseRent' => 'Base rent', 'water' => 'Water', 'electricity' => 'Electricity', 'parking' => 'Parking', 'lateFee' => 'Late fee'] as $field => $label) {
+            if (isset($input[$field]) && $input[$field] !== '' && ($e = v_amount($input[$field], $label, 0, 9999999.99))) $errors[$field] = $e;
         }
+        if (!$errors) {
+            $sum = 0.0;
+            foreach (['baseRent', 'water', 'electricity', 'parking', 'lateFee'] as $field) $sum += (float)($input[$field] ?? 0);
+            if ($sum > 99999999.99) $errors['baseRent'] = 'The invoice total is too large.';
+        }
+        if ($e = v_str($unit, 'Unit', 0, 50, false)) $errors['unit'] = $e;
+        if ($e = v_str($tenant_name, 'Tenant name', 0, 100, false)) $errors['tenantName'] = $e;
+        if (!empty($input['invoiceNumber']) && ($e = v_str($input['invoiceNumber'], 'Invoice number', 1, 50))) $errors['invoiceNumber'] = $e;
+        if ($errors) validation_fail($errors);
         $base_rent = (float)($input['baseRent'] ?? 0);
         $water = (float)($input['water'] ?? 0);
         $electricity = (float)($input['electricity'] ?? 0);

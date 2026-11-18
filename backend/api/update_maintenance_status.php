@@ -42,6 +42,7 @@ $types = '';
 // Only fields present in the payload are written, so one edit never wipes another field.
 if (array_key_exists('assignedTo', $input)) {
     $assignee = trim((string)$input['assignedTo']);
+    if ($e = v_str($assignee, 'Assigned to', 0, 100, false)) validation_fail(['assignedTo' => $e]);
     $sets[] = "assigned_to = ?";
     $params[] = $assignee === '' ? null : $assignee;
     $types .= 's';
@@ -50,10 +51,9 @@ if (array_key_exists('assignedTo', $input)) {
 foreach (['estimatedCost' => 'estimated_cost', 'actualCost' => 'actual_cost'] as $key => $column) {
     if (!array_key_exists($key, $input)) continue;
     $raw = $input[$key];
-    if ($raw !== null && $raw !== '' && (!is_numeric($raw) || (float)$raw < 0)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Costs must be zero or a positive number."]);
-        exit;
+    // A number from 0 up to what the column holds ("1e400" is numeric but infinite).
+    if ($raw !== null && $raw !== '' && ($e = v_amount($raw, $key === 'estimatedCost' ? 'Estimated cost' : 'Actual cost', 0, 99999999.99))) {
+        validation_fail([$key => $e]);
     }
     $sets[] = "$column = ?";
     $params[] = ($raw === null || $raw === '') ? null : (float)$raw;
@@ -61,6 +61,7 @@ foreach (['estimatedCost' => 'estimated_cost', 'actualCost' => 'actual_cost'] as
 }
 
 if (array_key_exists('workNotes', $input)) {
+    if ($input['workNotes'] !== null && ($e = v_str($input['workNotes'], 'Work notes', 0, 5000, false))) validation_fail(['workNotes' => $e]);
     $sets[] = "work_notes = ?";
     $params[] = $input['workNotes'] === null ? null : (string)$input['workNotes'];
     $types .= 's';
@@ -141,6 +142,7 @@ if ($status_changed) {
             echo json_encode(["success" => false, "message" => "A reason is required to reject a request."]);
             exit;
         }
+        if ($e = v_str($rejection_reason, 'Reason', 1, 255)) validation_fail(['rejectionReason' => $e]);
         $sets[] = "rejection_reason = ?";
         $params[] = $rejection_reason;
         $types .= 's';

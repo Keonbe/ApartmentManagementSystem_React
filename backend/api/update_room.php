@@ -103,6 +103,67 @@ try {
         $data['status'] = 'reserved';
     }
 
+    // Field checks (SPRINT 178): every bad field is reported together with 422 and
+    // errors{field}, instead of a bad date becoming 0000-00-00 or a long text being
+    // cut by the column. The key found in the body (snake or camel case) is
+    // normalised in place, so the update below stores the checked value.
+    $errors = [];
+    $found_key = function (string $snake) use ($data) {
+        $camel = str_replace('_', '', lcfirst(ucwords($snake, '_')));
+        foreach ([$snake, $camel] as $k) {
+            if (array_key_exists($k, $data)) return $k;
+        }
+        return null;
+    };
+    if ($e = v_str($id, 'Unit number', 1, 50)) $errors['id'] = $e;
+    if (($k = $found_key('furnishing_status')) !== null) {
+        if ($e = v_enum($data[$k], 'Furnishing status', ['Unfurnished', 'Semi-Furnished', 'Fully Furnished'])) $errors['furnishing_status'] = $e;
+    }
+    if (($k = $found_key('room_condition')) !== null) {
+        if ($e = v_str($data[$k], 'Room condition', 1, 100)) $errors['room_condition'] = $e;
+    }
+    if (($k = $found_key('maintenance_flag')) !== null) {
+        if (in_array($data[$k], [0, 1, '0', '1', true, false], true)) {
+            $data[$k] = (int)(bool)$data[$k];
+        } else {
+            $errors['maintenance_flag'] = 'Maintenance flag must be on or off.';
+        }
+    }
+    foreach (['available_date' => 'Available date', 'last_inspection_date' => 'Last inspection date'] as $field => $label) {
+        if (($k = $found_key($field)) === null) continue;
+        if ($data[$k] === null || $data[$k] === '') { $data[$k] = null; continue; }
+        $day = real_date($data[$k]);
+        if ($day === null) { $errors[$field] = "$label is not a valid date."; continue; }
+        if ($field === 'last_inspection_date' && $day > date('Y-m-d')) { $errors[$field] = "$label cannot be in the future."; continue; }
+        $data[$k] = $day;
+    }
+    if (($k = $found_key('monthly_rent')) !== null) {
+        if ($e = v_amount($data[$k], 'Monthly rent', 0.01, 99999999.99, false)) $errors['monthly_rent'] = $e;
+    }
+    if ($assigning) {
+        if ($e = v_id($assign_user_id, 'Tenant')) $errors['user_id'] = $e;
+        foreach (['tenant_name' => 'Tenant name', 'last_tenant' => 'Last tenant'] as $field => $label) {
+            if (($k = $found_key($field)) !== null && ($e = v_str($data[$k], $label, 1, 100, false))) $errors[$field] = $e;
+        }
+        if (($k = $found_key('occupants')) !== null && ($e = v_int_range($data[$k], 'Occupants', 0, 99))) $errors['occupants'] = $e;
+        $dates = [];
+        foreach (['lease_start' => 'Rent start', 'lease_end' => 'Rent end'] as $field => $label) {
+            if (($k = $found_key($field)) === null) continue;
+            $day = real_date($data[$k]);
+            if ($day === null) { $errors[$field] = "$label is not a valid date."; continue; }
+            $data[$k] = $day;
+            $dates[$field] = $day;
+        }
+        if (isset($dates['lease_start'], $dates['lease_end']) && $dates['lease_end'] <= $dates['lease_start']) {
+            $errors['lease_end'] = 'Rent end must be after the rent start.';
+        }
+        if (!filter_var($data['identity_verified'] ?? $data['identityVerified'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $errors['identity_verified'] = 'Confirm that you checked the tenant\'s documents in person before assigning.';
+        }
+    }
+    if ($errors) validation_fail($errors);
+    if ($assigning) $assign_user_id = (int)$assign_user_id;
+
     // Build update query dynamically based on provided fields
     $updateFields = [];
     $params = [];

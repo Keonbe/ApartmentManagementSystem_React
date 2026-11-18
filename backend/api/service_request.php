@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+require_scalar_post(['serviceId', 'preferredDate', 'preferredTimeSlot', 'notes', 'quantity']);
 $service_id = (int)($_POST['serviceId'] ?? 0);
 $preferred_date = $_POST['preferredDate'] ?? '';
 $preferred_time_slot = strtolower(trim($_POST['preferredTimeSlot'] ?? ''));
@@ -28,6 +29,8 @@ if (!$service_id || empty($preferred_date) || empty($preferred_time_slot)) {
     echo json_encode(["success" => false, "message" => "Please fill in all required fields."]);
     exit;
 }
+
+if ($e = v_str($notes, 'Notes', 0, 1000, false)) validation_fail(['notes' => $e]);
 
 if (!isset(SERVICE_SLOT_START_HOUR[$preferred_time_slot])) {
     http_response_code(422);

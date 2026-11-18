@@ -32,6 +32,24 @@ if (empty($contract_id) || empty($action)) {
     exit;
 }
 
+// Field checks shared by the actions (SPRINT 178): lengths the columns or the log
+// line would otherwise cut, a real notice date, and the move-out amounts the
+// terminate action passes on to the deposit settlement (a number, 0 to 1,000,000).
+$errors = [];
+if (mb_strlen((string)$contract_id) > 50) $errors['contractId'] = 'Contract ID is invalid.';
+foreach (['reason' => 'Reason', 'details' => 'Details'] as $field => $label) {
+    if (isset($input[$field]) && ($e = v_str($input[$field], $label, 0, 1000, false))) $errors[$field] = $e;
+}
+if (!empty($input['notice_date']) && (!is_string($input['notice_date']) || real_date($input['notice_date']) === null)) {
+    $errors['notice_date'] = 'Notice date is not a valid date.';
+}
+if ($action === 'terminate') {
+    foreach (['damage_deduction' => 'Damage deduction', 'utility_deduction' => 'Utility deduction', 'deposit_interest' => 'Deposit interest'] as $field => $label) {
+        if (isset($input[$field]) && $input[$field] !== '' && ($e = v_amount($input[$field], $label, 0, 1000000))) $errors[$field] = $e;
+    }
+}
+if ($errors) validation_fail($errors);
+
 // Load current status up front so every action can be checked against
 // CONTRACT_TRANSITIONS instead of guessing from its own WHERE clause.
 $lookup = $conn->prepare("SELECT lc.status, lc.lease_end, lc.rent_application_id, ra.status AS app_status

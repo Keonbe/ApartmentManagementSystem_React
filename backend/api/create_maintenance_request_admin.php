@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+require_scalar_post(['title', 'issueType', 'priority', 'unit', 'description']);
 $title = trim($_POST['title'] ?? '');
 $category = normalize_maintenance_category($_POST['issueType'] ?? '');
 $urgency = normalize_maintenance_urgency($_POST['priority'] ?? 'Medium');
@@ -30,6 +31,12 @@ if ($title === '' || $unit === '' || !$category || !$urgency) {
     echo json_encode(["success" => false, "message" => "Title, unit, and a valid category and priority are required."]);
     exit;
 }
+
+$errors = [];
+if ($e = v_str($title, 'Title', 1, 150)) $errors['title'] = $e;
+if ($e = v_str($unit, 'Unit', 1, 50)) $errors['unit'] = $e;
+if ($e = v_str($description, 'Description', 0, 5000, false)) $errors['description'] = $e;
+if ($errors) validation_fail($errors);
 
 $stmt = $conn->prepare("SELECT id FROM rooms WHERE id = ?");
 $stmt->bind_param("s", $unit);

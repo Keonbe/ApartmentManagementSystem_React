@@ -11,12 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+// The admin is whoever the session belongs to, never a client-sent X-Admin-Id
+// (that value used to be written to created_by / handled_by and the activity log).
+$admin_id = require_admin($conn);
 $admin_id_int = (int)$admin_id;
 
 $input = read_json_input();
@@ -42,6 +39,16 @@ if ($fee < 0) {
     echo json_encode(["success" => false, "message" => "Reservation fee cannot be negative."]);
     exit;
 }
+// Lengths and formats the columns would otherwise cut or accept as they are (SPRINT 178).
+$errors = [];
+if ($e = v_str($room_name, 'Unit', 1, 50)) $errors['room_name'] = $e;
+if ($e = v_str($reserved_for, 'Reserved for', 1, 150)) $errors['reserved_for_name'] = $e;
+if ($e = v_str($contact_no, 'Contact number', 0, 30, false)) $errors['contact_no'] = $e;
+if ($email !== '' && ($e = v_str($email, 'Email', 3, 150))) $errors['email'] = $e;
+elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Email is not a valid address.';
+if ($e = v_amount(($input['reservation_fee'] ?? '') === '' ? 0 : $input['reservation_fee'], 'Reservation fee', 0, 99999999.99)) $errors['reservation_fee'] = $e;
+if (isset($input['hold_days']) && $input['hold_days'] !== '' && ($e = v_int_range($input['hold_days'], 'Hold period', 1, 90))) $errors['hold_days'] = $e;
+if ($errors) validation_fail($errors);
 
 // Hold period falls back to the admin-configurable system setting (default 7).
 if ($hold_days === null) {

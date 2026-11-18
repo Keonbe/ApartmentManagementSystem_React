@@ -91,16 +91,20 @@ $new_values = [
     'late_fee' => (float)$row['late_fee'],
 ];
 
+// Each amount: a number from 0 up to what a line can hold ("1e400" is numeric but
+// infinite); the field-keyed errors let the form mark the line (SPRINT 178).
+$amount_labels = ['baseRent' => 'Base rent', 'water' => 'Water', 'electricity' => 'Electricity', 'parking' => 'Parking', 'lateFee' => 'Late fee'];
+$amount_errors = [];
 foreach ($fields as $key => $column) {
     if (!array_key_exists($key, $input)) continue;
     if ($input[$key] === '' || $input[$key] === null) continue;
-    if (!is_numeric($input[$key]) || (float)$input[$key] < 0) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Amounts must be zero or a positive number."]);
-        exit;
+    if ($e = v_amount($input[$key], $amount_labels[$key], 0, 9999999.99)) {
+        $amount_errors[$key] = $e;
+        continue;
     }
     $new_values[$column] = (float)$input[$key];
 }
+if ($amount_errors) validation_fail($amount_errors);
 
 $due_date = $row['due_date'];
 if (array_key_exists('dueDate', $input) && !empty($input['dueDate'])) {
@@ -126,6 +130,7 @@ $old_total = (float)$row['total_amount'];
 $new_total = $new_values['base_rent'] + $new_values['water'] + $new_values['electricity']
     + $new_values['parking'] + (float)$row['services'] + (float)$row['maintenance']
     + $new_values['late_fee'] + (float)$row['security_deposit'];
+if ($new_total > 99999999.99) validation_fail(['baseRent' => 'The invoice total is too large.']);
 
 // Parts already received (installments) cannot be adjusted away: the new total
 // must stay above what the tenant has paid.

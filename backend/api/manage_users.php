@@ -87,6 +87,7 @@ switch ($action) {
         if (mb_strlen($ln) > 30) fail(422, "Last name must be 30 characters or fewer.");
         if ($sx !== '' && mb_strlen($sx) > 20) fail(422, "Suffix must be 20 characters or fewer.");
         if (mb_strlen($em) > 190) fail(422, "Email address must be 190 characters or fewer.");
+        if (mb_strlen($gd) > 20) fail(422, "Gender must be 20 characters or fewer.");
         if ($ph !== '') {
             $ph = normalize_ph_mobile($ph); // stored as +639XXXXXXXXX
             if ($ph === null) fail(422, "Invalid Philippine mobile number (e.g. +63 912 345 6789).");

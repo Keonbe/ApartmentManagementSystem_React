@@ -11,12 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+// The admin is whoever the session belongs to, never a client-sent X-Admin-Id
+// (that value used to be written to created_by / handled_by and the activity log).
+$admin_id = require_admin($conn);
 
 $input = read_json_input();
 
@@ -64,6 +61,10 @@ if ($viewing_date !== null) {
 }
 $closed_reason = ($closed_reason === '') ? null : $closed_reason;
 $admin_notes   = ($admin_notes === '') ? null : $admin_notes;
+$errors = [];
+if ($closed_reason !== null && ($e = v_str($closed_reason, 'Reason', 1, 255))) $errors['closed_reason'] = $e;
+if ($admin_notes !== null && ($e = v_str($admin_notes, 'Notes', 1, 5000))) $errors['admin_notes'] = $e;
+if ($errors) validation_fail($errors);
 $admin_id_int  = (int)$admin_id;
 
 $stmt = $conn->prepare("UPDATE inquiries SET status = ?, admin_notes = COALESCE(?, admin_notes), viewing_date = COALESCE(?, viewing_date), closed_reason = ?, handled_by = ? WHERE id = ?");
