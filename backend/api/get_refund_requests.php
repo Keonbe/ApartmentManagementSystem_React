@@ -74,6 +74,7 @@ while ($r = $res->fetch_assoc()) {
         'decisionReason' => $r['decision_reason'],
         'payoutMethod' => $r['payout_method'],
         'payoutReference' => $r['payout_reference'],
+        'payoutProofPath' => $r['payout_proof_path'] ?? null, // proof of a payout made by hand (admin and the owner open it through download_file.php)
         'canRefundOnline' => !empty($r['source_payment_id']),
         'gatewayRefundId' => $r['gateway_refund_id'],
         'gatewayStatus' => $r['gateway_status'],

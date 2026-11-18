@@ -74,6 +74,10 @@ if ($owner === null) {
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE proof_of_payment_path IN (?,?) LIMIT 1", $two);
 }
+if ($owner === null && table_has_column($conn, 'refund_requests', 'payout_proof_path')) {
+    // The proof of a refund payout made by hand: the tenant it was paid to (or an admin).
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM refund_requests WHERE payout_proof_path IN (?,?) LIMIT 1", $two);
+}
 if ($owner === null && table_has_column($conn, 'invoices', 'rejected_proof_path')) {
     // A rejected proof (reject_payment_proof.php keeps the file for the admin).
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE rejected_proof_path IN (?,?) LIMIT 1", $two);

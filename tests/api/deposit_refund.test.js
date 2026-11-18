@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { api, loginAs } from './lib/api.js';
 import { q, one } from './lib/db.js';
+import { payoutForm } from './lib/fixtures.js';
 
 let admin, mark;
 const APP = 11; // user 13, room L, pending-move-out in the seed
@@ -58,7 +59,7 @@ describe('refundable deposit', () => {
   it('marking the refund paid out shows "Refunded" on the contract', async () => {
     const refund = await depositRefund();
     expect((await api('update_refund_request.php', { token: admin, json: { id: refund.id, action: 'approve' } })).status).toBe(200);
-    const paid = await api('update_refund_request.php', { token: admin, json: { id: refund.id, action: 'mark_refunded', payout_method: 'GCash', payout_reference: 'T-123' } });
+    const paid = await api('update_refund_request.php', { token: admin, form: payoutForm(refund.id, { method: 'GCash', reference: 'T-123' }) });
     expect(paid.status).toBe(200);
     expect((await contract()).deposit_status).toBe('Refunded');
   });

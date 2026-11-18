@@ -63,7 +63,9 @@ const ADJUST_REASON_MAX = 255;
 // Labels of the lines an adjustment history entry can name (invoice_adjustments.changes).
 // Status of the other payment a reused reference was found on (get_invoices.php reference_reuse).
 const REUSE_STATUS_LABELS = { paid: 'paid', 'pending-verification': 'awaiting verification', pending: 'part paid', overdue: 'part paid, overdue', scheduled: 'part paid' };
-const ADJUSTMENT_LINE_LABELS ={ base_rent: 'Base rent', water: 'Water', electricity: 'Electricity', parking: 'Parking', late_fee: 'Late fee', due_date: 'Due date' };
+const ADJUSTMENT_LINE_LABELS ={ base_rent: 'Base rent', water: 'Water', electricity: 'Electricity', parking: 'Parking', late_fee: 'Late fee', due_date: 'Due date', amount_paid: 'Amount paid' };
+// Bills paid outside the desk cannot be voided here (void_payment.php answers 409 for them too).
+const NOT_VOIDABLE_METHODS = ['Advance credit', 'Security deposit'];
 
 const CHIP_TONES = {
   emerald: 'text-emerald-700', amber: 'text-amber-700', red: 'text-red-700', indigo: 'text-indigo-700', slate: 'text-slate-500',
@@ -132,7 +134,8 @@ const AdminPayments = () => {
     setTimeout(() => setFlash(null), 6000);
   };
   const [rejectModal, setRejectModal] = useState(null); // { invoiceId, tenant } while open
-  
+  const [voidModal, setVoidModal] = useState(null); // { invoiceId, period, amount, tenant } while open
+
   const handleSendReminder = async (invoiceId) => {
     if (!invoiceId) return;
     setSendingReminder(true);
@@ -250,7 +253,10 @@ const AdminPayments = () => {
               gateway: inv.payment_gateway,
               proofOfPaymentPath: inv.proof_of_payment_path,
               paymentReference: inv.payment_reference,
-              senderName: inv.sender_name
+              senderName: inv.sender_name,
+              // A desk payment can be voided with a reason; online, combined, advance
+              // and deposit payments cannot (the server decides, this only hides the button).
+              voidable: !inv.payment_gateway && !inv.paymongo_payment_id && !inv.payment_group && !inv.advance_months && !NOT_VOIDABLE_METHODS.includes(inv.payment_method),
             });
           }
         });
@@ -774,6 +780,23 @@ const handleMarkAsPaid = async () => {
   const handleRejectProof = () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId) return;
     setRejectModal({ invoiceId: activeTenant.pendingInvoiceId, tenant: activeTenant.name });
+  };
+
+  // Void a paid desk payment: the bill reopens and the tenant is told why.
+  // Throws on failure so ReasonModal shows the server's answer under the reason.
+  const submitVoidPayment = async (reason) => {
+    if (!voidModal) return;
+    let res;
+    try {
+      res = await api.post('/void_payment.php', { invoiceId: voidModal.invoiceId, reason });
+    } catch (err) {
+      console.error("Void payment error:", err);
+      throw new Error(apiErrorMessage(err, "A network or server error occurred."), { cause: err });
+    }
+    if (!res.data?.success) throw new Error(res.data?.message || "Failed to void the payment.");
+    fetchInvoices();
+    showFlash(`Payment for ${voidModal.period} voided. The bill is open again and ${voidModal.tenant} has been notified.`);
+    setVoidModal(null);
   };
 
   // Throws on failure so ReasonModal shows the message under the reason.
@@ -1553,7 +1576,19 @@ const handleMarkAsPaid = async () => {
                                 <span className="text-slate-300 text-label">—</span>
                               )}
                             </td>
-                            <td className="w-28 px-4 py-3 text-center whitespace-nowrap"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded-control cursor-pointer transition-colors text-label" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
+                            <td className="w-28 px-4 py-3 text-center whitespace-nowrap">
+                              <button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded-control cursor-pointer transition-colors text-label" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button>
+                              {record.voidable && (
+                                <button
+                                  type="button"
+                                  onClick={() => setVoidModal({ invoiceId: record.id, period: record.period, amount: record.amount, tenant: activeTenant.name })}
+                                  className="ml-1.5 text-red-700 border-0 bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded-control cursor-pointer transition-colors text-label font-semibold"
+                                  title="Void this payment: the bill reopens and the tenant is told why"
+                                >
+                                  Void
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         )) : (
                           <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-body">No records found.</td></tr>
@@ -2038,6 +2073,20 @@ const handleMarkAsPaid = async () => {
           confirmLabel="Reject & Notify Tenant"
           onConfirm={submitRejectProof}
           onClose={() => setRejectModal(null)}
+        />
+      )}
+
+      {voidModal && (
+        <ReasonModal
+          title="Void Payment"
+          tone="red"
+          description={`The ${formatCurrency(voidModal.amount)} payment for ${voidModal.period} is removed and the bill reopens (overdue if its due date has passed, so the usual late fee rules apply). ${voidModal.tenant} is notified with this reason. Use it for a payment recorded in error; an online payment is refunded through a refund request.`}
+          label="Reason the tenant will see"
+          placeholder="e.g. Recorded against the wrong bill; the transfer never arrived."
+          confirmLabel="Void Payment"
+          max={220}
+          onConfirm={submitVoidPayment}
+          onClose={() => setVoidModal(null)}
         />
       )}
 

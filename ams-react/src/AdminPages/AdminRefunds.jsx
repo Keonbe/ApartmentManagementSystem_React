@@ -10,6 +10,12 @@ import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 import DepositReviews from '../Components/admin/DepositReviews';
 import askConfirm from '../utils/askConfirm';
+import { fileUrl } from '../api/fileUrl';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+
+// How a refund can be paid out by hand (update_refund_request.php REFUND_PAYOUT_METHODS).
+// Anything but cash needs a reference and a proof file.
+const PAYOUT_METHODS = ['GCash', 'Maya', 'Bank transfer', 'Cash', 'Other'];
 
 const FILTERS = ['all', 'Pending Review', 'Info Requested', 'Approved', 'Refunded', 'Rejected', 'Cancelled'];
 
@@ -22,7 +28,7 @@ export default function AdminRefunds() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [text, setText] = useState({});      // per-request message / reason box
-  const [payout, setPayout] = useState({});  // per-request { method, reference }
+  const [payout, setPayout] = useState({});  // per-request { method, reference, file }
   const [refundAmounts, setRefundAmounts] = useState({});
   const [tenants, setTenants] = useState([]);
   const [newUserId, setNewUserId] = useState('');
@@ -67,11 +73,11 @@ export default function AdminRefunds() {
     return () => window.clearTimeout(timer);
   }, [newUserId]);
 
-  const call = async (endpoint, body, okText, done) => {
+  const call = async (endpoint, body, okText, done, config) => {
     setBusy(true);
     setNotice(null);
     try {
-      const res = await api.post(endpoint, body);
+      const res = await api.post(endpoint, body, config);
       setNotice({ ok: !!res.data.success, text: res.data.success ? okText : res.data.message });
       if (res.data.success) { done?.(); await load(); }
     } catch (err) {
@@ -87,6 +93,22 @@ export default function AdminRefunds() {
   const act = (r, action, okText, extra = {}) => call('update_refund_request.php',
     { id: r.id, action, message: text[r.id] || '', payout_method: payout[r.id]?.method || '', payout_reference: payout[r.id]?.reference || '', ...(action === 'approve' && refundAmounts[r.id] !== undefined ? { amount: Number(refundAmounts[r.id]) } : {}), ...extra },
     okText, () => setText((p) => ({ ...p, [r.id]: '' })));
+
+  // A payout made by hand goes as a form: the proof is a file.
+  const recordPayout = (r) => {
+    const p = payout[r.id] || {};
+    const form = new FormData();
+    form.append('id', r.id);
+    form.append('action', 'mark_refunded');
+    form.append('message', text[r.id] || '');
+    form.append('payout_method', p.method || '');
+    form.append('payout_reference', p.reference || '');
+    if (p.file) form.append('payout_proof', p.file);
+    return call('update_refund_request.php', form, 'Payout recorded.', () => {
+      setText((prev) => ({ ...prev, [r.id]: '' }));
+      setPayout((prev) => ({ ...prev, [r.id]: {} }));
+    }, { headers: { 'Content-Type': 'multipart/form-data' } });
+  };
 
   // Money returns to the payer's own GCash / card / bank through PayMongo.
   const refundOnline = async (r) => {
@@ -170,7 +192,7 @@ export default function AdminRefunds() {
                   </section>
                 )}
                 {r.payoutDestination && <p className="m-0 mt-2 rounded-control bg-amber-50 p-3 text-label text-slate-700"><strong>Tenant payout destination:</strong> {r.payoutDestination}</p>}
-                {r.status === 'Refunded' && <p className="m-0 mt-2 text-body font-semibold text-emerald-700">Paid out via {r.payoutMethod} (ref {r.payoutReference}).{r.gatewayStatus ? ` ${GATEWAY_LABELS[r.gatewayStatus] || r.gatewayStatus}.` : ''}</p>}
+                {r.status === 'Refunded' && <p className="m-0 mt-2 text-body font-semibold text-emerald-700">Paid out via {r.payoutMethod}{r.payoutReference ? ` (ref ${r.payoutReference})` : ''}.{r.gatewayStatus ? ` ${GATEWAY_LABELS[r.gatewayStatus] || r.gatewayStatus}.` : ''}{r.payoutProofPath && <> <a href={fileUrl(r.payoutProofPath)} target="_blank" rel="noreferrer" className="font-semibold text-indigo-700 underline">View proof</a></>}</p>}
                 <RefundTrail events={r.events} />
 
                 {(r.status === 'Pending Review') && (
@@ -202,13 +224,27 @@ export default function AdminRefunds() {
                   </div>
                 )}
                 {r.status === 'Approved' && (
-                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <input placeholder="Paid via (e.g. GCash, bank transfer, cash)" maxLength={50} value={payout[r.id]?.method || ''}
-                      onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], method: e.target.value } }))} className="rounded-control border border-slate-300 p-2 text-body" />
-                    <input placeholder="Payout reference" maxLength={100} value={payout[r.id]?.reference || ''}
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <select aria-label={`Payout method for request ${r.id}`} value={payout[r.id]?.method || ''}
+                      onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], method: e.target.value } }))} className="rounded-control border border-slate-300 bg-white p-2 text-body">
+                      <option value="">Paid via…</option>
+                      {PAYOUT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <input aria-label={`Payout reference for request ${r.id}`} placeholder={payout[r.id]?.method === 'Cash' ? 'Receipt no. (optional)' : 'Payout reference'} maxLength={100} value={payout[r.id]?.reference || ''}
                       onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], reference: e.target.value } }))} className="rounded-control border border-slate-300 p-2 text-body" />
-                    <button type="button" disabled={busy || !payout[r.id]?.method?.trim() || !payout[r.id]?.reference?.trim()}
-                      onClick={() => act(r, 'mark_refunded', 'Payout recorded.')} className={`${btn} bg-indigo-600 hover:bg-indigo-700`}>Record payout</button>
+                    <label className="text-label font-bold text-slate-600 sm:col-span-2">
+                      Proof of payout {payout[r.id]?.method === 'Cash' ? '(optional for cash)' : '(screenshot of the transfer or a receipt)'}
+                      <input type="file" accept={acceptFor(FILE_RULES.paymentProof)} className="mt-1 block w-full text-body font-normal"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          const problem = file ? checkFile(file, FILE_RULES.paymentProof) : '';
+                          if (problem) { setNotice({ ok: false, text: problem }); e.target.value = ''; return; }
+                          setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], file } }));
+                        }} />
+                    </label>
+                    <button type="button"
+                      disabled={busy || !payout[r.id]?.method || (payout[r.id].method !== 'Cash' && (!payout[r.id]?.reference?.trim() || !payout[r.id]?.file))}
+                      onClick={() => recordPayout(r)} className={`${btn} bg-indigo-600 hover:bg-indigo-700 sm:col-span-2 sm:w-fit`}>Record payout</button>
                   </div>
                 )}
               </article>

@@ -22,3 +22,17 @@ export const notificationCount = async (userId, title, invoiceId) =>
 // A valid emergency contact for rent_application.php forms (required on every
 // application). A different number from the demo tenants' own.
 export const EMERGENCY_FIELDS = { emergencyName: 'Lorna Navarro', emergencyRelationship: 'Parent', emergencyPhone: '+639189876543' };
+
+// A refund payout made by hand (update_refund_request.php mark_refunded): a form,
+// because anything but cash needs a proof file (a 1x1 PNG by default).
+export const PNG_BYTES = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+export function payoutForm(id, { method, reference, proof = { bytes: PNG_BYTES, type: 'image/png', name: 'proof.png' }, message } = {}) {
+  const form = new FormData();
+  form.append('id', String(id));
+  form.append('action', 'mark_refunded');
+  if (method !== undefined) form.append('payout_method', method);
+  if (reference !== undefined) form.append('payout_reference', reference);
+  if (message !== undefined) form.append('message', message);
+  if (proof) form.append('payout_proof', new Blob([proof.bytes], { type: proof.type }), proof.name);
+  return form;
+}

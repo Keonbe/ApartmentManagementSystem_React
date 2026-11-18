@@ -753,3 +753,10 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = 'messages' AND constraint_name = 'fk_messages_complaint') = 0,
   'ALTER TABLE `messages` ADD CONSTRAINT `fk_messages_complaint` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`id`) ON DELETE SET NULL', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== refund_payout_proof =====
+-- (SPRINT 182, audit P-13) A refund paid out by hand keeps a proof file: the stored
+-- path under uploads/refunds/. Nullable: older and cash payouts have none.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'payout_proof_path') = 0,
+  'ALTER TABLE `refund_requests` ADD COLUMN `payout_proof_path` varchar(255) DEFAULT NULL AFTER `payout_destination`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;

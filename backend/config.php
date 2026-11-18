@@ -1406,7 +1406,7 @@ function reverse_invoice_charge($conn, $kind, $source_id, array $opts = []) {
             $reason = match (true) {
                 $inv_status === 'processing' => 'has an online payment in progress',
                 $inv_status === 'pending-verification' => 'has a payment under verification',
-                $inv_status === 'paid' => 'is already paid; issue a manual credit instead',
+                $inv_status === 'paid' => 'is already paid; void the payment first (Payments, payment history) or open a refund request',
                 in_array($inv_status, SERVICE_ADJUSTABLE_INVOICE_STATUSES, true) => 'already has ₱' . number_format((float)$inv_row['amount_paid'], 2) . ' paid, more than the total would be without this charge; adjust the invoice instead',
                 default => 'can no longer be adjusted',
             };

@@ -22,9 +22,20 @@ function refund_fail($code, $msg) {
 // Admin decisions: approve | reject | request_info | mark_refunded.
 // mark_refunded with gateway=true pays the refund back through PayMongo
 // (POST /v1/refunds on the payment the money came in on); without it the
-// admin records a payout made by hand (method + reference).
+// admin records a payout made by hand: a method from REFUND_PAYOUT_METHODS, a
+// reference and, for anything but cash, a proof file (SPRINT 182, panel P-13).
+// A payout is sent as multipart/form-data (the proof is a file); the other
+// actions can still be JSON.
+const REFUND_PAYOUT_METHODS = ['GCash', 'Maya', 'Bank transfer', 'Cash', 'Other'];
+const REFUND_PROOF_MIMES = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'application/pdf' => 'pdf'];
+const REFUND_PROOF_MAX_BYTES = 10 * 1024 * 1024;
 $admin_id = (int)require_admin($conn);
-$input = read_json_input();
+if (!empty($_POST)) {
+    require_scalar_post(['id', 'action', 'message', 'payout_method', 'payout_reference', 'amount', 'gateway']);
+    $input = $_POST;
+} else {
+    $input = read_json_input();
+}
 $id = (int)($input['id'] ?? 0);
 $action = $input['action'] ?? '';
 $message = trim((string)($input['message'] ?? ''));
@@ -97,13 +108,34 @@ if ($via_gateway) {
     $method = 'PayMongo';
     $reference = $gateway_refund_id;
 } elseif ($action === 'mark_refunded') {
-    $method = trim((string)($input['payout_method'] ?? ''));
+    $given_method = trim((string)($input['payout_method'] ?? ''));
+    foreach (REFUND_PAYOUT_METHODS as $listed) {
+        if (strcasecmp($listed, $given_method) === 0) $method = $listed;
+    }
+    if ($method === null) refund_fail(400, "Choose how the refund was paid out: " . implode(', ', REFUND_PAYOUT_METHODS) . ".");
     $reference = trim((string)($input['payout_reference'] ?? ''));
-    if ($method === '' || mb_strlen($method) > 50) refund_fail(400, "Enter how the refund was paid out.");
-    if ($reference === '' || mb_strlen($reference) > 100) refund_fail(400, "Enter the payout reference.");
+    if (mb_strlen($reference) > 100) refund_fail(400, "The payout reference can be up to 100 characters.");
+    // Cash is handed over and signed for; anything else leaves a trace to keep.
+    $needs_proof = $method !== 'Cash';
+    if ($needs_proof && $reference === '') refund_fail(400, "Enter the payout reference.");
+    if ($reference === '') $reference = null;
+
+    // The proof is checked here, before anything is written; the file itself is
+    // saved inside the transaction below, once the status change has won.
+    $proof_file = $_FILES['payout_proof'] ?? null;
+    if ($proof_file && $proof_file['error'] === UPLOAD_ERR_NO_FILE) $proof_file = null;
+    if ($proof_file) {
+        if ($proof_file['error'] !== UPLOAD_ERR_OK) refund_fail(422, "The proof could not be uploaded. Try again.");
+        if ($proof_file['size'] <= 0 || $proof_file['size'] > REFUND_PROOF_MAX_BYTES) refund_fail(422, "The proof must be 10 MB or smaller.");
+        $proof_ext = REFUND_PROOF_MIMES[(new finfo(FILEINFO_MIME_TYPE))->file($proof_file['tmp_name'])] ?? null;
+        if (!$proof_ext) refund_fail(422, "The proof must be a JPG, PNG, WEBP or PDF file.");
+    } elseif ($needs_proof) {
+        refund_fail(422, "Attach the proof of the payout (a screenshot of the transfer or a receipt).");
+    }
 }
 
 $uid = (int)$req['user_id'];
+$saved_proof = null; // the file written inside the transaction, removed again if it rolls back
 $conn->begin_transaction();
 try {
     if ($action === 'mark_refunded') {
@@ -130,6 +162,21 @@ try {
     $u->execute();
     if ($u->affected_rows < 1) throw new Exception("This request changed while you were working. Reload and try again.");
     $u->close();
+
+    // A hand payout's proof file: saved only now that this request really moved
+    // to Refunded, so a stale click leaves no orphan file behind.
+    if ($action === 'mark_refunded' && !$via_gateway && !empty($proof_file)) {
+        $dir = UPLOADS_DIR . '/refunds';
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) throw new Exception("Could not save the payout proof.");
+        $stored = 'payout_' . bin2hex(random_bytes(16)) . '.' . $proof_ext;
+        if (!move_uploaded_file($proof_file['tmp_name'], $dir . '/' . $stored)) throw new Exception("Could not save the payout proof.");
+        $saved_proof = $dir . '/' . $stored;
+        $pp = $conn->prepare("UPDATE refund_requests SET payout_proof_path = ? WHERE id = ?");
+        $proof_path = 'uploads/refunds/' . $stored;
+        $pp->bind_param("si", $proof_path, $id);
+        $pp->execute();
+        $pp->close();
+    }
 
     if ($action === 'reject') {
         // Free the held credits so they can be requested again.
@@ -159,13 +206,14 @@ try {
     }
 
     $ev = $conn->prepare("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES (?, ?, 'admin', ?, ?)");
-    $note = $action === 'mark_refunded' ? "Paid out via $method (ref $reference)" . ($message !== '' ? ". $message" : '') : $message;
+    $note = $action === 'mark_refunded' ? "Paid out via $method" . ($reference !== null ? " (ref $reference)" : '') . (!empty($saved_proof) ? ' with proof' : '') . ($message !== '' ? ". $message" : '') : $message;
     $ev->bind_param("iiss", $id, $admin_id, $action, $note);
     $ev->execute();
     $ev->close();
     $conn->commit();
 } catch (Exception $e) {
     $conn->rollback();
+    if ($saved_proof && is_file($saved_proof)) unlink($saved_proof);
     if ($gateway_refund_id) {
         // PayMongo already took the refund; only the AMS record failed.
         error_log("Refund #$id paid through PayMongo ($gateway_refund_id) but not recorded: " . $e->getMessage());
@@ -182,7 +230,7 @@ $titles = [
     'approve' => ['Refund Approved', "Your refund of ₱$amt was approved. We will send it out and record the payout."],
     'reject' => ['Refund Rejected', "Your refund of ₱$amt was rejected. Reason: $message"],
     'request_info' => ['More Information Needed', "About your refund of ₱$amt: $message"],
-    'mark_refunded' => ['Refund Paid Out', "Your refund of ₱$amt was paid out via $method (ref $reference)."],
+    'mark_refunded' => ['Refund Paid Out', "Your refund of ₱$amt was paid out via $method" . ($reference !== null ? " (ref $reference)" : '') . "."],
 ];
 create_notification($conn, $uid, 'refund_update', $titles[$action][0], $titles[$action][1]);
 log_activity($conn, $admin_id, 'billing', 'Refund ' . ucwords(str_replace('_', ' ', $action)), "Refund #$id: $from -> $to");

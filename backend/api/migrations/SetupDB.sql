@@ -1416,6 +1416,8 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   `payout_method` varchar(50) DEFAULT NULL,
   `payout_reference` varchar(100) DEFAULT NULL,
   `payout_destination` varchar(255) DEFAULT NULL,
+  -- Proof of a payout made by hand (2026_11_workstream.sql).
+  `payout_proof_path` varchar(255) DEFAULT NULL,
   `paid_amount` decimal(10,2) DEFAULT NULL,
   `deposit_amount` decimal(10,2) DEFAULT NULL,
   `paymongo_payment_id` varchar(64) DEFAULT NULL,

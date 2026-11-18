@@ -71,7 +71,7 @@ if (!in_array($row['status'], INVOICE_ADJUSTABLE_STATUSES, true)) {
     $why = match ($row['status']) {
         'processing' => 'has an online payment in progress',
         'pending-verification' => 'has a payment under verification',
-        'paid' => 'is already paid; issue a manual credit instead',
+        'paid' => 'is already paid; void the payment first (Payments, payment history) or open a refund request',
         'cancelled' => 'is cancelled',
         default => 'can no longer be adjusted',
     };
