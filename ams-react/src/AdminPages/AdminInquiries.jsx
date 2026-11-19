@@ -6,7 +6,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faEnvelopeOpenText, faSearch, faSync, faTimes, faCheckCircle,
   faBuilding, faCalendarAlt, faPhone, faEnvelope, faBookmark, faPlus,
-  faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl
+  faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl,
+  faArrowDownShortWide, faArrowDownWideShort
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { LIMITS, MAX_AMOUNT, checkAmount, checkEmail, checkIntRange, checkLength, checkPersonName, checkPhMobile, checkText, localDateString, localTimeString, maxFutureDate, normalizeEmail, toPhE164 } from '../utils/validation';
@@ -25,13 +26,64 @@ import WaitlistPanel from '../Components/WaitlistPanel';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { useSearchParams } from 'react-router-dom';
-import { TH, THEAD, btn } from '../Components/admin/ui/styles';
+import { PANEL, TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
-const INQUIRY_TABS = ['all', 'new', 'contacted', 'scheduled', 'reserved', 'converted', 'closed'];
+// "Open" (the default) = still being handled: not yet turned into an application
+// and not closed. "All" is last, for looking something up.
+const OPEN_STATUSES = ['new', 'contacted', 'scheduled', 'reserved'];
+const INQUIRY_TABS = ['open', 'new', 'contacted', 'scheduled', 'reserved', 'converted', 'closed', 'all'];
 const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
+const TAB_LABELS = { open: 'Open' };
+// Oldest first by default, so the inquiry waiting longest is answered first.
+const SORTS = [
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'newest', label: 'Newest first' },
+];
+// One-click reasons that fill the reason box (still editable). A prospect with an
+// account is sent the reason (update_inquiry_status.php), so they are worded for them.
+const CLOSE_REASONS = [
+  'No reply after several follow-ups',
+  'Found another place',
+  'No unit available for the preferred move-in date',
+  'The rent is outside their budget',
+  'Not ready to rent yet',
+  'Duplicate of another inquiry',
+  'Contact details could not be reached',
+];
+const CANCEL_HOLD_REASONS = [
+  'The prospect withdrew',
+  'Reservation fee was not paid',
+  'Moved to a different unit',
+  'The unit is no longer available',
+];
+
+const statusMatches = (item, filter) => {
+  const s = (item.status || '').toLowerCase();
+  if (filter === 'all') return true;
+  if (filter === 'open') return OPEN_STATUSES.includes(s);
+  return s === filter;
+};
+// MySQL "YYYY-MM-DD HH:MM:SS" as a local date (Safari rejects the space).
+const parseDbDate = (v) => (v ? new Date(String(v).replace(' ', 'T')) : null);
+const daysSince = (v) => {
+  const d = parseDbDate(v);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = new Date();
+  return Math.max(0, Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - start) / 86400000));
+};
+const ageText = (days) => (days === null ? '' : days === 0 ? 'Today' : days === 1 ? 'Yesterday' : `${days} days ago`);
+// How long an open inquiry has waited: amber after 3 days, red after a week.
+const ageTone = (days) => (days === null ? 'text-slate-500' : days >= 7 ? 'text-red-600 font-semibold' : days >= 3 ? 'text-amber-700 font-semibold' : 'text-slate-500');
+const sortByAge = (list, sort) => [...list].sort((a, b) => {
+  const ta = parseDbDate(a.createdAt)?.getTime() || 0;
+  const tb = parseDbDate(b.createdAt)?.getTime() || 0;
+  const diff = ta - tb || (Number(a.rawId ?? a.id) || 0) - (Number(b.rawId ?? b.id) || 0);
+  return sort === 'newest' ? -diff : diff;
+});
 
 export default function AdminInquiries() {
   const navigate = useNavigate();
@@ -50,7 +102,8 @@ export default function AdminInquiries() {
   const [error, setError] = useState(null);
   const [view] = useUrlFilter('view', 'inquiries', ['inquiries', 'reservations']);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', [...new Set([...INQUIRY_TABS, ...RESERVATION_TABS])]);
+  const [statusFilter, setStatusFilter] = useUrlFilter('status', view === 'inquiries' ? 'open' : 'all', view === 'inquiries' ? INQUIRY_TABS : RESERVATION_TABS);
+  const [sort, setSort] = useUrlFilter('sort', 'oldest', SORTS.map((s) => s.value));
 
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -340,8 +393,8 @@ export default function AdminInquiries() {
   // ─── Filtering ───
   const q = searchQuery.toLowerCase().trim();
 
-  const filteredInquiries = inquiries.filter(i => {
-    const matchesStatus = statusFilter === 'all' || (i.status && i.status.toLowerCase() === statusFilter);
+  const filteredInquiries = sortByAge(inquiries.filter(i => {
+    const matchesStatus = statusMatches(i, statusFilter);
     const matchesSearch = !q ||
       (i.fullName && i.fullName.toLowerCase().includes(q)) ||
       (i.email && i.email.toLowerCase().includes(q)) ||
@@ -349,17 +402,17 @@ export default function AdminInquiries() {
       (i.unit && i.unit.toLowerCase().includes(q)) ||
       (i.message && i.message.toLowerCase().includes(q));
     return matchesStatus && matchesSearch;
-  });
+  }), sort);
 
-  const filteredReservations = reservations.filter(r => {
-    const matchesStatus = statusFilter === 'all' || (r.status && r.status.toLowerCase() === statusFilter);
+  const filteredReservations = sortByAge(reservations.filter(r => {
+    const matchesStatus = statusMatches(r, statusFilter);
     const matchesSearch = !q ||
       (r.reservedFor && r.reservedFor.toLowerCase().includes(q)) ||
       (r.unit && r.unit.toLowerCase().includes(q)) ||
       (r.email && r.email.toLowerCase().includes(q)) ||
       (r.contactNo && r.contactNo.toLowerCase().includes(q));
     return matchesStatus && matchesSearch;
-  });
+  }), sort);
 
 
   const inquiryBadge = (status) => {
@@ -384,13 +437,25 @@ export default function AdminInquiries() {
     return map[status] || 'bg-slate-100 text-slate-600';
   };
 
-  const fmtDate = (v) => v ? new Date(v).toLocaleDateString() : '—';
-  const fmtDateTime = (v) => v ? new Date(v).toLocaleString() : '—';
+  const fmtDate = (v) => {
+    const d = parseDbDate(v);
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  };
+  const fmtDateTime = (v) => {
+    const d = parseDbDate(v);
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+  };
 
   const tabs = view === 'inquiries' ? INQUIRY_TABS : RESERVATION_TABS;
   // The status tabs carry the counts (a row of count cards used to repeat some of them).
   const tabSource = view === 'inquiries' ? inquiries : reservations;
-  const tabCount = (tab) => (tab === 'all' ? tabSource.length : tabSource.filter(x => (x.status || '').toLowerCase() === tab).length);
+  const tabCount = (tab) => tabSource.filter((x) => statusMatches(x, tab)).length;
+  const tabLabel = (tab) => TAB_LABELS[tab] || tab.charAt(0).toUpperCase() + tab.slice(1);
+  const shownCount = view === 'inquiries' ? filteredInquiries.length : filteredReservations.length;
+  const noun = view === 'inquiries' ? (shownCount === 1 ? 'inquiry' : 'inquiries') : (shownCount === 1 ? 'reservation' : 'reservations');
+  // "Showing 4 open inquiries, oldest first" (follows the tab, search and sort).
+  const filterSummary = `${shownCount} ${statusFilter === 'all' ? '' : `${tabLabel(statusFilter).toLowerCase()} `}${noun}${q ? ` matching “${searchQuery.trim()}”` : ''}, ${sort === 'newest' ? 'newest' : 'oldest'} first`;
+  const isOpenInquiry = (inq) => OPEN_STATUSES.includes((inq.status || '').toLowerCase());
 
   return (
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
@@ -445,36 +510,58 @@ export default function AdminInquiries() {
             </div>
 
             {/* Search + status filter */}
-            <div className="rounded-card border border-slate-200 bg-white p-4 sm:p-6 shadow-card space-y-4">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="relative flex-1 w-full">
-                  <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm" />
-                  <input maxLength={LIMITS.search}
-                    type="text"
-                    placeholder={view === 'inquiries' ? 'Search by name, email, contact, unit, or message...' : 'Search by name, unit, or contact...'}
+            <div className={`${PANEL} p-3 sm:p-4 space-y-3`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-control border border-slate-200 bg-white px-3 h-10 transition-colors focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100">
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm shrink-0" aria-hidden="true" />
+                  <input
+                    maxLength={LIMITS.search}
+                    type="search"
+                    aria-label={view === 'inquiries' ? 'Search inquiries' : 'Search reservations'}
+                    placeholder={view === 'inquiries' ? 'Search by name, email, phone, unit or message' : 'Search by name, unit or contact'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-card border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-4 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                    className="min-w-0 flex-1 border-0 bg-transparent p-0 text-body text-slate-800 placeholder-slate-400 outline-none focus-visible:outline-none focus-visible:ring-0 [&::-webkit-search-cancel-button]:hidden"
                   />
+                  {searchQuery && (
+                    <button type="button" aria-label="Clear search" onClick={() => setSearchQuery('')} className="touch-compact flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-0 bg-transparent p-0 text-slate-400 hover:text-slate-700 cursor-pointer">
+                      <FontAwesomeIcon icon={faTimes} />
+                    </button>
+                  )}
                 </div>
-
-                <div className="flex items-center gap-3 w-full sm:w-auto justify-between">
-                  <FilterTabs
-                    label="Filter by status"
-                    value={statusFilter}
-                    onChange={setStatusFilter}
-                    options={tabs.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1), count: loading || error ? null : tabCount(t), dot: view === 'inquiries' && t === 'new' && tabCount('new') > 0 }))}
-                  />
+                <div className="flex items-center gap-2">
+                  <label className="relative flex flex-1 items-center sm:flex-none">
+                    <span className="sr-only">Sort by date received</span>
+                    <FontAwesomeIcon icon={sort === 'newest' ? faArrowDownWideShort : faArrowDownShortWide} className="pointer-events-none absolute left-3 text-label text-slate-400" aria-hidden="true" />
+                    <select
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value)}
+                      className="h-10 w-full rounded-control border border-slate-200 bg-white pl-8 pr-8 text-label font-medium text-slate-700 cursor-pointer focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 sm:w-auto"
+                    >
+                      {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </label>
                   <button
                     type="button"
                     onClick={() => { fetchData(); fetchSupporting(); }}
-                    className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
+                    className={btn('secondary', 'md', 'w-10 shrink-0 px-0 text-slate-500 hover:text-indigo-600')}
                     title="Refresh"
+                    aria-label="Refresh"
                   >
                     <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
                   </button>
                 </div>
               </div>
+
+              <FilterTabs
+                label="Filter by status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={tabs.map(t => ({ value: t, label: tabLabel(t), count: loading || error ? null : tabCount(t), dot: view === 'inquiries' && t === 'new' && tabCount('new') > 0 }))}
+              />
+              {!loading && !error && (
+                <p className="m-0 text-caption text-slate-500" aria-live="polite">Showing {filterSummary}.</p>
+              )}
             </div>
 
             {/* Table */}
@@ -500,9 +587,14 @@ export default function AdminInquiries() {
                         <LoadErrorRow cols={7} title="Couldn't load inquiries" detail={error} onRetry={fetchData} />
                       ) : filteredInquiries.length === 0 ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
-                          <div className="flex items-center justify-center gap-2.5 text-slate-500">
-                            <FontAwesomeIcon icon={faEnvelopeOpenText} className="text-xl text-slate-300 shrink-0" />
-                            <span className="text-body italic">No inquiries found.</span>
+                          <div className="flex flex-col items-center justify-center gap-2 text-slate-500">
+                            <FontAwesomeIcon icon={statusFilter === 'open' && !q ? faCheckCircle : faEnvelopeOpenText} className={`text-2xl shrink-0 ${statusFilter === 'open' && !q ? 'text-emerald-400' : 'text-slate-300'}`} aria-hidden="true" />
+                            <span className="text-body font-medium text-slate-600">
+                              {q ? 'No inquiries match your search.' : statusFilter === 'open' ? 'All caught up: no open inquiries.' : `No ${tabLabel(statusFilter).toLowerCase()} inquiries.`}
+                            </span>
+                            {statusFilter !== 'all' && inquiries.length > 0 && (
+                              <button type="button" onClick={() => setStatusFilter('all')} className={btn('link')}>Show all {inquiries.length} inquiries</button>
+                            )}
                           </div>
                         </td></tr>
                       ) : (
@@ -541,19 +633,31 @@ export default function AdminInquiries() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-4 text-label text-slate-500">{fmtDate(inq.createdAt)}</td>
+                            <td className="px-4 py-4">
+                              <p className="m-0 text-label text-slate-700">{fmtDate(inq.createdAt)}</p>
+                              {/* How long it has waited, only while it is still open. */}
+                              {isOpenInquiry(inq) && daysSince(inq.createdAt) !== null && (
+                                <p className={`m-0 mt-0.5 text-caption ${ageTone(daysSince(inq.createdAt))}`}>
+                                  {ageText(daysSince(inq.createdAt))}
+                                </p>
+                              )}
+                            </td>
                             <td className="px-4 py-4 text-center">
                               <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(inq.status)}`}>
                                 {inq.status}
                               </span>
+                              {inq.status === 'Closed' && inq.closedReason && (
+                                <p className="m-0 mt-1 mx-auto max-w-[11rem] truncate text-caption text-slate-500" title={inq.closedReason}>{inq.closedReason}</p>
+                              )}
                             </td>
                             <td className="px-5 py-4 text-right">
                               <button
                                 type="button"
                                 onClick={() => openDetail(inq)}
-                                className="rounded-control bg-indigo-50 px-3 py-1.5 text-label font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border-0 cursor-pointer"
+                                aria-label={`Manage inquiry from ${inq.fullName}`}
+                                className={btn('secondary', 'sm')}
                               >
-                                Manage
+                                {isOpenInquiry(inq) ? 'Manage' : 'View'}
                               </button>
                             </td>
                           </tr>
@@ -583,7 +687,7 @@ export default function AdminInquiries() {
                         <tr><td colSpan="7" className="px-5 py-12 text-center">
                           <div className="flex items-center justify-center gap-2.5 text-slate-500">
                             <FontAwesomeIcon icon={faBookmark} className="text-xl text-slate-300 shrink-0" />
-                            <span className="text-body italic">No reservations found.</span>
+                            <span className="text-body text-slate-600">{q ? 'No reservations match your search.' : 'No reservations found.'}</span>
                           </div>
                         </td></tr>
                       ) : (
@@ -665,19 +769,23 @@ export default function AdminInquiries() {
       {showDetail && selected && (
         <Modal title={`${selected.fullName}`} onClose={() => setShowDetail(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-card shadow-dialog w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
-            <div className="px-6 py-5 flex items-center justify-between shrink-0 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
-              <div>
-                <h3 className="text-section font-bold m-0 tracking-tight">{selected.fullName}</h3>
-                <div className="flex gap-3 mt-1 opacity-90 text-label">
-                  <span>Received {fmtDate(selected.createdAt)}</span>
-                  <span>•</span>
-                  <span className="font-semibold px-2 py-0.5 bg-white/20 rounded-control">
-                    {selected.unit ? `Unit ${selected.unit}` : 'No specific unit'}
-                  </span>
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 bg-slate-50">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-title font-bold text-slate-800 m-0 truncate">{selected.fullName}</h3>
+                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(selected.status)}`}>{selected.status}</span>
                 </div>
+                <p className="text-label text-slate-500 m-0 mt-0.5">
+                  Received {fmtDate(selected.createdAt)}
+                  {isOpenInquiry(selected) && daysSince(selected.createdAt) !== null && (
+                    <span className={ageTone(daysSince(selected.createdAt))}> ({ageText(daysSince(selected.createdAt)).toLowerCase()})</span>
+                  )}
+                  {' · '}{selected.unit ? `Unit ${selected.unit}` : 'Any available unit'}
+                  {selected.source ? <span className="capitalize"> · {selected.source}</span> : null}
+                </p>
               </div>
-              <button aria-label="Close" onClick={() => setShowDetail(false)} className="text-white hover:bg-white/20 p-2 rounded-card border-0 bg-transparent cursor-pointer transition-colors">
-                <FontAwesomeIcon icon={faTimes} className="text-lg" />
+              <button aria-label="Close" onClick={() => setShowDetail(false)} className="btn-interactive shrink-0 text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+                <FontAwesomeIcon icon={faTimes} className="text-base" />
               </button>
             </div>
 
@@ -689,14 +797,29 @@ export default function AdminInquiries() {
                 </div>
               )}
 
+              {selected.status === 'Closed' && (
+                <div role="note" className="flex items-start gap-3 rounded-card border border-slate-200 bg-white p-3.5">
+                  <FontAwesomeIcon icon={faBan} className="mt-0.5 text-slate-400" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="m-0 text-label font-semibold text-slate-700">This inquiry is closed</p>
+                    <p className="m-0 mt-0.5 text-label text-slate-600">{selected.closedReason ? `Reason: ${selected.closedReason}` : 'No reason was recorded.'}</p>
+                    <p className="m-0 mt-1 text-caption text-slate-500">Mark it contacted or schedule a viewing to reopen it.</p>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white rounded-card p-3.5 border border-slate-200">
                   <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
-                  <p className="text-body font-semibold text-slate-800 m-0 break-all">{selected.email}</p>
+                  {selected.email
+                    ? <a href={`mailto:${selected.email}`} className="block text-body font-semibold text-slate-800 m-0 break-all no-underline hover:text-indigo-700">{selected.email}</a>
+                    : <p className="text-body font-semibold text-slate-800 m-0">—</p>}
                 </div>
                 <div className="bg-white rounded-card p-3.5 border border-slate-200">
                   <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
-                  <p className="text-body font-semibold text-slate-800 m-0">{selected.contactNo}</p>
+                  {selected.contactNo
+                    ? <a href={`tel:${String(selected.contactNo).replace(/\s+/g, '')}`} className="block text-body font-semibold text-slate-800 m-0 no-underline hover:text-indigo-700">{selected.contactNo}</a>
+                    : <p className="text-body font-semibold text-slate-800 m-0">—</p>}
                 </div>
                 <div className="bg-white rounded-card p-3.5 border border-slate-200">
                   <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
@@ -850,21 +973,23 @@ export default function AdminInquiries() {
                     const ok = await updateInquiry({ id: selected.id, status: selected.status, admin_notes: notes.trim() });
                     if (ok) setShowDetail(false);
                   }}
-                  className="flex-1 rounded-card bg-slate-800 px-4 py-3 text-label font-bold text-white hover:bg-slate-900 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={btn('primary', 'md', 'flex-1')}
                 >
                   {busy === 'inquiry' ? 'Saving…' : 'Save Notes'}
                 </button>
-                <button
-                  type="button"
-                  disabled={!!busy}
-                  onClick={() => {
-                    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
-                    setReasonFor({ kind: 'closeInquiry', id: selected.id });
-                  }}
-                  className="flex-1 rounded-card bg-white border-2 border-red-200 px-4 py-3 text-label font-bold text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Close Inquiry
-                </button>
+                {selected.status !== 'Closed' && (
+                  <button
+                    type="button"
+                    disabled={!!busy}
+                    onClick={() => {
+                      if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
+                      setReasonFor({ kind: 'closeInquiry', id: selected.id });
+                    }}
+                    className={btn('danger-outline', 'md', 'flex-1')}
+                  >
+                    <FontAwesomeIcon icon={faBan} /> Close Inquiry
+                  </button>
+                )}
               </div>
             </div>
           </Modal>
@@ -1097,8 +1222,12 @@ export default function AdminInquiries() {
       {reasonFor && (
         <ReasonModal
           title={reasonFor.kind === 'cancelHold' ? 'Cancel Hold' : 'Close Inquiry'}
-          description={reasonFor.kind === 'cancelHold' ? 'The unit is released and becomes available again.' : undefined}
+          description={reasonFor.kind === 'cancelHold'
+            ? 'The unit is released and becomes available again.'
+            : `${selected?.fullName || 'The prospect'}'s inquiry moves to Closed. If they have an account, they are notified with this reason.`}
           label={reasonFor.kind === 'cancelHold' ? 'Reason for cancelling this hold' : 'Reason for closing this inquiry'}
+          placeholder="Pick a common reason above, or type your own"
+          suggestions={reasonFor.kind === 'cancelHold' ? CANCEL_HOLD_REASONS : CLOSE_REASONS}
           confirmLabel={reasonFor.kind === 'cancelHold' ? 'Cancel Hold' : 'Close Inquiry'}
           onConfirm={confirmReason}
           onClose={() => setReasonFor(null)}

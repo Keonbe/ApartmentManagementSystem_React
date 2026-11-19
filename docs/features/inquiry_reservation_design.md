@@ -187,7 +187,7 @@ UPDATE rooms SET status = 'vacant' WHERE id = ? AND status = 'reserved'
 | Route | File | Guard | Notes |
 |---|---|---|---|
 | `/inquire` | `UserPages/InquiryForm.jsx` | **None** (public, `BaseAppLayout` only) | Prefills from session when logged in; i18n EN/TL; JSON POST, no uploads |
-| `/admin-inquiries` | `AdminPages/AdminInquiries.jsx` | `AdminProtectedRoute` | Two views (Inquiries / Reservations), triage modal, reserve modal, walk-in logger |
+| `/admin-inquiries` | `AdminPages/AdminInquiries.jsx` | `AdminProtectedRoute` | Two views (Inquiries / Reservations), triage modal, reserve modal, walk-in logger. Inquiries open on the **Open** tab (New, Contacted, Scheduled, Reserved: not converted, not closed; All is the last tab) sorted **oldest first** (`?sort=newest` flips it); each open row shows how long it has waited (amber from 3 days, red from 7). Closing (and cancelling a hold) offers one-click common reasons that fill the reason box; a prospect with an account is notified with that reason. A closed inquiry shows its reason in the list and the modal |
 
 Entry points: an **Inquire** button on every vacant room card in `Preview.jsx`,
 and a secondary CTA on `Home.jsx`. The sidebar entry sits in the **Main** section
