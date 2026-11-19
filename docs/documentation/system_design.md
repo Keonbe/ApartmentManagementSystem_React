@@ -486,7 +486,7 @@ Per-page behaviour (panels, forms, validations, actions) is in [tenant_pages.md]
 | File | Route | Purpose |
 |------|-------|---------|
 | `AdminDashboard.jsx` | `/admin-dashboard` | Live KPI cards, income chart, activity feed |
-| `AdminUnits.jsx` | `/admin-units` | DB-backed unit CRUD, assignment (tenant search with profile pictures), detail modal (tenant card with photo, contact and rent-period bar; occupancy history with photos), lease + payment history |
+| `AdminUnits.jsx` | `/admin-units` | DB-backed unit CRUD, assignment (tenant search with profile pictures), detail modal (segmented section tabs; tenant card with photo, contact, rent-period bar and an occupants popover listing the household; occupancy history with photos), lease + payment history |
 | `AdminApplications.jsx` | `/admin-applications` | Pending application viewer with doc preview |
 | `AdminTenants.jsx` | `/admin-tenants` | Tenant lifecycle management, archive, docs review |
 | `AdminPayments.jsx` | `/admin-payments` | Invoice-based billing, settlement, receipts |

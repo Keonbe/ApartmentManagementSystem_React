@@ -7,7 +7,7 @@ import {
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
   faHistory, faLayerGroup, faSync, faWrench,
   faChevronRight, faImages, faUpload, faTrash, faBoxArchive, faSpinner,
-  faCheck, faCalendarAlt, faEnvelope, faPhone, faUsers, faCouch, faClipboardCheck, faPesoSign, faStairs, faDoorOpen
+  faCheck, faCalendarAlt, faEnvelope, faPhone, faCouch, faClipboardCheck, faPesoSign, faStairs, faDoorOpen
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
@@ -41,6 +41,7 @@ import FilterTabs from '../Components/admin/ui/FilterTabs';
 import InfoTip from '../Components/admin/ui/InfoTip';
 import TenantPicker from '../Components/admin/TenantPicker';
 import PersonAvatar from '../Components/admin/PersonAvatar';
+import OccupantsPopover from '../Components/admin/OccupantsPopover';
 import EmptyState from '../Components/admin/ui/EmptyState';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
@@ -1117,7 +1118,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
     { key: 'overview', label: 'Overview', icon: faLayerGroup },
     { key: 'gallery', label: 'Gallery', icon: faImages, count: galleryImages.length },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
-    { key: 'occupancyHistory', label: 'Occupancy History', icon: faHistory, count: (unit.occupancyHistory || []).length },
+    { key: 'occupancyHistory', label: 'History', title: 'Occupancy history', icon: faHistory, count: (unit.occupancyHistory || []).length },
     { key: 'extensions', label: 'Extensions', icon: faCalendarAlt, count: extensionCount },
     { key: 'maintenance', label: 'Maintenance', icon: faWrench, count: (unit.maintenanceHistory || []).length },
   ];
@@ -1130,10 +1131,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
   return (
     <Modal title={`Unit ${unit.id}`} onClose={onClose} overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 bg-slate-50">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className={`w-12 h-12 shrink-0 rounded-card flex items-center justify-center text-white font-bold text-title shadow-raised ${unit.status === 'occupied' ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' : unit.status === 'reserved' ? 'bg-gradient-to-br from-violet-500 to-violet-700' : 'bg-gradient-to-br from-amber-400 to-amber-600'}`}>
-              {unit.id}
-            </div>
+          <div className="min-w-0">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-title font-bold text-slate-800 m-0">Unit {unit.id}</h3>
@@ -1145,18 +1143,33 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
           <button aria-label="Close" onClick={onClose} className="btn-interactive shrink-0 text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
         </div>
 
-        <div className="flex border-b border-slate-200 px-3 shrink-0 bg-white overflow-x-auto">
-          {tabs.map(tab => (
-            <button
-              key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-3 text-label font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer whitespace-nowrap ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-500 border-b-transparent hover:text-slate-600'}`}
-            >
-              <FontAwesomeIcon icon={tab.icon} className="text-[10px]" /> {tab.label}
-              {tab.count > 0 && (
-                <span className={`rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums ${activeTab === tab.key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>{tab.count}</span>
-              )}
-            </button>
-          ))}
+        {/* All six sections always visible (no sideways scrolling): one row from
+            sm up, two rows of three on a phone. Same look as FilterTabs. */}
+        <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+          <div role="tablist" aria-label="Unit details" className="grid grid-cols-3 gap-1 rounded-card bg-slate-100 p-1 sm:grid-cols-6">
+            {tabs.map(tab => {
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  title={tab.title || tab.label}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-control border-0 px-1 py-2 text-caption cursor-pointer transition-colors ${active ? 'bg-white font-bold text-indigo-700 shadow-card' : 'bg-transparent font-medium text-slate-600 hover:bg-white/60 hover:text-slate-900'}`}
+                >
+                  <span className="flex h-4 items-center gap-1">
+                    <FontAwesomeIcon icon={tab.icon} className={`text-[11px] ${active ? 'text-indigo-600' : 'text-slate-400'}`} aria-hidden="true" />
+                    {tab.count > 0 && (
+                      <span className={`rounded-full px-1.5 text-[10px] font-bold leading-4 tabular-nums ${active ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>{tab.count}</span>
+                    )}
+                  </span>
+                  <span className="max-w-full truncate">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white">
@@ -1169,7 +1182,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
                     <div className="min-w-0 flex-1">
                       <p className={`m-0 text-caption font-semibold ${unit.status === 'reserved' ? 'text-violet-700' : 'text-emerald-700'}`}>{unit.status === 'reserved' ? 'Reserved for' : 'Current tenant'}</p>
                       <p className="m-0 text-title font-bold text-slate-900 truncate">{person.name}</p>
-                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-label text-slate-600">
+                      <div className="relative mt-1 flex flex-wrap gap-x-4 gap-y-1 text-label text-slate-600">
                         {person.email && (
                           <a href={`mailto:${person.email}`} className="inline-flex min-w-0 items-center gap-1.5 text-slate-600 no-underline hover:text-indigo-700">
                             <FontAwesomeIcon icon={faEnvelope} className="text-[11px] text-slate-400" aria-hidden="true" /><span className="truncate">{person.email}</span>
@@ -1180,9 +1193,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
                             <FontAwesomeIcon icon={faPhone} className="text-[11px] text-slate-400" aria-hidden="true" />{person.phone}
                           </a>
                         )}
-                        <span className="inline-flex items-center gap-1.5">
-                          <FontAwesomeIcon icon={faUsers} className="text-[11px] text-slate-400" aria-hidden="true" />{unit.occupants || 0} occupant{unit.occupants === 1 ? '' : 's'}
-                        </span>
+                        <OccupantsPopover count={unit.occupants || 0} userId={person.userId} tenantName={person.name} unitId={unit.id} />
                       </div>
                     </div>
                   </div>
