@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -11,6 +11,9 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useApplyAdminTheme } from '../config/adminTheme';
+import { navAttention } from '../config/attentionItems';
+import useAdminAttention from '../hooks/useAdminAttention';
+import { useChat } from '../context/ChatContext';
 import '@fontsource-variable/ibm-plex-sans';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
 // Phone rules for every admin page (.admin-shell): every page renders this sidebar.
@@ -116,10 +119,27 @@ const rowBase = (narrow) => `admin-sidebar-nav-link flex items-center rounded-lg
 const iconBox = 'w-6 shrink-0 flex items-center justify-center';
 const label = 'whitespace-nowrap overflow-hidden';
 
+// The red count on a page that has something to act on (like the bell's).
+// small: the corner of a rail icon, ringed so it stands off the icon.
+function CountPill({ count, small = false, className = '' }) {
+  if (!count) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-red-600 font-bold leading-none text-white tabular-nums ${small ? 'h-4 min-w-4 px-1 text-[10px] ring-2 ring-slate-900' : 'h-5 min-w-5 px-1.5 text-[11px]'} ${className}`}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+const toActOn = (count) => (count ? `, ${count} to act on` : '');
+// What a page's count is made of, for the native tooltip.
+const badgeTitle = (badge) => (badge ? badge.lines.join('\n') : undefined);
+
 // narrow: the w-18 rail (labels hidden, groups closed). flyouts: rail groups open
 // a flyout (collapsed mode); in hover mode the whole rail widens instead.
 function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
-  const { groups, activeGroupId, openGroups, toggleGroup, isItemActive, flyout, setFlyout, openFlyout, closeFlyoutSoon, mode, setMode, handleClose } = nav;
+  const { groups, activeGroupId, openGroups, toggleGroup, isItemActive, flyout, setFlyout, openFlyout, closeFlyoutSoon, mode, setMode, handleClose, badges, groupCount } = nav;
   const dashActive = isItemActive(DASHBOARD);
   const flyoutHandlers = (id) => (flyouts ? {
     onMouseEnter: (e) => openFlyout(id, e.currentTarget),
@@ -173,6 +193,7 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
             const containsActive = g.id === activeGroupId;
             const open = !narrow && !!openGroups[g.id];
             const listId = `admin-nav-${g.id}${mobile ? '-m' : ''}`;
+            const waiting = groupCount(g);
             return (
               <li key={g.id}>
                 <button
@@ -181,7 +202,7 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
                   aria-expanded={flyouts ? flyout?.id === g.id : open}
                   aria-controls={flyouts ? undefined : listId}
                   aria-haspopup={flyouts ? 'menu' : undefined}
-                  aria-label={narrow ? g.title : undefined}
+                  aria-label={narrow ? `${g.title}${toActOn(waiting)}` : undefined}
                   className={`${rowBase(narrow)} font-semibold ${
                     narrow && containsActive
                       ? 'bg-indigo-600/90 text-white'
@@ -191,11 +212,15 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
                   }`}
                   {...flyoutHandlers(g.id)}
                 >
-                  <span className={iconBox}><FontAwesomeIcon icon={g.icon} /></span>
+                  <span className={`${iconBox} relative`}>
+                    <FontAwesomeIcon icon={g.icon} />
+                    {narrow && <CountPill count={waiting} small className="absolute -top-2 -right-2.5" />}
+                  </span>
                   {!narrow && (
                     <>
-                      <span className={`flex-1 ${label}`}>{g.title}</span>
-                      {containsActive && !open && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" aria-hidden="true" />}
+                      <span className={`flex-1 ${label}`}>{g.title}{!open && waiting > 0 && <span className="sr-only">{toActOn(waiting)}</span>}</span>
+                      {containsActive && !open && !waiting && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" aria-hidden="true" />}
+                      {!open && <CountPill count={waiting} />}
                       <FontAwesomeIcon icon={faChevronDown} className={`text-[10px] shrink-0 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`} aria-hidden="true" />
                     </>
                   )}
@@ -211,18 +236,21 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
                     <ul className="m-0 p-0 list-none overflow-hidden min-h-0 ml-6 pl-3 border-l border-slate-800 space-y-0.5">
                       {g.items.map((item, idx) => {
                         const active = isItemActive(item);
+                        const badge = badges[item.to];
                         return (
                           <li key={item.to} className={idx === 0 ? 'pt-1' : idx === g.items.length - 1 ? 'pb-1' : ''}>
                             <NavLink
                               to={item.to}
                               onClick={mobile ? handleClose : undefined}
                               aria-current={active ? 'page' : undefined}
+                              title={badgeTitle(badge)}
                               className={`admin-sidebar-nav-link btn-interactive flex items-center gap-2.5 h-9 px-2.5 rounded-lg text-sm no-underline transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                                 active ? 'bg-indigo-600 text-white font-semibold shadow-card' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                               }`}
                             >
                               <span className="w-4 shrink-0 flex items-center justify-center text-xs opacity-90"><FontAwesomeIcon icon={item.icon} /></span>
-                              <span className="truncate">{item.label}</span>
+                              <span className="min-w-0 flex-1 truncate">{item.label}{badge && <span className="sr-only">{toActOn(badge.count)}</span>}</span>
+                              <CountPill count={badge?.count} />
                             </NavLink>
                           </li>
                         );
@@ -304,6 +332,19 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     .map((g) => ({ ...g, items: g.items.filter(isItemVisible) }))
     .filter((g) => g.items.length > 0);
   const activeGroupId = NAV_GROUPS.find((g) => g.items.some(isItemActive))?.id;
+
+  // Red counts on the pages with something to act on: the Dashboard's "Needs
+  // your attention" lines per page (config/attentionItems.js), and unread chats
+  // on Messages. A closed group shows the total of its (visible) pages.
+  const attention = useAdminAttention();
+  const { conversations } = useChat() || {};
+  const unreadChats = (conversations || []).reduce((sum, c) => sum + (Number(c.unread_count) || 0), 0);
+  const badges = useMemo(() => {
+    const out = navAttention(attention);
+    if (unreadChats > 0) out['/admin-messages'] = { count: unreadChats, lines: [`${unreadChats} unread message${unreadChats === 1 ? '' : 's'}`] };
+    return out;
+  }, [attention, unreadChats]);
+  const groupCount = (g) => g.items.reduce((sum, item) => sum + (badges[item.to]?.count || 0), 0);
 
   // Open groups, remembered; the current page's group always starts open.
   const [openGroups, setOpenGroups] = useState(() => {
@@ -435,7 +476,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   }, [isDrawerOpen, propOnClose]);
 
 
-  const nav = { groups, activeGroupId, openGroups, toggleGroup, isItemActive, flyout, setFlyout, openFlyout, closeFlyoutSoon, mode, setMode, handleClose };
+  const nav = { groups, activeGroupId, openGroups, toggleGroup, isItemActive, flyout, setFlyout, openFlyout, closeFlyoutSoon, mode, setMode, handleClose, badges, groupCount };
 
   // Every admin page renders its own <main> (the header sits inside it), so the
   // skip link focuses whichever one is on screen instead of a fixed id.
@@ -523,11 +564,13 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
               <ul className="m-0 p-0 list-none">
                 {flyoutGroup.items.map((item) => {
                   const active = isItemActive(item);
+                  const badge = badges[item.to];
                   return (
                     <li key={item.to} className="px-1.5">
                       <NavLink
                         to={item.to}
                         role="menuitem"
+                        title={badgeTitle(badge)}
                         aria-current={active ? 'page' : undefined}
                         onBlur={(e) => { if (!e.currentTarget.closest('[role="menu"]')?.contains(e.relatedTarget)) closeFlyoutSoon(); }}
                         className={`flex items-center gap-2.5 h-9 px-2.5 rounded-md text-sm no-underline transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
@@ -535,7 +578,8 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
                         }`}
                       >
                         <span className="w-4 shrink-0 flex items-center justify-center text-xs"><FontAwesomeIcon icon={item.icon} /></span>
-                        <span className="whitespace-nowrap">{item.label}</span>
+                        <span className="flex-1 whitespace-nowrap">{item.label}{badge && <span className="sr-only">{toActOn(badge.count)}</span>}</span>
+                        <CountPill count={badge?.count} className="ml-3" />
                       </NavLink>
                     </li>
                   );

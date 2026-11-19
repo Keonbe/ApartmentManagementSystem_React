@@ -9,6 +9,8 @@ import {
   ADMIN_PAYMENTS_EVENT, PAYMENT_WATCH_POLL_MS, formatRelativeTime,
 } from '../config/notificationLinks';
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
+import useAdminAttention from '../hooks/useAdminAttention';
+import { navAttention } from '../config/attentionItems';
 import { clickable } from '../utils/clickable';
 import AdminNotificationModal from './AdminNotificationModal';
 import { useAdminTheme, setAdminTheme } from '../config/adminTheme';
@@ -133,6 +135,10 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     return () => document.removeEventListener('keydown', onKey);
   }, [isNotifOpen, isProfileOpen]);
 
+  // Anything waiting on a sidebar page (the same counts as its red badges).
+  const navAttentionData = useAdminAttention();
+  const navWaiting = Object.values(navAttention(navAttentionData)).reduce((sum, b) => sum + b.count, 0);
+
   const handleToggle = () => {
     if (onToggleSidebar) {
       onToggleSidebar();
@@ -210,10 +216,12 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
         <button
           type="button"
           onClick={handleToggle}
-          aria-label="Open Navigation Menu"
-          className="admin-header-hamburger btn-interactive text-slate-700 hover:text-indigo-600 lg:hidden bg-transparent border-0 cursor-pointer p-2 flex items-center justify-center text-title focus:outline-none shrink-0"
+          aria-label={navWaiting ? `Open Navigation Menu, ${navWaiting} to act on` : 'Open Navigation Menu'}
+          className="admin-header-hamburger btn-interactive relative text-slate-700 hover:text-indigo-600 lg:hidden bg-transparent border-0 cursor-pointer p-2 flex items-center justify-center text-title focus:outline-none shrink-0"
         >
           <FontAwesomeIcon icon={faBars} />
+          {/* The drawer's pages have red counts: say so before it is opened. */}
+          {navWaiting > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white" aria-hidden="true" />}
         </button>
 
         <h1 className="admin-header-title text-section md:text-page font-semibold text-slate-900 m-0 tracking-tight truncate">

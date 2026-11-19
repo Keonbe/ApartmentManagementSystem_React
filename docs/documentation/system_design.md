@@ -504,7 +504,7 @@ Per-page behaviour (panels, forms, validations, actions) is in [tenant_pages.md]
 | File | Purpose |
 |------|---------|
 | `TopBar.jsx` | User nav with DB-backed notification bell + user dropdown |
-| `AdminSidebar.jsx` | Collapsible admin navigation |
+| `AdminSidebar.jsx` | Collapsible admin navigation; red counts on the pages with something to act on (the Dashboard's red and amber "Needs your attention" lines per page, `config/attentionItems.js` `navAttention()`, from `dashboard_stats.php?section=attention` via `hooks/useAdminAttention.js`: one cache per tab, refreshed after any save, every 60 s and on return to the tab; unread chats on Messages), the total on a closed group, a corner count on the collapsed rail and a dot on the phone menu button |
 | `AdminDashboardHeader.jsx` | Admin page headers |
 | `Footer.jsx` | Site footer (user pages only) |
 | *(removed)* `LogInModal.jsx` | No longer exists. Newer components: `ChatWidget`, `RoomPreviewModal`, `HouseholdPanel`, `AdminHouseholdList`, `WaitlistPanel`, `ExpensesModal`, `ServiceCatalogModal`; context: `context/ChatContext.jsx` |

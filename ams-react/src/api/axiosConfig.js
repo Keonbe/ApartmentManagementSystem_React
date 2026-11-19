@@ -66,6 +66,12 @@ api.interceptors.response.use((response) => {
         console.log('Email HTML:\n' + d.rendered?.email_html);
         console.groupEnd();
     }
+    // Something was saved (approve, settle, reply…): what the admin sidebar
+    // counts may have changed (hooks/useAdminAttention.js listens).
+    const method = String(response.config?.method || 'get').toLowerCase();
+    if (method !== 'get' && method !== 'head' && method !== 'options') {
+        window.dispatchEvent(new CustomEvent(API_WRITE_EVENT));
+    }
     return response;
 }, (error) => {
     const sentToken = error?.config?.headers?.Authorization;
@@ -77,5 +83,8 @@ api.interceptors.response.use((response) => {
     }
     return Promise.reject(error);
 });
+
+// Fired on window after every successful POST / PUT / PATCH / DELETE.
+export const API_WRITE_EVENT = 'ams-api-write';
 
 export default api;
