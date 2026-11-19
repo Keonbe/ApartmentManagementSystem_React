@@ -212,12 +212,15 @@ const AdminUnits = () => {
     load();
   }, []);
 
+  // The floor filter narrows everything below it: the status counts, the
+  // occupancy badge and the grid all describe the floor being looked at.
+  const onFloor = floorFilter === 'all' ? units : units.filter(u => u.floor === floorFilter);
   const counts = {
-    all: units.length,
-    occupied: units.filter(u => u.status === 'occupied').length,
-    vacant: units.filter(u => u.status === 'vacant' && !u.maintenanceFlag).length,
-    reserved: units.filter(u => u.status === 'reserved').length,
-    maintenance: units.filter(u => u.maintenanceFlag || u.status === 'repair').length,
+    all: onFloor.length,
+    occupied: onFloor.filter(u => u.status === 'occupied').length,
+    vacant: onFloor.filter(u => u.status === 'vacant' && !u.maintenanceFlag).length,
+    reserved: onFloor.filter(u => u.status === 'reserved').length,
+    maintenance: onFloor.filter(u => u.maintenanceFlag || u.status === 'repair').length,
   };
 
   const filters = [
@@ -233,15 +236,14 @@ const AdminUnits = () => {
   const floors = [...new Set(units.map(u => u.floor).filter(Boolean))]
     .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
 
-  let displayed = units;
+  let displayed = onFloor;
   if (activeFilter === 'vacant') {
-    displayed = units.filter(u => u.status === 'vacant' && !u.maintenanceFlag);
+    displayed = onFloor.filter(u => u.status === 'vacant' && !u.maintenanceFlag);
   } else if (activeFilter === 'maintenance') {
-    displayed = units.filter(u => u.maintenanceFlag || u.status === 'repair');
+    displayed = onFloor.filter(u => u.maintenanceFlag || u.status === 'repair');
   } else if (activeFilter !== 'all') {
-    displayed = units.filter(u => u.status === activeFilter);
+    displayed = onFloor.filter(u => u.status === activeFilter);
   }
-  if (floorFilter !== 'all') displayed = displayed.filter(u => u.floor === floorFilter);
 
   if (searchTerm.trim()) {
     const q = searchTerm.toLowerCase();
@@ -503,19 +505,19 @@ const AdminUnits = () => {
                 <input maxLength={LIMITS.search}
                   type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Search units, tenants..."
-                  className="flex-1 bg-transparent text-body text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
+                  className="flex-1 bg-transparent text-body text-slate-700 placeholder-slate-400 outline-none focus-visible:outline-none focus-visible:ring-0 border-0 p-0"
                 />
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 {unitsState.isReady && counts.all > 0 && (
                   <div
                     className="flex items-center gap-3 rounded-card border border-emerald-200 bg-emerald-50 px-3.5 py-1.5"
-                    title={`${counts.occupied} of ${counts.all} units occupied`}
+                    title={`${counts.occupied} of ${counts.all} units occupied${floorFilter !== 'all' ? ` on the ${floorName(floorFilter)}` : ''}`}
                   >
                     <span className="text-title font-bold text-emerald-700 tabular-nums">{occupancyPct}%</span>
                     <span className="flex flex-col gap-1">
                       <span className="text-caption font-semibold text-emerald-800 leading-none">Occupied</span>
-                      <span className="text-caption text-emerald-700/80 leading-none">{counts.occupied} of {counts.all} units</span>
+                      <span className="text-caption text-emerald-700/80 leading-none">{counts.occupied} of {counts.all} units{floorFilter !== 'all' ? ` · ${floorName(floorFilter)}` : ''}</span>
                     </span>
                     <span className="hidden sm:block h-2 w-20 overflow-hidden rounded-full bg-emerald-100" aria-hidden="true">
                       <span className="block h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${occupancyPct}%` }} />
@@ -573,30 +575,26 @@ const AdminUnits = () => {
                       unit.status === 'vacant' && !unit.maintenanceFlag ? 'border-amber-300' : unit.maintenanceFlag ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200'
                     }`}
                   >
-                    {unit.maintenanceFlag && (
-                      <div className="absolute top-2 right-2">
+                    {/* Status first, top left; the wrench marks a unit under maintenance. */}
+                    <div className="flex items-center justify-between gap-2 min-h-[1.5rem]">
+                      {getStatusBadge(unit)}
+                      {unit.maintenanceFlag && (
                         <FontAwesomeIcon icon={faWrench} className="text-amber-500 text-xs animate-pulse" title="Under maintenance" />
+                      )}
+                    </div>
+
+                    <div className="mt-2 text-section font-bold text-slate-800 leading-tight">{unit.id}</div>
+                    {/* Who lives here (or who it is held for), right under the unit. */}
+                    {(unit.status === 'occupied' || (unit.status === 'reserved' && unit.tenant)) && (
+                      <div className="mt-0.5 truncate text-body font-semibold text-slate-900" title={unit.tenant || ''}>
+                        {unit.status === 'reserved' && <span className="font-medium text-violet-700">For </span>}
+                        {unit.tenant || 'Unnamed tenant'}
                       </div>
                     )}
-
-                    <div className="text-section font-bold text-slate-800">{unit.id}</div>
-                    <div className="text-caption text-slate-500 mb-2">{unit.type} · {unit.floor}</div>
-                    <div className="mb-2">{getStatusBadge(unit)}</div>
+                    <div className="text-caption text-slate-500 mt-0.5 mb-1">{unit.type} · {unit.floor}</div>
 
                     {unit.status === 'occupied' || (unit.status === 'reserved' && unit.tenant) ? (
                       <>
-                        {/* The tenant (or who it is reserved for), easy to spot at a glance. */}
-                        <div className={`mt-2 flex items-center gap-2 rounded-control border px-2 py-1.5 ${unit.status === 'occupied' ? 'border-indigo-100 bg-indigo-50' : 'border-violet-100 bg-violet-50'}`}>
-                          <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${unit.status === 'occupied' ? 'bg-gradient-to-br from-indigo-500 to-violet-600' : 'bg-violet-500'}`}>
-                            {(unit.tenant || '?').trim().charAt(0).toUpperCase()}
-                          </span>
-                          <span className="min-w-0">
-                            <span className={`block text-caption font-medium leading-none ${unit.status === 'occupied' ? 'text-indigo-600' : 'text-violet-700'}`}>
-                              {unit.status === 'occupied' ? 'Tenant' : 'Reserved for'}
-                            </span>
-                            <span className="block truncate text-label font-bold text-slate-900 leading-tight mt-0.5" title={unit.tenant || ''}>{unit.tenant || 'Unnamed tenant'}</span>
-                          </span>
-                        </div>
                         <div className="text-label font-bold text-indigo-600 mt-2">{formatCurrency(unit.rent)}/mo</div>
                         {remaining !== null && (
                           <div className={`text-caption font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
