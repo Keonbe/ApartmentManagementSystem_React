@@ -39,6 +39,7 @@ import Modal from '../Components/admin/Modal';
 import { btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import InfoTip from '../Components/admin/ui/InfoTip';
+import TenantPicker from '../Components/admin/TenantPicker';
 import EmptyState from '../Components/admin/ui/EmptyState';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
@@ -61,6 +62,14 @@ const floorName = (floor) => {
   const n = Number(m[1]);
   const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] || 'th');
   return `${n}${suffix} floor`;
+};
+
+// 'YYYY-MM-DD' plus n months, kept on the last day when the month is shorter.
+const addMonthsIso = (iso, n) => {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  const last = new Date(y, m - 1 + n + 1, 0).getDate();
+  const out = new Date(y, m - 1 + n, Math.min(d, last));
+  return `${out.getFullYear()}-${String(out.getMonth() + 1).padStart(2, '0')}-${String(out.getDate()).padStart(2, '0')}`;
 };
 
 const monthsBetween = (start, end) => {
@@ -314,6 +323,8 @@ const AdminUnits = () => {
     type: (v) => (UNIT_TYPES.includes(v) ? '' : 'Choose a unit type.'),
     rent: (v) => checkAmount(v, { label: 'Monthly rent', min: 0.01, allowZero: false }),
   }, { idPrefix: 'unit-' });
+  // Quick rent terms on Assign Tenant: the minimum, then 6 and 12 months.
+  const termOptions = [...new Set([minLeaseDuration, 6, 12].filter((m) => m >= minLeaseDuration))].sort((a, b) => a - b);
   const assignErrors = useFieldErrors({
     userId: (v) => (users.some(u => String(u.id) === String(v)) ? '' : 'Choose the tenant to assign.'),
     moveIn: (v) => (dateProblem(v, { min: localDateString() }) === 'before'
@@ -750,37 +761,56 @@ const AdminUnits = () => {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-card bg-emerald-100 text-emerald-700 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
                 <div>
-                  <h3 className="text-title font-bold text-slate-800 m-0">Assign Tenant to Unit {selectedUnit.id}</h3>
-                  <p className="text-label text-slate-500 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
+                  <div className="flex items-center gap-1">
+                    <h3 className="text-title font-bold text-slate-800 m-0">Assign Tenant to Unit {selectedUnit.id}</h3>
+                    <InfoTip label="What happens when you assign a tenant">
+                      The unit is <strong>reserved</strong> and a move-in invoice (1 month advance rent + 1 month security deposit) is issued to the tenant. It becomes <strong>occupied</strong> when the move-in is confirmed after that invoice is paid.
+                    </InfoTip>
+                  </div>
+                  <p className="text-label text-slate-500 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor} · {formatCurrency(selectedUnit.rent)}/mo</p>
                 </div>
               </div>
               <button type="button" onClick={closeAssignModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label htmlFor="assign-userId" className="block text-label font-medium text-slate-600 mb-1">Select Tenant User *</label>
-                <select
-                  {...assignErrors.fieldA11y('userId')}
+                <label htmlFor="assign-userId" className="block text-label font-semibold text-slate-700 mb-1.5">Tenant <span className="text-red-600" aria-hidden="true">*</span></label>
+                <TenantPicker
+                  users={users}
                   value={assignForm.userId}
-                  onChange={e => {
-                    const selectedUser = users.find(u => String(u.id) === e.target.value);
-                    setAssignForm({
-                      ...assignForm,
-                      userId: e.target.value,
-                      tenantName: selectedUser ? selectedUser.name : ''
-                    });
+                  unitId={selectedUnit.id}
+                  invalid={!!assignErrors.errors.userId}
+                  inputProps={assignErrors.fieldA11y('userId')}
+                  onChange={(u) => {
+                    setAssignForm({ ...assignForm, userId: String(u.id), tenantName: u.name });
                     assignErrors.clearError('userId');
                   }}
-                  className={`w-full px-3 py-2.5 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.userId)}`}
-                >
-                  <option value="" disabled>-- Choose Existing User --</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                  ))}
-                </select>
+                />
                 <FieldError id="assign-userId" error={assignErrors.errors.userId} />
+                {!assignErrors.errors.userId && <p className="m-0 mt-1.5 text-caption text-slate-500">Only registered tenant accounts are listed. Someone who already rents or has an open application is shown but can't be picked.</p>}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <span className="text-label font-semibold text-slate-700">Rent period</span>
+                <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Rent term">
+                  {termOptions.map((m) => {
+                    const on = assignForm.moveIn && assignForm.leaseEnd === addMonthsIso(assignForm.moveIn, m);
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={!assignForm.moveIn}
+                        aria-pressed={!!on}
+                        title={assignForm.moveIn ? `Rent end ${m} months after the move-in` : 'Pick the move-in date first'}
+                        onClick={() => { setAssignForm({ ...assignForm, leaseEnd: addMonthsIso(assignForm.moveIn, m) }); assignErrors.clearError('leaseEnd'); setLeaseError(''); }}
+                        className={`rounded-full border px-2.5 py-1 text-caption font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${on ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'}`}
+                      >
+                        {m} mo
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2!">
                 <div>
                   <label htmlFor="assign-moveIn" className="block text-label font-medium text-slate-600 mb-1">Move-in Date *</label>
                   <input type="date" {...assignErrors.fieldA11y('moveIn')} min={localDateString()} max={maxFutureDate()} value={assignForm.moveIn}
@@ -805,27 +835,31 @@ const AdminUnits = () => {
                   <FieldError id="assign-leaseEnd" error={assignErrors.errors.leaseEnd} />
                 </div>
               </div>
-              {assignForm.moveIn && assignForm.leaseEnd && (
-                <div className="text-label text-slate-500 bg-slate-50 rounded-control p-2 border border-slate-100">
-                  Duration: <strong>{monthsBetween(assignForm.moveIn, assignForm.leaseEnd)} months</strong> · Min required: <strong>{minLeaseDuration} months</strong>
-                </div>
+              {assignForm.moveIn && assignForm.leaseEnd ? (() => {
+                const months = monthsBetween(assignForm.moveIn, assignForm.leaseEnd);
+                const ok = months >= minLeaseDuration;
+                return (
+                  <div className={`flex items-center gap-2 rounded-control border px-3 py-2 text-label ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                    <FontAwesomeIcon icon={ok ? faCheckCircle : faExclamationTriangle} aria-hidden="true" />
+                    <span><strong>{months} month{months === 1 ? '' : 's'}</strong>{ok ? '' : ` · the minimum is ${minLeaseDuration} months`}</span>
+                  </div>
+                );
+              })() : (
+                <p className="m-0 text-caption text-slate-500">The rent must run at least {minLeaseDuration} months.</p>
               )}
-              <p className="m-0 text-label text-slate-500 bg-indigo-50 border border-indigo-100 rounded-control p-2">
-                The unit is reserved and a move-in invoice (1 month advance rent + 1 month security deposit) is issued. It becomes occupied when the move-in is confirmed after that invoice is paid.
-              </p>
               {leaseError && (
                 <div className="bg-red-50 border border-red-200 rounded-control p-3 flex items-start gap-2 text-label text-red-700">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 mt-0.5" />
                   {leaseError}
                 </div>
               )}
-              <label className="flex items-start gap-2 text-label text-slate-600 cursor-pointer">
+              <label className={`flex items-start gap-3 rounded-control border px-3 py-2.5 text-label cursor-pointer transition-colors ${assignForm.identityVerified ? 'border-indigo-200 bg-indigo-50/60 text-slate-700' : assignErrors.errors.identityVerified ? 'border-red-300 bg-red-50/40 text-slate-600' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'}`}>
                 <input
                   type="checkbox"
                   {...assignErrors.fieldA11y('identityVerified')}
                   checked={assignForm.identityVerified || false}
                   onChange={e => { setAssignForm({ ...assignForm, identityVerified: e.target.checked }); assignErrors.clearError('identityVerified'); }}
-                  className="mt-0.5"
+                  className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded-control border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <span>I confirm this tenant's required documents have been verified in person, and they have agreed to the Terms &amp; Conditions.</span>
               </label>

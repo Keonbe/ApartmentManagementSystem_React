@@ -18,13 +18,34 @@ if (!verify_admin($conn, $admin_id)) {
 }
 
 try {
-    $result = $conn->query("SELECT id, first_name, last_name, suffix, email_address FROM users WHERE role = 'user' ORDER BY first_name, last_name");
+    // Tenant accounts for the Assign Tenant picker (Units). `room` / `roomStatus`
+    // name the unit the user already rents or has an open application for
+    // (ROOM_CLAIMING_APPLICATION_STATUSES), so the picker can mark them;
+    // update_room.php refuses those anyway. Archived accounts are left out.
+    // One query, however many users.
+    $claiming = "'" . implode("','", ROOM_CLAIMING_APPLICATION_STATUSES) . "'";
+    $result = $conn->query("
+        SELECT u.id, u.first_name, u.last_name, u.suffix, u.email_address, u.contact_no,
+               claim.room_name AS claim_room, claim.status AS claim_status
+        FROM users u
+        LEFT JOIN (
+            SELECT ra.user_id, ra.room_name, ra.status
+            FROM rent_applications ra
+            JOIN (SELECT user_id, MAX(id) AS id FROM rent_applications WHERE status IN ($claiming) GROUP BY user_id) latest
+              ON latest.id = ra.id
+        ) claim ON claim.user_id = u.id
+        WHERE u.role = 'user' AND COALESCE(u.is_archived, 0) = 0
+        ORDER BY u.first_name, u.last_name");
+    if (!$result) throw new RuntimeException('The user list could not be read.');
     $users = [];
     while ($row = $result->fetch_assoc()) {
         $users[] = [
             'id' => (int) $row['id'],
             'name' => person_name($row),
-            'email' => $row['email_address']
+            'email' => $row['email_address'],
+            'phone' => $row['contact_no'] ?: null,
+            'room' => $row['claim_room'] ?: null,
+            'roomStatus' => $row['claim_status'] ?: null,
         ];
     }
     echo json_encode(["success" => true, "data" => $users]);

@@ -267,7 +267,7 @@ Every action is logged under the `user` category. **Errors:** `404` unknown user
 ---
 
 ### `GET` [get_users.php](../../backend/api/get_users.php)
-Lightweight user list for dropdowns (admin only). Returns `{id, name, email}` for non-admin users.
+Tenant accounts for the Units → Assign Tenant search (admin only, session-checked). Returns `{id, name, email, phone, room, roomStatus}` for every non-archived non-admin account, sorted by name. `room` / `roomStatus` name the unit the user already rents or has an open application for (`ROOM_CLAIMING_APPLICATION_STATUSES`, the newest one), else `null`; the picker lists those users but cannot pick them, and `update_room.php` refuses them anyway. One query for the whole list. Tests: `users_picker.test.js`.
 
 ---
 

@@ -38,7 +38,8 @@ export default function InfoTip({ label, children, align = 'left', className = '
         onClick={() => setPinned((p) => !p)}
         onFocus={() => setHover(true)}
         onBlur={() => setHover(false)}
-        onKeyDown={(e) => { if (e.key === 'Escape') { setPinned(false); setHover(false); } }}
+        // Escape closes the note only, not a dialog it sits in.
+        onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setPinned(false); setHover(false); } }}
         className={`touch-compact inline-flex h-6 w-6 items-center justify-center rounded-full border-0 bg-transparent p-0 cursor-pointer transition-colors ${open ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'}`}
       >
         <FontAwesomeIcon icon={faCircleInfo} className="text-sm" aria-hidden="true" />
