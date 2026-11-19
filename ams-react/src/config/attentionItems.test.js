@@ -16,8 +16,8 @@ describe('navAttention', () => {
     expect(badges['/admin-maintenance']).toEqual({ count: 1, lines: ['1 urgent maintenance request'] });
   });
 
-  it('leaves out lines for information only, zeros and pages with nothing', () => {
-    const badges = navAttention({ cash_visits: 4, readings_to_invoice: 2, contracts_draft: 1, contracts_ending: 3, new_inquiries: 0 });
+  it('leaves out lines for information only, zeros, pages with nothing and Notifications (the bell has it)', () => {
+    const badges = navAttention({ cash_visits: 4, readings_to_invoice: 2, contracts_draft: 1, contracts_ending: 3, new_inquiries: 0, requests_to_decide: 2 });
     expect(badges).toEqual({});
   });
 

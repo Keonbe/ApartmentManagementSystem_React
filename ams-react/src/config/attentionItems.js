@@ -58,6 +58,8 @@ export const attentionLine = (item, attention) => (
 
 // Lines that ask the admin to do something (red and amber; sky is for information).
 const NAV_TONES = ['red', 'amber'];
+// Pages that never get a sidebar count: Notifications is what the bell already shows.
+const NAV_HIDDEN_PAGES = ['/admin-notifications'];
 const pathOf = (to) => to.split('?')[0];
 
 // Sidebar badges: { '/admin-payments': { count: 4, lines: ['3 tenant payments to verify', …] } }
@@ -70,6 +72,7 @@ export function navAttention(attention) {
       const count = Number(attention[item.key]) || 0;
       if (count <= 0 || !NAV_TONES.includes(item.tone)) continue;
       const page = pathOf(item.to);
+      if (NAV_HIDDEN_PAGES.includes(page)) continue;
       const entry = out[page] || (out[page] = { count: 0, lines: [] });
       entry.count += count;
       entry.lines.push(attentionLine(item, attention));
