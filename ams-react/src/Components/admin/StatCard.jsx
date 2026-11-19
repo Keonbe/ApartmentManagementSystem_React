@@ -44,6 +44,10 @@ export default function StatCard({
 
   progress: progressProp, tooltip, onClick, className = '', children: childrenProp, status, showIconBadge = true,
 
+  // quietMark: the corner icon as a faint tint, for narrow cards where it would sit under the text (Reports).
+
+  quietMark = false,
+
 }) {
 
   const loading = status === 'loading';
@@ -85,7 +89,7 @@ export default function StatCard({
 
       {icon && (
 
-        <div aria-hidden="true" className={`pointer-events-none select-none absolute -bottom-4 -right-3 text-[5.5rem] leading-none transition-none transform-none z-0 ${tone.mark}`} style={{ willChange: 'auto', transform: 'none' }}>
+        <div aria-hidden="true" className={`pointer-events-none select-none absolute -bottom-4 -right-3 leading-none transition-none transform-none z-0 ${tone.mark} ${quietMark ? 'text-[4.5rem] opacity-20' : 'text-[5.5rem]'}`} style={{ willChange: 'auto', transform: 'none' }}>
           <FontAwesomeIcon className="block transition-none" icon={icon} />
         </div>
 
@@ -175,7 +179,7 @@ export default function StatCard({
 
       {(loading || subtext || trend) && (
 
-        <div className="relative z-10 mt-auto pt-2 flex items-center gap-2">
+        <div className={`relative z-10 mt-auto pt-2 flex items-center gap-x-2 gap-y-1 ${quietMark ? 'flex-wrap' : ''}`}>
 
           {loading && <Skeleton className="h-3 w-32" />}
 

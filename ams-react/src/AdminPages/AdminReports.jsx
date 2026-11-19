@@ -360,6 +360,7 @@ export default function AdminReports() {
                         key={m.key}
                         icon={FORMAT_ICON[m.format]}
                         showIconBadge={false}
+                        quietMark
                         title={m.label || 'Loading…'}
                         value={data ? formatValue(m.value, m.format, { compact: true }) : ''}
                         color={data ? metricColor(m) : 'slate'}
