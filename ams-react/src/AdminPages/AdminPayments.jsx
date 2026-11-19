@@ -713,8 +713,10 @@ const handleMarkAsPaid = async () => {
     }
 
     setRecording(true);
-    try {
-      const res = await api.post('/record_payment_admin.php', {
+    // confirmRepeat: the server refused an identical part recorded a moment ago and
+    // the admin chose to record it again (record_payment_admin.php `confirm_repeat`).
+    const attempt = (confirmRepeat) => api.post('/record_payment_admin.php', {
+        ...(confirmRepeat ? { confirm_repeat: true } : {}),
         invoiceId: activeTenant.pendingInvoiceId,
         payments: splitMode
           ? paymentParts.map(p => ({ method: p.method, amount: Number(p.amount), bank_name: p.method === 'bank_transfer' ? (p.bank_name === 'Other' ? p.other_bank_name.trim() : p.bank_name) : undefined, reference_number: p.method === 'cash' ? null : (p.reference_number.trim() || undefined) }))
@@ -725,7 +727,26 @@ const handleMarkAsPaid = async () => {
               reference_number: paymentMethod === 'cash' ? null : (paymentReference.trim() || undefined),
             }],
         partial: partMode,
-      });
+    });
+    // The server answers 409 + repeat_part for an identical part just recorded:
+    // ask once, resend with confirm_repeat only on a yes, record nothing on a no.
+    const askRepeat = async (data) => (data?.repeat_part ? askConfirm(`${data.message}\n\nRecord it again?`, { title: 'Repeated part-payment', confirmLabel: 'Record again', tone: 'primary' }) : false);
+    try {
+      let res;
+      try {
+        res = await attempt(false);
+      } catch (firstError) {
+        const data = firstError?.response?.data;
+        if (!(await askRepeat(data))) {
+          if (data?.repeat_part) { setShowConfirmModal(false); return; }
+          throw firstError;
+        }
+        res = await attempt(true);
+      }
+      if (res.data?.repeat_part) {
+        if (!(await askRepeat(res.data))) { setShowConfirmModal(false); return; }
+        res = await attempt(true);
+      }
 
       // Safely check if the response is successful
       if (res.data && res.data.success) {

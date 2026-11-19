@@ -3,7 +3,8 @@
 //  2 approval cannot take a room another application    6 a proof is refused while a checkout is open
 //    holds, or someone else's hold                      7 clearance / termination answer success once saved
 //  3 reject / cancel waits for a proof under review     8 clearance refuses when the room is not the tenant's
-//  4 a repeated cash part is refused                    9 cancellation fee applies to a part-paid move-in bill
+//  4 a repeated cash part is refused, confirm_repeat    9 cancellation fee applies to a part-paid move-in bill
+//    records it
 // 10 webhook re-checks the collected amount under the row lock
 // Failures after a commit are forced with triggers (dropped in finally).
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -109,9 +110,28 @@ describe('4. a repeated cash part is one part', () => {
     const again = await desk('INV-MA-4', 1000, { partial: true });
     expect(again.status).toBe(409);
     expect(again.body.message).toMatch(/already recorded on this bill/);
+    expect(again.body.repeat_part).toBe(true);
     expect(Number((await bill('INV-MA-4')).amount_paid)).toBe(1000);
     // a different amount is a different part
+    await q("UPDATE invoices SET status = 'scheduled' WHERE id = 'INV-MA-4'");
     expect((await desk('INV-MA-4', 700, { partial: true })).body.success).toBe(true);
+  });
+
+  it('confirm_repeat: true records the identical part (anything else does not)', async () => {
+    await addInvoice('INV-MA-4B', { status: 'scheduled', amount: 5000 });
+    expect((await desk('INV-MA-4B', 1000, { partial: true })).body.success).toBe(true);
+    for (const flag of ['true', 1, 'yes']) {
+      await q("UPDATE invoices SET status = 'scheduled' WHERE id = 'INV-MA-4B'");
+      const res = await desk('INV-MA-4B', 1000, { partial: true, confirm_repeat: flag });
+      expect(res.status).toBe(409);
+    }
+    expect(Number((await bill('INV-MA-4B')).amount_paid)).toBe(1000);
+    await q("UPDATE invoices SET status = 'scheduled' WHERE id = 'INV-MA-4B'");
+    const ok = await desk('INV-MA-4B', 1000, { partial: true, confirm_repeat: true });
+    expect(ok.body.success).toBe(true);
+    expect(Number((await bill('INV-MA-4B')).amount_paid)).toBe(2000);
+    const log = await one("SELECT details FROM activity_logs WHERE action = 'Recorded Part Payment' AND details LIKE '%INV-MA-4B%' ORDER BY id DESC LIMIT 1");
+    expect(log.details).toMatch(/admin confirmed a repeat/);
   });
 });
 

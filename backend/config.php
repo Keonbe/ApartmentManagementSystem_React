@@ -1872,8 +1872,9 @@ function invoice_balance_cents(array $row) {
 // Records one part-payment of $invoice_id: $parts are normalized portions
 // (normalize_payment_portions()). A part equal to the balance settles the
 // invoice. Returns ['ok', 'message', 'settled' => bool, 'amount_paid', 'balance'].
-function record_partial_payment($conn, $invoice_id, $parts, $admin_id) {
+function record_partial_payment($conn, $invoice_id, $parts, $admin_id, array $opts = []) {
     $fail = fn($message, $code = 409) => ['ok' => false, 'message' => $message, 'code' => $code, 'settled' => false];
+    $allow_repeat = ($opts['allow_repeat'] ?? false) === true; // the admin confirmed "record it again"
     if (!is_array($parts) || !$parts) return $fail("Enter the amount received.", 422);
     $part_cents = 0;
     foreach ($parts as $p) $part_cents += (int)round((float)$p['amount'] * 100);
@@ -1917,7 +1918,7 @@ function record_partial_payment($conn, $invoice_id, $parts, $admin_id) {
         $dup = $conn->prepare("SELECT 1 FROM payment_transactions WHERE invoice_id = ? AND payment_method = ? AND ROUND(amount * 100) = ? AND recorded_by = ?
             AND (reference_number IS NULL OR reference_number = '') AND created_at >= NOW() - INTERVAL " . (int)DOUBLE_SUBMIT_MINUTES . " MINUTE LIMIT 1");
         foreach ($parts as $p) {
-            if (trim((string)($p['reference_number'] ?? '')) !== '') continue;
+            if ($allow_repeat || trim((string)($p['reference_number'] ?? '')) !== '') continue;
             $dup_cents = (int)round((float)$p['amount'] * 100);
             $dup_admin = (int)$admin_id;
             $dup->bind_param("ssii", $invoice_id, $p['method'], $dup_cents, $dup_admin);
@@ -1925,7 +1926,7 @@ function record_partial_payment($conn, $invoice_id, $parts, $admin_id) {
             if ($dup->get_result()->fetch_row()) {
                 $dup->close();
                 $conn->rollback();
-                return $fail("This part (₱" . number_format($dup_cents / 100, 2) . " by " . $p['method'] . ") was already recorded on this bill a moment ago. Check Payment History; if it really is a second part, try again in " . DOUBLE_SUBMIT_MINUTES . " minutes.");
+                return $fail("This part (₱" . number_format($dup_cents / 100, 2) . " by " . $p['method'] . ") was already recorded on this bill a moment ago.") + ['repeat_part' => true];
             }
         }
         $dup->close();
@@ -1964,7 +1965,7 @@ function record_partial_payment($conn, $invoice_id, $parts, $admin_id) {
     resolve_admin_queue($conn, 'payment_verification', $invoice_id);
     resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
     log_activity($conn, $admin_id, 'billing', 'Recorded Part Payment', "Invoice $invoice_id: ₱" . number_format($part, 2) . " received ("
-        . implode(', ', array_map(fn($p) => $p['method'] . ' ₱' . number_format($p['amount'], 2), $parts)) . "); paid ₱" . number_format($paid_now, 2) . ", balance ₱" . number_format($balance, 2));
+        . implode(', ', array_map(fn($p) => $p['method'] . ' ₱' . number_format($p['amount'], 2), $parts)) . "); paid ₱" . number_format($paid_now, 2) . ", balance ₱" . number_format($balance, 2) . ($allow_repeat ? " (admin confirmed a repeat of an identical part)" : ""));
     if (!empty($inv['user_id'])) {
         create_notification($conn, (int)$inv['user_id'], 'payment', 'Part Payment Received',
             "₱" . number_format($part, 2) . " received for invoice $invoice_id, balance ₱" . number_format($balance, 2) . ". Pay the rest from Pay Bills.",

@@ -195,12 +195,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(["success" => false, "message" => "A grouped or advance payment is paid in full; part-payments are recorded on a single invoice."]);
             exit;
         }
-        $result = record_partial_payment($conn, $open_rows[0]['id'], $payments, (int)$admin_id);
+        // confirm_repeat: the admin saw "already recorded a moment ago" and chose to
+        // record the identical part again (strictly true, like partial).
+        $result = record_partial_payment($conn, $open_rows[0]['id'], $payments, (int)$admin_id, ['allow_repeat' => ($input['confirm_repeat'] ?? false) === true]);
         payment_reference_unlock($conn);
         if ($result['ok']) $log_reuse();
         if (!$result['ok']) {
             http_response_code($result['code'] ?? 409);
-            echo json_encode(["success" => false, "message" => $result['message']]);
+            echo json_encode(["success" => false, "message" => $result['message']] + (!empty($result['repeat_part']) ? ["repeat_part" => true] : []));
             exit;
         }
         echo json_encode(["success" => true, "message" => $result['message'], "partial" => true, "amount_paid" => $result['amount_paid'], "balance" => $result['balance']]);
