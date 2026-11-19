@@ -375,7 +375,7 @@ Per-page behaviour (panels, forms, validations, actions) is in [tenant_pages.md]
 | Route | File | Key Features | DB Tables | Status |
 |-------|------|--------------|-----------|--------|
 | `/admin-dashboard` | `AdminDashboard.jsx` | Live KPIs, "Needs your attention" list (filtered links to the admin pages), Income Chart (6-mo), New Tenants, Activity Feed | `invoices`, `rooms`, `rent_applications`, `maintenance_requests`, `activity_logs` | ✅ Live data |
-| `/admin-units` | `AdminUnits.jsx` | Grid/List, Detail Modal, Assign, Vacate, Extend, Maintenance Flag | `rooms` via `get_rooms.php` / `update_room.php` | ✅ DB-backed |
+| `/admin-units` | `AdminUnits.jsx` | Unit cards (tenant or "reserved for" name highlighted), status and floor filters, occupancy badge (percent and units, top bar), Detail Modal (Gallery notes behind an info tip, `InfoTip`), Assign, Vacate, Extend, Maintenance Flag | `rooms` via `get_rooms.php` / `update_room.php` | ✅ DB-backed |
 | `/admin-inquiries` | `AdminInquiries.jsx` | Inquiry triage pipeline, unit reservations with auto-expiring holds, walk-in/phone logging, convert to application | `inquiries`, `unit_reservations` via `get_inquiries.php`, `update_inquiry_status.php`, `create_reservation.php`, `update_reservation_status.php` | ✅ DB-backed |
 | `/admin-applications` | `AdminApplications.jsx` | View pending/all applications, document preview | `rent_applications` via `get_applications.php` | ✅ DB-backed |
 | `/admin-tenants` | `AdminTenants.jsx` | Pending Review, Active, Archive, Verify Docs, Approve/Reject | `rent_applications` | ✅ |

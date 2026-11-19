@@ -6,7 +6,7 @@ import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
   faHistory, faLayerGroup, faSync, faWrench,
-  faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive, faSpinner,
+  faChevronRight, faImages, faUpload, faTrash, faBoxArchive, faSpinner,
   faCheck, faCalendarAlt
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -38,6 +38,7 @@ import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers'
 import Modal from '../Components/admin/Modal';
 import { btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import InfoTip from '../Components/admin/ui/InfoTip';
 import EmptyState from '../Components/admin/ui/EmptyState';
 import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
@@ -53,6 +54,14 @@ const daysRemaining = (leaseEnd) => {
 };
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+// "2F" -> "2nd floor" for the floor filter (as config.php floor_display_name()).
+const floorName = (floor) => {
+  const m = /^(\d+)F$/i.exec(String(floor || '').trim());
+  if (!m) return String(floor);
+  const n = Number(m[1]);
+  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+  return `${n}${suffix} floor`;
+};
 
 const monthsBetween = (start, end) => {
   if (!start || !end) return 0;
@@ -78,6 +87,7 @@ const AdminUnits = () => {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [floorFilter, setFloorFilter] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState(null);
   
   const [showAddModal, setShowAddModal] = useState(false);
@@ -218,6 +228,11 @@ const AdminUnits = () => {
     { key: 'maintenance', label: 'Under Maintenance', count: counts.maintenance },
   ];
 
+  const occupancyPct = counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0;
+  // Floors in order (1F, 2F, 3F…); a unit's floor is free text, so sort naturally.
+  const floors = [...new Set(units.map(u => u.floor).filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+
   let displayed = units;
   if (activeFilter === 'vacant') {
     displayed = units.filter(u => u.status === 'vacant' && !u.maintenanceFlag);
@@ -226,6 +241,7 @@ const AdminUnits = () => {
   } else if (activeFilter !== 'all') {
     displayed = units.filter(u => u.status === activeFilter);
   }
+  if (floorFilter !== 'all') displayed = displayed.filter(u => u.floor === floorFilter);
 
   if (searchTerm.trim()) {
     const q = searchTerm.toLowerCase();
@@ -490,18 +506,29 @@ const AdminUnits = () => {
                   className="flex-1 bg-transparent text-body text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
                 />
               </div>
-              <button
-                onClick={() => { setRentTyped(false); setUnitForm({ ...emptyUnitForm, rent: floorRates[emptyUnitForm.floor] ? String(floorRates[emptyUnitForm.floor]) : '' }); setShowAddModal(true); }}
-                className={btn('primary', 'md')}
-              >
-                <FontAwesomeIcon icon={faPlus} /> Add Unit
-              </button>
-            </div>
-
-            {/* Min Lease Duration Notice */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-control px-4 py-2.5 flex items-center gap-2 text-label text-indigo-700">
-              <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
-              <span>Minimum rent duration policy: <strong>{minLeaseDuration} months</strong>. Configure in Settings → System Configuration.</span>
+              <div className="flex flex-wrap items-center gap-3">
+                {unitsState.isReady && counts.all > 0 && (
+                  <div
+                    className="flex items-center gap-3 rounded-card border border-emerald-200 bg-emerald-50 px-3.5 py-1.5"
+                    title={`${counts.occupied} of ${counts.all} units occupied`}
+                  >
+                    <span className="text-title font-bold text-emerald-700 tabular-nums">{occupancyPct}%</span>
+                    <span className="flex flex-col gap-1">
+                      <span className="text-caption font-semibold text-emerald-800 leading-none">Occupied</span>
+                      <span className="text-caption text-emerald-700/80 leading-none">{counts.occupied} of {counts.all} units</span>
+                    </span>
+                    <span className="hidden sm:block h-2 w-20 overflow-hidden rounded-full bg-emerald-100" aria-hidden="true">
+                      <span className="block h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${occupancyPct}%` }} />
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={() => { setRentTyped(false); setUnitForm({ ...emptyUnitForm, rent: floorRates[emptyUnitForm.floor] ? String(floorRates[emptyUnitForm.floor]) : '' }); setShowAddModal(true); }}
+                  className={btn('primary', 'md')}
+                >
+                  <FontAwesomeIcon icon={faPlus} /> Add Unit
+                </button>
+              </div>
             </div>
 
             {/* Error banner if any */}
@@ -511,7 +538,7 @@ const AdminUnits = () => {
               </div>
             )}
 
-            {/* Filter pills carry the counts; occupancy, the one figure they do not show, sits beside them. */}
+            {/* Filter pills carry the counts; occupancy, the one figure they do not show, sits in the top bar. */}
             <div className="flex flex-wrap items-center gap-3">
               <FilterTabs
                 label="Filter units by status"
@@ -519,9 +546,17 @@ const AdminUnits = () => {
                 onChange={setActiveFilter}
                 options={filters.map(f => ({ value: f.key, label: f.label, count: unitsState.isReady ? f.count : null }))}
               />
-              {unitsState.isReady && <span className="ml-auto text-label font-semibold text-slate-600">
-                {counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupied
-              </span>}
+              {floors.length > 1 && (
+                <FilterTabs
+                  label="Filter units by floor"
+                  value={floorFilter}
+                  onChange={setFloorFilter}
+                  options={[
+                    { value: 'all', label: 'All floors' },
+                    ...floors.map(f => ({ value: f, label: floorName(f), count: unitsState.isReady ? units.filter(u => u.floor === f).length : null })),
+                  ]}
+                />
+              )}
             </div>
 
             {/* Units Grid */}
@@ -548,10 +583,21 @@ const AdminUnits = () => {
                     <div className="text-caption text-slate-500 mb-2">{unit.type} · {unit.floor}</div>
                     <div className="mb-2">{getStatusBadge(unit)}</div>
 
-                    {unit.status === 'occupied' ? (
+                    {unit.status === 'occupied' || (unit.status === 'reserved' && unit.tenant) ? (
                       <>
-                        <div className="text-caption text-slate-500 mt-2">{unit.tenant}</div>
-                        <div className="text-label font-bold text-indigo-600 mt-1">{formatCurrency(unit.rent)}/mo</div>
+                        {/* The tenant (or who it is reserved for), easy to spot at a glance. */}
+                        <div className={`mt-2 flex items-center gap-2 rounded-control border px-2 py-1.5 ${unit.status === 'occupied' ? 'border-indigo-100 bg-indigo-50' : 'border-violet-100 bg-violet-50'}`}>
+                          <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${unit.status === 'occupied' ? 'bg-gradient-to-br from-indigo-500 to-violet-600' : 'bg-violet-500'}`}>
+                            {(unit.tenant || '?').trim().charAt(0).toUpperCase()}
+                          </span>
+                          <span className="min-w-0">
+                            <span className={`block text-caption font-medium leading-none ${unit.status === 'occupied' ? 'text-indigo-600' : 'text-violet-700'}`}>
+                              {unit.status === 'occupied' ? 'Tenant' : 'Reserved for'}
+                            </span>
+                            <span className="block truncate text-label font-bold text-slate-900 leading-tight mt-0.5" title={unit.tenant || ''}>{unit.tenant || 'Unnamed tenant'}</span>
+                          </span>
+                        </div>
+                        <div className="text-label font-bold text-indigo-600 mt-2">{formatCurrency(unit.rent)}/mo</div>
                         {remaining !== null && (
                           <div className={`text-caption font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
                             <FontAwesomeIcon icon={faClock} className="text-[9px]" />
@@ -1216,10 +1262,14 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
 
           {activeTab === 'gallery' && (
             <div className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <p className="text-label text-slate-500 m-0 leading-relaxed">
-                  Showcase photos shown to guests on the public Preview page. Rooms with no images hide the "View Layout" button entirely (max 8 images). Add a description for each photo (used as its caption and for screen readers) and choose Fill (crop to the frame), Fit (show the whole photo) or Wide (panoramic frame).
-                </p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h3 className="m-0 text-body font-bold text-slate-800">Showcase photos</h3>
+                  <span className="text-caption font-semibold text-slate-500 tabular-nums">{galleryImages.length} / 8</span>
+                  <InfoTip label="About showcase photos">
+                    Shown to guests on the public Preview page. Rooms with no images hide the "View Layout" button entirely (max 8 images). Add a description for each photo (used as its caption and for screen readers) and choose Fill (crop to the frame), Fit (show the whole photo) or Wide (panoramic frame).
+                  </InfoTip>
+                </div>
                 <label className={`btn-interactive shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-control text-label font-semibold border-0 cursor-pointer transition-colors ${galleryImages.length >= 8 || isUploadingImages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
                   <FontAwesomeIcon icon={faUpload} className="text-[10px]" />
                   {isUploadingImages ? 'Uploading...' : 'Upload Images'}
