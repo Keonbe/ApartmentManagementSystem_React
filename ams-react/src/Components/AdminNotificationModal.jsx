@@ -104,8 +104,10 @@ export default function AdminNotificationModal({
         labelledBy="admin-notification-title"
         onClose={handleClose}
         busy={isProcessing}
-        overlayClassName="flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in"
-        className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in text-left"
+        // bg-black (not slate-900, which the admin dark theme remaps) so the page
+        // dims in both themes; the border keeps the dialog's edge visible in dark mode.
+        overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+        className="bg-white rounded-2xl w-full max-w-lg border border-slate-200 shadow-dialog flex flex-col max-h-[85vh] overflow-hidden animate-scale-in text-left"
       >
         <div className="p-5 border-b border-slate-100 flex justify-between items-start gap-3">
           <div className="min-w-0">
