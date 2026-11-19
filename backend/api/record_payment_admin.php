@@ -222,8 +222,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $settlement_splits = $legacy_cash_overpayment ? null : $payments;
     $result = settle_payment_key($conn, $invoice_id, $payment_method, $payment_reference, $amount_paid, $settlement_splits, (int)$admin_id);
     payment_reference_unlock($conn);
-    // Months already settled before a failure are recorded too.
-    if ($result['ok'] || !empty($result['invoice_ids'])) $log_reuse();
+    // A group settles all or nothing, so a failure recorded nothing.
+    if ($result['ok']) $log_reuse();
 
     if (!$result['ok']) {
         // These messages are written above for the admin and carry no internals.

@@ -1673,8 +1673,38 @@ function invoice_owed_where_sql($alias = 'i', $past_due = false) {
 // Returns ['ok' => bool, 'message' => string, 'invoice_id', 'user_id', 'activated' => bool].
 function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference = null, $amount_paid = null, $notify_tenant = true, $payment_splits = null, $recorded_by = null) {
     $conn->begin_transaction();
-
     try {
+        $ctx = settle_invoice_apply($conn, $invoice_id, $payment_method, $payment_reference, $amount_paid, $payment_splits, $recorded_by);
+        $conn->commit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['ok' => false, 'message' => $e->getMessage(), 'invoice_id' => $invoice_id, 'user_id' => null, 'activated' => false];
+    }
+
+    // The payment is saved. Nothing below may turn it into a failure: a caller
+    // that sees ok=false treats the money as not applied (the PayMongo webhook
+    // would open a refund for it), so a failing notice is only logged.
+    try {
+        settle_invoice_after_commit($conn, $ctx, $invoice_id, $payment_method, $notify_tenant);
+    } catch (Throwable $after_commit) {
+        error_log("settle_invoice $invoice_id: payment saved, follow-up failed: " . $after_commit->getMessage());
+    }
+
+    return [
+        'ok' => true,
+        'message' => 'Payment successfully finalized and saved.',
+        'invoice_id' => $invoice_id,
+        'user_id' => $ctx['inv']['user_id'] ?? null,
+        'activated' => $ctx['activated'],
+    ];
+}
+
+// The database part of a settlement, inside the CALLER's transaction: it never
+// begins, commits or rolls back, and throws an Exception for anything that
+// refuses the payment. settle_invoice() wraps one invoice in its own
+// transaction; settle_payment_key() wraps a whole group in one, so a group is
+// all months or none. Returns the context settle_invoice_after_commit() needs.
+function settle_invoice_apply($conn, $invoice_id, $payment_method, $payment_reference, $amount_paid, $payment_splits, $recorded_by) {
         // Locked: a part-payment (record_partial_payment()) on the same invoice
         // waits, so the balance read here is the one this settlement closes.
         $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months, id, billing_period, total_amount, amount_paid, payment_reference FROM invoices WHERE id = ? FOR UPDATE");
@@ -1773,16 +1803,15 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             $dep_upd->close();
         }
 
-        $conn->commit();
-    } catch (Exception $e) {
-        $conn->rollback();
-        return ['ok' => false, 'message' => $e->getMessage(), 'invoice_id' => $invoice_id, 'user_id' => null, 'activated' => false];
-    }
+        return ['inv' => $inv_res, 'advance_months' => $advance_months, 'activated' => $activated];
+}
 
-    // The payment is saved. Nothing below may turn it into a failure: a caller
-    // that sees ok=false treats the money as not applied (the PayMongo webhook
-    // would open a refund for it), so a failing notice is only logged.
-    try {
+// What follows a committed settlement: queue rows resolved, the move-in cue,
+// the tenant's notice and receipt email, and any credited month now due. The
+// caller wraps it in try/Throwable: the money is already saved.
+function settle_invoice_after_commit($conn, array $ctx, $invoice_id, $payment_method, $notify_tenant) {
+        $inv_res = $ctx['inv'];
+        $advance_months = $ctx['advance_months'];
         // The tenant is told the payment landed, and a proof/cash declaration
         // awaiting verification leaves the admin queue — regardless of which
         // channel settled it.
@@ -1824,17 +1853,6 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         if ($advance_months > 0 && !empty($inv_res['user_id'])) {
             generate_due_rent_invoices($conn, (int)$inv_res['user_id']);
         }
-    } catch (Throwable $after_commit) {
-        error_log("settle_invoice $invoice_id: payment saved, follow-up failed: " . $after_commit->getMessage());
-    }
-
-    return [
-        'ok' => true,
-        'message' => 'Payment successfully finalized and saved.',
-        'invoice_id' => $invoice_id,
-        'user_id' => $inv_res['user_id'] ?? null,
-        'activated' => $activated,
-    ];
 }
 
 // ── Installments (manager interview Q9 / Q12) ──
@@ -2800,9 +2818,10 @@ function payment_key_invoices($conn, $key, $user_id = null, $statuses = null) {
 }
 
 // Settles everything a payment key covers: one invoice, or each open month of
-// an advance payment through its own settle_invoice() call — so every month
-// ends up a separate paid invoice with its own receipt. The tenant gets one
-// "Payment Received" notice for the whole group, not one per month.
+// a group in ONE transaction (settle_invoice_apply() per month: all months are
+// settled or none) — every month still ends up a separate paid invoice with
+// its own receipt. The tenant gets one "Payment Received" notice for the whole
+// group, not one per month.
 // $amount_paid (desk only) must cover the combined total. Returns
 // settle_invoice()'s shape plus 'invoice_ids', the invoices settled.
 function settle_payment_key($conn, $key, $payment_method, $payment_reference = null, $amount_paid = null, $payment_splits = null, $recorded_by = null) {
@@ -2858,8 +2877,8 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
             $split_allocations[$row['id']] = $invoice_allocations;
         }
     }
-    // One notice for the months that were settled, even when a later month
-    // fails. A combined payment's notice opens its combined receipt (invoice:BND-…).
+    // One notice for the settled group. A combined payment's notice opens its
+    // combined receipt (invoice:BND-…).
     $notify = function () use ($conn, $key, $payment_method, $bundle, &$settled_rows) {
         if (!$settled_rows) return;
         $periods = implode(', ', array_map(fn($row) => $row['billing_period'], $settled_rows));
@@ -2894,15 +2913,32 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
     $notify = function () use ($notify_inner, $key) {
         try { $notify_inner(); } catch (Throwable $notice_error) { error_log("settle_payment_key $key: saved, notice failed: " . $notice_error->getMessage()); }
     };
-    foreach ($rows as $row) {
-        $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false, $split_allocations[$row['id']] ?? null, $recorded_by);
-        if ($result['ok'] === false) {
-            $notify();
-            return $fail("Settled " . count($settled) . " of " . count($rows) . " months; {$row['id']} failed: {$result['message']}", $settled);
+    // All months or none: one transaction around the whole group, so a month
+    // that refuses the payment rolls the others back and the caller can treat
+    // the money as not applied. Rows lock in payment_key_invoices() order for
+    // every caller, so two group payments cannot deadlock on each other.
+    $conn->begin_transaction();
+    $contexts = [];
+    $current_id = null;
+    try {
+        foreach ($rows as $row) {
+            $current_id = $row['id'];
+            $contexts[$current_id] = settle_invoice_apply($conn, $current_id, $payment_method, $payment_reference, null, $split_allocations[$current_id] ?? null, $recorded_by);
         }
-        $settled[] = $row['id'];
-        $settled_rows[] = $row;
+        $conn->commit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        return $fail("Nothing was settled; " . ($current_id ?? $key) . " failed: " . $e->getMessage());
     }
+    foreach ($rows as $row) {
+        try {
+            settle_invoice_after_commit($conn, $contexts[$row['id']], $row['id'], $payment_method, false);
+        } catch (Throwable $follow_up_error) {
+            error_log("settle_payment_key $key: {$row['id']} saved, follow-up failed: " . $follow_up_error->getMessage());
+        }
+    }
+    $settled = array_column($rows, 'id');
+    $settled_rows = $rows;
     $notify();
 
     // The group's own queue rows (a proof or cash declaration made for the

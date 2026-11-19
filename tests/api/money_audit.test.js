@@ -1,5 +1,5 @@
 // Money and concurrency audit (2026-11-18): one test per fix.
-//  1 settle_invoice reports ok for a saved payment      5 webhook refunds only the unapplied part of a group
+//  1 settle_invoice reports ok for a saved payment      5 a group payment is all months or none (webhook + desk)
 //  2 approval cannot take a room another application    6 a proof is refused while a checkout is open
 //    holds, or someone else's hold                      7 clearance / termination answer success once saved
 //  3 reject / cancel waits for a proof under review     8 clearance refuses when the room is not the tenant's
@@ -115,21 +115,41 @@ describe('4. a repeated cash part is one part', () => {
   });
 });
 
-describe('5. a group payment that fails part-way', () => {
-  it('refunds only the money that was not applied to a month', async () => {
+describe('5. a group payment is all months or none', () => {
+  const failSecond = (id, fn) => withTrigger(`ma_fail_${id.replace(/\W/g, '_')}`, 'invoices', 'BEFORE UPDATE',
+    `IF NEW.id = '${id}' AND NEW.status = 'paid' AND OLD.status <> 'paid' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'blocked'; END IF;`, fn);
+
+  it('the webhook: when the second month fails no month is paid and the whole amount is refunded', async () => {
     await addInvoice('INV-MA-5A', { amount: 1500, sessionId: 'cs_ma5', intentId: 'pi_ma5' });
     await addInvoice('INV-MA-5B', { amount: 1500, sessionId: 'cs_ma5', intentId: 'pi_ma5' });
     await q("UPDATE invoices SET payment_group = 'ADV-MA5' WHERE id IN ('INV-MA-5A', 'INV-MA-5B')");
-    await withTrigger('ma_fail_5b', 'invoices', 'BEFORE UPDATE',
-      "IF NEW.id = 'INV-MA-5B' AND NEW.status = 'paid' AND OLD.status <> 'paid' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'blocked'; END IF;", async () => {
-        const res = await sendWebhook(paidEvent({ sessionId: 'cs_ma5', invoiceId: 'ADV-MA5', amountCentavos: 300000, paymentId: 'pay_ma5' }));
-        expect(res.status).toBe(200);
-      });
-    expect((await bill('INV-MA-5A')).status).toBe('paid');
+    await failSecond('INV-MA-5B', async () => {
+      const res = await sendWebhook(paidEvent({ sessionId: 'cs_ma5', invoiceId: 'ADV-MA5', amountCentavos: 300000, paymentId: 'pay_ma5' }));
+      expect(res.status).toBe(200);
+    });
+    expect((await bill('INV-MA-5A')).status).not.toBe('paid'); // rolled back with the failing month
+    expect(Number((await bill('INV-MA-5A')).amount_paid)).toBe(0);
     expect((await bill('INV-MA-5B')).status).not.toBe('paid');
+    expect(await q("SELECT id FROM payment_transactions WHERE invoice_id IN ('INV-MA-5A', 'INV-MA-5B')")).toHaveLength(0);
     const refunds = await q("SELECT amount FROM refund_requests WHERE type = 'online_payment' AND paymongo_payment_id = 'pay_ma5'");
     expect(refunds).toHaveLength(1);
-    expect(Number(refunds[0].amount)).toBe(1500);
+    expect(Number(refunds[0].amount)).toBe(3000);
+  });
+
+  it('the desk: the same failure answers 409 and leaves every month open', async () => {
+    await addInvoice('INV-MA-5DA', { status: 'scheduled', amount: 1500 });
+    await addInvoice('INV-MA-5DB', { status: 'scheduled', amount: 1500 });
+    await q("UPDATE invoices SET payment_group = 'ADV-MA5D' WHERE id IN ('INV-MA-5DA', 'INV-MA-5DB')");
+    await failSecond('INV-MA-5DB', async () => {
+      const res = await desk('ADV-MA5D', 3000);
+      expect(res.status).toBe(409);
+      expect(res.body.message).toMatch(/Nothing was settled/);
+    });
+    for (const id of ['INV-MA-5DA', 'INV-MA-5DB']) expect((await bill(id)).status).toBe('scheduled');
+    // without the failure the same payment settles both months
+    const ok = await desk('ADV-MA5D', 3000);
+    expect(ok.body.success).toBe(true);
+    for (const id of ['INV-MA-5DA', 'INV-MA-5DB']) expect((await bill(id)).status).toBe('paid');
   });
 });
 

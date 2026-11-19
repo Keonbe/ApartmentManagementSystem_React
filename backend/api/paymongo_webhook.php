@@ -319,17 +319,9 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
                     "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a') . " — " . $result['message'], $actor ?? 0);
                 notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Online Payment Needs Review',
                     "An online payment for $invoice_id was received but could not be recorded: " . $result['message']);
-                // Months of a group that did settle before the failure keep their
-                // money; only the rest of what PayMongo collected goes back.
-                $applied_cents = 0;
-                foreach ($group_rows as $row) {
-                    if (in_array($row['id'], $result['invoice_ids'] ?? [], true)) $applied_cents += invoice_balance_cents($row);
-                }
-                $unapplied_cents = (int)$paid_centavos - $applied_cents;
-                if ($unapplied_cents > 0) {
-                    raise_unapplied_payment($conn, $payment_id, $unapplied_cents, $actor, $invoice_id,
-                        $applied_cents > 0 ? $result['message'] . " (" . number_format($applied_cents / 100, 2) . " of it was applied to the months that did settle)" : $result['message']);
-                }
+                // A group is settled all or nothing (settle_payment_key()), so a
+                // failure applied none of it: the whole collected amount goes back.
+                raise_unapplied_payment($conn, $payment_id, $paid_centavos, $actor, $invoice_id, $result['message']);
                 http_response_code(200);
                 echo json_encode(["success" => true, "message" => "Payment recorded but needs manual review: " . $result['message']]);
                 $conn->close();
