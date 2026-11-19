@@ -602,15 +602,16 @@ const AdminUnits = () => {
                       unit.status === 'vacant' && !unit.maintenanceFlag ? 'border-amber-300' : unit.maintenanceFlag ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200'
                     }`}
                   >
-                    {/* Status first, top left; the wrench marks a unit under maintenance. */}
-                    <div className="flex items-center justify-between gap-2 min-h-[1.5rem]">
-                      {getStatusBadge(unit)}
-                      {unit.maintenanceFlag && (
-                        <FontAwesomeIcon icon={faWrench} className="text-amber-500 text-xs animate-pulse" title="Under maintenance" />
-                      )}
+                    {/* The unit on the left, its status top right on the same line; the wrench marks a unit under maintenance. */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 text-section font-bold text-slate-800 leading-tight">{unit.id}</div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {unit.maintenanceFlag && (
+                          <FontAwesomeIcon icon={faWrench} className="text-amber-500 text-xs animate-pulse" title="Under maintenance" />
+                        )}
+                        {getStatusBadge(unit)}
+                      </div>
                     </div>
-
-                    <div className="mt-2 text-section font-bold text-slate-800 leading-tight">{unit.id}</div>
                     {/* Who lives here (or who it is held for), right under the unit. */}
                     {(unit.status === 'occupied' || (unit.status === 'reserved' && unit.tenant)) && (
                       <div className="mt-0.5 truncate text-body font-semibold text-slate-900" title={unit.tenant || ''}>
