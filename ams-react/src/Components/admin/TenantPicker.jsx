@@ -1,9 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSearch, faXmark, faCheck, faUser } from '@fortawesome/free-solid-svg-icons';
+import PersonAvatar from './PersonAvatar';
 
 // Search-as-you-type picker for a tenant account (Units → Assign Tenant).
-// users: [{ id, name, email, phone?, room?, roomStatus? }] from get_users.php;
+// users: [{ id, name, email, phone?, avatar?, room?, roomStatus? }] from get_users.php;
 // someone who already rents or has an open application elsewhere is listed but
 // can't be picked (update_room.php refuses them too).
 //   <TenantPicker users={users} value={userId} onChange={(user) => …} unitId="I"
@@ -15,8 +16,6 @@ const STATUS_WORDS = {
   'Pending Review': 'application in review', Pending: 'application in review', 'Action Required': 'application needs action',
   Approved: 'approved, moving in', active: 'renting', 'pending-move-out': 'moving out',
 };
-
-const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '?';
 
 // The matched part of a text in bold.
 function Highlight({ text, query }) {
@@ -88,7 +87,7 @@ export default function TenantPicker({ users, value, onChange, unitId, inputProp
   if (selected && !editing) {
     return (
       <div className={`flex items-center gap-3 rounded-control border bg-indigo-50/60 px-3 py-2.5 ${invalid ? 'border-red-400' : 'border-indigo-200'}`}>
-        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-label font-bold text-white">{initials(selected.name)}</span>
+        <PersonAvatar name={selected.name} src={selected.avatar} size="md" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-body font-semibold text-slate-900">{selected.name}</span>
           <span className="block truncate text-caption text-slate-500">{[selected.email, selected.phone].filter(Boolean).join(' · ')}</span>
@@ -167,7 +166,7 @@ export default function TenantPicker({ users, value, onChange, unitId, inputProp
                 onClick={() => pick(u)}
                 className={`flex items-center gap-3 rounded-control px-2.5 py-2 ${isBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${isActive && !isBlocked ? 'bg-indigo-50' : isActive ? 'bg-slate-50' : ''}`}
               >
-                <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-caption font-bold ${isBlocked ? 'bg-slate-200 text-slate-500' : 'bg-indigo-100 text-indigo-700'}`}>{initials(u.name)}</span>
+                <PersonAvatar name={u.name} src={u.avatar} size="sm" tone={isBlocked ? 'slate' : 'soft'} className={isBlocked ? 'grayscale' : ''} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-body font-medium text-slate-800"><Highlight text={u.name} query={query.trim()} /></span>
                   <span className="block truncate text-caption text-slate-500">

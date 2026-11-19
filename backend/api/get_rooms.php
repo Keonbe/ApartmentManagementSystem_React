@@ -49,11 +49,15 @@ try {
 
         $res = $conn->query("
             SELECT ra.id AS application_id, ra.room_name, ra.first_name, ra.last_name, ra.suffix, ra.status, ra.monthly_rent, ra.archive_reason,
+                   ra.user_id, ra.occupants, u.avatar_url,
+                   COALESCE(NULLIF(u.email_address, ''), ra.email) AS tenant_email,
+                   COALESCE(NULLIF(u.contact_no, ''), ra.contact_no) AS tenant_phone,
                    lc.id AS contract_id, lc.status AS contract_status, lc.lease_start, lc.lease_end,
                    lc.deposit_amount, lc.deposit_status, lc.deposit_refundable, lc.refund_amount, lc.damage_deduction, lc.utility_deduction,
                    lc.refund_date, lc.termination_reason
             FROM rent_applications ra
             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
+            LEFT JOIN users u ON u.id = ra.user_id
             WHERE ra.status IN ('Approved', 'active', 'pending-move-out', 'moved-out', 'archived')
             ORDER BY ra.created_at ASC
         ");
@@ -131,6 +135,7 @@ try {
         // Every tenant who has ever occupied this unit (current + past),
         // backing the "Occupancy History" tab.
         $occupancyHistory = [];
+        $currentTenant = null;
         foreach ($occByRoom[$roomId] ?? [] as $row) {
             $tenantFullName = person_name($row);
             $isCurrent = in_array($row['status'], ['Approved', 'active', 'pending-move-out'], true) && $room['tenant_name'] === $tenantFullName;
@@ -157,6 +162,11 @@ try {
                 'contractId' => $row['contract_id'],
                 'contractStatus' => $row['contract_status'],
                 'tenant' => $tenantFullName,
+                // Profile picture and contact (admin only, like the rest of this block).
+                'userId' => $row['user_id'] !== null ? (int)$row['user_id'] : null,
+                'avatar' => $row['avatar_url'] ?: null,
+                'email' => $row['tenant_email'] ?: null,
+                'phone' => $row['tenant_phone'] ?: null,
                 'status' => $isCurrent ? 'current' : 'ended',
                 'leaseStart' => $row['lease_start'],
                 'leaseEnd' => $row['lease_end'],
@@ -166,6 +176,14 @@ try {
                 'extensions' => $row['contract_id'] !== null ? ($extByContract[$row['contract_id']] ?? []) : [],
                 'deposit' => $deposit,
             ];
+            // The tenant now in (or reserving) the unit, for the detail modal's header card.
+            if ($isCurrent) {
+                $currentTenant = [
+                    'name' => $tenantFullName, 'userId' => $row['user_id'] !== null ? (int)$row['user_id'] : null,
+                    'avatar' => $row['avatar_url'] ?: null, 'email' => $row['tenant_email'] ?: null,
+                    'phone' => $row['tenant_phone'] ?: null, 'applicationId' => $appId, 'applicationStatus' => $row['status'],
+                ];
+            }
         }
 
         // Rent-extension events recorded for this unit's applications,
@@ -194,6 +212,7 @@ try {
             'rent' => (float) $room['monthly_rent'],
             'status' => $room['status'],
             'tenant' => $room['tenant_name'],
+            'tenantProfile' => $currentTenant,
             'leaseStart' => $room['lease_start'],
             'leaseEnd' => $room['lease_end'],
             'lastTenant' => $room['last_tenant'],

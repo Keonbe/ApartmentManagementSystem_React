@@ -1,6 +1,7 @@
 // get_users.php: the tenant accounts behind Units → Assign Tenant. Each user
 // carries the unit they already rent or have an open application for, so the
-// picker can mark them; archived accounts are left out; admins only.
+// picker can mark them; archived accounts are left out; admins only. Also the
+// profile pictures the picker and the Units detail modal show (get_rooms.php).
 import { describe, it, expect, beforeAll } from 'vitest';
 import { api, loginAs } from './lib/api.js';
 import { q, one } from './lib/db.js';
@@ -39,6 +40,14 @@ describe('get_users.php', () => {
     if (free) expect(users.find((u) => u.id === free.id)).toEqual(expect.objectContaining({ room: null, roomStatus: null }));
   });
 
+  it('returns the profile picture, or null without one', async () => {
+    await q("UPDATE users SET avatar_url = 'uploads/avatars/test_pic.jpg' WHERE id = 2");
+    await q("UPDATE users SET avatar_url = NULL WHERE id = 3");
+    const users = await list();
+    expect(users.find((u) => u.id === 2).avatar).toBe('uploads/avatars/test_pic.jpg');
+    expect(users.find((u) => u.id === 3).avatar).toBeNull();
+  });
+
   it('leaves archived accounts out', async () => {
     const target = await one("SELECT id FROM users WHERE role = 'user' AND is_archived = 0 ORDER BY id DESC LIMIT 1");
     await q('UPDATE users SET is_archived = 1 WHERE id = ?', [target.id]);
@@ -46,6 +55,31 @@ describe('get_users.php', () => {
       expect((await list()).some((u) => u.id === target.id)).toBe(false);
     } finally {
       await q('UPDATE users SET is_archived = 0 WHERE id = ?', [target.id]);
+    }
+  });
+});
+
+describe('get_rooms.php tenant profile', () => {
+  it('gives admins the photo and contact of the current tenant, per unit and per stay', async () => {
+    await q("UPDATE users SET avatar_url = 'uploads/avatars/test_pic.jpg' WHERE id = 2");
+    const res = await api('get_rooms.php', { token: admin });
+    expect(res.status).toBe(200);
+    const a = res.body.rooms.find((r) => r.id === 'A');
+    expect(a.tenantProfile).toEqual(expect.objectContaining({ userId: 2, avatar: 'uploads/avatars/test_pic.jpg', email: expect.any(String), applicationId: expect.any(Number) }));
+    const stay = a.occupancyHistory.find((h) => h.status === 'current');
+    expect(stay).toEqual(expect.objectContaining({ userId: 2, avatar: 'uploads/avatars/test_pic.jpg' }));
+    const vacant = res.body.rooms.find((r) => r.status === 'vacant');
+    if (vacant) expect(vacant.tenantProfile).toBeNull();
+  });
+
+  it('shows guests and tenants no tenant profile', async () => {
+    for (const token of [undefined, maria]) {
+      const res = await api('get_rooms.php', { token });
+      expect(res.status).toBe(200);
+      for (const r of res.body.rooms) {
+        expect(r.tenantProfile).toBeUndefined();
+        expect(r.occupancyHistory).toBeUndefined();
+      }
     }
   });
 });

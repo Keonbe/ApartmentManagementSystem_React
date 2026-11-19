@@ -25,7 +25,7 @@ try {
     // One query, however many users.
     $claiming = "'" . implode("','", ROOM_CLAIMING_APPLICATION_STATUSES) . "'";
     $result = $conn->query("
-        SELECT u.id, u.first_name, u.last_name, u.suffix, u.email_address, u.contact_no,
+        SELECT u.id, u.first_name, u.last_name, u.suffix, u.email_address, u.contact_no, u.avatar_url,
                claim.room_name AS claim_room, claim.status AS claim_status
         FROM users u
         LEFT JOIN (
@@ -44,6 +44,7 @@ try {
             'name' => person_name($row),
             'email' => $row['email_address'],
             'phone' => $row['contact_no'] ?: null,
+            'avatar' => $row['avatar_url'] ?: null,
             'room' => $row['claim_room'] ?: null,
             'roomStatus' => $row['claim_status'] ?: null,
         ];
