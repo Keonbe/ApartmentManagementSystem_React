@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Eye, Mail, ShieldCheck, CalendarClock, ArrowUpDown } from 'lucide-react';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
@@ -10,6 +11,7 @@ import { useLang } from '../config/i18n';
 import { usePublicSettings } from '../config/publicSettings';
 import { previewText, previewFeatures } from '../config/previewHero';
 import { formatAvailable } from '../utils/availableDate';
+import { readStoredUser } from '../utils/readStoredUser';
 import '../assets/styles/responsive/user/preview.responsive.css';
 import { Bone, SkeletonGrid } from '../Components/tenant/Skeleton';
 
@@ -53,6 +55,9 @@ export default function Preview({ onRentClick, onInquireClick }) {
     const [activeModalRule, setActiveModalRule] = useState(null);
     const [isHouseRulesOpen, setIsHouseRulesOpen] = useState(false);
     const { t, lang } = useLang();
+    // An admin can look around as a visitor would, but not apply or inquire (App.jsx sends
+    // the renter pages to the admin side; rent_application.php refuses an admin).
+    const isAdmin = readStoredUser()?.role === 'admin';
     const getRuleTitle = (rule) => lang === 'fil' && rule.title_fil?.trim() ? rule.title_fil : rule.title;
     const getRuleDescription = (rule) => lang === 'fil' && rule.description_fil?.trim() ? rule.description_fil : rule.description;
 
@@ -166,6 +171,13 @@ export default function Preview({ onRentClick, onInquireClick }) {
                         </div>
                     </div>
 
+                    {isAdmin && (
+                        <div role="note" className="flex flex-col gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="m-0 text-sm text-indigo-900">{t('preview.adminViewOnly')}</p>
+                            <Link to="/admin-dashboard" className="shrink-0 text-sm font-bold text-indigo-700 no-underline hover:underline">{t('preview.adminBackToDashboard')}</Link>
+                        </div>
+                    )}
+
                     {/* Room cards. The page scrolls; the map on the right stays in view. */}
                     <div className="w-full pb-4">
                         {showingUpcoming && <p className="m-0 mb-3 text-sm text-slate-500">{t('preview.upcomingNote')}</p>}
@@ -222,8 +234,10 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                             <button
                                                 type="button"
                                                 onClick={() => onInquireClick(room.id)}
+                                                disabled={isAdmin}
+                                                title={isAdmin ? t('preview.adminNoApply') : undefined}
                                                 aria-label={`${t('preview.inquire')}: Room ${room.id}`}
-                                                className={`bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5 ${canPreview ? 'flex-[1.5]' : 'flex-[1]'}`}
+                                                className={`disabled:opacity-50 disabled:cursor-not-allowed bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5 ${canPreview ? 'flex-[1.5]' : 'flex-[1]'}`}
                                             >
                                                 <Mail aria-hidden="true" className="w-4 h-4" />
                                                 <span className="hidden sm:inline lg:hidden xl:inline">{t('preview.inquire')}</span>
@@ -231,7 +245,9 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                             <button
                                                 type="button"
                                                 onClick={() => onRentClick(room.id)}
-                                                className={`bg-emerald-700 hover:bg-emerald-800 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-black py-2.5 rounded-xl text-xs transition-all duration-200 shadow-md shadow-emerald-600/30 border-0 cursor-pointer text-center uppercase tracking-wide ${canPreview ? 'flex-[3]' : 'flex-[2]'}`}
+                                                disabled={isAdmin}
+                                                title={isAdmin ? t('preview.adminNoApply') : undefined}
+                                                className={`disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none bg-emerald-700 hover:bg-emerald-800 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-black py-2.5 rounded-xl text-xs transition-all duration-200 shadow-md shadow-emerald-600/30 border-0 cursor-pointer text-center uppercase tracking-wide ${canPreview ? 'flex-[3]' : 'flex-[2]'}`}
                                             >
                                                 {t('preview.rentNow')}
                                             </button>

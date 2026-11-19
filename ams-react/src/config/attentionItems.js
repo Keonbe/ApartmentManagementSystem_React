@@ -25,7 +25,7 @@ export const ATTENTION_GROUPS = [
       { key: 'move_in_due', tone: 'amber', to: '/admin-applications?status=approved', one: 'approved tenant not moved in yet', many: 'approved tenants not moved in yet' },
       { key: 'move_out_requests', tone: 'amber', to: '/admin-tenants?filter=pending-move-out', one: 'move-out request', many: 'move-out requests' },
       { key: 'requests_to_decide', tone: 'amber', to: '/admin-notifications?filter=decide', one: 'occupancy or rent request to decide', many: 'occupancy or rent requests to decide' },
-      { key: 'new_inquiries', tone: 'amber', to: '/admin-inquiries?status=new', one: 'new inquiry to answer', many: 'new inquiries to answer' },
+      { key: 'new_inquiries', tone: 'amber', to: '/admin-inquiries', one: 'new inquiry to answer', many: 'new inquiries to answer' },
     ],
   },
   {

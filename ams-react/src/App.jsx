@@ -74,11 +74,51 @@ const AdminUtilities = lazy(() => import('./AdminPages/AdminUtilities'));
 const AdminInquiries = lazy(() => import('./AdminPages/AdminInquiries'));
 const AdminMessages = lazy(() => import('./AdminPages/AdminMessages'));
 
+// An admin account is not a renter (rent_application.php refuses it, and it has no
+// room or bills): the renter pages send it to the admin page that does the same job.
+// Admins can still look around Home and the rooms page, without the apply / inquire actions.
+const ADMIN_EQUIVALENT = {
+  '/rent-application': '/admin-applications',
+  '/track-application': '/admin-applications',
+  '/inquire': '/admin-inquiries',
+  '/notifications': '/admin-notifications',
+  '/profile-settings': '/admin-account-settings',
+  '/my-refunds': '/admin-refunds',
+  '/payment-history': '/admin-payments',
+  '/pay-bills': '/admin-payments',
+  '/upload-payment': '/admin-payments',
+  '/view-contract': '/admin-contracts',
+  '/my-room': '/admin-units',
+  '/services': '/admin-services',
+  '/service-catalog': '/admin-services',
+  '/service-booking': '/admin-services',
+  '/my-requests': '/admin-services',
+  '/maintenance-request': '/admin-maintenance',
+  '/parking-reservation': '/admin-parking',
+  '/cctv-request': '/admin-cctv',
+  '/visitor-management': '/admin-visitors',
+  '/announcements': '/admin-announcements',
+  '/user-utilities': '/admin-utilities',
+};
+function AdminElsewhere() {
+  const { pathname } = useLocation();
+  return <Navigate to={ADMIN_EQUIVALENT[pathname] || '/admin-dashboard'} replace />;
+}
+
+// Renter-only pages that need no sign-in (the inquiry form): an admin goes to the admin side.
+function NotForAdmin({ children }) {
+  useLocation();
+  if (readStoredUser()?.role === 'admin') return <AdminElsewhere />;
+  return children;
+}
+
 function ProtectedRoute({ children }) {
   useLocation();
-  if (!readStoredUser()) {
+  const user = readStoredUser();
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
+  if (user.role === 'admin') return <AdminElsewhere />;
   return children;
 }
 
@@ -105,9 +145,7 @@ function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (loggedInUser.role === 'admin') {
-    return children;
-  }
+  if (loggedInUser.role === 'admin') return <AdminElsewhere />;
 
   // Hold off on redirecting until the backend room check completes!
   if (isCheckingRoom) return <SessionLoading />;
@@ -301,7 +339,7 @@ function AppContent() {
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<HomeRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom} forceTheme="glass"><Home onCardClick={() => navigate('/preview')} username={user?.first_name} firstLogin={!!user?.first_login} /></BaseAppLayout></HomeRoute>} />
         <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} onInquireClick={handleInquireTrigger} /></BaseAppLayout>} />
-        <Route path="/inquire" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout>} />
+        <Route path="/inquire" element={<NotForAdmin><BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout></NotForAdmin>} />
         
         {/* SECURED TENANT DASHBOARDS */}
         <Route path="/services" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></TenantProtectedRoute>} />

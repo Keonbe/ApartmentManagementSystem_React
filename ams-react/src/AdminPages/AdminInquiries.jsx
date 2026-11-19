@@ -17,6 +17,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import CharCount from '../Components/form/CharCount';
 import ReasonModal from '../Components/form/ReasonModal';
+import askConfirm from '../utils/askConfirm';
 import { blockNonIntegerKeys, blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 
 const MAX_HOLD_DAYS = 90;
@@ -28,20 +29,26 @@ import useUrlFilter from '../hooks/useUrlFilter';
 import { useSearchParams } from 'react-router-dom';
 import { PANEL, TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import SelectMenu from '../Components/admin/ui/SelectMenu';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
 // "Open" (the default) = still being handled: not yet turned into an application
 // and not closed. "All" is last, for looking something up.
 const OPEN_STATUSES = ['new', 'contacted', 'scheduled', 'reserved'];
-const INQUIRY_TABS = ['open', 'new', 'contacted', 'scheduled', 'reserved', 'converted', 'closed', 'all'];
+// No separate New tab: Open includes them, and each new (not yet contacted) row is marked.
+const INQUIRY_TABS = ['open', 'contacted', 'scheduled', 'reserved', 'converted', 'closed', 'all'];
 const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
 const TAB_LABELS = { open: 'Open' };
-// Oldest first by default, so the inquiry waiting longest is answered first.
 const SORTS = [
-  { value: 'oldest', label: 'Oldest first' },
-  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first', hint: 'Longest waiting at the top', icon: faArrowDownShortWide },
+  { value: 'newest', label: 'Newest first', hint: 'Latest received at the top', icon: faArrowDownWideShort },
 ];
+// Work still to do is shown oldest first (the longest wait gets answered first);
+// finished lists (converted, closed, all, past reservations) newest first.
+const defaultSortFor = (view, tab) => (
+  (view === 'inquiries' ? tab === 'open' || OPEN_STATUSES.includes(tab) : tab === 'active') ? 'oldest' : 'newest'
+);
 // One-click reasons that fill the reason box (still editable). A prospect with an
 // account is sent the reason (update_inquiry_status.php), so they are worded for them.
 const CLOSE_REASONS = [
@@ -102,8 +109,18 @@ export default function AdminInquiries() {
   const [error, setError] = useState(null);
   const [view] = useUrlFilter('view', 'inquiries', ['inquiries', 'reservations']);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useUrlFilter('status', view === 'inquiries' ? 'open' : 'all', view === 'inquiries' ? INQUIRY_TABS : RESERVATION_TABS);
-  const [sort, setSort] = useUrlFilter('sort', 'oldest', SORTS.map((s) => s.value));
+  const statusFallback = view === 'inquiries' ? 'open' : 'all';
+  const [statusFilter] = useUrlFilter('status', statusFallback, view === 'inquiries' ? INQUIRY_TABS : RESERVATION_TABS);
+  const [sort, setSort] = useUrlFilter('sort', defaultSortFor(view, statusFilter), SORTS.map((s) => s.value));
+  // A new tab starts with its own default order (one URL update for both keys).
+  const setStatusFilter = (tab) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === statusFallback) next.delete('status'); else next.set('status', tab);
+      next.delete('sort');
+      return next;
+    }, { replace: true });
+  };
 
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -386,8 +403,18 @@ export default function AdminInquiries() {
     if (inquiry) openDetail(inquiry);
   };
 
-  const convertToApplication = (inquiry) => {
-    navigate('/rent-application', { state: { selectedRoomId: inquiry.unit } });
+  // The prospect applies from their own account (an admin cannot file a rent
+  // application, and the renter form is closed to admins): this records that the
+  // inquiry moved on, and update_inquiry_status.php tells a prospect with an account.
+  const convertToApplication = async (inquiry) => {
+    const ok = await askConfirm(
+      `Mark ${inquiry.fullName}'s inquiry as converted? Do this once they have started their rent application. It leaves the Open list.`,
+      { title: 'Convert to application', confirmLabel: 'Yes, mark as converted', cancelLabel: 'Not yet', tone: 'primary' },
+    );
+    if (!ok) return;
+    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
+    const done = await updateInquiry({ id: inquiry.id, status: 'Converted', admin_notes: notes.trim() });
+    if (done) setShowDetail(false);
   };
 
   // ─── Filtering ───
@@ -454,7 +481,11 @@ export default function AdminInquiries() {
   const shownCount = view === 'inquiries' ? filteredInquiries.length : filteredReservations.length;
   const noun = view === 'inquiries' ? (shownCount === 1 ? 'inquiry' : 'inquiries') : (shownCount === 1 ? 'reservation' : 'reservations');
   // "Showing 4 open inquiries, oldest first" (follows the tab, search and sort).
-  const filterSummary = `${shownCount} ${statusFilter === 'all' ? '' : `${tabLabel(statusFilter).toLowerCase()} `}${noun}${q ? ` matching “${searchQuery.trim()}”` : ''}, ${sort === 'newest' ? 'newest' : 'oldest'} first`;
+  // New = nobody has contacted them yet (marked on the row; was its own tab).
+  const isNewInquiry = (inq) => (inq.status || '').toLowerCase() === 'new';
+  const newCount = inquiries.filter(isNewInquiry).length;
+  const shownNew = view === 'inquiries' ? filteredInquiries.filter(isNewInquiry).length : 0;
+  const filterSummary = `${shownCount} ${statusFilter === 'all' ? '' : `${tabLabel(statusFilter).toLowerCase()} `}${noun}${q ? ` matching “${searchQuery.trim()}”` : ''}${shownNew ? ` (${shownNew} not contacted yet)` : ''}, ${sort === 'newest' ? 'newest' : 'oldest'} first`;
   const isOpenInquiry = (inq) => OPEN_STATUSES.includes((inq.status || '').toLowerCase());
 
   return (
@@ -530,17 +561,13 @@ export default function AdminInquiries() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="relative flex flex-1 items-center sm:flex-none">
-                    <span className="sr-only">Sort by date received</span>
-                    <FontAwesomeIcon icon={sort === 'newest' ? faArrowDownWideShort : faArrowDownShortWide} className="pointer-events-none absolute left-3 text-label text-slate-400" aria-hidden="true" />
-                    <select
-                      value={sort}
-                      onChange={(e) => setSort(e.target.value)}
-                      className="h-10 w-full rounded-control border border-slate-200 bg-white pl-8 pr-8 text-label font-medium text-slate-700 cursor-pointer focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 sm:w-auto"
-                    >
-                      {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </label>
+                  <SelectMenu
+                    label="Sort by date received"
+                    value={sort}
+                    onChange={setSort}
+                    options={SORTS}
+                    className="flex-1 sm:w-44 sm:flex-none"
+                  />
                   <button
                     type="button"
                     onClick={() => { fetchData(); fetchSupporting(); }}
@@ -557,7 +584,7 @@ export default function AdminInquiries() {
                 label="Filter by status"
                 value={statusFilter}
                 onChange={setStatusFilter}
-                options={tabs.map(t => ({ value: t, label: tabLabel(t), count: loading || error ? null : tabCount(t), dot: view === 'inquiries' && t === 'new' && tabCount('new') > 0 }))}
+                options={tabs.map(t => ({ value: t, label: tabLabel(t), count: loading || error ? null : tabCount(t), dot: view === 'inquiries' && t === 'open' && newCount > 0 }))}
               />
               {!loading && !error && (
                 <p className="m-0 text-caption text-slate-500" aria-live="polite">Showing {filterSummary}.</p>
@@ -599,9 +626,13 @@ export default function AdminInquiries() {
                         </td></tr>
                       ) : (
                         filteredInquiries.map(inq => (
-                          <tr key={inq.id} className="hover:bg-slate-50/70 transition-colors">
+                          <tr key={inq.id} className={`transition-colors ${isNewInquiry(inq) ? 'bg-indigo-50/40 hover:bg-indigo-50/70 shadow-[inset_3px_0_0_var(--color-indigo-500)]' : 'hover:bg-slate-50/70'}`}>
                             <td className="px-5 py-4">
-                              <p className="font-bold text-slate-800 m-0">{inq.fullName}</p>
+                              <p className="font-bold text-slate-800 m-0 flex items-center gap-2">
+                                {isNewInquiry(inq) && <span className="h-2 w-2 shrink-0 rounded-full bg-indigo-500" aria-hidden="true" />}
+                                <span className="min-w-0">{inq.fullName}</span>
+                                {isNewInquiry(inq) && <span className="sr-only">(not contacted yet)</span>}
+                              </p>
                               <span className="flex items-center gap-1 text-label text-slate-500 mt-0.5">
                                 <FontAwesomeIcon icon={faEnvelope} className="text-[10px] text-indigo-500" />
                                 {inq.email}
@@ -928,7 +959,8 @@ export default function AdminInquiries() {
                 <button
                   type="button"
                   onClick={() => convertToApplication(selected)}
-                  className="flex items-center justify-center gap-2 rounded-card bg-emerald-50 border border-emerald-200 px-4 py-3 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                  disabled={!!busy || selected.status === 'Converted'}
+                  className="flex items-center justify-center gap-2 rounded-card bg-emerald-50 border border-emerald-200 px-4 py-3 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FontAwesomeIcon icon={faArrowRight} /> Convert to Application
                 </button>

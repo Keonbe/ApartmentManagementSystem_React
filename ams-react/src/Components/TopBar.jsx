@@ -8,7 +8,7 @@ import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
     faBell, faFileContract,
-    faHome, faCompass, faConciergeBell, faBed, faBullhorn, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
+    faHome, faCompass, faConciergeBell, faBed, faBullhorn, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle, faGaugeHigh
 } from '@fortawesome/free-solid-svg-icons';
 import {
     TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, PAYMENT_WATCH_POLL_MS,
@@ -432,23 +432,26 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     // A tenant's home is My Room: Home is not offered (App.jsx sends them on).
     // Applicants and guests keep Home. Admins browsing tenant pages keep it too.
     const isTenant = isLoggedIn && hasRentedRoom && loggedInUser.role !== 'admin';
+    const isAdminAccount = isLoggedIn && loggedInUser.role === 'admin';
+    // Tenant links only for a renter: an admin sees the public pages (renter pages send it to the admin side).
+    const tenantNav = hasRentedRoom && !isAdminAccount;
     const homePath = isTenant ? '/my-room' : '/home';
     const link = (path, label, icon, match = [path]) => ({ path, label, icon, match });
     // Guests and applicants also get the rooms page (and the inquiry form behind it).
     const previewLink = link('/preview', t('preview.availableRooms'), faCompass, ['/preview', '/inquire', '/rent-application']);
     const navLinks = [
         !isTenant && link('/home', t('nav.home'), faHome),
-        !hasRentedRoom && previewLink,
+        !tenantNav && previewLink,
         // Only for someone who has applied (any application, even a closed one).
-        isLoggedIn && !hasRentedRoom && hasApplication && link('/track-application', t('nav.trackApp'), faFileContract),
-        isLoggedIn && hasRentedRoom && link('/my-room', t('nav.myRoom'), faBed),
-        isLoggedIn && hasRentedRoom && link('/services', t('nav.services'), faConciergeBell, SERVICE_PATHS),
+        isLoggedIn && !tenantNav && !isAdminAccount && hasApplication && link('/track-application', t('nav.trackApp'), faFileContract),
+        isLoggedIn && tenantNav && link('/my-room', t('nav.myRoom'), faBed),
+        isLoggedIn && tenantNav && link('/services', t('nav.services'), faConciergeBell, SERVICE_PATHS),
         // Announcements has its own link (it was a Services card).
-        isLoggedIn && hasRentedRoom && link('/announcements', t('nav.announcements'), faBullhorn),
+        isLoggedIn && tenantNav && link('/announcements', t('nav.announcements'), faBullhorn),
         // Payment History and My Refunds live in the account area (Profile Settings side menu).
     ].filter(Boolean);
     // Phones list the rooms page for tenants too, last.
-    const mobileLinks = hasRentedRoom ? [...navLinks, previewLink] : navLinks;
+    const mobileLinks = tenantNav ? [...navLinks, previewLink] : navLinks;
     const isLinkActive = (l) => l.match.includes(location.pathname);
     const goTo = (path) => navigate(path);
 
@@ -575,9 +578,10 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
                             {profileMenu.mounted && (
                                 <div data-closing={profileMenu.closing || undefined} className="topbar-pop topbar-menu-stagger ut-themed absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 z-50 overflow-hidden text-left">
-                                    <button onClick={() => { setIsDropdownOpen(false); navigate('/profile-settings'); }} className={menuItemClass}>
-                                        <FontAwesomeIcon icon={faCog} className="text-slate-500 text-xs" />
-                                        <span>{t('topbar.profileSettings')}</span>
+                                    {/* An admin's settings and work are on the admin side (the renter pages send it there). */}
+                                    <button onClick={() => { setIsDropdownOpen(false); navigate(isAdminAccount ? '/admin-dashboard' : '/profile-settings'); }} className={menuItemClass}>
+                                        <FontAwesomeIcon icon={isAdminAccount ? faGaugeHigh : faCog} className="text-slate-500 text-xs" />
+                                        <span>{isAdminAccount ? t('topbar.adminDashboard') : t('topbar.profileSettings')}</span>
                                     </button>
                                     {/* Payment History and My Refunds are in the Profile Settings side menu. */}
                                     <div className="border-t border-slate-100 my-1"></div>
@@ -733,11 +737,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
                                 <div className="flex w-full flex-col gap-2 pt-1">
                                     <button
-                                        onClick={() => { setIsMobileMenuOpen(false); navigate('/profile-settings'); }}
+                                        onClick={() => { setIsMobileMenuOpen(false); navigate(isAdminAccount ? '/admin-dashboard' : '/profile-settings'); }}
                                         className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
                                     >
-                                        <FontAwesomeIcon icon={faCog} className="text-xs" />
-                                        <span>{t('nav.settings')}</span>
+                                        <FontAwesomeIcon icon={isAdminAccount ? faGaugeHigh : faCog} className="text-xs" />
+                                        <span>{isAdminAccount ? t('topbar.adminDashboard') : t('nav.settings')}</span>
                                     </button>
                                     {/* Payment History and My Refunds are in the Profile Settings side menu. */}
                                 </div>

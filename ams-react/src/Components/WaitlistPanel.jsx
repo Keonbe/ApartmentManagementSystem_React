@@ -31,7 +31,11 @@ export default function WaitlistPanel({ onOpenInquiry }) {
   }, []);
 
   const remove = async (entry) => {
-    if (!(await askConfirm(`Remove ${entry.fullName} from the waitlist for Unit ${entry.roomName}?`))) return;
+    const ok = await askConfirm(
+      `${entry.fullName} leaves the waitlist for Unit ${entry.roomName} and won't be offered the unit when it frees up.`,
+      { title: 'Remove from the waitlist?', confirmLabel: 'Yes, remove from waitlist', cancelLabel: 'Keep on waitlist' },
+    );
+    if (!ok) return;
     setError(null);
     try {
       await api.post('manage_waitlist.php', { action: 'remove', id: entry.id });
