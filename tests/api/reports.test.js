@@ -91,6 +91,32 @@ describe('the money rules', () => {
     expect(table(res, 'payments').rows.map((r) => r.kind).sort()).toEqual(['Full payment', 'Installment', 'Installment']);
   });
 
+  it('payments received: pesos by channel, online and front desk side by side (SPRINT 183)', async () => {
+    // May 2001: the same channel written by different code (a desk GCash, a PayMongo GCash)
+    // must be one channel with two sources, not two unrelated method names.
+    const paid = [
+      ['INV-CH-1', 1000, 'GCash (Sandbox)'], ['INV-CH-2', 400, 'gcash'], ['INV-CH-3', 700, 'Maya (Sandbox)'],
+      ['INV-CH-4', 300, 'BDO'], ['INV-CH-5', 200, 'Cash'], ['INV-CH-6', 150, 'Online Banking (Sandbox)'], ['INV-CH-7', 120, 'Card (Sandbox)'],
+    ];
+    for (const [id, amount, method] of paid) {
+      await q(`INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, amount_paid, billing_period, status, due_date, paid_at, created_at, payment_method)
+               VALUES (?, 2, 1, ?, ?, ?, 'May 2001', 'paid', '2001-05-10', '2001-05-05 10:00:00', '2001-05-01 08:00:00', ?)`, [id, amount, amount, amount, method]);
+    }
+    const res = await get({ report: 'collections', from: '2001-05-01', to: '2001-05-31', group: 'month' });
+    const channels = table(res, 'channels');
+    const rows = Object.fromEntries(channels.rows.map((r) => [`${r.channel}|${r.via}`, r.amount]));
+    expect(rows).toEqual({
+      'GCash|Online': 1000, 'GCash|Front desk': 400, 'Maya|Online': 700, 'BDO|Front desk': 300,
+      'Cash|Front desk': 200, 'Online banking|Online': 150, 'Card|Online': 120,
+    });
+    expect(channels.rows[0]).toMatchObject({ channel: 'GCash', via: 'Online', share: 34.8 });
+    expect(channels.totals.amount).toBe(2870);
+    // Pesos, so it adds up to what the report says was received.
+    expect(metric(res, 'received').value).toBe(2870);
+    // The raw method table is unchanged.
+    expect(Object.fromEntries(table(res, 'methods').rows.map((r) => [r.method, r.amount]))['GCash (Sandbox)']).toBe(1000);
+  });
+
   it('billing: bills issued in the range, collected and still owed on them', async () => {
     const res = await get({ report: 'billing', ...MARCH, group: 'month' });
     expect(metric(res, 'billed').value).toBe(3800);

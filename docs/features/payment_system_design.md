@@ -231,6 +231,10 @@ sequenceDiagram
 - Stored in `system_settings` table, only readable by admin endpoints
 - In production: swap to live keys (`sk_live_...`) — **no code changes needed**
 
+### 4.4a Reconciliation with PayMongo (2026-11-20)
+
+A paid checkout whose webhook never arrived would leave the bill open and let the overdue or unpaid-window sweep void or fine a tenant who did pay. `paymongo_process_checkout_event()` (`paymongo_gateway.php`) is the one place a checkout event is applied; `paymongo_webhook.php` calls it, and so does `reconcile_gateway_payments()`, which retrieves the checkout sessions of open online payments from PayMongo and applies the paid ones. It runs before the overdue sweep and the unpaid-window sweep (`reconcile_lapsing_checkouts()` in `config.php`), from `backend/cron/reconcile_payments.php`, and on demand from Admin → Payments → "Check with PayMongo" (`reconcile_gateway_payments.php`). Reports → Collections has a "By channel (pesos)" table that splits each method into Online and Front desk.
+
 ### 4.4 Database Changes
 
 ```sql

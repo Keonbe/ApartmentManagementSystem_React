@@ -774,6 +774,23 @@ const handleMarkAsPaid = async () => {
     }
   };
 
+  // Asks PayMongo about this bill's checkout (reconcile_gateway_payments.php): a paid
+  // one is recorded by the webhook's rules, an expired one released, an unpaid one left.
+  const [checkingGateway, setCheckingGateway] = useState(false);
+  const handleCheckWithPayMongo = async () => {
+    if (!activeTenant?.pendingInvoiceId || checkingGateway) return;
+    setCheckingGateway(true);
+    try {
+      const res = await api.post('/reconcile_gateway_payments.php', { invoice_id: activeTenant.pendingInvoiceId });
+      showFlash(res.data?.message || 'Checked with PayMongo.');
+      fetchInvoices();
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not check this payment with PayMongo.'));
+    } finally {
+      setCheckingGateway(false);
+    }
+  };
+
   // Cancels a tenant's unfinished online checkout (release_checkout_session.php)
   // so the desk can record the payment. If the tenant did pay at the gateway,
   // cancelling would lose that payment's match, so the admin checks first.
@@ -1497,10 +1514,17 @@ const handleMarkAsPaid = async () => {
                             <FontAwesomeIcon icon={faExclamationTriangle} /> Checkout Processing
                            </h5>
                            <p className="text-label text-amber-800 m-0">An online checkout session is currently active. Please wait for the webhook to confirm payment. A payment can't be recorded here while it is open, so the tenant is never charged twice.</p>
-                           <button type="button" onClick={handleReleaseCheckout} disabled={releasing}
+                           <p className="text-label text-amber-800 m-0">If the payment seems lost (the webhook never arrived), ask PayMongo: a paid checkout is recorded automatically, an expired one is released, an unpaid one is left alone.</p>
+                           <div className="flex flex-wrap gap-2">
+                           <button type="button" onClick={handleCheckWithPayMongo} disabled={checkingGateway || releasing}
+                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 border-0 text-white text-label font-semibold rounded-control hover:bg-amber-700 cursor-pointer transition-colors disabled:opacity-50">
+                             <FontAwesomeIcon icon={faCheckCircle} /> {checkingGateway ? 'Checking…' : 'Check with PayMongo'}
+                           </button>
+                           <button type="button" onClick={handleReleaseCheckout} disabled={releasing || checkingGateway}
                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 border-solid text-amber-800 text-label font-semibold rounded-control hover:bg-amber-100 cursor-pointer transition-colors disabled:opacity-50">
                              <FontAwesomeIcon icon={faTimes} /> {releasing ? 'Cancelling…' : 'Cancel online checkout'}
                            </button>
+                           </div>
                         </div>
                       )}
                       

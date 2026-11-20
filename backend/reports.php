@@ -381,6 +381,30 @@ function report_financial($conn, array $ctx) {
 }
 
 // ── 2. Payments received ──
+
+// The channel a payment came in through, and whether it came online (PayMongo) or
+// at the front desk. Raw methods are written by different code (desk: 'cash', 'gcash',
+// 'bank_transfer' or a bank name; checkout and webhook: 'GCash (Sandbox)', 'Card
+// (Sandbox)', 'Online Banking (Sandbox)'), so GCash at the desk and GCash online
+// would otherwise be two lines. Returns [channel, 'Online'|'Front desk'|'—'].
+function report_channel_of($method) {
+    $raw = trim((string)$method);
+    if ($raw === '' || $raw === 'Not recorded') return ['Not recorded', '—'];
+    $online = (bool)preg_match('/\((sandbox|live)\)|paymongo/i', $raw);
+    $clean = trim(preg_replace('/\s*\((sandbox|live)\)\s*/i', ' ', $raw));
+    $key = strtolower(str_replace('_', ' ', $clean));
+    if ($key === 'advance credit' || $key === 'security deposit') return [$clean, '—'];
+    if ($key === 'split') return ['Split payment', 'Front desk'];
+    if (str_contains($key, 'gcash')) return ['GCash', $online ? 'Online' : 'Front desk'];
+    if (str_contains($key, 'maya')) return ['Maya', $online ? 'Online' : 'Front desk'];
+    if (str_contains($key, 'online banking')) return ['Online banking', 'Online'];
+    if (str_contains($key, 'card')) return ['Card', $online ? 'Online' : 'Front desk'];
+    if ($key === 'cash') return ['Cash', 'Front desk'];
+    if ($key === 'bank transfer') return ['Bank transfer', 'Front desk'];
+    if ($key === 'paymongo' || $key === 'online') return ['Online (channel not named)', 'Online'];
+    return [$clean, $online ? 'Online' : 'Front desk']; // a bank name (BDO, BPI, ...)
+}
+
 function report_collections($conn, array $ctx) {
     [$inBy, $in] = report_receipt_sums($conn, $ctx);
     $count = (int)$in['n'];
@@ -409,6 +433,20 @@ function report_collections($conn, array $ctx) {
     $out['tables'][] = ['key' => 'methods', 'title' => 'By payment method', 'columns' => [report_col('method', 'Method'), report_col('count', 'Payments', 'int'), report_col('amount', 'Amount', 'money'), report_col('share', 'Share', 'percent')],
         'rows' => array_map(fn($m) => ['method' => $m['pay_method'], 'count' => (int)$m['n'], 'amount' => report_money($m['amount']), 'share' => report_pct((float)$m['amount'], $total)], $methods),
         'totals' => ['method' => 'Total', 'count' => array_sum(array_column($methods, 'n')), 'amount' => report_money($total)]];
+
+    // The same receipts by channel (pesos, not bills), online and front desk side by side.
+    $channels = [];
+    foreach ($methods as $m) {
+        [$channel, $via] = report_channel_of($m['pay_method']);
+        $key = $channel . '|' . $via;
+        $channels[$key] ??= ['channel' => $channel, 'via' => $via, 'n' => 0, 'amount' => 0.0];
+        $channels[$key]['n'] += (int)$m['n'];
+        $channels[$key]['amount'] += (float)$m['amount'];
+    }
+    usort($channels, fn($a, $b) => $b['amount'] <=> $a['amount']);
+    $out['tables'][] = ['key' => 'channels', 'title' => 'By channel (pesos)', 'columns' => [report_col('channel', 'Channel'), report_col('via', 'Received'), report_col('count', 'Payments', 'int'), report_col('amount', 'Amount', 'money'), report_col('share', 'Share', 'percent')],
+        'rows' => array_map(fn($c) => ['channel' => $c['channel'], 'via' => $c['via'], 'count' => $c['n'], 'amount' => report_money($c['amount']), 'share' => report_pct($c['amount'], $total)], $channels),
+        'totals' => ['channel' => 'Total', 'via' => '', 'count' => array_sum(array_column($channels, 'n')), 'amount' => report_money($total)]];
 
     $list = report_rows($conn, "
         SELECT DATE(r.d) AS d, r.invoice_id, r.amount, COALESCE(NULLIF(r.method, ''), 'Not recorded') AS method, r.is_part,
