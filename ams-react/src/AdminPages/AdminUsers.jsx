@@ -70,6 +70,8 @@ const AdminUsers = () => {
   const [showResetModal, setShowResetModal] = useState(null); // user id
   const [newPassword, setNewPassword]   = useState('');
   const [archiveTarget, setArchiveTarget] = useState(null);
+  const [anonTarget, setAnonTarget] = useState(null);
+  const [anonConfirm, setAnonConfirm] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // active / archived
   const [saving, setSaving]             = useState(false);
   const [toast, setToast]               = useState(null); // {msg, type}
@@ -219,6 +221,20 @@ const AdminUsers = () => {
     finally { setSaving(false); }
   };
 
+  const handleAnonymize = async () => {
+    setSaving(true);
+    try {
+      const res = await api.post('/manage_users.php', { action: 'anonymize', user_id: anonTarget.id, confirm: anonConfirm });
+      if (res.data.success) {
+        await fetchUsers();
+        setAnonTarget(null);
+        setAnonConfirm('');
+        showToast('Account anonymized.');
+      } else { showToast(res.data.message, 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to anonymize the account.', 'error'); }
+    finally { setSaving(false); }
+  };
+
   const handleRestore = async (user) => {
     try {
       const res = await api.post('/manage_users.php', { action: 'unarchive', user_id: user.id });
@@ -274,10 +290,22 @@ const AdminUsers = () => {
           )}
         </>
       ) : (
-        <button onClick={() => handleRestore(u)} title="Restore User"
-          className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-control text-label font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
-          <FontAwesomeIcon icon={faCheck} className="text-[10px]" /> Restore Account
-        </button>
+        u.is_anonymized ? (
+          <span className="px-3 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded-control text-label font-bold">Anonymized</span>
+        ) : (
+          <>
+            <button onClick={() => handleRestore(u)} title="Restore User"
+              className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-control text-label font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
+              <FontAwesomeIcon icon={faCheck} className="text-[10px]" /> Restore Account
+            </button>
+            {u.role !== 'admin' && (
+              <button onClick={() => { setAnonConfirm(''); setAnonTarget(u); }} title="Anonymize (erase personal data)"
+                className="px-3 py-1 bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 border border-slate-200 rounded-control text-label font-bold cursor-pointer transition-colors">
+                Anonymize
+              </button>
+            )}
+          </>
+        )
       )}
     </div>
   );
@@ -540,6 +568,37 @@ const AdminUsers = () => {
               </button>
             </div>
           </Modal>
+      )}
+
+      {/* Anonymize Confirm Modal */}
+      {anonTarget && (
+        <Modal busy={saving} title="Anonymize account" onClose={() => setAnonTarget(null)} overlayClassName="flex items-center justify-center bg-black/50 backdrop-blur-sm" className="bg-white rounded-card shadow-dialog w-full max-w-md mx-4 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200">
+            <h3 className="text-title font-bold text-red-700 m-0 flex items-center gap-2">
+              <FontAwesomeIcon icon={faExclamationTriangle} /> Anonymize account
+            </h3>
+          </div>
+          <div className="p-6 space-y-3 text-body text-slate-600">
+            <p className="m-0">Erase the personal data of <strong>{personName(anonTarget)}</strong> (a Data Privacy Act request). This cannot be undone.</p>
+            <div className="bg-red-50 border border-red-100 rounded-control p-3 text-label text-red-700">
+              <strong>Erased:</strong> name, email, phone, address, emergency contact, profile picture, uploaded documents and IDs, signatures, message text, sign-in history and devices.
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-control p-3 text-label text-slate-600">
+              <strong>Kept (accounting and legal records):</strong> invoices, payments, contracts and deposits, with the name replaced by "Former tenant".
+            </div>
+            <label className="block text-label font-semibold text-slate-600">Type ANONYMIZE to confirm
+              <input value={anonConfirm} onChange={e => setAnonConfirm(e.target.value)} autoComplete="off"
+                className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none focus:border-red-400 text-slate-800 bg-white" />
+            </label>
+          </div>
+          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+            <button onClick={() => setAnonTarget(null)} className="px-4 py-2 text-body text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-control cursor-pointer">Cancel</button>
+            <button onClick={handleAnonymize} disabled={saving || anonConfirm !== 'ANONYMIZE'}
+              className="px-5 py-2 bg-red-600 text-white rounded-control text-body font-semibold hover:bg-red-700 border-0 cursor-pointer disabled:opacity-40">
+              {saving ? 'Anonymizing...' : 'Anonymize'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

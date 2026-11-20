@@ -36,6 +36,19 @@ if ($id > 0) {
     }
 
     $user_id = $app['user_id'] ? (int)$app['user_id'] : 0;
+    if ($user_id > 0) {
+        // An anonymized account has no personal data left to bring back.
+        $anon = $conn->prepare("SELECT anonymized_at FROM users WHERE id = ?");
+        $anon->bind_param("i", $user_id);
+        $anon->execute();
+        $anon_row = $anon->get_result()->fetch_assoc();
+        $anon->close();
+        if (!empty($anon_row['anonymized_at'])) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This account was anonymized and cannot be restored."]);
+            exit;
+        }
+    }
     $room_name = $app['room_name'];
     $full_name = person_name($app);
     $months = (int)($app['months_of_rent'] ?? 6);

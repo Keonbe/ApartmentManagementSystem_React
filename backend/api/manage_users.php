@@ -25,7 +25,7 @@ function active_admin_count($conn) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $result = $conn->query("
-        SELECT id, first_name, middle_name, last_name, suffix, contact_no, gender, email_address, role, is_archived
+        SELECT id, first_name, middle_name, last_name, suffix, contact_no, gender, email_address, role, is_archived, anonymized_at
         FROM users
         ORDER BY role DESC, first_name, last_name
     ");
@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'email'        => $row['email_address'],
             'role'         => $row['role'],
             'is_archived'  => (int)($row['is_archived'] ?? 0),
+            'is_anonymized' => !empty($row['anonymized_at']),
             'is_self'      => (int)$row['id'] === $admin_id,
         ];
     }
@@ -60,7 +61,7 @@ if (!$user_id || !$action) fail(422, "Missing action or user_id");
 // never here — otherwise the last admin could demote or lock out themselves.
 if ($user_id === $admin_id) fail(409, "You cannot change your own account here. Use Account Settings instead.");
 
-$stmt = $conn->prepare("SELECT id, email_address, role, is_archived FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, email_address, role, is_archived, anonymized_at FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $target = $stmt->get_result()->fetch_assoc();
@@ -174,7 +175,27 @@ switch ($action) {
         echo json_encode(["success" => true, "message" => "User archived."]);
         break;
 
+    case 'anonymize':
+        // Erasure of a former tenant's personal data (RA 10173; SPRINT 177). Irreversible,
+        // so the admin types ANONYMIZE; anonymize_user() does the work and refuses unless the
+        // account is archived and has nothing open.
+        if (($data['confirm'] ?? '') !== 'ANONYMIZE') fail(422, "Type ANONYMIZE to confirm. This cannot be undone.");
+        try {
+            $done = anonymize_user($conn, $user_id, $admin_id);
+        } catch (AnonymizeRefused $e) {
+            fail(409, $e->getMessage());
+        } catch (Throwable $e) {
+            error_log('[AMS] anonymize_user: ' . $e->getMessage());
+            fail(500, "Could not anonymize this account. Nothing was changed.");
+        }
+        // No name or contact in the log: only the account id and what was done.
+        log_activity($conn, $admin_id, 'user', 'Anonymized User', "User ID $user_id anonymized: " . json_encode($done['counts'])
+            . ($done['files'] ? '; ' . count($done['files']) . ' file(s) could not be removed' : ''));
+        echo json_encode(["success" => true, "message" => "The account's personal data was erased. Billing and contract records were kept.", "counts" => $done['counts'], "files_left" => count($done['files'])]);
+        break;
+
     case 'unarchive':
+        if (!empty($target['anonymized_at'])) fail(409, "This account was anonymized and cannot be restored.");
         if ((int)$target['is_archived'] === 0) fail(409, "This account is not archived.");
         $stmt = $conn->prepare("UPDATE users SET is_archived=0 WHERE id=?");
         $stmt->bind_param("i", $user_id);
