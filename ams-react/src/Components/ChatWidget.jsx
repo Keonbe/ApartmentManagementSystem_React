@@ -54,6 +54,7 @@ const ChatWidget = () => {
         sendMessage, 
         fetchChatHistory,
         fetchConversations,
+        notifyChatChanged,
         handleTyping,
         openSupportChat,
         userRole,
@@ -314,6 +315,7 @@ const ChatWidget = () => {
         setResolutionBusy(true);
         try {
             await api.post('chat_followup.php', { action: 'answer', message_id: messageId, answer });
+            notifyChatChanged?.(activeChat.other_user_id);
             await fetchChatHistory?.(activeChat.other_user_id);
             await fetchConversations?.();
             setSendError('');
@@ -324,6 +326,7 @@ const ChatWidget = () => {
         if (!(await askConfirm(t('chat.report.fixedConfirm'), { tone: 'primary', confirmLabel: t('chat.report.markFixed') }))) return;
         try {
             await api.post('chat_followup.php', { action: 'resolve_report', complaint_id: complaintId });
+            if (activeChat) notifyChatChanged?.(activeChat.other_user_id);
             await fetchConversations?.();
             setSendError('');
         } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
@@ -489,6 +492,7 @@ const ChatWidget = () => {
             await api.post('file_complaint.php', { category: reportCategory, message });
             // A photo or video goes in right after; it joins the report on the server.
             if (attachment && activeChat) await sendMessage(activeChat.other_user_id, '', attachment);
+            else if (activeChat) notifyChatChanged?.(activeChat.other_user_id);
             setNewMessage('');
             setAttachment(null);
             setReportMode(false);

@@ -30,6 +30,7 @@ import { PANEL, TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import SelectMenu from '../Components/admin/ui/SelectMenu';
 import InquiryChatModal from '../Components/admin/inquiries/InquiryChatModal';
+import { useChat } from '../context/ChatContext';
 import FollowUpSettingsModal from '../Components/admin/inquiries/FollowUpSettingsModal';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
@@ -99,6 +100,7 @@ const sortByAge = (list, sort) => [...list].sort((a, b) => {
 
 export default function AdminInquiries() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { notifyChatChanged } = useChat(); // an account holder's chat banner follows a status change
 
   const [inquiries, setInquiries] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -257,6 +259,8 @@ export default function AdminInquiries() {
     try {
       const res = await api.post('update_inquiry_status.php', payload);
       if (res.data.success) {
+        const row = inquiries.find((i) => i.id === payload.id);
+        if (row?.userId) notifyChatChanged?.(row.userId);
         await fetchData();
         return true;
       }

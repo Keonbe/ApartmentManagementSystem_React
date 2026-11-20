@@ -238,3 +238,32 @@ describe('complaints over the socket (SPRINT 189)', () => {
     expect(after.message.complaint_id).toBeNull();
   });
 });
+
+describe('"chat changed" nudges (chat_updated)', () => {
+  it('reach the other person and the sender\'s other tabs, carry no content, and never the sender\'s own socket', async () => {
+    const [mariaSock, mariaTab2, adminSock, joseSock] = await Promise.all([connect(maria), connect(maria), connect(admin), connect(jose)]);
+    const toAdmin = next(adminSock, 'chat_updated');
+    const toTab2 = next(mariaTab2, 'chat_updated');
+    const notSelf = silent(mariaSock, 'chat_updated');
+    const notJose = silent(joseSock, 'chat_updated');
+    mariaSock.emit('chat_updated', { receiver_id: adminId, sender_id: JOSE, message: 'ignored' });
+    expect(await toAdmin).toEqual({ other_user_id: MARIA });
+    expect(await toTab2).toEqual({ other_user_id: adminId });
+    expect(await notSelf).toBe(true);
+    expect(await notJose).toBe(true);
+  });
+
+  it('ignores a nudge to yourself, a missing receiver, and a burst within 300 ms', async () => {
+    const [mariaSock, adminSock] = await Promise.all([connect(maria), connect(admin)]);
+    const quietSelf = silent(mariaSock, 'chat_updated');
+    mariaSock.emit('chat_updated', { receiver_id: MARIA });
+    mariaSock.emit('chat_updated', {});
+    expect(await quietSelf).toBe(true);
+    let count = 0;
+    adminSock.on('chat_updated', () => { count += 1; });
+    mariaSock.emit('chat_updated', { receiver_id: adminId });
+    mariaSock.emit('chat_updated', { receiver_id: adminId });
+    await new Promise((r) => setTimeout(r, 500));
+    expect(count).toBe(1);
+  });
+});

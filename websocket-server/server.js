@@ -224,6 +224,20 @@ io.on('connection', (socket) => {
         if (!receiverId || receiverId === userId) return;
         io.to(`user_${receiverId}`).emit(data?.is_typing ? 'user_typing' : 'user_stop_typing', { sender_id: userId });
     });
+
+    // "Something in our chat changed" (a resolution question asked or answered, a
+    // report or inquiry status, a message sent over HTTP). Only a nudge: it carries
+    // no content, and the client reloads through the API, which checks access.
+    // Sent to the other person and to the sender's other tabs.
+    socket.on('chat_updated', (data) => {
+        const receiverId = toId(data?.receiver_id);
+        if (!receiverId || receiverId === userId) return;
+        const now = Date.now();
+        if (now - (socket.data.lastNudge || 0) < 300) return;
+        socket.data.lastNudge = now;
+        io.to(`user_${receiverId}`).emit('chat_updated', { other_user_id: userId });
+        socket.to(`user_${userId}`).emit('chat_updated', { other_user_id: receiverId });
+    });
 });
 
 const PORT = process.env.PORT || 3001;

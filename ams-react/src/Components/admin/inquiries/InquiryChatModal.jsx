@@ -17,6 +17,8 @@ import ChatAttachmentPreview from '../../form/ChatAttachmentPreview';
 import useChatScroll from '../../../hooks/useChatScroll';
 import useHasCamera from '../../../hooks/useHasCamera';
 import useFilePreview from '../../../hooks/useFilePreview';
+import { useChat } from '../../../context/ChatContext';
+import { CHAT_UPDATED_EVENT } from '../../../config/chatTopics';
 import { acceptFor, checkChatFile, FILE_RULES } from '../../../utils/fileLimits';
 
 // One inquiry as a chat (Admin → Inquiries): the conversation with a reply box on
@@ -76,6 +78,7 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
   const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
   const [asking, setAsking] = useState(false);
   const hasCamera = useHasCamera();
+  const { notifyChatChanged } = useChat();
   const cameraRef = useRef(null);
   const videoRef = useRef(null);
   const seenReported = useRef(false);
@@ -109,6 +112,16 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
     return () => { clearTimeout(first); clearInterval(timer); };
   }, [load]);
 
+  // An account holder answered or wrote (socket nudge, context/ChatContext.jsx):
+  // reload now instead of at the next poll. A guest has no socket; the poll covers it.
+  const accountUserId = thread?.channel === 'guest' ? null : Number(thread?.inquiry?.userId) || null;
+  useEffect(() => {
+    if (!accountUserId) return undefined;
+    const onUpdated = (e) => { if (Number(e.detail?.otherUserId) === accountUserId) load(); };
+    window.addEventListener(CHAT_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(CHAT_UPDATED_EVENT, onUpdated);
+  }, [accountUserId, load]);
+
   // New messages follow only while at the bottom; "Latest" brings them back.
   const { ref: scrollRef, atBottom, unseen, onScroll, toBottom } = useChatScroll(thread?.messages?.length || 0, `${inquiry.id}-${tab}`);
 
@@ -136,6 +149,7 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
       else { form.append('receiver_id', thread.inquiry.userId); form.append('inquiry_id', inquiry.id); }
       const res = await api.post(thread.channel === 'guest' ? 'guest_chat.php' : 'send_message.php', form, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (res.data?.success === false) throw new Error(res.data.message || 'The reply was not sent.');
+      if (accountUserId) notifyChatChanged?.(accountUserId);
       setDraft('');
       setAttachment(null);
       await load();
@@ -156,7 +170,10 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
     setSendError('');
     try {
       if (thread.channel === 'guest') await api.post('guest_chat.php', { thread_id: inquiry.id, action: 'resolution_check' });
-      else await api.post('chat_followup.php', { action: 'ask', topic: 'inquiry', id: inquiry.id });
+      else {
+        await api.post('chat_followup.php', { action: 'ask', topic: 'inquiry', id: inquiry.id });
+        notifyChatChanged?.(accountUserId);
+      }
       await load();
       toBottom();
     } catch (err) {

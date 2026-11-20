@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import useLoadState from '../hooks/useLoadState';
 import { CHAT_SOCKET_URL } from '../api/env';
 import { personName } from '../utils/personName';
+import { CHAT_UPDATED_EVENT } from '../config/chatTopics';
 
 const ChatContext = createContext();
 
@@ -25,6 +26,13 @@ export const ChatProvider = ({ children }) => {
     const historyPollRef = useRef(null);
     const conversationsPollRef = useRef(null);
     const socketRef = useRef(null);
+    // Set below: reloads one conversation when the other side says it changed.
+    const onChatUpdatedRef = useRef(null);
+    // The open chat has a resolution question nobody answered yet: poll it at full
+    // speed so the answer shows even without the socket nudge.
+    const pendingCheckRef = useRef(false);
+    const messagesRef = useRef([]);
+    useEffect(() => { messagesRef.current = messages; }, [messages]);
 
     const ensureSocketConnection = useCallback(() => {
         if (!userId || socketRef.current) return;
@@ -110,6 +118,15 @@ export const ChatProvider = ({ children }) => {
 
                 return matched ? updated : prev;
             });
+
+            const otherUserId = Number(normalizedMessage.sender_id) === Number(userId)
+                ? normalizedMessage.receiver_id : normalizedMessage.sender_id;
+            window.dispatchEvent(new CustomEvent(CHAT_UPDATED_EVENT, { detail: { otherUserId } }));
+        });
+
+        socket.on('chat_updated', (data) => {
+            const otherUserId = Number(data?.other_user_id);
+            if (otherUserId) onChatUpdatedRef.current?.(otherUserId);
         });
 
         socket.on('user_typing', ({ sender_id }) => {
@@ -200,6 +217,9 @@ export const ChatProvider = ({ children }) => {
             });
             if (response.data?.success) {
                 const refreshedMessages = response.data.messages || [];
+                // An answer can resolve the report or inquiry: refresh the banners too.
+                const answersChanged = messagesRef.current.some((message) => message.kind === 'resolution_check'
+                    && refreshedMessages.some((m) => String(m.id) === String(message.id) && (m.resolution_answer ?? null) !== (message.resolution_answer ?? null)));
                 setMessages((currentMessages) => {
                     const hasSameMessages = currentMessages.length === refreshedMessages.length
                         && currentMessages.every((message, index) => {
@@ -209,18 +229,35 @@ export const ChatProvider = ({ children }) => {
                                 && String(message.receiver_id) === String(refreshedMessage.receiver_id)
                                 && message.message === refreshedMessage.message
                                 && message.created_at === refreshedMessage.created_at
-                                && Number(message.is_read) === Number(refreshedMessage.is_read);
+                                && Number(message.is_read) === Number(refreshedMessage.is_read)
+                                // A resolution question changes in place when it is answered.
+                                && (message.kind || 'text') === (refreshedMessage.kind || 'text')
+                                && (message.resolution_answer ?? null) === (refreshedMessage.resolution_answer ?? null);
                         });
 
                     return hasSameMessages ? currentMessages : refreshedMessages;
                 });
+                if (Number(activeChatRef.current?.other_user_id) === Number(otherUserId)) {
+                    pendingCheckRef.current = refreshedMessages.some((m) => m.kind === 'resolution_check' && !m.resolution_answer);
+                }
+                if (answersChanged) fetchConversations();
                 return refreshedMessages;
             }
         } catch (error) {
             console.error('Error fetching chat history:', error);
         }
         return [];
-    }, [userId]);
+    }, [userId, fetchConversations]);
+
+    // Tell the other person's open chat (and this user's other tabs) to reload:
+    // the PHP endpoints (resolution questions, report and inquiry status, messages
+    // with a file) do not go through the socket. Without a socket the other side
+    // still catches up by polling.
+    const notifyChatChanged = useCallback((otherUserId) => {
+        const socket = socketRef.current;
+        const id = Number(otherUserId);
+        if (socket?.connected && id) socket.emit('chat_updated', { receiver_id: id });
+    }, []);
 
     const fetchAdminUser = useCallback(async () => {
         try {
@@ -328,6 +365,8 @@ export const ChatProvider = ({ children }) => {
                         msg.id === optimisticMessage.id ? response.data.message : msg
                     )));
                 }
+                // Sent over HTTP, so the socket did not tell the other side.
+                notifyChatChanged(receiver);
             }
 
             await refreshChatState();
@@ -336,7 +375,19 @@ export const ChatProvider = ({ children }) => {
             setMessages((prev) => prev.filter((msg) => msg.id !== optimisticMessage.id));
             throw error;
         }
-    }, [messages, refreshChatState, userId]);
+    }, [messages, notifyChatChanged, refreshChatState, userId]);
+
+    // The other side changed our conversation (chat_updated, websocket-server):
+    // reload the list (banners, unread) and the open chat if it is that one.
+    // Pages with their own view of a chat (Inquiries' chat window) listen for
+    // CHAT_UPDATED_EVENT.
+    useEffect(() => {
+        onChatUpdatedRef.current = (otherUserId) => {
+            fetchConversations();
+            if (Number(activeChatRef.current?.other_user_id) === otherUserId) fetchChatHistory(otherUserId);
+            window.dispatchEvent(new CustomEvent(CHAT_UPDATED_EVENT, { detail: { otherUserId } }));
+        };
+    }, [fetchChatHistory, fetchConversations]);
 
     const handleTyping = useCallback((receiverId, isTypingNow) => {
         const socket = socketRef.current;
@@ -428,7 +479,7 @@ export const ChatProvider = ({ children }) => {
         historyPollRef.current = window.setInterval(() => {
             if (document.hidden) return;
             historyTick += 1;
-            if (socketRef.current?.connected && historyTick % 6 !== 0) return;
+            if (socketRef.current?.connected && historyTick % 6 !== 0 && !pendingCheckRef.current) return;
             const currentChat = activeChatRef.current;
             if (currentChat?.other_user_id) {
                 const shouldMarkAsRead = document.visibilityState === 'visible'
@@ -476,6 +527,7 @@ export const ChatProvider = ({ children }) => {
                 fetchConversations,
                 conversationsStatus,
                 fetchChatHistory,
+                notifyChatChanged,
                 handleTyping,
                 openSupportChat,
                 socketStatus,

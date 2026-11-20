@@ -108,7 +108,7 @@ const AdminMessages = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     conversations = [], activeChat, setActiveChat, messages = [], sendMessage,
-    fetchChatHistory, userId, fetchConversations, conversationsStatus = 'ready',
+    fetchChatHistory, userId, fetchConversations, conversationsStatus = 'ready', notifyChatChanged,
   } = useChat();
   // Guest threads: loading | error | ready (polled; a failed poll keeps the list).
   const { state: guestStatus, ready: guestReady, fail: guestFail } = useLoadState();
@@ -230,6 +230,7 @@ const AdminMessages = () => {
     setComplaintBusy(true);
     try {
       await api.post('update_complaint_status.php', { complaintId: activeComplaint.id, status });
+      if (activeChat?.other_user_id) notifyChatChanged?.(activeChat.other_user_id);
       await fetchConversations?.();
     } catch (err) {
       setSendError(err?.response?.data?.message || 'Could not update the complaint. Please try again.');
@@ -410,6 +411,7 @@ const AdminMessages = () => {
     setSendError('');
     try {
       await api.post('chat_followup.php', { action: 'ask', topic, id });
+      notifyChatChanged?.(activeChat.other_user_id);
       await fetchChatHistory?.(activeChat.other_user_id);
       await fetchConversations?.();
     } catch (error) {
