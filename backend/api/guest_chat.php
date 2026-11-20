@@ -15,11 +15,11 @@ $isAdmin = $auth && $auth['role'] === 'admin';
 try {
     if ($isAdmin) {
         if (!$threadId) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Missing thread_id']); exit; }
-        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_verified_at, guest_chat_ended_at FROM inquiries WHERE id = ? AND thread_type = 'guest'");
+        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_verified_at, guest_chat_ended_at, status, closed_reason FROM inquiries WHERE id = ? AND thread_type = 'guest'");
         $find->bind_param('i', $threadId);
     } else {
         if (strlen($token) !== 64 || !ctype_xdigit($token)) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'Invalid guest token']); exit; }
-        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_chat_ended_at FROM inquiries WHERE guest_token = ? AND thread_type = 'guest'");
+        $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_chat_ended_at, status, closed_reason FROM inquiries WHERE guest_token = ? AND thread_type = 'guest'");
         $find->bind_param('s', $token);
     }
     $find->execute(); $thread = $find->get_result()->fetch_assoc(); $find->close();
@@ -92,6 +92,11 @@ try {
                 $pending->bind_param('s', $queueKey); $pending->execute();
                 $hasPending = (bool)$pending->get_result()->fetch_assoc(); $pending->close();
                 if (!$hasPending) notify_admins_queue($conn, 'inquiry', 'chat-' . $thread['id'], 'Guest Still Needs Help', "$who answered \"Not yet\" in their inquiry chat.");
+            }
+            // "Problem resolved" finishes the inquiry as Resolved (backend/inquiries.php).
+            if ($answer === 'resolved') {
+                try { resolve_inquiry_by_prospect($conn, $thread['id']); }
+                catch (Throwable $e) { error_log('guest_chat resolved: ' . $e->getMessage()); }
             }
             log_activity($conn, null, 'inquiry', 'Guest Answered Resolution Check', "Inquiry ID: {$thread['id']}; answer: $answer", 0);
             echo json_encode(['success'=>true,'answer'=>$answer]); exit;

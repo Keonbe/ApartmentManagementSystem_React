@@ -72,6 +72,10 @@ $SETTING_RULES = [
     'max_occupants_per_unit'   => ['type' => 'int', 'min' => 1, 'max' => 20, 'message' => 'Maximum occupants per unit must be a whole number between 1 and 20.'],
     'included_occupants'       => ['type' => 'int', 'min' => 1, 'max' => 20, 'message' => 'Occupants included in the rent must be a whole number between 1 and 20.', 'field' => 'Enter 1 to 20.'],
     'occupant_surcharge_per_person' => ['type' => 'float', 'min' => 0, 'max' => 100000, 'message' => 'The charge per extra person must be an amount from 0 to 100,000.', 'field' => 'Enter 0 to 100,000.'],
+    // Follow-up (SPRINT 226, Inquiries → settings): days of silence before an inquiry closes
+    // itself / an answered problem report resolves itself; 0 = never.
+    'inquiry_auto_close_days' => ['type' => 'int', 'min' => 0, 'max' => 365, 'message' => 'Auto-close must be a whole number of days from 0 (never) to 365.', 'field' => 'Enter 0 to 365 days.'],
+    'complaint_auto_resolve_days' => ['type' => 'int', 'min' => 0, 'max' => 365, 'message' => 'Auto-resolve must be a whole number of days from 0 (never) to 365.', 'field' => 'Enter 0 to 365 days.'],
     'inquiry_move_in_max_months' => ['type' => 'int', 'min' => 1, 'max' => 24, 'message' => 'The inquiry move-in limit must be a whole number of months from 1 to 24.', 'field' => 'Enter 1 to 24 months.'],
     'min_household_age'        => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The minimum household age must be a whole number from 0 to 17.'],
     'child_restricted_below_age' => ['type' => 'int', 'min' => 0, 'max' => 17, 'message' => 'The child age limit must be a whole number from 0 to 17.'],

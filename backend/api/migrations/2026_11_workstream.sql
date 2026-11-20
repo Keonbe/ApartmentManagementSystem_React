@@ -779,3 +779,38 @@ SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema 
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
 UPDATE `inquiries` SET `admin_seen_at` = `updated_at`, `updated_at` = `updated_at` WHERE `admin_seen_at` IS NULL AND `status` <> 'New';
+
+-- ===== chat_followups =====
+-- (SPRINT 226) "Is it resolved?" in account chats, like guest chats already have:
+-- messages.kind = 'resolution_check' is the office asking (about an inquiry or a
+-- problem report), answered by the tenant with resolution_answer. inquiry_id ties a
+-- message to the inquiry it answers (Inquiries chat window). Two follow-up settings:
+-- an inquiry nobody replied to for N days closes itself, a report the office
+-- answered and the tenant left for N days resolves itself (0 = never).
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'kind') = 0,
+  'ALTER TABLE `messages` ADD COLUMN `kind` enum(''text'',''resolution_check'') NOT NULL DEFAULT ''text''', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'resolution_answer') = 0,
+  'ALTER TABLE `messages` ADD COLUMN `resolution_answer` enum(''resolved'',''not_yet'') DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'resolution_answered_at') = 0,
+  'ALTER TABLE `messages` ADD COLUMN `resolution_answered_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'inquiry_id') = 0,
+  'ALTER TABLE `messages` ADD COLUMN `inquiry_id` int(11) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'messages' AND index_name = 'idx_messages_inquiry') = 0,
+  'ALTER TABLE `messages` ADD KEY `idx_messages_inquiry` (`inquiry_id`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = 'messages' AND constraint_name = 'fk_messages_inquiry') = 0,
+  'ALTER TABLE `messages` ADD CONSTRAINT `fk_messages_inquiry` FOREIGN KEY (`inquiry_id`) REFERENCES `inquiries` (`id`) ON DELETE SET NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+('inquiry_auto_close_days', '30'),
+('complaint_auto_resolve_days', '14');

@@ -27,11 +27,17 @@ import { useLang, dateLocale } from '../config/i18n';
 import { GUEST_CHAT_OPENED_EVENT } from '../config/appEvents';
 import ResolutionCheck from './chat/ResolutionCheck';
 import askConfirm from '../utils/askConfirm';
-import ComplaintPanel from './ComplaintPanel';
+import TopicBanner from './chat/TopicBanner';
+import JumpToLatest from './chat/JumpToLatest';
+import useChatScroll from '../hooks/useChatScroll';
+import useHasCamera from '../hooks/useHasCamera';
+import { INQUIRY_TONES, REPORT_TONES } from '../config/chatTopics';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
 const GUEST_BADGE_CLASS = 'ml-1.5 shrink-0 text-blue-600 font-semibold text-xs';
+// Problem report categories (file_complaint.php, COMPLAINT_CATEGORIES in config.php).
+const REPORT_CATEGORIES = ['Maintenance', 'Billing', 'Neighbor', 'Noise', 'Staff', 'Other'];
 
 const ChatWidget = () => {
     const navigate = useNavigate();
@@ -83,9 +89,11 @@ const ChatWidget = () => {
 
     // A guest thread's messages and whether it has ended (guest_chat.php GET).
     const [guestEnded, setGuestEnded] = useState(false);
+    const [guestThread, setGuestThread] = useState(null); // its inquiry status, for the banner
     const applyGuestResponse = (response, role = 'guest') => {
         setGuestMessages(normalizeGuestMessages(response.data?.messages || [], role));
         setGuestEnded(Boolean(response.data?.thread?.ended));
+        setGuestThread(response.data?.thread || null);
     };
 
     // Offered once the guest answers "Problem resolved". The chat is closed on
@@ -185,10 +193,6 @@ const ChatWidget = () => {
         };
     }, [guestToken]);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
     const formatMessageDateTime = (date) => {
         if (!date) return '';
         const parsed = new Date(date);
@@ -214,13 +218,12 @@ const ChatWidget = () => {
         });
     };
 
-    // A guest has no activeChat (one thread, no list), so it is checked on its own:
-    // guest chats never scrolled to the newest message or the end-chat prompt.
-    useEffect(() => {
-        if (isChatOpen && (activeChat || isGuestChat)) {
-            scrollToBottom();
-        }
-    }, [messages, activeMessages, isChatOpen, activeChat, isGuestChat]);
+    // New messages keep the view at the bottom only while the reader is there; a
+    // "Latest" button brings them back (hooks/useChatScroll.js). A guest has no
+    // activeChat (one thread), so the open state is part of the key.
+    const chatKey = `${isChatOpen}-${activeChat?.thread_id ?? activeChat?.other_user_id ?? (isGuestChat ? 'guest' : '')}`;
+    const { ref: scrollRef, atBottom, unseen, onScroll: onChatScroll, toBottom: scrollToLatest } = useChatScroll(displayedMessages.length, chatKey);
+    const hasCamera = useHasCamera();
 
     useEffect(() => {
         if (!guestToken || userId || !isChatOpen) return undefined;
@@ -305,6 +308,27 @@ const ChatWidget = () => {
         finally { setResolutionBusy(false); }
     };
 
+    // "Is it resolved?" in an account chat (chat_followup.php): the tenant / prospect answers.
+    const answerAccountResolution = async (messageId, answer) => {
+        if (resolutionBusy || !activeChat) return;
+        setResolutionBusy(true);
+        try {
+            await api.post('chat_followup.php', { action: 'answer', message_id: messageId, answer });
+            await fetchChatHistory?.(activeChat.other_user_id);
+            await fetchConversations?.();
+            setSendError('');
+        } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
+        finally { setResolutionBusy(false); }
+    };
+    const markReportFixed = async (complaintId) => {
+        if (!(await askConfirm(t('chat.report.fixedConfirm'), { tone: 'primary', confirmLabel: t('chat.report.markFixed') }))) return;
+        try {
+            await api.post('chat_followup.php', { action: 'resolve_report', complaint_id: complaintId });
+            await fetchConversations?.();
+            setSendError('');
+        } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
+    };
+
     const askIfResolved = async () => {
         if (resolutionBusy || !activeChat?.thread_id) return;
         setResolutionBusy(true);
@@ -333,6 +357,7 @@ const ChatWidget = () => {
             setAttachment(null);
             setReplyingTo(null);
             setSendError(''); // an earlier failure no longer applies
+            scrollToLatest();
             const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
         applyGuestResponse(response);
         } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
@@ -389,6 +414,7 @@ const ChatWidget = () => {
                     if (handleTyping) {
                         handleTyping(activeChat.other_user_id, false);
                     }
+                    scrollToLatest();
                 })
                 .catch((err) => {
                     // Keep the input text so the user can retry, and say why it failed.
@@ -427,11 +453,52 @@ const ChatWidget = () => {
         );
     };
 
-    // The tenant's unresolved complaint (SPRINT 189) rides on the thread with the office.
+    // What the chat is about (get_conversations.php: the latest inquiry and problem
+    // report, open or finished in the last week; guest_chat.php: the guest's inquiry).
     const isTenantChat = Boolean(userId) && userRole !== 'admin';
     const supportConv = isTenantChat ? conversations.find((c) => c.is_admin) : null;
-    const supportComplaint = supportConv?.complaint ?? null;
-    const complaintFiled = async () => { await openSupportChat?.(); await fetchConversations?.(); };
+    const isAdmin = userRole === 'admin';
+    const activeConv = activeChat && activeChat.thread_type !== 'guest'
+        ? conversations.find((c) => String(c.other_user_id) === String(activeChat.other_user_id)) || activeChat
+        : null;
+    const chatReport = activeConv?.complaint ?? null;
+    const chatInquiry = activeConv?.inquiry ?? null;
+    const guestInquiry = isGuestChat
+        ? (guestThread ? { status: guestThread.status, unit: guestThread.unit_of_interest } : null)
+        : isAdminGuestChat ? { status: activeChat.inquiry_status, unit: activeChat.unit_of_interest } : null;
+    const topicInquiry = chatInquiry || guestInquiry;
+    const reportOpen = Boolean(chatReport) && chatReport.status !== 'Resolved';
+    const inquiryTitle = (unit) => (isAdmin ? `Inquiry${unit ? ` · Unit ${unit}` : ''}` : unit ? t('chat.topic.inquiryUnit', { unit }) : t('chat.topic.inquiry'));
+    const topicStatus = (status) => (isAdmin ? status : t(`chat.topic.status.${status}`));
+    // Report a problem (file_complaint.php) is a mode of the composer: pick what it is
+    // about, describe it, send. Later messages in the chat follow the report.
+    const [reportMode, setReportMode] = useState(false);
+    const [reportCategory, setReportCategory] = useState('Maintenance');
+    const startReport = async () => {
+        if (!activeChat) await openSupportChat?.();
+        setReportMode(true);
+        setSendError('');
+    };
+    const sendReport = async (event) => {
+        event.preventDefault();
+        const message = newMessage.trim();
+        if (isSending) return;
+        if (message.length < 5) { setSendError(t('complaint.tooShort')); return; }
+        setIsSending(true);
+        try {
+            await api.post('file_complaint.php', { category: reportCategory, message });
+            // A photo or video goes in right after; it joins the report on the server.
+            if (attachment && activeChat) await sendMessage(activeChat.other_user_id, '', attachment);
+            setNewMessage('');
+            setAttachment(null);
+            setReportMode(false);
+            setSendError('');
+            if (activeChat) await fetchChatHistory?.(activeChat.other_user_id);
+            await fetchConversations?.();
+            scrollToLatest();
+        } catch (error) { setSendError(apiErrorMessage(error, t('complaint.failed'))); }
+        finally { setIsSending(false); }
+    };
 
     const handleInputChange = (e) => {
         const value = e.target.value;
@@ -581,20 +648,33 @@ const ChatWidget = () => {
                                 ))
                             )}
                             </div>
-                            {isTenantChat && openSupportChat && (
+                            {isTenantChat && openSupportChat && !(supportConv?.complaint && supportConv.complaint.status !== 'Resolved') && (
                                 <div className="shrink-0 border-t border-slate-100 p-2 text-center">
-                                    <ComplaintPanel complaint={supportComplaint} onFiled={complaintFiled} />
+                                    <button type="button" onClick={startReport} className="min-h-[40px] rounded-full border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 cursor-pointer hover:bg-rose-50">
+                                        {t('chat.report.start')}
+                                    </button>
                                 </div>
                             )}
                         </div>
                     ) : (
                         /* Active Conversation Message Stream */
-                        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
-                            {isTenantChat && activeChat && activeChat.thread_type !== 'guest' && (
-                                <div className="shrink-0 text-center">
-                                    <ComplaintPanel complaint={supportComplaint} onFiled={complaintFiled} />
-                                </div>
-                            )}
+                        <div className="relative flex flex-1 min-h-0 flex-col">
+                        {chatReport && (
+                            <TopicBanner kind="report" title={isAdmin ? `Problem report · ${chatReport.category}` : t('chat.topic.report', { category: t(`complaint.cat.${chatReport.category}`) })}
+                                status={isAdmin ? chatReport.status : t(`complaint.status.${chatReport.status}`)} tone={REPORT_TONES[chatReport.status]}
+                                note={chatReport.awaitingAnswer ? (isAdmin ? 'Asked if it is fixed' : t('chat.topic.asked')) : (!isAdmin && reportOpen ? t('chat.report.openNote') : null)}>
+                                {isTenantChat && reportOpen && (
+                                    <button type="button" onClick={() => markReportFixed(chatReport.id)} className="min-h-[28px] rounded-full border border-emerald-200 bg-white px-2.5 text-[11px] font-bold text-emerald-700 cursor-pointer hover:bg-emerald-50">
+                                        {t('chat.report.markFixed')}
+                                    </button>
+                                )}
+                            </TopicBanner>
+                        )}
+                        {topicInquiry && topicInquiry.status && (
+                            <TopicBanner kind="inquiry" title={inquiryTitle(topicInquiry.unit)} status={topicStatus(topicInquiry.status)} tone={INQUIRY_TONES[topicInquiry.status]}
+                                note={topicInquiry.awaitingAnswer ? (isAdmin ? 'Asked if it is resolved' : t('chat.topic.asked')) : null} />
+                        )}
+                        <div ref={scrollRef} onScroll={onChatScroll} className="flex flex-1 min-h-0 flex-col overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
                             {/* Takes the free space above the messages, so a short chat sits at
                                 the bottom next to the input (like Messenger). It shrinks to
                                 nothing once the messages fill the window, so scrolling works. */}
@@ -611,9 +691,10 @@ const ChatWidget = () => {
                                             <div id={`chat-message-${msg.id}`} key={messageKey} className="message-enter mb-3">
                                                 <ResolutionCheck
                                                     message={msg}
-                                                    viewer={isGuestChat ? 'guest' : 'admin'}
+                                                    viewer={isAdmin ? 'admin' : 'guest'}
+                                                    account={!isGuestChat && !isAdminGuestChat}
                                                     busy={resolutionBusy}
-                                                    onAnswer={(answer) => answerResolution(msg.id, answer)}
+                                                    onAnswer={(answer) => (isGuestChat ? answerResolution(msg.id, answer) : answerAccountResolution(msg.id, answer))}
                                                     t={t}
                                                 />
                                             </div>
@@ -704,6 +785,8 @@ const ChatWidget = () => {
                             )}
                             <div ref={messagesEndRef} />
                         </div>
+                        {!atBottom && <JumpToLatest count={unseen} onClick={() => scrollToLatest()} label={t('chat.latest')} />}
+                        </div>
                     )}
 
                     {/* Input Field Section */}
@@ -738,14 +821,37 @@ const ChatWidget = () => {
                                     </button>}
                                 </div>
                             )}
-                            <form onSubmit={isGuestChat ? sendGuestMessage : handleSendMessage} className="flex items-center gap-1">
+                            {isTenantChat && activeChat && activeChat.thread_type !== 'guest' && !reportOpen && (
+                                reportMode ? (
+                                    <div className="mb-2 rounded-xl border border-rose-200 bg-rose-50/60 p-2">
+                                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                                            <span className="text-xs font-bold text-rose-800">{t('chat.report.mode')}</span>
+                                            <button type="button" onClick={() => { setReportMode(false); setSendError(''); }} className="border-0 bg-transparent p-0 text-xs font-semibold text-slate-600 underline cursor-pointer">{t('chat.report.cancel')}</button>
+                                        </div>
+                                        <div role="radiogroup" aria-label={t('chat.report.what')} className="flex flex-wrap gap-1">
+                                            {REPORT_CATEGORIES.map((c) => (
+                                                <button key={c} type="button" role="radio" aria-checked={reportCategory === c} onClick={() => setReportCategory(c)}
+                                                    className={`min-h-[28px] rounded-full border px-2.5 text-[11px] font-semibold cursor-pointer ${reportCategory === c ? 'border-rose-500 bg-rose-600 text-white' : 'border-rose-200 bg-white text-rose-700 hover:bg-rose-50'}`}>
+                                                    {t(`complaint.cat.${c}`)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="mb-1.5 flex justify-end px-1">
+                                        <button type="button" onClick={startReport} className="border-0 bg-transparent p-0 text-xs font-semibold text-rose-700 cursor-pointer hover:underline">{t('chat.report.start')}</button>
+                                    </div>
+                                )
+                            )}
+                            <form onSubmit={isGuestChat ? sendGuestMessage : reportMode && isTenantChat ? sendReport : handleSendMessage} className="flex items-center gap-1">
                                 <div className="flex shrink-0 items-center gap-1">
                                 <label className="relative flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors focus-within:ring-2 focus-within:ring-indigo-500" title={t('chat.attachTitle')}><FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /><span className="sr-only">{t('chat.attach')}</span><input type="file" accept={CHAT_ACCEPT} className="sr-only" onChange={pickAttachment} /></label>
-                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label={t('chat.takePhoto')} title={t('chat.takePhotoTitle')} className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} aria-hidden="true" /></button>
+                                {/* Take a photo / record a video only where there is a camera (else the attach button covers it). */}
+                                {hasCamera && <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label={t('chat.takePhoto')} title={t('chat.takePhotoTitle')} className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} aria-hidden="true" /></button>}
                                 </div>
-                                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label={t('chat.recordVideo')} title={t('chat.recordVideoTitle')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} aria-hidden="true" /></button>
-                                <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
+                                {hasCamera && <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />}
+                                {hasCamera && <button type="button" onClick={() => videoInputRef.current?.click()} aria-label={t('chat.recordVideo')} title={t('chat.recordVideoTitle')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} aria-hidden="true" /></button>}
+                                {hasCamera && <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />}
                                 <div className="flex h-10 min-w-0 flex-1 items-center rounded-2xl bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
                                 <input
                                     type="text"
@@ -759,17 +865,17 @@ const ChatWidget = () => {
                                     maxLength={LIMITS.message}
                                     value={newMessage}
                                     onChange={(e) => { handleInputChange(e); if (sendError) setSendError(''); }}
-                                    placeholder={t('chat.placeholder')}
+                                    placeholder={reportMode && isTenantChat ? t('chat.report.placeholder') : t('chat.placeholder')}
                                     className="h-full flex-1 min-w-0 bg-transparent px-2 text-base sm:text-sm outline-none border-0"
                                 />
                                 </div>
                                 <button
                                     type="submit"
                                     disabled={isSending || (!newMessage.trim() && !attachment)}
-                                    className="w-11 h-11 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-40 transition-all border-0 cursor-pointer shrink-0"
-                                    aria-label={t('chat.send')}
+                                    className="w-11 h-11 flex items-center justify-center bg-transparent text-indigo-600 rounded-full hover:text-indigo-800 hover:bg-indigo-50 disabled:text-slate-300 disabled:bg-transparent transition-colors border-0 cursor-pointer disabled:cursor-not-allowed shrink-0"
+                                    aria-label={reportMode && isTenantChat ? t('complaint.send') : t('chat.send')}
                                 >
-                                    <FontAwesomeIcon icon={faPaperPlane} className="text-sm" aria-hidden="true" />
+                                    <FontAwesomeIcon icon={faPaperPlane} className="text-lg" aria-hidden="true" />
                                 </button>
                             </form>
                             <FieldError id="chat-message" error={sendError} className="px-2" />

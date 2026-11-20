@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from '../Components/AdminSidebar';
@@ -20,6 +20,11 @@ import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
 import ResolutionCheck from '../Components/chat/ResolutionCheck';
+import TopicBanner from '../Components/chat/TopicBanner';
+import JumpToLatest from '../Components/chat/JumpToLatest';
+import useChatScroll from '../hooks/useChatScroll';
+import useHasCamera from '../hooks/useHasCamera';
+import { INQUIRY_TONES, REPORT_TONES } from '../config/chatTopics';
 import { textIn } from '../config/i18n';
 
 // The admin side is in English whatever language the tenant pages use.
@@ -97,6 +102,7 @@ const TenantAvatar = ({ conversation, sizeClass = 'w-11 h-11' }) => {
 
 // Moves the admin can make (mirrors COMPLAINT_TRANSITIONS in config.php).
 const COMPLAINT_NEXT = { 'Open': ['In Review', 'Resolved'], 'In Review': ['Resolved'], 'Resolved': ['In Review'] };
+const TOPIC_BTN = 'inline-flex min-h-[28px] items-center rounded-full border border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-700 cursor-pointer hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed';
 
 const AdminMessages = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -207,6 +213,17 @@ const AdminMessages = () => {
   const activeComplaint = activeChat && activeChat.thread_type !== 'guest'
     ? conversations.find((c) => String(c.other_user_id) === String(activeChat.other_user_id))?.complaint ?? null
     : null;
+  // The inquiry the open chat is about (guest thread = the inquiry itself; account
+  // chat = the person's latest inquiry, get_conversations.php), read from the lists
+  // so its status follows them.
+  const activeInquiry = !activeChat ? null
+    : activeChat.thread_type === 'guest'
+      ? (() => { const live = guestThreads.find((g) => String(g.thread_id) === String(activeChat.thread_id)) || activeChat; return { id: live.thread_id, unit: live.unit_of_interest, status: live.inquiry_status }; })()
+      : conversations.find((c) => String(c.other_user_id) === String(activeChat.other_user_id))?.inquiry ?? null;
+  // New messages follow only while at the bottom; "Latest" brings them back.
+  const shownCount = (activeChat?.thread_type === 'guest' ? guestMessages : messages).length;
+  const { ref: scrollRef, atBottom, unseen, onScroll: onChatScroll, toBottom: scrollToLatest } = useChatScroll(shownCount, activeChat ? `${activeChat.thread_type}-${activeChat.thread_id ?? activeChat.other_user_id}` : '');
+  const hasCamera = useHasCamera();
   const [complaintBusy, setComplaintBusy] = useState(false);
   const moveComplaint = async (status) => {
     if (!activeComplaint || complaintBusy) return;
@@ -244,7 +261,7 @@ const AdminMessages = () => {
       registered: current.filter((conversation) => !isGuestConversation(conversation)).length,
       guest: current.filter(isGuestConversation).length,
       archived: all.length - current.length,
-      complaints: current.filter((conversation) => conversation.complaint).length,
+      complaints: current.filter((conversation) => conversation.complaint && conversation.complaint.status !== 'Resolved').length,
     };
   }, [conversations, guestThreads]);
 
@@ -254,7 +271,7 @@ const AdminMessages = () => {
   const visibleConversations = filteredConversations.filter((conversation) => (
     search.trim() ? true
       : conversationFilter === 'archived' ? conversation.archived
-      : conversationFilter === 'complaints' ? !!conversation.complaint
+      : conversationFilter === 'complaints' ? Boolean(conversation.complaint && conversation.complaint.status !== 'Resolved')
       : !conversation.archived && (
         conversationFilter === 'all'
         || (conversationFilter === 'guest' && isGuestConversation(conversation))
@@ -386,6 +403,22 @@ const AdminMessages = () => {
     }
   };
 
+  // "Is it resolved?" in an account chat (chat_followup.php): an inquiry or a problem report.
+  const askInAccountChat = async (topic, id) => {
+    if (asking || !activeChat) return;
+    setAsking(true);
+    setSendError('');
+    try {
+      await api.post('chat_followup.php', { action: 'ask', topic, id });
+      await fetchChatHistory?.(activeChat.other_user_id);
+      await fetchConversations?.();
+    } catch (error) {
+      setSendError(apiErrorMessage(error, 'The question was not sent. Please try again.'));
+    } finally {
+      setAsking(false);
+    }
+  };
+
   const handleSend = async (event) => {
     event.preventDefault();
     const message = draft.trim();
@@ -486,10 +519,13 @@ const AdminMessages = () => {
                           <span className="flex min-w-0 items-center overflow-hidden font-semibold text-body text-slate-900">
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
-                            {conversation.complaint && (
-                              <span className="ml-1.5 shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700" title={`Complaint: ${conversation.complaint.category}`}>
-                                Complaint · {conversation.complaint.status}
+                            {conversation.complaint && conversation.complaint.status !== 'Resolved' && (
+                              <span className="ml-1.5 shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700" title={`Problem report: ${conversation.complaint.category}`}>
+                                Report · {conversation.complaint.status}
                               </span>
+                            )}
+                            {conversation.inquiry && !['Converted', 'Resolved', 'Closed'].includes(conversation.inquiry.status) && !isGuestConversation(conversation) && (
+                              <span className="ml-1.5 shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700" title="Has an open inquiry">Inquiry</span>
                             )}
                             {conversation.archived && (
                               <span className="ml-1.5 shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
@@ -522,37 +558,6 @@ const AdminMessages = () => {
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
                     <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
                     <div className="min-w-0"><h3 className="m-0 text-body font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
-                    {activeComplaint && (
-                      <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-                        <span className="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-caption font-semibold text-rose-700">
-                          Complaint: {activeComplaint.category} · {activeComplaint.status}
-                        </span>
-                        {(COMPLAINT_NEXT[activeComplaint.status] || []).map((next) => (
-                          <button key={next} type="button" disabled={complaintBusy} onClick={() => moveComplaint(next)}
-                            className="min-h-[36px] rounded-full border border-rose-200 bg-white px-3 text-label font-bold text-rose-700 cursor-pointer hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                            {next === 'Resolved' ? 'Mark resolved' : next === 'In Review' ? 'Start review' : 'Reopen'}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {activeChat.thread_type === 'guest' && (
-                      <div className="ml-auto flex shrink-0 items-center gap-2">
-                        {(checkPending || guestResolved || guestEnded) && (
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-caption font-semibold ${guestEnded ? 'bg-slate-100 text-slate-600' : guestResolved ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                            {guestEnded ? 'Chat ended' : guestResolved ? 'Resolved' : 'Waiting for answer'}
-                          </span>
-                        )}
-                        {!guestResolved && !guestEnded && <button
-                          type="button"
-                          onClick={askIfResolved}
-                          disabled={asking || !adminHasReplied || checkPending}
-                          title={adminHasReplied ? tEn('chat.resolution.askHint') : 'Reply to the guest first.'}
-                          className="min-h-[36px] rounded-full border border-indigo-200 bg-indigo-50 px-3 text-label font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {tEn('chat.resolution.ask')}
-                        </button>}
-                      </div>
-                    )}
                     {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-control border border-slate-200 bg-white px-2 py-1.5 text-label text-slate-600" aria-live="polite">
                       {activeMessageMatches.length ? <>
                         <span>Match {activeMatchIndex + 1} of {activeMessageMatches.length}</span>
@@ -561,7 +566,45 @@ const AdminMessages = () => {
                       </> : <span>No matches in this chat</span>}
                     </div>}
                   </header>
-                  <div ref={messagesContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
+                  {/* What this chat is about, with its next step (SPRINT 226). */}
+                  {activeComplaint && (
+                    <TopicBanner kind="report" title={`Problem report #${activeComplaint.id} · ${activeComplaint.category}`} status={activeComplaint.status}
+                      tone={REPORT_TONES[activeComplaint.status]} note={activeComplaint.awaitingAnswer ? 'Asked if it is fixed' : null} className="px-4 md:px-6">
+                      {activeComplaint.status !== 'Resolved' && !activeComplaint.awaitingAnswer && (
+                        <button type="button" disabled={asking} onClick={() => askInAccountChat('complaint', activeComplaint.id)} title={'Sends the tenant "Is the problem fixed?" with Yes, fixed / Not yet.'} className={TOPIC_BTN}>
+                          {tEn('chat.resolution.askReport')}
+                        </button>
+                      )}
+                      {(COMPLAINT_NEXT[activeComplaint.status] || []).map((next) => (
+                        <button key={next} type="button" disabled={complaintBusy} onClick={() => moveComplaint(next)} className={TOPIC_BTN}>
+                          {next === 'Resolved' ? 'Mark resolved' : next === 'In Review' ? (activeComplaint.status === 'Resolved' ? 'Reopen' : 'Start review') : 'Reopen'}
+                        </button>
+                      ))}
+                    </TopicBanner>
+                  )}
+                  {activeInquiry && activeInquiry.status && (
+                    <TopicBanner kind="inquiry" title={`Inquiry${activeInquiry.unit ? ` · Unit ${activeInquiry.unit}` : ''}`} status={activeInquiry.status}
+                      tone={INQUIRY_TONES[activeInquiry.status]} className="px-4 md:px-6"
+                      note={activeChat.thread_type === 'guest'
+                        ? (guestEnded ? 'Chat ended' : checkPending ? 'Asked if it is resolved' : guestResolved ? 'They said it is resolved' : null)
+                        : activeInquiry.awaitingAnswer ? 'Asked if it is resolved' : null}>
+                      {!['Converted', 'Resolved', 'Closed'].includes(activeInquiry.status) && (activeChat.thread_type === 'guest'
+                        ? (!guestResolved && !guestEnded && (
+                          <button type="button" onClick={askIfResolved} disabled={asking || !adminHasReplied || checkPending}
+                            title={adminHasReplied ? tEn('chat.resolution.askHint') : 'Reply to the guest first.'} className={TOPIC_BTN}>
+                            {tEn('chat.resolution.ask')}
+                          </button>
+                        ))
+                        : !activeInquiry.awaitingAnswer && (
+                          <button type="button" disabled={asking} onClick={() => askInAccountChat('inquiry', activeInquiry.id)} title={'Sends them "Did this answer your question?" with Problem resolved / Not yet.'} className={TOPIC_BTN}>
+                            {tEn('chat.resolution.ask')}
+                          </button>
+                        ))}
+                      <Link to={`/admin-inquiries?open=${activeInquiry.id}`} className={`${TOPIC_BTN} no-underline`}>Open inquiry</Link>
+                    </TopicBanner>
+                  )}
+                  <div className="relative flex min-h-0 flex-1 flex-col">
+                  <div ref={(node) => { messagesContainerRef.current = node; scrollRef.current = node; }} onScroll={onChatScroll} className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
                     {/* Short threads sit at the bottom, by the input (like Messenger). */}
                     <div aria-hidden="true" className="flex-1" />
                     {(activeChat.thread_type === 'guest' ? guestMessages : messages).length === 0 ? <p className="text-center text-body text-slate-500 mt-10">No messages in this conversation yet.</p> : (activeChat.thread_type === 'guest' ? normalizeGuestMessages(guestMessages) : messages).map((message, index) => {
@@ -569,7 +612,7 @@ const AdminMessages = () => {
                       if (message.kind === 'resolution_check') {
                         return (
                           <div id={`chat-message-${message.id}`} key={messageKey} className="message-enter">
-                            <ResolutionCheck message={message} viewer="admin" t={tEn} />
+                            <ResolutionCheck message={message} viewer="admin" account={activeChat.thread_type !== 'guest'} t={tEn} />
                           </div>
                         );
                       }
@@ -651,6 +694,8 @@ const AdminMessages = () => {
                       );
                     })}
                   </div>
+                  {!atBottom && <JumpToLatest count={unseen} onClick={() => scrollToLatest()} />}
+                  </div>
                   {activeChat.thread_type === 'guest' && guestEnded ? (
                     <p className="m-0 shrink-0 border-t border-slate-100 bg-white p-4 text-center text-body text-slate-500">
                       {tEn('chat.endedNoticeAdmin')}
@@ -663,11 +708,11 @@ const AdminMessages = () => {
                     <form onSubmit={handleSend} className={`relative z-10 p-3 md:p-4 flex shrink-0 items-center gap-1 bg-white ${replyingTo || attachment ? '' : 'border-t border-slate-100'}`}>
                     <div className="flex shrink-0 items-center gap-1">
                     <label className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
-                    <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} /></button>
+                    {hasCamera && <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with the camera" title="Take a photo with the camera (max 10 MB)" className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} /></button>}
                     </div>
-                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                    <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} /></button>
-                    <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
+                    {hasCamera && <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />}
+                    {hasCamera && <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with the camera" title="Record a video with the camera (max 25 MB)" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} /></button>}
+                    {hasCamera && <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />}
                     <div className="flex h-10 min-w-0 flex-1 items-center rounded-card bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
                       <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
                         aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
@@ -675,7 +720,7 @@ const AdminMessages = () => {
                         onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
                         placeholder="Write a reply..." className="h-full w-full min-w-0 px-2 bg-transparent border-0 focus:outline-none text-body" />
                     </div>
-                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
+                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-transparent text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 disabled:bg-transparent disabled:text-slate-300 disabled:cursor-not-allowed border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPaperPlane} className="text-lg" /></button>
                   </form>
                   <div className="px-3 md:px-4 pb-2">
                     <FieldError id="admin-reply" error={sendError} />

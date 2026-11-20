@@ -8,6 +8,7 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 }
 
 require_once __DIR__ . "/../config.php";
+require_once __DIR__ . "/../followups.php";
 
 $user_id = intval($_SERVER["HTTP_X_USER_ID"] ?? $_SERVER["HTTP_X_ADMIN_ID"] ?? 0);
 $search = trim((string) ($_GET['search'] ?? ''));
@@ -135,21 +136,41 @@ try {
         ];
     }
 
-    // The unresolved complaint of each conversation (one query for the whole list):
-    // the other person's own, or, in a tenant's chat with the office, the tenant's.
+    // What each conversation is about (SPRINT 226), one query per kind for the whole
+    // list: the other person's own, or, in a tenant's chat with the office, the
+    // tenant's. complaint = the latest problem report that is open or was resolved
+    // in the last 7 days; inquiry = the latest inquiry that is open or finished in
+    // the last 7 days. The chat shows them as a banner with the status.
     $ids = array_values(array_unique(array_merge([(int)$user_id], array_column($conversations, 'other_user_id'))));
-    $open_complaints = [];
+    $complaints = [];
+    $inquiries = [];
     if ($ids) {
-        $res = $conn->query("SELECT id, user_id, category, status FROM complaints
-                              WHERE user_id IN (" . implode(',', array_map('intval', $ids)) . ") AND status IN ('Open', 'In Review')
-                              ORDER BY id ASC");
+        $in = implode(',', array_map('intval', $ids));
+        $res = $conn->query("SELECT c.id, c.user_id, c.category, c.status, c.resolved_at,
+                                    (SELECT m.resolution_answer IS NULL FROM messages m WHERE m.complaint_id = c.id AND m.kind = 'resolution_check' ORDER BY m.id DESC LIMIT 1) AS asking
+                               FROM complaints c
+                              WHERE c.user_id IN ($in) AND (c.status IN ('Open', 'In Review') OR c.resolved_at >= NOW() - INTERVAL 7 DAY)
+                              ORDER BY c.id ASC");
         while ($res && ($c = $res->fetch_assoc())) {
-            $open_complaints[(int)$c['user_id']] = ['id' => (int)$c['id'], 'category' => $c['category'], 'status' => $c['status']];
+            $complaints[(int)$c['user_id']] = ['id' => (int)$c['id'], 'category' => $c['category'], 'status' => $c['status'],
+                'resolvedAt' => $c['resolved_at'], 'awaitingAnswer' => (bool)$c['asking'] && $c['status'] !== 'Resolved'];
+        }
+        $res = $conn->query("SELECT i.id, i.user_id, i.room_name, i.status, i.closed_reason,
+                                    (SELECT m.resolution_answer IS NULL FROM messages m WHERE m.inquiry_id = i.id AND m.kind = 'resolution_check' ORDER BY m.id DESC LIMIT 1) AS asking
+                               FROM inquiries i
+                              WHERE i.user_id IN ($in) AND (i.status NOT IN ('Converted', 'Resolved', 'Closed') OR i.updated_at >= NOW() - INTERVAL 7 DAY)
+                              ORDER BY i.id ASC");
+        while ($res && ($r = $res->fetch_assoc())) {
+            $inquiries[(int)$r['user_id']] = ['id' => (int)$r['id'], 'unit' => $r['room_name'], 'status' => $r['status'],
+                'closedReason' => $r['closed_reason'], 'awaitingAnswer' => (bool)$r['asking'] && !in_array($r['status'], INQUIRY_DONE_STATUSES, true)];
         }
     }
     foreach ($conversations as $i => $conv) {
-        $conversations[$i]['complaint'] = $open_complaints[$conv['other_user_id']]
-            ?? (($conv['is_admin'] ?? false) ? ($open_complaints[(int)$user_id] ?? null) : null);
+        // Always the non-office side: the tenant's own in a tenant's chat with the
+        // office, the other person's in the admin's list.
+        $who = ($conv['is_admin'] ?? false) ? (int)$user_id : (int)$conv['other_user_id'];
+        $conversations[$i]['complaint'] = $complaints[$who] ?? null;
+        $conversations[$i]['inquiry'] = $inquiries[$who] ?? null;
     }
 
     echo json_encode(["success" => true, "conversations" => $conversations]);

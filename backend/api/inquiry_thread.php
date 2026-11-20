@@ -92,7 +92,7 @@ try {
             $uid = (int)$inq['user_id'];
             // The account conversation between this prospect and the signed-in
             // admin (as in Messages), from the day of the inquiry on.
-            $q = $conn->prepare("SELECT id, sender_id, message, attachment_path, created_at FROM messages
+            $q = $conn->prepare("SELECT id, sender_id, message, attachment_path, created_at, kind, resolution_answer FROM messages
                                  WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
                                    AND created_at >= ?
                                  ORDER BY created_at ASC, id ASC LIMIT 300");
@@ -102,8 +102,8 @@ try {
             foreach ($q->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
                 $messages[] = [
                     'id' => 'm' . $row['id'], 'from' => (int)$row['sender_id'] === $uid ? 'prospect' : 'admin',
-                    'kind' => 'text', 'text' => (string)$row['message'], 'attachment' => $row['attachment_path'],
-                    'createdAt' => $row['created_at'], 'resolutionAnswer' => null,
+                    'kind' => $row['kind'] ?: 'text', 'text' => (string)$row['message'], 'attachment' => $row['attachment_path'],
+                    'createdAt' => $row['created_at'], 'resolutionAnswer' => $row['resolution_answer'],
                 ];
             }
             $q->close();

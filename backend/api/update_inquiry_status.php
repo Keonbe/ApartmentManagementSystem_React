@@ -23,7 +23,8 @@ $admin_notes   = isset($input['admin_notes']) ? trim($input['admin_notes']) : nu
 $viewing_date  = isset($input['viewing_date']) ? trim($input['viewing_date']) : null;
 $closed_reason = isset($input['closed_reason']) ? trim($input['closed_reason']) : null;
 
-$allowed = ['New', 'Contacted', 'Scheduled', 'Reserved', 'Converted', 'Closed'];
+// Resolved (SPRINT 226): their question was answered, a good end; Closed: they dropped out.
+$allowed = ['New', 'Contacted', 'Scheduled', 'Reserved', 'Converted', 'Resolved', 'Closed'];
 
 if ($id <= 0) {
     echo json_encode(["success" => false, "message" => "A valid inquiry ID is required."]);
@@ -81,7 +82,7 @@ $stmt->close();
 log_activity($conn, $admin_id_int, 'inquiry', "Updated Inquiry Status", "Inquiry ID: $id, New Status: $status");
 
 // A converted or closed inquiry no longer waits for a unit.
-if ($status === 'Converted' || $status === 'Closed') {
+if ($status === 'Converted' || $status === 'Resolved' || $status === 'Closed') {
     $wl = $conn->prepare("SELECT id FROM unit_waitlist WHERE inquiry_id = ? AND status IN ('Waiting', 'Notified')");
     $wl->bind_param("i", $id);
     $wl->execute();
@@ -107,6 +108,7 @@ if (!empty($inquiry['user_id'])) {
         'Scheduled' => "A unit viewing$unit has been scheduled for " . ($viewing_date ? date('M j, Y g:i A', strtotime($viewing_date)) : 'a confirmed date') . ".",
         'Reserved'  => "Good news — a unit$unit has been reserved for you.",
         'Converted' => "Your inquiry$unit has moved forward to a rent application.",
+        'Resolved'  => "Your inquiry$unit is marked resolved. Message us any time if you need more help.",
         'Closed'    => "Your inquiry$unit has been closed." . ($closed_reason ? " Reason: $closed_reason" : ""),
     ];
 

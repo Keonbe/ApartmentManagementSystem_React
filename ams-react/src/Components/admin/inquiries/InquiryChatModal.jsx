@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTimes, faPaperPlane, faEnvelope, faPhone, faBuilding, faCalendarAlt, faUsers,
   faCircleQuestion, faCircleCheck, faHourglassHalf, faCommentSlash, faArrowUpRightFromSquare, faPaperclip,
+  faCamera, faVideo,
 } from '@fortawesome/free-solid-svg-icons';
 import api, { API_WRITE_EVENT } from '../../../api/axiosConfig';
 import fileUrl from '../../../api/fileUrl';
@@ -11,6 +12,12 @@ import { apiErrorMessage } from '../../../utils/apiError';
 import Modal from '../Modal';
 import PersonAvatar from '../PersonAvatar';
 import { btn } from '../ui/styles';
+import JumpToLatest from '../../chat/JumpToLatest';
+import ChatAttachmentPreview from '../../form/ChatAttachmentPreview';
+import useChatScroll from '../../../hooks/useChatScroll';
+import useHasCamera from '../../../hooks/useHasCamera';
+import useFilePreview from '../../../hooks/useFilePreview';
+import { acceptFor, checkChatFile, FILE_RULES } from '../../../utils/fileLimits';
 
 // One inquiry as a chat (Admin → Inquiries): the conversation with a reply box on
 // the left, the inquiry's details and actions (`children`, from AdminInquiries)
@@ -23,6 +30,7 @@ import { btn } from '../ui/styles';
 //   <InquiryChatModal inquiry={row} statusBadge={<span…/>} meta="Received …" onClose onChanged>{actions}</InquiryChatModal>
 const POLL_MS = 8000;
 const MAX_LEN = 4000;
+const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 
 const parseDb = (v) => (v ? new Date(String(v).replace(' ', 'T')) : null);
 const timeLabel = (v) => {
@@ -39,10 +47,14 @@ const fmtDay = (v) => {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 };
 const isImage = (path) => /\.(jpe?g|png|gif|webp)$/i.test(path || '');
+const isVideo = (path) => /\.(mp4|webm|mov)$/i.test(path || '');
 
 function Attachment({ path, mine }) {
   if (!path) return null;
   const url = fileUrl(path);
+  if (isVideo(path)) {
+    return <video src={url} controls playsInline preload="metadata" className="mt-1.5 block max-h-56 max-w-full rounded-xl bg-black" aria-label="Video attachment" />;
+  }
   return isImage(path) ? (
     <a href={url} target="_blank" rel="noreferrer" className="mt-1.5 block overflow-hidden rounded-xl">
       <img src={url} alt="Attachment" className="max-h-56 w-auto max-w-full object-contain" />
@@ -61,8 +73,11 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [tab, setTab] = useState('chat'); // phones: chat | details
-  const listRef = useRef(null);
-  const lastCount = useRef(0);
+  const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
+  const [asking, setAsking] = useState(false);
+  const hasCamera = useHasCamera();
+  const cameraRef = useRef(null);
+  const videoRef = useRef(null);
   const seenReported = useRef(false);
   const onChangedRef = useRef(onChanged);
   useEffect(() => { onChangedRef.current = onChanged; }, [onChanged]);
@@ -94,28 +109,37 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
     return () => { clearTimeout(first); clearInterval(timer); };
   }, [load]);
 
-  // Keep the newest message in view when one arrives.
-  const count = thread?.messages?.length || 0;
-  useEffect(() => {
-    if (count !== lastCount.current && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-    lastCount.current = count;
-  }, [count, tab]);
+  // New messages follow only while at the bottom; "Latest" brings them back.
+  const { ref: scrollRef, atBottom, unseen, onScroll, toBottom } = useChatScroll(thread?.messages?.length || 0, `${inquiry.id}-${tab}`);
+
+  // All three pickers go through the same check as the server.
+  const pickAttachment = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const error = checkChatFile(file);
+    setSendError(error);
+    if (!error) setAttachment(file);
+  };
 
   const send = async (e) => {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text || sending || !thread?.canReply) return;
+    if ((!text && !attachment) || sending || !thread?.canReply) return;
     setSending(true);
     setSendError('');
     try {
-      const res = thread.channel === 'guest'
-        ? await api.post('guest_chat.php', { thread_id: inquiry.id, message: text })
-        : await api.post('send_message.php', { receiver_id: thread.inquiry.userId, message: text, inquiry_id: inquiry.id });
+      const form = new FormData();
+      form.append('message', text);
+      if (attachment) form.append('attachment', attachment);
+      if (thread.channel === 'guest') form.append('thread_id', inquiry.id);
+      else { form.append('receiver_id', thread.inquiry.userId); form.append('inquiry_id', inquiry.id); }
+      const res = await api.post(thread.channel === 'guest' ? 'guest_chat.php' : 'send_message.php', form, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (res.data?.success === false) throw new Error(res.data.message || 'The reply was not sent.');
       setDraft('');
+      setAttachment(null);
       await load();
+      toBottom();
       onChangedRef.current?.();
     } catch (err) {
       setSendError(apiErrorMessage(err, err?.message || 'The reply was not sent. Please try again.'));
@@ -124,7 +148,29 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
     }
   };
 
+  // "Is it resolved?": a guest chat asks through guest_chat.php, an account chat
+  // through chat_followup.php. The prospect's "resolved" makes the inquiry Resolved.
+  const ask = async () => {
+    if (asking || !thread?.canReply) return;
+    setAsking(true);
+    setSendError('');
+    try {
+      if (thread.channel === 'guest') await api.post('guest_chat.php', { thread_id: inquiry.id, action: 'resolution_check' });
+      else await api.post('chat_followup.php', { action: 'ask', topic: 'inquiry', id: inquiry.id });
+      await load();
+      toBottom();
+    } catch (err) {
+      setSendError(apiErrorMessage(err, 'The question was not sent. Please try again.'));
+    } finally {
+      setAsking(false);
+    }
+  };
+
   const messages = thread?.messages || [];
+  const lastCheck = [...messages].reverse().find((m) => m.kind === 'resolution_check');
+  const checkWaiting = Boolean(lastCheck) && !lastCheck.resolutionAnswer;
+  const hasReplied = messages.some((m) => m.from === 'admin' && m.kind === 'text');
+  const finished = ['Converted', 'Resolved', 'Closed'].includes(thread?.inquiry?.status || inquiry.status);
   const isNew = (thread?.inquiry?.status || inquiry.status) === 'New';
   const replyHint = isNew ? 'Sending a reply marks this inquiry as contacted.' : 'Enter sends, Shift + Enter adds a line.';
 
@@ -182,8 +228,9 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
 
       <div className="flex min-h-0 flex-1">
         {/* Conversation */}
-        <section aria-label="Conversation" className={`${tab === 'chat' ? 'flex' : 'hidden'} lg:flex min-w-0 flex-1 flex-col bg-slate-50`}>
-          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6" aria-live="polite">
+        <section aria-label="Conversation" className={`${tab === 'chat' ? 'flex' : 'hidden'} lg:flex relative min-w-0 flex-1 flex-col bg-slate-50`}>
+          <div className="relative flex min-h-0 flex-1 flex-col">
+          <div ref={scrollRef} onScroll={onScroll} className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6" aria-live="polite">
             {!thread && !loadError && <p className="py-10 text-center text-label text-slate-500">Loading the conversation…</p>}
             {loadError && (
               <div className="rounded-card border border-red-200 bg-red-50 p-3 text-label text-red-700">
@@ -241,6 +288,9 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
             })}
           </div>
 
+          {!atBottom && <JumpToLatest count={unseen} onClick={() => toBottom()} />}
+          </div>
+
           {/* Reply box, or why there is none */}
           <div className="border-t border-slate-200 bg-white px-4 py-3 sm:px-6 shrink-0">
             {thread && !thread.canReply ? (
@@ -250,7 +300,22 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
               </p>
             ) : (
               <form onSubmit={send} className="space-y-1.5">
-                <div className="flex items-end gap-2">
+                {attachment && <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />}
+                <div className="flex items-end gap-1.5">
+                  <div className="flex shrink-0 items-center pb-1">
+                    <label className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 cursor-pointer" title="Attach an image or video (images up to 10 MB, videos up to 25 MB)">
+                      <FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /><span className="sr-only">Attach a file</span>
+                      <input type="file" accept={CHAT_ACCEPT} className="sr-only" onChange={pickAttachment} disabled={!thread || sending} />
+                    </label>
+                    {hasCamera && (
+                      <>
+                        <button type="button" onClick={() => cameraRef.current?.click()} aria-label="Take a photo" title="Take a photo (max 10 MB)" className="flex h-9 w-9 items-center justify-center rounded-full border-0 bg-transparent text-slate-500 hover:bg-slate-100 cursor-pointer"><FontAwesomeIcon icon={faCamera} aria-hidden="true" /></button>
+                        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
+                        <button type="button" onClick={() => videoRef.current?.click()} aria-label="Record a video" title="Record a video (max 25 MB)" className="flex h-9 w-9 items-center justify-center rounded-full border-0 bg-transparent text-slate-500 hover:bg-slate-100 cursor-pointer"><FontAwesomeIcon icon={faVideo} aria-hidden="true" /></button>
+                        <input ref={videoRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
+                      </>
+                    )}
+                  </div>
                   <label htmlFor="inquiry-reply" className="sr-only">Reply to {inquiry.fullName}</label>
                   <textarea
                     id="inquiry-reply"
@@ -263,18 +328,28 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
                     placeholder={`Reply to ${inquiry.fullName.split(' ')[0]}…`}
                     className="min-h-[2.75rem] max-h-40 flex-1 resize-y rounded-control border border-slate-300 bg-white px-3 py-2 text-body text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
                   />
-                  <button type="submit" disabled={!draft.trim() || sending || !thread} className={btn('primary', 'md', 'h-11 shrink-0')} aria-label="Send reply">
-                    <FontAwesomeIcon icon={faPaperPlane} /> <span className="hidden sm:inline">{sending ? 'Sending…' : 'Send'}</span>
+                  <button type="submit" disabled={(!draft.trim() && !attachment) || sending || !thread} aria-label={sending ? 'Sending' : 'Send reply'} title="Send"
+                    className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 disabled:bg-transparent disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer transition-colors">
+                    <FontAwesomeIcon icon={faPaperPlane} className="text-lg" />
                   </button>
                 </div>
-                {sendError
-                  ? <p role="alert" className="m-0 text-caption font-semibold text-red-600">{sendError}</p>
-                  : <p className="m-0 text-caption text-slate-500">{replyHint}</p>}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {sendError
+                    ? <p role="alert" className="m-0 text-caption font-semibold text-red-600">{sendError}</p>
+                    : <p className="m-0 text-caption text-slate-500">{checkWaiting ? 'Asked if it is resolved: waiting for their answer.' : replyHint}</p>}
+                  {!finished && !checkWaiting && (
+                    <button type="button" onClick={ask} disabled={asking || !hasReplied}
+                      title={hasReplied ? 'Sends them "Did this answer your question?" with Problem resolved / Not yet. "Resolved" marks the inquiry resolved.' : 'Reply first, then ask.'}
+                      className="inline-flex min-h-[28px] items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 text-caption font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                      <FontAwesomeIcon icon={faCircleQuestion} aria-hidden="true" /> Ask if resolved
+                    </button>
+                  )}
+                </div>
               </form>
             )}
             {thread?.channel === 'guest' && (
               <Link to={`/admin-messages?guest_thread_id=${inquiry.id}`} className="mt-2 inline-flex items-center gap-1.5 text-caption font-semibold text-indigo-700 no-underline hover:underline">
-                Open in Messages (attachments, ask if resolved) <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="text-[10px]" aria-hidden="true" />
+                Open in Messages <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="text-[10px]" aria-hidden="true" />
               </Link>
             )}
           </div>

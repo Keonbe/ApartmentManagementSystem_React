@@ -1304,13 +1304,19 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `attachment_path` varchar(255) DEFAULT NULL,
   `reply_to_id` int(11) DEFAULT NULL,
   `complaint_id` int(11) DEFAULT NULL,
+  `kind` enum('text','resolution_check') NOT NULL DEFAULT 'text',
+  `resolution_answer` enum('resolved','not_yet') DEFAULT NULL,
+  `resolution_answered_at` datetime DEFAULT NULL,
+  `inquiry_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_sender` (`sender_id`),
   KEY `async_receiver` (`receiver_id`),
   KEY `idx_messages_complaint` (`complaint_id`),
+  KEY `idx_messages_inquiry` (`inquiry_id`),
   CONSTRAINT `fk_messages_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_messages_complaint` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_messages_complaint` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_messages_inquiry` FOREIGN KEY (`inquiry_id`) REFERENCES `inquiries` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- House rules shown on the listing, inquiry and application forms, edited in
@@ -1658,6 +1664,10 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('room_preview_mode', 'images'),
 -- Upper bound on a unit's occupant count (lease holder + household members).
 ('max_occupants_per_unit', '8'),
+-- Follow-up (2026_11_workstream.sql chat_followups): days of silence before an
+-- inquiry closes itself / an answered problem report resolves itself; 0 = never.
+('inquiry_auto_close_days', '30'),
+('complaint_auto_resolve_days', '14'),
 -- Tenant Glass theme backdrop (Other Settings -> Glass Mode): '' image = the
 -- built-in photo; overlay 0-95 %, blur 0-20 px, tint #rrggbb.
 ('glass_bg_image', ''),

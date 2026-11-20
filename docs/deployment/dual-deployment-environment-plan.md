@@ -300,7 +300,7 @@ php backend/cron/check_environment.php
 2. Run the check one last time and expect `OK: 0 errors`.
 3. Upload a test file (for example a profile picture) and confirm it displays.
 4. If payments are set up, run a sandbox payment and confirm you return to your own site.
-5. Schedule the daily sweep (`backend/cron/daily_sweep.php`) with cron or Windows Task Scheduler, as described at the top of that file.
+5. Schedule the daily sweep (`backend/cron/daily_sweep.php`; since 2026-11-20 it also closes quiet inquiries and resolves answered problem reports, Inquiries → gear) with cron or Windows Task Scheduler, as described at the top of that file.
 
 ### Step 8 — Updating later
 

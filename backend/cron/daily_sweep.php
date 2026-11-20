@@ -16,11 +16,15 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../followups.php';
 
 $result = run_notification_sweep($conn, true);
 unset($result['ran']);
 $result += void_lapsed_payments($conn);
 $result += purge_expired_cctv_footage($conn);
+// Quiet inquiries close, answered problem reports resolve (Inquiries → settings).
+$result['inquiries_auto_closed'] = close_stale_inquiries($conn);
+$result['reports_auto_resolved'] = resolve_stale_complaints($conn);
 
 echo '[' . date('Y-m-d H:i:s') . "] Notification sweep\n";
 foreach ($result as $key => $value) {

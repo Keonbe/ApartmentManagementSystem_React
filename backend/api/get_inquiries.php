@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "../config.php";
-require_once __DIR__ . '/../inquiries.php';
+require_once __DIR__ . '/../followups.php';
 
 // Auto-create tables if not exists (same pattern as get_utility_readings.php)
 $conn->query("CREATE TABLE IF NOT EXISTS `inquiries` (
@@ -71,6 +71,8 @@ if (!verify_admin($conn, $admin_id)) {
 
 // Release any holds that lapsed since the last look, so the board is accurate.
 $expired_count = release_expired_reservations($conn);
+// Inquiries and reports that went quiet (Inquiry settings; backend/followups.php).
+run_followup_sweep($conn);
 
 $inquiries = [];
 $query = "SELECT i.id,

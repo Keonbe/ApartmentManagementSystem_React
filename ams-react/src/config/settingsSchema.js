@@ -36,6 +36,8 @@ export const SETTINGS_SCHEMA = [
   { key: 'moveInMinDays', db: 'move_in_min_days', type: 'int', default: 0 },                        // a preferred move-in date is at least this many days away (0 = today)
   { key: 'moveInMaxDays', db: 'move_in_max_days', type: 'int', default: 365 },                      // ...and at most this many
   { key: 'inquiryMoveInMaxMonths', db: 'inquiry_move_in_max_months', type: 'int', default: 6, min: 1 }, // Send an Inquiry: move-in date today to +N months
+  { key: 'inquiryAutoCloseDays', db: 'inquiry_auto_close_days', type: 'int', default: 30, min: 0 },     // Inquiries → settings: quiet days before an inquiry closes itself (0 = never)
+  { key: 'complaintAutoResolveDays', db: 'complaint_auto_resolve_days', type: 'int', default: 14, min: 0 }, // quiet days before an answered problem report resolves itself (0 = never)
   { key: 'leaseEndReminderDays', db: 'lease_end_reminder_days', type: 'int', default: 30 },        // a term is "ending soon" this many days before it ends (0 = only on the day)
   // Other Settings → Contract End (ranges match update_system_settings.php).
   { key: 'extensionDeadlineDays', db: 'extension_deadline_days', type: 'int', default: 0, min: 0 }, // tenants may ask to extend until this many days before the end; 0 = no deadline

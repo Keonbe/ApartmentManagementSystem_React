@@ -159,11 +159,23 @@ try {
         $attachmentPath = 'uploads/messages/' . $filename;
     }
 
-    $stmt = $conn->prepare("INSERT INTO messages (sender_id, receiver_id, message, attachment_path, reply_to_id, complaint_id) VALUES (?, ?, ?, ?, ?, ?)");
+    // inquiry_id counts only from an admin, for an inquiry of the receiver.
+    if ($inquiry_id) {
+        $isTheirs = false;
+        if (($roles[$sender_id] ?? '') === 'admin') {
+            $own = $conn->prepare('SELECT id FROM inquiries WHERE id = ? AND user_id = ?');
+            $own->bind_param('ii', $inquiry_id, $receiver_id);
+            $own->execute();
+            $isTheirs = (bool)$own->get_result()->fetch_assoc();
+            $own->close();
+        }
+        if (!$isTheirs) $inquiry_id = null;
+    }
+    $stmt = $conn->prepare("INSERT INTO messages (sender_id, receiver_id, message, attachment_path, reply_to_id, complaint_id, inquiry_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
     if (!$stmt) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
-    $stmt->bind_param('iissii', $sender_id, $receiver_id, $message, $attachmentPath, $reply_to_id, $complaint_id);
+    $stmt->bind_param('iissiii', $sender_id, $receiver_id, $message, $attachmentPath, $reply_to_id, $complaint_id, $inquiry_id);
     $stmt->execute();
 
     $newMessage = [
@@ -174,6 +186,8 @@ try {
         'attachment_path' => $attachmentPath,
         'reply_to_id' => $reply_to_id,
         'complaint_id' => $complaint_id,
+        'inquiry_id' => $inquiry_id,
+        'kind' => 'text',
         'reply_message' => null,
         'created_at' => date('Y-m-d H:i:s'),
         'is_read' => 0,
@@ -184,14 +198,9 @@ try {
     }
 
     // The message is saved: a failure below is logged, never reported as a failed send.
-    if ($inquiry_id && ($roles[$sender_id] ?? '') === 'admin') {
+    if ($inquiry_id) {
         try {
-            $own = $conn->prepare('SELECT id FROM inquiries WHERE id = ? AND user_id = ?');
-            $own->bind_param('ii', $inquiry_id, $receiver_id);
-            $own->execute();
-            $isTheirs = (bool)$own->get_result()->fetch_assoc();
-            $own->close();
-            if ($isTheirs) mark_inquiry_contacted($conn, $inquiry_id, $sender_id);
+            mark_inquiry_contacted($conn, $inquiry_id, $sender_id);
         } catch (Throwable $e) {
             error_log('send_message inquiry contacted: ' . $e->getMessage());
         }

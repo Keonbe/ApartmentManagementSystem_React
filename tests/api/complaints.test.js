@@ -91,11 +91,11 @@ describe('the conversation follows the complaint', () => {
   it('the admin inbox and the tenant widget both show the open complaint', async () => {
     const inbox = await api('get_conversations.php', { token: admin });
     const row = inbox.body.conversations.find((c) => c.other_user_id === MARIA);
-    expect(row.complaint).toEqual({ id: complaintId, category: 'Noise', status: 'Open' });
+    expect(row.complaint).toEqual(expect.objectContaining({ id: complaintId, category: 'Noise', status: 'Open', awaitingAnswer: false }));
     expect(inbox.body.conversations.find((c) => c.other_user_id === JOSE)?.complaint ?? null).toBeNull();
 
     const mine = await api('get_conversations.php', { token: maria });
-    expect(mine.body.conversations.find((c) => c.is_admin).complaint).toEqual({ id: complaintId, category: 'Noise', status: 'Open' });
+    expect(mine.body.conversations.find((c) => c.is_admin).complaint).toEqual(expect.objectContaining({ id: complaintId, category: 'Noise', status: 'Open' }));
   });
 });
 

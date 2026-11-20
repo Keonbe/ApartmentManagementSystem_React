@@ -1,26 +1,31 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCircleQuestion, faCircleCheck, faClock } from '@fortawesome/free-solid-svg-icons';
 
-// The admin's "Did this answer your question?" in a guest inquiry chat
-// (guest_messages.kind = 'resolution_check', guest_chat.php). The guest gets the
-// two answers as buttons until one is picked; afterwards both sides see it.
-//   viewer   'guest' (the inquiry widget) or 'admin' (widget and Messages page)
-//   onAnswer (answer) => void, guest only: 'resolved' | 'not_yet'
-export default function ResolutionCheck({ message, viewer, onAnswer, busy = false, t }) {
+// The office's "Is it resolved?" in a chat: a guest inquiry chat (guest_messages,
+// guest_chat.php) or an account chat about an inquiry or a problem report
+// (messages.kind = 'resolution_check', chat_followup.php). The person asked gets
+// the two answers as buttons until one is picked; afterwards both sides see it.
+//   viewer   'guest' = the person asked (guest, tenant, prospect) or 'admin'
+//   onAnswer (answer) => void, for the person asked: 'resolved' | 'not_yet'
+//   account  an account chat (the admin sees "They answered...", not "Guest answered...")
+// A message with complaint_id is about a problem report: "Is the problem fixed?".
+export default function ResolutionCheck({ message, viewer, onAnswer, busy = false, t, account = false }) {
   const answer = message.resolution_answer;
   const isGuest = viewer === 'guest';
+  const report = Boolean(message.complaint_id);
+  const them = account ? 'they' : 'guest';
   const status = answer === 'resolved'
-    ? { icon: faCircleCheck, cls: 'text-emerald-700', text: t(isGuest ? 'chat.resolution.youResolved' : 'chat.resolution.guestResolved') }
+    ? { icon: faCircleCheck, cls: 'text-emerald-700', text: t(isGuest ? 'chat.resolution.youResolved' : `chat.resolution.${them}Resolved`) }
     : answer === 'not_yet'
-      ? { icon: faClock, cls: 'text-amber-700', text: t(isGuest ? 'chat.resolution.youNotYet' : 'chat.resolution.guestNotYet') }
-      : isGuest ? null : { icon: faClock, cls: 'text-slate-500', text: t('chat.resolution.waiting') };
+      ? { icon: faClock, cls: 'text-amber-700', text: t(isGuest ? 'chat.resolution.youNotYet' : `chat.resolution.${them}NotYet`) }
+      : isGuest ? null : { icon: faClock, cls: 'text-slate-500', text: t(account ? 'chat.resolution.waitingThem' : 'chat.resolution.waiting') };
 
   return (
     <div className={`flex ${isGuest ? 'justify-start' : 'justify-end'}`}>
       <div className="w-full max-w-[85%] rounded-2xl border border-indigo-200 bg-white p-3 shadow-sm animate-fade-in-up">
         <p className="m-0 flex items-center gap-2 text-sm font-bold text-slate-900">
           <FontAwesomeIcon icon={faCircleQuestion} className="text-indigo-600" aria-hidden="true" />
-          {t('chat.resolution.question')}
+          {t(report ? 'chat.resolution.reportQuestion' : 'chat.resolution.question')}
         </p>
         {isGuest && !answer ? (
           <div role="group" aria-label={t('chat.resolution.question')} className="mt-3 grid grid-cols-2 gap-2">
@@ -30,7 +35,7 @@ export default function ResolutionCheck({ message, viewer, onAnswer, busy = fals
               onClick={() => onAnswer?.('resolved')}
               className="min-h-[40px] rounded-xl border-0 bg-emerald-600 px-3 text-sm font-bold text-white cursor-pointer transition-[background-color,transform] hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-50"
             >
-              {t('chat.resolution.resolved')}
+              {t(report ? 'chat.resolution.fixed' : 'chat.resolution.resolved')}
             </button>
             <button
               type="button"

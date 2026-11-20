@@ -6,7 +6,7 @@ import {
   faEnvelopeOpenText, faSearch, faSync, faTimes, faCheckCircle,
   faBuilding, faCalendarAlt, faPhone, faEnvelope, faBookmark, faPlus,
   faBan, faArrowRight, faHourglassHalf, faComment, faListOl,
-  faArrowDownShortWide, faArrowDownWideShort
+  faArrowDownShortWide, faArrowDownWideShort, faGear,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { LIMITS, MAX_AMOUNT, checkAmount, checkEmail, checkIntRange, checkLength, checkPersonName, checkPhMobile, checkText, localDateString, localTimeString, maxFutureDate, normalizeEmail, toPhE164 } from '../utils/validation';
@@ -30,6 +30,7 @@ import { PANEL, TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import SelectMenu from '../Components/admin/ui/SelectMenu';
 import InquiryChatModal from '../Components/admin/inquiries/InquiryChatModal';
+import FollowUpSettingsModal from '../Components/admin/inquiries/FollowUpSettingsModal';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
@@ -37,7 +38,8 @@ import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 // and not closed. "All" is last, for looking something up.
 const OPEN_STATUSES = ['new', 'contacted', 'scheduled', 'reserved'];
 // No separate New tab: Open includes them, and each new (not yet contacted) row is marked.
-const INQUIRY_TABS = ['open', 'contacted', 'scheduled', 'reserved', 'converted', 'closed', 'all'];
+// Resolved (their question was answered) and Closed (they dropped out) both end an inquiry.
+const INQUIRY_TABS = ['open', 'contacted', 'scheduled', 'reserved', 'converted', 'resolved', 'closed', 'all'];
 const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
 const TAB_LABELS = { open: 'Open' };
 const SORTS = [
@@ -96,7 +98,7 @@ const sortByAge = (list, sort) => [...list].sort((a, b) => {
 });
 
 export default function AdminInquiries() {
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [inquiries, setInquiries] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -146,6 +148,7 @@ export default function AdminInquiries() {
   const [busy, setBusy] = useState(''); // which action is in flight
   // { kind: 'closeInquiry' | 'cancelHold', id } while a reason is being entered (was window.prompt()).
   const [reasonFor, setReasonFor] = useState(null);
+  const [showSettings, setShowSettings] = useState(false); // the gear: follow-up settings
 
   // Keys match the endpoints' body fields.
   const detailErrors = useFieldErrors({
@@ -402,6 +405,18 @@ export default function AdminInquiries() {
     }
   };
 
+  // ?open=ID (a chat's "Open inquiry" link): opened once the list is in, then dropped from the URL.
+  const openParam = searchParams.get('open');
+  const [openedFromLink, setOpenedFromLink] = useState(null);
+  if (openParam && openParam !== openedFromLink && !loading) {
+    const target = inquiries.find((i) => String(i.id) === openParam);
+    setOpenedFromLink(openParam);
+    if (target) setTimeout(() => {
+      openDetail(target);
+      setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('open'); return next; }, { replace: true });
+    }, 0);
+  }
+
   const openInquiryById = (id) => {
     const inquiry = inquiries.find(i => i.id === id);
     if (inquiry) openDetail(inquiry);
@@ -454,6 +469,7 @@ export default function AdminInquiries() {
       Scheduled: 'bg-amber-100 text-amber-700',
       Reserved: 'bg-violet-100 text-violet-700',
       Converted: 'bg-emerald-100 text-emerald-700',
+      Resolved: 'bg-teal-50 text-teal-800',
       Closed: 'bg-slate-100 text-slate-600',
     };
     return map[status] || 'bg-slate-100 text-slate-600';
@@ -549,6 +565,15 @@ export default function AdminInquiries() {
                   title="Release reservations whose hold period has lapsed"
                 >
                   <FontAwesomeIcon icon={faHourglassHalf} /> Release Expired
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(true)}
+                  className={btn('secondary', 'sm', 'w-8 shrink-0 px-0')}
+                  title="Follow-up settings: when quiet inquiries and problem reports finish themselves"
+                  aria-label="Inquiry settings"
+                >
+                  <FontAwesomeIcon icon={faGear} />
                 </button>
               </div>
             </div>
@@ -842,6 +867,16 @@ export default function AdminInquiries() {
               <div role="status" className="rounded-card border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-label font-medium text-emerald-800">{notice}</div>
             )}
 
+            {liveSelected.status === 'Resolved' && (
+              <div role="note" className="flex items-start gap-3 rounded-card border border-teal-200 bg-teal-50/60 p-3">
+                <FontAwesomeIcon icon={faCheckCircle} className="mt-0.5 text-teal-600" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="m-0 text-label font-semibold text-teal-900">Resolved</p>
+                  <p className="m-0 mt-0.5 text-label text-teal-900/80">{liveSelected.closedReason || 'Their question was answered.'}</p>
+                  <p className="m-0 mt-1 text-caption text-slate-500">Mark it contacted or schedule a viewing to reopen it.</p>
+                </div>
+              </div>
+            )}
             {liveSelected.status === 'Closed' && (
               <div role="note" className="flex items-start gap-3 rounded-card border border-slate-200 bg-slate-50 p-3">
                 <FontAwesomeIcon icon={faBan} className="mt-0.5 text-slate-400" aria-hidden="true" />
@@ -927,6 +962,21 @@ export default function AdminInquiries() {
                   <FontAwesomeIcon icon={faArrowRight} className="text-emerald-600" /> Converted
                 </button>
               </div>
+              {!['Converted', 'Resolved', 'Closed'].includes(liveSelected.status) && (
+                <button
+                  type="button"
+                  disabled={!!busy}
+                  onClick={async () => {
+                    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
+                    const ok = await updateInquiry({ id: liveSelected.id, status: 'Resolved', admin_notes: notes.trim(), closed_reason: 'Question answered' });
+                    if (ok) setNotice('Marked as resolved.');
+                  }}
+                  className={btn('secondary', 'sm', 'w-full')}
+                  title="Their question is answered and nothing else is needed"
+                >
+                  <FontAwesomeIcon icon={faCheckCircle} className="text-teal-600" /> Mark resolved
+                </button>
+              )}
             </section>
 
             {!['Converted', 'Closed'].includes(liveSelected.status) && (
@@ -1226,6 +1276,8 @@ export default function AdminInquiries() {
             </div>
           </Modal>
       )}
+
+      {showSettings && <FollowUpSettingsModal onClose={() => setShowSettings(false)} onSaved={loadData} />}
 
       {reasonFor && (
         <ReasonModal

@@ -867,7 +867,11 @@ Admin: sees tenant replies in a "Tenant Messages" admin page
 
 ---
 
-## 12. Complaints Management (7.7), as built (SPRINT 189, 2026-11-14)
+## 12. Complaints Management (7.7), as built (SPRINT 189, 2026-11-14; reworked 2026-11-20, SPRINT 226)
+
+**Since 2026-11-20** a problem report works like an inquiry, entirely in the chat (no form panel): the tenant taps "Report a problem" under the composer (or in the conversation list), picks what it is about as chips, describes it and sends (`file_complaint.php`; a photo or video goes in right after and joins the report). A banner on top of the chat shows the report and its status on both sides; the tenant can tap "It's fixed" (`chat_followup.php` `resolve_report`). The office answers in the chat and, from the banner in Messages, starts the review, asks "Is the problem fixed?" (a `resolution_check` message, answered with Yes, fixed / Not yet), marks it resolved or reopens it. A report the office answered last and the tenant left for `complaint_auto_resolve_days` (default 14, 0 = never) resolves itself and the tenant is told. `ComplaintPanel.jsx` is gone. The rest of this section is the 2026-11-14 design it builds on.
+
+**All chats (2026-11-20)**: the camera / video buttons show only where the device has a camera (`hooks/useHasCamera.js`); the send button is a coloured icon without a background; scrolled up, new messages no longer pull the view down and a "Latest messages" button (with the count of new ones) jumps back (`hooks/useChatScroll.js`, `Components/chat/JumpToLatest.jsx`); a banner shows what the chat is about (`Components/chat/TopicBanner.jsx`: the latest inquiry and problem report of the non-office person, open or finished in the last week, from `get_conversations.php`; a guest chat's own inquiry). The Inquiries chat window can attach files and ask if resolved.
 
 A complaint is a **category and a status on the tenant's thread with the office**. The thread stays the flat `messages` table; a small `complaints` table holds the tracking.
 
