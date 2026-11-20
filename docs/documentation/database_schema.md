@@ -412,6 +412,7 @@ erDiagram
         datetime guest_verified_at
         datetime guest_chat_ended_at
         int matched_thread_id
+        datetime admin_seen_at
     }
 
     HOUSEHOLD_MEMBERS {
@@ -998,6 +999,7 @@ Columns added since the first version of this document. Types are in the ER diag
 | `parking_reservations.slot_number`, `assigned_at`, `released_at`, `release_reason`, `rejection_reason` | Slot (`parking_slots.id`) asked for, then given at approval (one active reservation per slot via the generated `active_slot` key), approval and release times, and the reasons. Sweeps set `release_reason` to "Permit term ended" / "Tenancy ended"; requests closed because every slot for their vehicle type is taken get `rejection_reason` "Parking is full". |
 | `inquiries.thread_type`, `guest_token`, `guest_name`, `guest_email`, `guest_phone`, `unit_of_interest` | A signed-out `/inquire` creates a `guest` thread with a 64-hex `guest_token` (unique; sent as `X-Guest-Token`) and copies of the form fields. When the guest signs in, `adopt_guest_chat()` flips it to `registered`, sets `user_id` and nulls the token. |
 | `inquiries.matched_thread_id` | A repeat guest inquiry with the same e-mail or phone points at the existing thread instead of getting a token; a resume link is e-mailed. |
+| `inquiries.admin_seen_at` | When an admin first opened the inquiry (the Inquiries chat window, `inquiry_thread.php`, or its guest chat in Messages); `NULL` = nobody has looked yet. Only those count as New in the list, the sidebar and the Dashboard (`new_inquiries`); the status stays `New` until a reply in its chat or an admin moves it on. Set by `mark_inquiry_seen()` / `mark_inquiry_contacted()` (`backend/inquiries.php`) and by any status change in `update_inquiry_status.php`; the migration marks existing inquiries past New as seen (2026_11_workstream.sql `inquiry_admin_seen`). |
 | `inquiries.guest_verified_at`, `guest_reply_emailed_at` | The e-mailed link was redeemed; and a throttle so only the first admin reply of an unseen batch sends an e-mail (reset when the guest opens the chat). |
 | `inquiries.guest_chat_ended_at` | The guest ended the chat after answering "Problem resolved" (2026_11_workstream.sql). The chat stays readable on their device; `guest_chat.php` refuses any further send, question or answer (409), and Messages lists it under Archived. |
 | `utility_readings.entry_mode`, `bill_file_path`, `total_amount` | `metered` (readings x rates), `bill` (provider amounts billed as-is, meter values optional) or `total` (one `total_amount`, > 0 and <= 1,000,000); an uploaded provider bill (`upload_utility_bill.php`). |

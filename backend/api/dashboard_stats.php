@@ -145,7 +145,7 @@ function dashboard_attention($conn, $advanceMonthsFilter, $sinceDays) {
             (SELECT COUNT(*) FROM cctv_requests WHERE status = 'Pending' AND created_at >= NOW() - INTERVAL ? DAY) AS cctv_requests,
             (SELECT COUNT(*) FROM service_requests WHERE status = 'Pending' AND created_at >= NOW() - INTERVAL ? DAY) AS service_requests,
             (SELECT COUNT(*) FROM refund_requests WHERE status = 'Pending Review' AND created_at >= NOW() - INTERVAL ? DAY) AS refunds_to_review,
-            (SELECT COUNT(*) FROM inquiries WHERE status = 'New' AND created_at >= NOW() - INTERVAL ? DAY) AS new_inquiries,
+            (SELECT COUNT(*) FROM inquiries WHERE status = 'New' AND admin_seen_at IS NULL AND created_at >= NOW() - INTERVAL ? DAY) AS new_inquiries,
             (SELECT COUNT(*) FROM utility_readings WHERE is_invoiced = 0 AND created_at >= NOW() - INTERVAL ? DAY) AS readings_to_invoice
     ", 'iiiiii', $days, $days, $days, $days, $days, $days), ['parking_requests', 'cctv_requests', 'service_requests', 'refunds_to_review', 'new_inquiries', 'readings_to_invoice']);
 

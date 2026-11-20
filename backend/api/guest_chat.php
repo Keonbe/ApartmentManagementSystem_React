@@ -3,6 +3,7 @@ require_once __DIR__ . '/../cors.php';
 header('Content-Type: application/json');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inquiries.php';
 
 $auth = get_authenticated_user($conn);
 $body = read_json_input();
@@ -141,6 +142,10 @@ try {
         if ($isAdmin) {
             resolve_admin_queue($conn, 'inquiry', 'chat-' . $thread['id']);
             log_activity($conn, (int)$auth['id'], 'inquiry', 'Replied To Guest Chat', "Inquiry ID: {$thread['id']}");
+            // Answering the guest is contacting them (backend/inquiries.php). The
+            // message is already saved, so a failure here must not report it failed.
+            try { mark_inquiry_contacted($conn, $thread['id'], (int)$auth['id']); }
+            catch (Throwable $e) { error_log('guest_chat contacted: ' . $e->getMessage()); }
         } else {
             // One pending bell entry per thread, not one per message; it clears when an admin opens the thread.
             $queueKey = 'inquiry:chat-' . $thread['id'];
@@ -180,8 +185,10 @@ try {
     $markRead->bind_param('is', $thread['id'], $receivedRole);
     $markRead->execute();
     $markRead->close();
-    if ($isAdmin) resolve_admin_queue($conn, 'inquiry', 'chat-' . $thread['id']);
-    else {
+    if ($isAdmin) {
+        resolve_admin_queue($conn, 'inquiry', 'chat-' . $thread['id']);
+        mark_inquiry_seen($conn, $thread['id']);
+    } else {
         // The guest has seen the replies: the next admin reply emails them again.
         $seen = $conn->prepare('UPDATE inquiries SET guest_reply_emailed_at = NULL WHERE id = ?');
         $seen->bind_param('i', $thread['id']); $seen->execute(); $seen->close();

@@ -8,6 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../inquiries.php';
 
 const MESSAGE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const MESSAGE_VIDEO_MAX_BYTES = 25 * 1024 * 1024;
@@ -19,6 +20,9 @@ $body = $_POST ?: (read_json_input());
 $receiver_id = intval($body['receiver_id'] ?? 0);
 $message = trim($body['message'] ?? '');
 $reply_to_id = intval($body['reply_to_id'] ?? 0) ?: null;
+// Sent from the Inquiries chat window: the inquiry this answers (admin only, and
+// only an inquiry of the receiver), which then moves from New to Contacted.
+$inquiry_id = intval($body['inquiry_id'] ?? 0) ?: null;
 $attachment = $_FILES['attachment'] ?? null;
 
 if ($attachment && ($attachment['error'] === UPLOAD_ERR_INI_SIZE || $attachment['error'] === UPLOAD_ERR_FORM_SIZE)) {
@@ -177,6 +181,20 @@ try {
 
     if (function_exists('log_activity')) {
         log_activity($conn, $sender_id, 'chat', 'send_message', "Messaged user {$receiver_id}");
+    }
+
+    // The message is saved: a failure below is logged, never reported as a failed send.
+    if ($inquiry_id && ($roles[$sender_id] ?? '') === 'admin') {
+        try {
+            $own = $conn->prepare('SELECT id FROM inquiries WHERE id = ? AND user_id = ?');
+            $own->bind_param('ii', $inquiry_id, $receiver_id);
+            $own->execute();
+            $isTheirs = (bool)$own->get_result()->fetch_assoc();
+            $own->close();
+            if ($isTheirs) mark_inquiry_contacted($conn, $inquiry_id, $sender_id);
+        } catch (Throwable $e) {
+            error_log('send_message inquiry contacted: ' . $e->getMessage());
+        }
     }
 
     echo json_encode([

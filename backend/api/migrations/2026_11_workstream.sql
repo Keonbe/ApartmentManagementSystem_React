@@ -760,3 +760,22 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'refund_requests' AND column_name = 'payout_proof_path') = 0,
   'ALTER TABLE `refund_requests` ADD COLUMN `payout_proof_path` varchar(255) DEFAULT NULL AFTER `payout_destination`', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== cctv_privacy_consent =====
+-- When the tenant agreed to the CCTV privacy notice (cctv_request.php writes it on
+-- every new request). It was added to SetupDB.sql without a migration, so a
+-- database built before it could not save a CCTV request.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'cctv_requests' AND column_name = 'privacy_consent_at') = 0,
+  'ALTER TABLE `cctv_requests` ADD COLUMN `privacy_consent_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== inquiry_admin_seen =====
+-- (SPRINT 225) When an admin first opened the inquiry (Inquiries chat window or its
+-- guest chat in Messages). NULL = nobody has looked yet: only those count as New in
+-- the list, the sidebar and the Dashboard. Existing inquiries past New are marked
+-- seen at their last update, so only untouched New ones stay new.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'inquiries' AND column_name = 'admin_seen_at') = 0,
+  'ALTER TABLE `inquiries` ADD COLUMN `admin_seen_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+UPDATE `inquiries` SET `admin_seen_at` = `updated_at`, `updated_at` = `updated_at` WHERE `admin_seen_at` IS NULL AND `status` <> 'New';

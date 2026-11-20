@@ -67,7 +67,7 @@ if ($admin_notes !== null && ($e = v_str($admin_notes, 'Notes', 1, 5000))) $erro
 if ($errors) validation_fail($errors);
 $admin_id_int  = (int)$admin_id;
 
-$stmt = $conn->prepare("UPDATE inquiries SET status = ?, admin_notes = COALESCE(?, admin_notes), viewing_date = COALESCE(?, viewing_date), closed_reason = ?, handled_by = ? WHERE id = ?");
+$stmt = $conn->prepare("UPDATE inquiries SET status = ?, admin_notes = COALESCE(?, admin_notes), viewing_date = COALESCE(?, viewing_date), closed_reason = ?, handled_by = ?, admin_seen_at = COALESCE(admin_seen_at, NOW()) WHERE id = ?");
 $stmt->bind_param("ssssii", $status, $admin_notes, $viewing_date, $closed_reason, $admin_id_int, $id);
 
 if (!$stmt->execute()) {

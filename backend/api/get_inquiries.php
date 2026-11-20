@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "../config.php";
+require_once __DIR__ . '/../inquiries.php';
 
 // Auto-create tables if not exists (same pattern as get_utility_readings.php)
 $conn->query("CREATE TABLE IF NOT EXISTS `inquiries` (
@@ -90,6 +91,16 @@ $query = "SELECT i.id,
                  i.created_at AS createdAt,
                  i.thread_type AS threadType,
                  i.matched_thread_id AS matchedThreadId,
+                 i.admin_seen_at AS adminSeenAt,
+                 i.guest_chat_ended_at AS chatEndedAt,
+                 -- Unread prospect messages in the inquiry's chat (guest thread, or the
+                 -- account conversation since the inquiry), for the list's chat badge.
+                 CASE WHEN i.thread_type = 'guest'
+                      THEN (SELECT COUNT(*) FROM guest_messages g WHERE g.inquiry_id = i.id AND g.sender_role = 'guest' AND g.is_read = 0)
+                      WHEN i.user_id IS NOT NULL
+                      THEN (SELECT COUNT(*) FROM messages m JOIN users a ON a.id = m.receiver_id AND a.role = 'admin'
+                            WHERE m.sender_id = i.user_id AND m.is_read = 0 AND m.created_at >= i.created_at)
+                      ELSE 0 END AS unreadCount,
                  r.type AS roomType,
                  r.monthly_rent AS monthlyRent,
                  r.status AS roomStatus,
@@ -102,6 +113,9 @@ $query = "SELECT i.id,
 
 $res = $conn->query($query);
 while ($row = $res->fetch_assoc()) {
+    // guest / account / none: where the Inquiries chat window can reply (backend/inquiries.php).
+    $row['channel'] = inquiry_channel(['thread_type' => $row['threadType'], 'user_id' => $row['userId']]);
+    $row['unreadCount'] = (int)$row['unreadCount'];
     $inquiries[] = $row;
 }
 

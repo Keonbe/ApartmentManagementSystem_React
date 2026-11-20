@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faEnvelopeOpenText, faSearch, faSync, faTimes, faCheckCircle,
   faBuilding, faCalendarAlt, faPhone, faEnvelope, faBookmark, faPlus,
-  faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl,
+  faBan, faArrowRight, faHourglassHalf, faComment, faListOl,
   faArrowDownShortWide, faArrowDownWideShort
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -30,6 +29,7 @@ import { useSearchParams } from 'react-router-dom';
 import { PANEL, TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import SelectMenu from '../Components/admin/ui/SelectMenu';
+import InquiryChatModal from '../Components/admin/inquiries/InquiryChatModal';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
@@ -67,6 +67,9 @@ const CANCEL_HOLD_REASONS = [
   'The unit is no longer available',
 ];
 
+// Headings in the chat window's side panel.
+const SIDE_TITLE = 'm-0 text-label font-semibold text-slate-800';
+
 const statusMatches = (item, filter) => {
   const s = (item.status || '').toLowerCase();
   if (filter === 'all') return true;
@@ -93,7 +96,6 @@ const sortByAge = (list, sort) => [...list].sort((a, b) => {
 });
 
 export default function AdminInquiries() {
-  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
 
   const [inquiries, setInquiries] = useState([]);
@@ -127,6 +129,7 @@ export default function AdminInquiries() {
   const [showLogModal, setShowLogModal] = useState(false);
   const [showReserveModal, setShowReserveModal] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [notice, setNotice] = useState(''); // a saved action, in the chat window's side panel
 
   // Detail modal working state
   const [notes, setNotes] = useState('');
@@ -379,6 +382,7 @@ export default function AdminInquiries() {
     setWaitlistMsg(null);
     setResHoldDays(holdDays);
     setActionError(null);
+    setNotice('');
     detailErrors.setErrors({});
     setShowDetail(true);
   };
@@ -445,6 +449,7 @@ export default function AdminInquiries() {
   const inquiryBadge = (status) => {
     const map = {
       New: 'bg-indigo-100 text-indigo-700',
+      Viewed: 'bg-amber-50 text-amber-800',
       Contacted: 'bg-sky-100 text-sky-700',
       Scheduled: 'bg-amber-100 text-amber-700',
       Reserved: 'bg-violet-100 text-violet-700',
@@ -481,11 +486,19 @@ export default function AdminInquiries() {
   const shownCount = view === 'inquiries' ? filteredInquiries.length : filteredReservations.length;
   const noun = view === 'inquiries' ? (shownCount === 1 ? 'inquiry' : 'inquiries') : (shownCount === 1 ? 'reservation' : 'reservations');
   // "Showing 4 open inquiries, oldest first" (follows the tab, search and sort).
-  // New = nobody has contacted them yet (marked on the row; was its own tab).
-  const isNewInquiry = (inq) => (inq.status || '').toLowerCase() === 'new';
+  // New = nobody in the office has opened it yet (admin_seen_at, set by
+  // inquiry_thread.php); once opened it reads "Viewed" until someone replies
+  // (a reply in its chat marks it Contacted) or moves it on.
+  const isNewInquiry = (inq) => (inq.status || '').toLowerCase() === 'new' && !inq.adminSeenAt;
+  const isAwaitingReply = (inq) => (inq.status || '').toLowerCase() === 'new' && !!inq.adminSeenAt;
+  const displayStatus = (inq) => (isAwaitingReply(inq) ? 'Viewed' : inq.status);
+  // The open inquiry as the list has it now (a reply or an action refreshes the list).
+  const liveSelected = selected ? (inquiries.find((i) => i.id === selected.id) || selected) : null;
   const newCount = inquiries.filter(isNewInquiry).length;
   const shownNew = view === 'inquiries' ? filteredInquiries.filter(isNewInquiry).length : 0;
-  const filterSummary = `${shownCount} ${statusFilter === 'all' ? '' : `${tabLabel(statusFilter).toLowerCase()} `}${noun}${q ? ` matching “${searchQuery.trim()}”` : ''}${shownNew ? ` (${shownNew} not contacted yet)` : ''}, ${sort === 'newest' ? 'newest' : 'oldest'} first`;
+  const shownAwaiting = view === 'inquiries' ? filteredInquiries.filter(isAwaitingReply).length : 0;
+  const waitingParts = [shownNew && `${shownNew} new`, shownAwaiting && `${shownAwaiting} waiting for a reply`].filter(Boolean);
+  const filterSummary = `${shownCount} ${statusFilter === 'all' ? '' : `${tabLabel(statusFilter).toLowerCase()} `}${noun}${q ? ` matching “${searchQuery.trim()}”` : ''}${waitingParts.length ? ` (${waitingParts.join(', ')})` : ''}, ${sort === 'newest' ? 'newest' : 'oldest'} first`;
   const isOpenInquiry = (inq) => OPEN_STATUSES.includes((inq.status || '').toLowerCase());
 
   return (
@@ -631,7 +644,13 @@ export default function AdminInquiries() {
                               <p className="font-bold text-slate-800 m-0 flex items-center gap-2">
                                 {isNewInquiry(inq) && <span className="h-2 w-2 shrink-0 rounded-full bg-indigo-500" aria-hidden="true" />}
                                 <span className="min-w-0">{inq.fullName}</span>
-                                {isNewInquiry(inq) && <span className="sr-only">(not contacted yet)</span>}
+                                {isNewInquiry(inq) && <span className="sr-only">(new, not opened yet)</span>}
+                                {inq.unreadCount > 0 && (
+                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-600 px-1.5 py-px text-[10px] font-bold text-white" title={`${inq.unreadCount} unread message${inq.unreadCount === 1 ? '' : 's'}`}>
+                                    <FontAwesomeIcon icon={faComment} className="text-[9px]" aria-hidden="true" />{inq.unreadCount}
+                                    <span className="sr-only"> unread messages</span>
+                                  </span>
+                                )}
                               </p>
                               <span className="flex items-center gap-1 text-label text-slate-500 mt-0.5">
                                 <FontAwesomeIcon icon={faEnvelope} className="text-[10px] text-indigo-500" />
@@ -674,8 +693,8 @@ export default function AdminInquiries() {
                               )}
                             </td>
                             <td className="px-4 py-4 text-center">
-                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(inq.status)}`}>
-                                {inq.status}
+                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(displayStatus(inq))}`}>
+                                {displayStatus(inq)}
                               </span>
                               {inq.status === 'Closed' && inq.closedReason && (
                                 <p className="m-0 mt-1 mx-auto max-w-[11rem] truncate text-caption text-slate-500" title={inq.closedReason}>{inq.closedReason}</p>
@@ -688,7 +707,7 @@ export default function AdminInquiries() {
                                 aria-label={`Manage inquiry from ${inq.fullName}`}
                                 className={btn('secondary', 'sm')}
                               >
-                                {isOpenInquiry(inq) ? 'Manage' : 'View'}
+                                {isOpenInquiry(inq) ? 'Open' : 'View'}
                               </button>
                             </td>
                           </tr>
@@ -796,101 +815,73 @@ export default function AdminInquiries() {
         </main>
       </div>
 
-      {/* ─── INQUIRY DETAIL MODAL ─── */}
-      {showDetail && selected && (
-        <Modal title={`${selected.fullName}`} onClose={() => setShowDetail(false)} overlayClassName="flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" className="bg-white rounded-card shadow-dialog w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0 bg-slate-50">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-title font-bold text-slate-800 m-0 truncate">{selected.fullName}</h3>
-                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(selected.status)}`}>{selected.status}</span>
-                </div>
-                <p className="text-label text-slate-500 m-0 mt-0.5">
-                  Received {fmtDate(selected.createdAt)}
-                  {isOpenInquiry(selected) && daysSince(selected.createdAt) !== null && (
-                    <span className={ageTone(daysSince(selected.createdAt))}> ({ageText(daysSince(selected.createdAt)).toLowerCase()})</span>
-                  )}
-                  {' · '}{selected.unit ? `Unit ${selected.unit}` : 'Any available unit'}
-                  {selected.source ? <span className="capitalize"> · {selected.source}</span> : null}
-                </p>
-              </div>
-              <button aria-label="Close" onClick={() => setShowDetail(false)} className="btn-interactive shrink-0 text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
-                <FontAwesomeIcon icon={faTimes} className="text-base" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-5">
-
-              {actionError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-card text-body font-medium">
-                  {actionError}
-                </div>
+      {/* ─── INQUIRY CHAT WINDOW ─── */}
+      {showDetail && liveSelected && (
+        <InquiryChatModal
+          key={liveSelected.id}
+          inquiry={liveSelected}
+          statusBadge={<span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(displayStatus(liveSelected))}`}>{displayStatus(liveSelected)}</span>}
+          meta={(
+            <>
+              Received {fmtDate(liveSelected.createdAt)}
+              {isOpenInquiry(liveSelected) && daysSince(liveSelected.createdAt) !== null && (
+                <span className={ageTone(daysSince(liveSelected.createdAt))}> ({ageText(daysSince(liveSelected.createdAt)).toLowerCase()})</span>
               )}
+              {' · '}{liveSelected.unit ? `Unit ${liveSelected.unit}` : 'Any available unit'}
+              {liveSelected.source ? <span className="capitalize"> · {liveSelected.source}</span> : null}
+            </>
+          )}
+          onClose={() => setShowDetail(false)}
+          onChanged={loadData}
+        >
+          <div className="space-y-5">
+            {actionError && (
+              <div role="alert" className="rounded-card border border-red-200 bg-red-50 px-3 py-2.5 text-label font-medium text-red-700">{actionError}</div>
+            )}
+            {notice && !actionError && (
+              <div role="status" className="rounded-card border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-label font-medium text-emerald-800">{notice}</div>
+            )}
 
-              {selected.status === 'Closed' && (
-                <div role="note" className="flex items-start gap-3 rounded-card border border-slate-200 bg-white p-3.5">
-                  <FontAwesomeIcon icon={faBan} className="mt-0.5 text-slate-400" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <p className="m-0 text-label font-semibold text-slate-700">This inquiry is closed</p>
-                    <p className="m-0 mt-0.5 text-label text-slate-600">{selected.closedReason ? `Reason: ${selected.closedReason}` : 'No reason was recorded.'}</p>
-                    <p className="m-0 mt-1 text-caption text-slate-500">Mark it contacted or schedule a viewing to reopen it.</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-white rounded-card p-3.5 border border-slate-200">
-                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
-                  {selected.email
-                    ? <a href={`mailto:${selected.email}`} className="block text-body font-semibold text-slate-800 m-0 break-all no-underline hover:text-indigo-700">{selected.email}</a>
-                    : <p className="text-body font-semibold text-slate-800 m-0">—</p>}
-                </div>
-                <div className="bg-white rounded-card p-3.5 border border-slate-200">
-                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faPhone} className="mr-1" /> Contact</p>
-                  {selected.contactNo
-                    ? <a href={`tel:${String(selected.contactNo).replace(/\s+/g, '')}`} className="block text-body font-semibold text-slate-800 m-0 no-underline hover:text-indigo-700">{selected.contactNo}</a>
-                    : <p className="text-body font-semibold text-slate-800 m-0">—</p>}
-                </div>
-                <div className="bg-white rounded-card p-3.5 border border-slate-200">
-                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Preferred Move-In</p>
-                  <p className="text-body font-semibold text-slate-800 m-0">{fmtDate(selected.preferredMoveIn)}</p>
-                </div>
-                <div className="bg-white rounded-card p-3.5 border border-slate-200">
-                  <p className="text-label font-medium text-slate-600 mb-1 m-0 capitalize"><FontAwesomeIcon icon={faUsers} className="mr-1" /> Occupants</p>
-                  <p className="text-body font-semibold text-slate-800 m-0">{selected.occupants || '—'}</p>
+            {liveSelected.status === 'Closed' && (
+              <div role="note" className="flex items-start gap-3 rounded-card border border-slate-200 bg-slate-50 p-3">
+                <FontAwesomeIcon icon={faBan} className="mt-0.5 text-slate-400" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="m-0 text-label font-semibold text-slate-700">This inquiry is closed</p>
+                  <p className="m-0 mt-0.5 text-label text-slate-600">{liveSelected.closedReason ? `Reason: ${liveSelected.closedReason}` : 'No reason was recorded.'}</p>
+                  <p className="m-0 mt-1 text-caption text-slate-500">Mark it contacted or schedule a viewing to reopen it.</p>
                 </div>
               </div>
+            )}
 
-              {selected.message && (
-                <div className="bg-white rounded-card p-4 border border-slate-200">
-                  <p className="text-label font-medium text-slate-600 mb-1.5 m-0 capitalize"><FontAwesomeIcon icon={faComment} className="mr-1" /> Message</p>
-                  <p className="text-body text-slate-700 m-0 whitespace-pre-wrap">{selected.message}</p>
+            {/* The next step in the pipeline */}
+            <section aria-labelledby="inq-next" className="space-y-2.5">
+              <h4 id="inq-next" className={SIDE_TITLE}>Next step</h4>
+              {liveSelected.status === 'New' && (
+                <div className="rounded-card border border-sky-200 bg-sky-50/60 p-3">
+                  <p className="m-0 text-caption text-sky-900">
+                    {liveSelected.channel === 'none' ? 'No chat for this one: call or email them, then record it.' : 'A reply in the conversation marks it contacted. Called or emailed them instead?'}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={!!busy}
+                    onClick={async () => {
+                      const ok = await updateInquiry({ id: liveSelected.id, status: 'Contacted', admin_notes: notes.trim() });
+                      if (ok) setNotice('Marked as contacted.');
+                    }}
+                    className={btn('secondary', 'sm', 'mt-2 w-full')}
+                  >
+                    <FontAwesomeIcon icon={faPhone} /> Mark as contacted
+                  </button>
                 </div>
               )}
 
-              {selected.viewingDate && (
-                <div className="bg-amber-50 border border-amber-200 rounded-card p-3.5 text-amber-800 text-body font-medium">
-                  Viewing scheduled for {fmtDateTime(selected.viewingDate)}
-                </div>
-              )}
-
-              <div className="bg-white rounded-card p-4 border border-slate-200 space-y-3">
-                <label htmlFor="inquiry-detail-admin_notes" className="text-label font-medium text-slate-600 block">Admin Notes</label>
-                <textarea
-                  rows="3"
-                  {...detailErrors.fieldA11y('admin_notes')}
-                  value={notes}
-                  maxLength={LIMITS.notes}
-                  onChange={(e) => { setNotes(e.target.value); detailErrors.clearError('admin_notes'); }}
-                  onBlur={() => { const v = notes.trim(); setNotes(v); detailErrors.validateField('admin_notes', { admin_notes: v }); }}
-                  placeholder="Record what was discussed, follow-up dates, or screening notes..."
-                  className={`w-full rounded-control border border-slate-200 bg-slate-50 p-3 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-y${invalidCls(detailErrors.errors.admin_notes)}`}
-                />
-                <FieldError id="inquiry-detail-admin_notes" error={detailErrors.errors.admin_notes} />
-                <CharCount value={notes} max={LIMITS.notes} />
-
-                <label htmlFor="inquiry-detail-viewing_date" className="text-label font-medium text-slate-600 block">Viewing Schedule</label>
+              <div className="rounded-card border border-slate-200 p-3 space-y-2">
+                <label htmlFor="inquiry-detail-viewing_date" className="block text-label font-medium text-slate-700">
+                  <FontAwesomeIcon icon={faCalendarAlt} className="mr-1.5 text-amber-600" aria-hidden="true" />Viewing
+                </label>
+                {liveSelected.viewingDate && (
+                  <p className="m-0 text-caption font-semibold text-amber-800">Scheduled for {fmtDateTime(liveSelected.viewingDate)}</p>
+                )}
                 <input
                   type="datetime-local"
                   {...detailErrors.fieldA11y('viewing_date')}
@@ -899,132 +890,117 @@ export default function AdminInquiries() {
                   value={viewingDate}
                   onChange={(e) => { setViewingDate(e.target.value); detailErrors.clearError('viewing_date'); }}
                   onBlur={() => viewingDate && detailErrors.validateField('viewing_date', { viewing_date: viewingDate })}
-                  className={`w-full rounded-control border border-slate-200 bg-slate-50 p-3 text-body text-slate-800 outline-none focus:border-indigo-500 focus:bg-white${invalidCls(detailErrors.errors.viewing_date)}`}
+                  className={`w-full h-10 rounded-control border border-slate-300 bg-white px-3 text-body text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100${invalidCls(detailErrors.errors.viewing_date)}`}
                 />
                 <FieldError id="inquiry-detail-viewing_date" error={detailErrors.errors.viewing_date} />
-              </div>
-
-              {selected.matchedThreadId && (
-                <p role="note" className="rounded-card border border-amber-200 bg-amber-50 p-3 text-label text-amber-900">
-                  Same email or phone as conversation #{selected.matchedThreadId}, but the sender is not verified: anyone can type an email or phone number.
-                  It was not added to that conversation. The owner of that conversation was emailed a link to it; do not share their details here.
-                </p>
-              )}
-
-              {/* Pipeline actions */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin-messages?guest_thread_id=${encodeURIComponent(selected.matchedThreadId || selected.rawId || selected.id)}`)}
-                  className="col-span-2 flex items-center justify-center gap-2 rounded-card bg-indigo-50 border border-indigo-200 px-4 py-3 text-label font-bold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
-                >
-                  <FontAwesomeIcon icon={faComment} /> Chat / Message
-                </button>
-
-                <button
-                  type="button"
-                  disabled={!!busy}
-                  onClick={async () => {
-                    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
-                    const ok = await updateInquiry({ id: selected.id, status: 'Contacted', admin_notes: notes.trim() });
-                    if (ok) setShowDetail(false);
-                  }}
-                  className="flex items-center justify-center gap-2 rounded-card bg-sky-50 border border-sky-200 px-4 py-3 text-label font-bold text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FontAwesomeIcon icon={faPhone} /> Mark Contacted
-                </button>
-
                 <button
                   type="button"
                   disabled={!!busy}
                   onClick={async () => {
                     if (!detailErrors.validateAll({ admin_notes: notes, viewing_date: viewingDate })) return;
-                    const ok = await updateInquiry({ id: selected.id, status: 'Scheduled', admin_notes: notes.trim(), viewing_date: viewingDate.replace('T', ' ') + ':00' });
-                    if (ok) setShowDetail(false);
+                    const ok = await updateInquiry({ id: liveSelected.id, status: 'Scheduled', admin_notes: notes.trim(), viewing_date: viewingDate.replace('T', ' ') + ':00' });
+                    if (ok) setNotice('Viewing scheduled.');
                   }}
-                  className="flex items-center justify-center gap-2 rounded-card bg-amber-50 border border-amber-200 px-4 py-3 text-label font-bold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={btn('secondary', 'sm', 'w-full')}
                 >
-                  <FontAwesomeIcon icon={faCalendarAlt} /> Schedule Viewing
+                  {liveSelected.viewingDate ? 'Reschedule viewing' : 'Schedule viewing'}
                 </button>
+              </div>
 
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => { setActionError(null); reserveErrors.setErrors({}); setShowReserveModal(true); }}
-                  disabled={selected.status === 'Reserved'}
-                  className="flex items-center justify-center gap-2 rounded-card bg-violet-50 border border-violet-200 px-4 py-3 text-label font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  disabled={liveSelected.status === 'Reserved'}
+                  className={btn('secondary', 'sm', 'w-full')}
+                  title={liveSelected.status === 'Reserved' ? 'A unit is already held for them' : 'Hold a unit for them'}
                 >
-                  <FontAwesomeIcon icon={faBookmark} /> Reserve Unit
+                  <FontAwesomeIcon icon={faBookmark} className="text-violet-600" /> Reserve unit
                 </button>
-
                 <button
                   type="button"
-                  onClick={() => convertToApplication(selected)}
-                  disabled={!!busy || selected.status === 'Converted'}
-                  className="flex items-center justify-center gap-2 rounded-card bg-emerald-50 border border-emerald-200 px-4 py-3 text-label font-bold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => convertToApplication(liveSelected)}
+                  disabled={!!busy || liveSelected.status === 'Converted'}
+                  className={btn('secondary', 'sm', 'w-full')}
+                  title="They started a rent application"
                 >
-                  <FontAwesomeIcon icon={faArrowRight} /> Convert to Application
+                  <FontAwesomeIcon icon={faArrowRight} className="text-emerald-600" /> Converted
                 </button>
               </div>
+            </section>
 
-              {!['Converted', 'Closed'].includes(selected.status) && (
-                <div className="bg-white rounded-card p-4 border border-slate-200 space-y-2">
-                  <label className="text-label font-medium text-slate-600 block capitalize">
-                    <FontAwesomeIcon icon={faListOl} className="mr-1" /> Waitlist for an occupied unit
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={waitlistRoom}
-                      onChange={(e) => setWaitlistRoom(e.target.value)}
-                      className="flex-1 rounded-control border border-slate-200 bg-slate-50 p-2.5 text-body text-slate-800 outline-none focus:border-indigo-500"
-                    >
-                      <option value="">Select a unit…</option>
-                      {occupiedRooms.map(r => (
-                        <option key={r.id} value={r.id}>Room {r.id} — {r.status}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={addToWaitlist}
-                      className="rounded-control bg-indigo-50 border border-indigo-200 px-4 py-2 text-label font-bold text-indigo-700 hover:bg-indigo-100 cursor-pointer"
-                    >
-                      Add to waitlist
-                    </button>
-                  </div>
-                  {waitlistMsg && (
-                    <p className={`text-label font-semibold m-0 ${waitlistMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{waitlistMsg.text}</p>
-                  )}
+            {!['Converted', 'Closed'].includes(liveSelected.status) && (
+              <section aria-labelledby="inq-waitlist" className="space-y-2">
+                <h4 id="inq-waitlist" className={SIDE_TITLE}>
+                  <FontAwesomeIcon icon={faListOl} className="mr-1.5 text-slate-400" aria-hidden="true" />Waitlist for an occupied unit
+                </h4>
+                <div className="flex gap-2">
+                  <select
+                    aria-label="Unit to wait for"
+                    value={waitlistRoom}
+                    onChange={(e) => setWaitlistRoom(e.target.value)}
+                    className="h-9 min-w-0 flex-1 rounded-control border border-slate-300 bg-white px-2 text-label text-slate-800 outline-none focus:border-indigo-500"
+                  >
+                    <option value="">Select a unit…</option>
+                    {occupiedRooms.map(r => (
+                      <option key={r.id} value={r.id}>Unit {r.id} ({r.status})</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={addToWaitlist} className={btn('secondary', 'sm', 'h-9 shrink-0')}>Add</button>
                 </div>
-              )}
+                {waitlistMsg && (
+                  <p className={`m-0 text-caption font-semibold ${waitlistMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{waitlistMsg.text}</p>
+                )}
+              </section>
+            )}
 
-              <div className="flex gap-2.5 pt-3 border-t border-slate-200">
+            <section aria-labelledby="inq-notes" className="space-y-2">
+              <label id="inq-notes" htmlFor="inquiry-detail-admin_notes" className={`${SIDE_TITLE} block`}>Notes (office only)</label>
+              <textarea
+                rows="3"
+                {...detailErrors.fieldA11y('admin_notes')}
+                value={notes}
+                maxLength={LIMITS.notes}
+                onChange={(e) => { setNotes(e.target.value); detailErrors.clearError('admin_notes'); }}
+                onBlur={() => { const v = notes.trim(); setNotes(v); detailErrors.validateField('admin_notes', { admin_notes: v }); }}
+                placeholder="What was discussed, follow-up dates, screening notes…"
+                className={`w-full rounded-control border border-slate-300 bg-white p-2.5 text-label text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-y${invalidCls(detailErrors.errors.admin_notes)}`}
+              />
+              <FieldError id="inquiry-detail-admin_notes" error={detailErrors.errors.admin_notes} />
+              <div className="flex items-center justify-between gap-2">
+                <CharCount value={notes} max={LIMITS.notes} />
+                <button
+                  type="button"
+                  disabled={!!busy || notes.trim() === (liveSelected.adminNotes || '').trim()}
+                  onClick={async () => {
+                    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
+                    const ok = await updateInquiry({ id: liveSelected.id, status: liveSelected.status, admin_notes: notes.trim() });
+                    if (ok) setNotice('Notes saved.');
+                  }}
+                  className={btn('primary', 'sm')}
+                >
+                  {busy === 'inquiry' ? 'Saving…' : 'Save notes'}
+                </button>
+              </div>
+            </section>
+
+            {liveSelected.status !== 'Closed' && (
+              <div className="border-t border-slate-200 pt-4">
                 <button
                   type="button"
                   disabled={!!busy}
-                  onClick={async () => {
+                  onClick={() => {
                     if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
-                    const ok = await updateInquiry({ id: selected.id, status: selected.status, admin_notes: notes.trim() });
-                    if (ok) setShowDetail(false);
+                    setReasonFor({ kind: 'closeInquiry', id: liveSelected.id });
                   }}
-                  className={btn('primary', 'md', 'flex-1')}
+                  className={btn('danger-outline', 'sm', 'w-full')}
                 >
-                  {busy === 'inquiry' ? 'Saving…' : 'Save Notes'}
+                  <FontAwesomeIcon icon={faBan} /> Close inquiry
                 </button>
-                {selected.status !== 'Closed' && (
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => {
-                      if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
-                      setReasonFor({ kind: 'closeInquiry', id: selected.id });
-                    }}
-                    className={btn('danger-outline', 'md', 'flex-1')}
-                  >
-                    <FontAwesomeIcon icon={faBan} /> Close Inquiry
-                  </button>
-                )}
               </div>
-            </div>
-          </Modal>
+            )}
+          </div>
+        </InquiryChatModal>
       )}
 
       {/* ─── RESERVE UNIT MODAL ─── */}

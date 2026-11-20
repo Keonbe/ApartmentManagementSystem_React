@@ -626,6 +626,7 @@ CREATE TABLE IF NOT EXISTS `inquiries` (
   `guest_verified_at` datetime DEFAULT NULL,
   `guest_chat_ended_at` datetime DEFAULT NULL,
   `matched_thread_id` int(11) DEFAULT NULL,
+  `admin_seen_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_inquiries_guest_token` (`guest_token`),
   KEY `idx_inquiry_status` (`status`),
