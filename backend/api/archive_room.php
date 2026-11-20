@@ -37,14 +37,6 @@ $roomId = trim((string)(
     ''
 ));
 
-// Older databases may not yet have the room-archiving migration applied.
-$columns = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
-if (!$columns || $columns->num_rows === 0) {
-    http_response_code(503);
-    echo json_encode(['success' => false, 'message' => 'Unit removal is unavailable until the room archiving migration is applied.']);
-    exit();
-}
-
 if ($roomId === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Unit ID is required.']);

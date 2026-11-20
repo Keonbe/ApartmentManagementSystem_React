@@ -90,6 +90,14 @@ try {
         echo json_encode(["success" => false, "message" => "This link has expired or was already used. Ask for a new one."]);
         exit;
     }
+    // The stored token is a hash, so the guest gets a new one (the old browser's
+    // token stops working; opening this link on a device is how it is replaced).
+    $newToken = bin2hex(random_bytes(32));
+    $newHash = guest_token_hash($newToken);
+    $rotate = $conn->prepare("UPDATE inquiries SET guest_token = ? WHERE id = ? AND thread_type = 'guest'");
+    $rotate->bind_param("si", $newHash, $link['inquiry_id']);
+    $rotate->execute();
+    $rotate->close();
     $use = $conn->prepare("UPDATE guest_chat_links SET used_at = NOW() WHERE id = ?");
     $use->bind_param("i", $link['id']);
     $use->execute();
@@ -107,6 +115,6 @@ try {
 }
 
 log_activity($conn, null, 'inquiry', 'Guest Chat Link Used', "Inquiry ID: {$link['inquiry_id']}", 0);
-echo json_encode(["success" => true, "guest_token" => $link['guest_token'], "thread_id" => (int)$link['inquiry_id']]);
+echo json_encode(["success" => true, "guest_token" => $newToken, "thread_id" => (int)$link['inquiry_id']]);
 $conn->close();
 ?>

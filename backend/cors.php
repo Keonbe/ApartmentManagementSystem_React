@@ -9,6 +9,20 @@
 
 if (PHP_SAPI === 'cli') return;
 
+// Security headers on every API response (SPRINT 169, security_audit C-1/C-4/E-2).
+// No X-Frame-Options here on purpose: the app previews files from download_file.php
+// inside an <iframe>. The SPA itself is protected in ams-react/public/.htaccess.
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+// HSTS tells browsers to use HTTPS for this host for a year. It is sent only over
+// HTTPS (browsers ignore it on HTTP) and never for a local host, so a dev machine
+// with a self-made certificate is not pinned to HTTPS. config.php is not loaded yet.
+$ams_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+$ams_host = strtolower(preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
+if ($ams_https && $ams_host !== '' && !in_array($ams_host, ['localhost', '127.0.0.1', '::1'], true) && !str_ends_with($ams_host, '.local')) {
+    header('Strict-Transport-Security: max-age=31536000');
+}
+
 // Keep preflight headers centralized so authenticated API requests are allowed.
 header_remove('Access-Control-Allow-Headers');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');

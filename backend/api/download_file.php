@@ -25,12 +25,6 @@ function find_owner($conn, $sql, $params) {
     return $row ? (int)$row['owner_id'] : null;
 }
 
-function table_has_column($conn, $table, $column) {
-    // Table/column names below are hard-coded by this endpoint, not user input.
-    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE '" . $conn->real_escape_string($column) . "'");
-    return $result && $result->num_rows > 0;
-}
-
 $path = $_GET['path'] ?? '';
 if (!is_string($path) || $path === '') download_fail(400, "Missing file path.");
 
@@ -74,18 +68,18 @@ if ($owner === null) {
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE proof_of_payment_path IN (?,?) LIMIT 1", $two);
 }
-if ($owner === null && table_has_column($conn, 'refund_requests', 'payout_proof_path')) {
+if ($owner === null) {
     // The proof of a refund payout made by hand: the tenant it was paid to (or an admin).
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM refund_requests WHERE payout_proof_path IN (?,?) LIMIT 1", $two);
 }
-if ($owner === null && table_has_column($conn, 'invoices', 'rejected_proof_path')) {
+if ($owner === null) {
     // A rejected proof (reject_payment_proof.php keeps the file for the admin).
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE rejected_proof_path IN (?,?) LIMIT 1", $two);
 }
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) OR lc.tenant_signature_path IN (?,?) OR lc.owner_signature_path IN (?,?) LIMIT 1", array_merge($six, $two));
 }
-if ($owner === null && table_has_column($conn, 'utility_readings', 'bill_file_path')) {
+if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM utility_readings WHERE bill_file_path IN (?,?) AND user_id IS NOT NULL LIMIT 1", $two);
 }
 if ($owner === null) {
@@ -111,7 +105,7 @@ if ($owner === null) {
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM parking_reservations WHERE document_path IN (?,?) LIMIT 1", $two);
 }
-if ($owner === null && table_has_column($conn, 'notifications', 'attachment_path') && table_has_column($conn, 'notifications', 'user_id')) {
+if ($owner === null) {
     // One announcement file is attached to every recipient's notification, so
     // any of them may open it — not only whichever row happens to come first.
     $stmt = $conn->prepare("SELECT DISTINCT user_id FROM notifications WHERE attachment_path IN (?,?) AND user_id IS NOT NULL");
@@ -170,7 +164,8 @@ if ($notification_recipients !== null) {
     $authorizedGuest = false;
     if (!$auth && strlen($guestToken) === 64 && ctype_xdigit($guestToken)) {
         $stmt = $conn->prepare("SELECT id FROM inquiries WHERE id = ? AND guest_token = ? AND thread_type = 'guest'");
-        $stmt->bind_param('is', $guest_thread_id, $guestToken);
+        $guestTokenHash = guest_token_hash($guestToken);
+        $stmt->bind_param('is', $guest_thread_id, $guestTokenHash);
         $stmt->execute();
         $authorizedGuest = (bool)$stmt->get_result()->fetch_assoc();
         $stmt->close();

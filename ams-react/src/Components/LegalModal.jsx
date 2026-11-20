@@ -30,7 +30,10 @@ export function LegalContent({ doc = 'privacy', className = '' }) {
   );
 }
 
-export default function LegalModal({ initialDoc = 'terms', onClose }) {
+// `docs` lists the tabs (default Terms of Service and Privacy Notice; the rent
+// application form uses 'application' and 'privacy'). `footer` replaces the Close
+// button, e.g. the form's green "I agree".
+export default function LegalModal({ initialDoc = 'terms', docs = DOCS, footer = null, onClose }) {
   const { lang, t } = useLang();
   const { theme } = useTheme();
   const [doc, setDoc] = useState(initialDoc);
@@ -41,11 +44,14 @@ export default function LegalModal({ initialDoc = 'terms', onClose }) {
     <Modal
       title={current.title}
       onClose={onClose}
-      className={`ut-root ${theme === 'dark' || theme === 'glass' ? `ut-${theme}` : 'ut-light'} bg-white rounded-dialog shadow-dialog w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[85vh]`}
+      // Glass shows as dark here: the glass dialog colour only applies to a dialog
+      // inside .ut-root (this one carries the class itself), so a glass panel stayed
+      // see-through over the form behind it. Sign-in and registration do the same.
+      className={`ut-root ${theme === 'dark' || theme === 'glass' ? 'ut-dark' : 'ut-light'} bg-white rounded-dialog shadow-dialog w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[85vh]`}
     >
       <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-slate-100 bg-white">
         <div role="tablist" className="flex gap-1">
-          {DOCS.map((d) => (
+          {docs.map((d) => (
             <button
               key={d}
               type="button"
@@ -68,9 +74,11 @@ export default function LegalModal({ initialDoc = 'terms', onClose }) {
       </div>
 
       <div className="px-5 py-3 border-t border-slate-100 flex justify-end">
-        <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold border-0 cursor-pointer">
-          {t('legal.close')}
-        </button>
+        {footer || (
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold border-0 cursor-pointer">
+            {t('legal.close')}
+          </button>
+        )}
       </div>
     </Modal>
   );

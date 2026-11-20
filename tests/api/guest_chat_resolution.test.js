@@ -14,7 +14,7 @@ async function addGuestThread(messages = []) {
   const token = (String(++seq).padStart(2, '0') + 'cd'.repeat(31)).slice(0, 64);
   const phone = '+63918' + String(1000000 + seq);
   const res = await q(
-    "INSERT INTO inquiries (full_name, email, contact_no, status, thread_type, guest_token, guest_name, guest_email, guest_phone) VALUES (?, ?, ?, 'New', 'guest', ?, ?, ?, ?)",
+    "INSERT INTO inquiries (full_name, email, contact_no, status, thread_type, guest_token, guest_name, guest_email, guest_phone) VALUES (?, ?, ?, 'New', 'guest', SHA2(?, 256), ?, ?, ?)",
     [`Asker ${seq}`, `asker${seq}@demo.example`, phone, token, `Asker ${seq}`, `asker${seq}@demo.example`, phone],
   );
   for (const [role, text] of messages) {

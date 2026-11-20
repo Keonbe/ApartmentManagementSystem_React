@@ -487,6 +487,7 @@ CREATE TABLE `users` (
   `role` varchar(20) DEFAULT 'user',
   `avatar_url` varchar(255) DEFAULT NULL,
   `is_archived` tinyint(1) NOT NULL DEFAULT 0,
+  `anonymized_at` datetime DEFAULT NULL,
   `email_verified_at` datetime DEFAULT NULL,
   `verification_token` varchar(64) DEFAULT NULL,
   `login_otp` varchar(6) DEFAULT NULL,
@@ -618,6 +619,8 @@ CREATE TABLE IF NOT EXISTS `inquiries` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `thread_type` enum('registered','guest') NOT NULL DEFAULT 'registered',
   `guest_token` varchar(64) DEFAULT NULL,
+  -- 1 = guest_token holds the sha256 of the browser's token (2026_11_workstream.sql guest_token_hash).
+  `guest_token_hashed` tinyint(1) NOT NULL DEFAULT 1,
   `guest_name` varchar(150) DEFAULT NULL,
   `guest_email` varchar(150) DEFAULT NULL,
   `guest_phone` varchar(30) DEFAULT NULL,
@@ -952,6 +955,8 @@ ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `late_fee_waived` tinyint(1) NOT
 -- required application document) before an application can be approved
 -- (checklist item 1.7).
 ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `terms_agreed_at` timestamp NULL DEFAULT NULL;
+-- Which Terms version the applicant agreed to (TERMS_VERSION in config.php; 2026_11_workstream.sql erasure_and_terms_version).
+ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `terms_version` varchar(20) DEFAULT NULL AFTER `terms_agreed_at`;
 -- Set when an admin assigns a tenant in person (update_room.php) and attests the
 -- documents were checked there (2026_10_manager_interview_alignment.sql).
 ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `documents_verified_at` datetime DEFAULT NULL AFTER `terms_agreed_at`;
@@ -1144,11 +1149,14 @@ CREATE TABLE IF NOT EXISTS `login_attempts` (
 CREATE TABLE IF NOT EXISTS `password_resets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `email` varchar(255) NOT NULL,
-  `token_hash` varchar(64) NOT NULL,
+  `token_hash` varchar(255) NOT NULL,
   `expires_at` datetime NOT NULL,
+  -- One-time use (2026_10_password_resets_used.sql); the endpoints no longer create or repair this table per request.
+  `used` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `email` (`email`)
+  KEY `email` (`email`),
+  KEY `token_hash` (`token_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- One row per reset request, kept only long enough to count the last hour.
@@ -1313,6 +1321,9 @@ CREATE TABLE IF NOT EXISTS `messages` (
   KEY `async_receiver` (`receiver_id`),
   KEY `idx_messages_complaint` (`complaint_id`),
   KEY `idx_messages_inquiry` (`inquiry_id`),
+  -- The conversation list reads one person's messages by sender and by receiver (2026_11_workstream.sql messages_conversation_indexes).
+  KEY `idx_messages_sender_receiver_created` (`sender_id`, `receiver_id`, `created_at`),
+  KEY `idx_messages_receiver_sender_created` (`receiver_id`, `sender_id`, `created_at`),
   CONSTRAINT `fk_messages_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_messages_complaint` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`id`) ON DELETE SET NULL,

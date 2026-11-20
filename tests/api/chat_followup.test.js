@@ -15,7 +15,7 @@ async function addInquiry({ userId = null, status = 'New', guest = false, seen =
   const token = guest ? (String(seq).padStart(4, '0') + 'ef'.repeat(30)).slice(0, 64) : null;
   const res = await q(
     `INSERT INTO inquiries (user_id, full_name, email, contact_no, message, source, status, thread_type, guest_token, guest_name, admin_seen_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'Question', 'web', ?, ?, ?, ?, ?, NOW() - INTERVAL ? DAY, NOW() - INTERVAL ? DAY)`,
+     VALUES (?, ?, ?, ?, 'Question', 'web', ?, ?, SHA2(?, 256), ?, ?, NOW() - INTERVAL ? DAY, NOW() - INTERVAL ? DAY)`,
     [userId, `Lead ${seq}`, `lead${seq}@demo.example`, `+6391790${String(seq).padStart(5, '0')}`, status,
       guest ? 'guest' : 'registered', token, guest ? `Lead ${seq}` : null, seen ? new Date() : null, ageDays, ageDays],
   );

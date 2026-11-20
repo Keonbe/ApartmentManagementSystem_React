@@ -60,7 +60,7 @@ try {
     $conn->commit();
 } catch (Exception $e) {
     $conn->rollback();
-    refund_fail(409, $e->getMessage());
+    refund_fail(409, public_error_message($e));
 }
 
 resolve_admin_queue($conn, 'refund_request', $id);

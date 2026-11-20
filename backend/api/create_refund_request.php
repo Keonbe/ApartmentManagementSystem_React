@@ -105,7 +105,7 @@ try {
     $conn->commit();
 } catch (Exception $e) {
     $conn->rollback();
-    refund_fail(409, $e->getMessage());
+    refund_fail(409, public_error_message($e));
 }
 
 $label = $type === 'advance' ? 'advance rent' : 'an overpayment';

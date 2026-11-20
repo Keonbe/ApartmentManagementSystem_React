@@ -19,7 +19,8 @@ function adopt_guest_chat($conn, $userId, $token) {
     $conn->begin_transaction();
     try {
         $find = $conn->prepare("SELECT id FROM inquiries WHERE guest_token = ? AND thread_type = 'guest' LIMIT 1 FOR UPDATE");
-        $find->bind_param('s', $token);
+        $tokenHash = guest_token_hash($token);
+        $find->bind_param('s', $tokenHash);
         $find->execute();
         $thread = $find->get_result()->fetch_assoc();
         $find->close();

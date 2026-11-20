@@ -281,7 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         http_response_code(500);
         echo json_encode([
             "success" => false, 
-            "message" => "Server Error: " . $e->getMessage()
+            "message" => public_error_message($e, "Could not load invoices. Please try again.")
         ]);
     } finally {
         if (isset($conn)) {

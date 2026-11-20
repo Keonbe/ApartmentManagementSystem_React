@@ -130,8 +130,7 @@ $data = [
 ];
 
 // 1. Total rooms count in building
-$roomsArchiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
-$roomsActiveFilter = ($roomsArchiveColumn && $roomsArchiveColumn->num_rows > 0) ? ' WHERE archived_at IS NULL' : '';
+$roomsActiveFilter = ' WHERE archived_at IS NULL';
 $stmt = $conn->prepare("SELECT COUNT(*) as total FROM rooms" . $roomsActiveFilter);
 $stmt->execute();
 if ($row = $stmt->get_result()->fetch_assoc()) {

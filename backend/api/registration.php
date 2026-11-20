@@ -41,7 +41,6 @@ if ($password !== $confirmPass) fail("Confirmed password does not match");
 // version they agreed to is stored. Bump TERMS_VERSION with the "Last updated"
 // date in ams-react/src/config/legalContent.js. Checked before the rate limit
 // so a refused form does not use up an attempt.
-const TERMS_VERSION = '2026-11-03';
 if (!filter_var($input["agree_terms"] ?? false, FILTER_VALIDATE_BOOLEAN)) {
     fail("You must agree to the Terms and the Privacy Notice to create an account.");
 }

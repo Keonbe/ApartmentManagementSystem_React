@@ -2,6 +2,14 @@
 # browser keeps pointing at the previous build's hashed bundle after a rebuild.
 # The hashed files under assets/ never change, so they can be cached for good.
 <IfModule mod_headers.c>
+  # Security headers (SPRINT 169). HSTS only over HTTPS; the HTTP to HTTPS redirect
+  # and the certificate belong to the virtual host (docs/deployment/localhost_to_production.md).
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  <If "%{HTTPS} == 'on' && %{HTTP_HOST} !~ /^(localhost|127\.0\.0\.1)(:|$)/">
+    Header always set Strict-Transport-Security "max-age=31536000"
+  </If>
   <FilesMatch "\.html$">
     Header set Cache-Control "no-cache"
   </FilesMatch>

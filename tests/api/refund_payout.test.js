@@ -2,7 +2,7 @@
 // the payout method comes from a fixed list, anything but cash needs a reference
 // and a proof file, the file is saved only when the payout really is recorded,
 // and the tenant it was paid to (or an admin) can open it.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { api, loginAs } from './lib/api.js';
@@ -22,8 +22,17 @@ async function approvedRefund(userId = MARIA) {
 const payout = (id, opts, token = admin) => api('update_refund_request.php', { token, form: payoutForm(id, opts) });
 const row = (id) => one('SELECT status, payout_method, payout_reference, payout_proof_path FROM refund_requests WHERE id = ?', [id]);
 
+// Proofs go to the real backend/uploads/refunds (the test server shares it): remove the
+// ones this file created, and leave anything that was already there.
+let filesBefore = new Set();
 beforeAll(async () => {
+  filesBefore = new Set(files());
   [admin, maria, jose] = await Promise.all([loginAs('admin'), loginAs('maria'), loginAs('jose')]);
+});
+afterAll(() => {
+  for (const name of files()) {
+    if (!filesBefore.has(name)) fs.rmSync(path.join(REFUNDS_DIR, name), { force: true });
+  }
 });
 
 describe('the payout method and what it needs', () => {

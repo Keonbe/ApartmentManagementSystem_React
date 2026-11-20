@@ -57,6 +57,18 @@ try {
         exit();
     }
 
+    // Every change to the rules is written to the activity log (the Privacy Notice
+   // promises it, SPRINT 174). Logged after the change is saved; a failing log line
+   // is only recorded, never reported as the change failing.
+    $adminId = (int)(get_authenticated_user($conn)['id'] ?? 0);
+    $logRule = function ($action, $details) use ($conn, $adminId) {
+        try {
+            log_activity($conn, $adminId, 'system', $action, $details);
+        } catch (Throwable $e) {
+            error_log('[AMS] house_rules.php log: ' . $e->getMessage());
+        }
+    };
+
     $input = read_json_input(['rules']);
     if ($method === 'PUT' && ($input['action'] ?? '') === 'reorder') {
         $orderedRules = $input['rules'] ?? null;
@@ -102,6 +114,7 @@ try {
             $conn->rollback();
             throw $e;
         }
+        $logRule('Reordered House Rules', count($normalized) . ' rules reordered');
 
         echo json_encode(['success' => true]);
         exit();
@@ -148,6 +161,7 @@ try {
         }
         $newId = $method === 'POST' ? $conn->insert_id : $id;
         $stmt->close();
+        $logRule($method === 'POST' ? 'Added House Rule' : 'Updated House Rule', "Rule #$newId ($scope): $title" . ($active ? '' : ' (hidden)'));
         echo json_encode(['success' => true, 'id' => $newId]);
         exit();
     }
@@ -164,6 +178,7 @@ try {
             if (!$exists) { http_response_code(404); echo json_encode(['success' => false, 'message' => 'Rule not found.']); exit(); }
         }
         $stmt->close();
+        $logRule('Removed House Rule', "Rule #$id hidden");
         echo json_encode(['success' => true]);
         exit();
     }

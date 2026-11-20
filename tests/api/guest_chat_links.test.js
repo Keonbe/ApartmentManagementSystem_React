@@ -16,7 +16,7 @@ async function addGuestThread() {
   const email = `owner${seq}@example.com`;
   const phone = '+63918' + String(2000000 + seq);
   const res = await q(
-    "INSERT INTO inquiries (full_name, email, contact_no, status, thread_type, guest_token, guest_name, guest_email, guest_phone) VALUES (?, ?, ?, 'New', 'guest', ?, ?, ?, ?)",
+    "INSERT INTO inquiries (full_name, email, contact_no, status, thread_type, guest_token, guest_name, guest_email, guest_phone) VALUES (?, ?, ?, 'New', 'guest', SHA2(?, 256), ?, ?, ?)",
     [`Owner ${seq}`, email, phone, token, `Owner ${seq}`, email, phone],
   );
   await q("INSERT INTO guest_messages (inquiry_id, sender_role, message) VALUES (?, 'guest', 'private question')", [res.insertId]);
@@ -111,7 +111,15 @@ describe('guest_chat_resume.php redeem', () => {
     const code = await addLink(owner.id);
     const first = await resume({ action: 'redeem', code });
     expect(first.status).toBe(200);
-    expect(first.body).toMatchObject({ success: true, guest_token: owner.token, thread_id: owner.id });
+    // The stored token is a hash, so redeeming issues a fresh token and the old one stops working.
+    expect(first.body).toMatchObject({ success: true, thread_id: owner.id });
+    expect(first.body.guest_token).toMatch(/^[0-9a-f]{64}$/);
+    expect(first.body.guest_token).not.toBe(owner.token);
+    const stored = await one('SELECT guest_token FROM inquiries WHERE id = ?', [owner.id]);
+    expect(stored.guest_token).not.toBe(first.body.guest_token); // the raw token is not what is stored
+    expect(stored.guest_token).toMatch(/^[0-9a-f]{64}$/);
+    expect((await api('guest_chat.php', { headers: { 'X-Guest-Token': first.body.guest_token } })).status).toBe(200);
+    expect((await api('guest_chat.php', { headers: { 'X-Guest-Token': owner.token } })).status).toBe(404);
     expect((await one('SELECT guest_verified_at FROM inquiries WHERE id = ?', [owner.id])).guest_verified_at).not.toBeNull();
 
     const again = await resume({ action: 'redeem', code });

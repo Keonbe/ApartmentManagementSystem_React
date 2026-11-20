@@ -12,56 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once "../config.php";
 require_once __DIR__ . '/../followups.php';
 
-// Auto-create tables if not exists (same pattern as get_utility_readings.php)
-$conn->query("CREATE TABLE IF NOT EXISTS `inquiries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) DEFAULT NULL,
-  `full_name` varchar(150) NOT NULL,
-  `email` varchar(150) NOT NULL,
-  `contact_no` varchar(30) NOT NULL,
-  `room_name` varchar(50) DEFAULT NULL,
-  `occupants` int(11) DEFAULT NULL,
-  `preferred_move_in` date DEFAULT NULL,
-  `message` text DEFAULT NULL,
-  `source` varchar(20) NOT NULL DEFAULT 'web',
-  `status` varchar(20) NOT NULL DEFAULT 'New',
-  `viewing_date` datetime DEFAULT NULL,
-  `admin_notes` text DEFAULT NULL,
-  `closed_reason` varchar(255) DEFAULT NULL,
-  `handled_by` int(11) DEFAULT NULL,
-  `ip_address` varchar(45) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_inquiry_status` (`status`),
-  KEY `idx_inquiry_room` (`room_name`),
-  KEY `fk_inquiry_user` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-
-$conn->query("CREATE TABLE IF NOT EXISTS `unit_reservations` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `inquiry_id` int(11) DEFAULT NULL,
-  `user_id` int(11) DEFAULT NULL,
-  `room_name` varchar(50) NOT NULL,
-  `reserved_for_name` varchar(150) NOT NULL,
-  `contact_no` varchar(30) DEFAULT NULL,
-  `email` varchar(150) DEFAULT NULL,
-  `hold_expires_at` date NOT NULL,
-  `reservation_fee` decimal(10,2) NOT NULL DEFAULT 0.00,
-  `status` varchar(20) NOT NULL DEFAULT 'Active',
-  `notes` text DEFAULT NULL,
-  `released_at` datetime DEFAULT NULL,
-  `released_reason` varchar(255) DEFAULT NULL,
-  `created_by` int(11) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_res_status` (`status`),
-  KEY `idx_res_room` (`room_name`),
-  KEY `fk_res_inquiry` (`inquiry_id`),
-  KEY `fk_res_user` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);

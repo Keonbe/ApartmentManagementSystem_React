@@ -208,7 +208,8 @@ try {
     $conn->commit();
 } catch (Throwable $e) {
     $conn->rollback();
-    fail(500, "Failed to sync the utility reading: " . $e->getMessage());
+    if (!($e instanceof Exception)) error_log('[AMS] sync_utility_to_invoice: ' . $e->getMessage());
+    fail(500, "Failed to sync the utility reading: " . ($e instanceof Exception ? public_error_message($e) : 'Server error. Please try again.'));
 }
 
 if ($merged) {

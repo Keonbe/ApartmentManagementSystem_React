@@ -23,7 +23,7 @@ import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/f
 import { occupancyFrom, occupancyExtra, occupancyRuleText } from '../utils/occupancy';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
 import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
-import { LegalContent } from '../Components/LegalModal';
+import LegalModal from '../Components/LegalModal';
 
 const GENDERS = ['Male', 'Female', 'Other'];
 const MAX_MONTHS = 24;
@@ -345,7 +345,6 @@ export default function RentApplication() {
     const [agreeRules, setAgreeRules] = useState(false);
     const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
     const [showTermsModal, setShowTermsModal] = useState(false);
-    const [termsTab, setTermsTab] = useState('application');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     const isPendingReview = ['pending', 'pending review'].includes(applicationStatus?.toLowerCase());
@@ -470,7 +469,6 @@ export default function RentApplication() {
     // Esc, focus in and back out, Tab kept inside: the four dialogs below.
     const roomDialogRef = useDialog(showRoomModal, () => setShowRoomModal(false));
     const previewDialogRef = useDialog(!!preview, closePreview);
-    const termsDialogRef = useDialog(showTermsModal, () => setShowTermsModal(false));
 
     const chooseRoom = (roomId) => {
         setSelectedRoomId(roomId);
@@ -1227,36 +1225,19 @@ export default function RentApplication() {
                 </div>
             )}
 
+            {/* The shared legal pop-up, as at registration: the application terms and the
+                Privacy Notice as two tabs, with the green agreement button kept. */}
             {showTermsModal && (
-                <div onClick={() => setShowTermsModal(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                    <div ref={termsDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="rent-terms-title" onClick={(e) => e.stopPropagation()} className="outline-none rent-app-terms-modal bg-white rounded-dialog shadow-dialog w-full max-w-2xl mx-4 flex flex-col max-h-[85vh] animate-scale-in overflow-hidden">
-                        <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-slate-100">
-                            <div role="tablist" aria-label={t('rent.termsTitle')} className="flex gap-1">
-                                <button type="button" role="tab" aria-selected={termsTab === 'application'} onClick={() => setTermsTab('application')} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-colors ${termsTab === 'application' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{t('rent.termsTitle')}</button>
-                                <button type="button" role="tab" aria-selected={termsTab === 'privacy'} onClick={() => setTermsTab('privacy')} className={`px-3 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-colors ${termsTab === 'privacy' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{t('reg.privacyLink')}</button>
-                            </div>
-                            <button type="button" aria-label={t('common.close')} onClick={() => setShowTermsModal(false)} className="p-1.5 rounded-lg bg-transparent border-0 text-slate-600 hover:bg-slate-100 cursor-pointer">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div role="tabpanel" className="px-5 py-4 overflow-y-auto text-[13px] leading-relaxed text-slate-700 space-y-3">
-                            {termsTab === 'privacy' ? <LegalContent doc="privacy" /> : <>
-                                <h2 id="rent-terms-title" className="text-lg font-bold text-slate-900 m-0">{t('rent.termsTitle')}</h2>
-                                <div className="space-y-2">
-                                    <h3 className="text-sm font-bold text-slate-900 m-0 pt-2">{t('rent.terms1Title')}</h3>
-                                    <p className="m-0">{t('rent.terms1Body')}</p>
-                                    <h3 className="text-sm font-bold text-slate-900 m-0 pt-2">{t('rent.terms2Title')}</h3>
-                                    <p className="m-0">{t('rent.terms2Body')}</p>
-                                </div>
-                            </>}
-                        </div>
-                        <div className="px-5 py-3 border-t border-slate-100 flex justify-end">
-                            <button type="button" onClick={() => { setAgreePrivacy(true); form.clearError('agreeTerms'); setShowTermsModal(false); }} className="bg-[#10b981] hover:bg-[#059669] text-white font-black px-8 py-3 rounded-xl text-sm transition-colors shadow-md shadow-emerald-600/20 cursor-pointer border-0">
-                                {t('rent.acceptAgree')}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <LegalModal
+                    docs={['application', 'privacy']}
+                    initialDoc="application"
+                    onClose={() => setShowTermsModal(false)}
+                    footer={(
+                        <button type="button" onClick={() => { setAgreePrivacy(true); form.clearError('agreeTerms'); setShowTermsModal(false); }} className="bg-[#10b981] hover:bg-[#059669] text-white font-black px-8 py-3 rounded-xl text-sm transition-colors shadow-md shadow-emerald-600/20 cursor-pointer border-0">
+                            {t('rent.acceptAgree')}
+                        </button>
+                    )}
+                />
             )}
 
             <HouseRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />

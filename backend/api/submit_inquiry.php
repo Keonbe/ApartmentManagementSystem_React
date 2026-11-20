@@ -143,7 +143,8 @@ try {
     $guest_email = $guest_token !== null ? $email : null;
     $guest_phone = $guest_token !== null ? $contact_no : null;
     $unit_of_interest = $guest_token !== null ? $room_name : null;
-    $stmt->bind_param("issssissssssssssi", $user_id, $full_name, $email, $contact_no, $room_name, $occupants, $move_in, $message, $source, $ip, $thread_type, $guest_token, $guest_name, $guest_email, $guest_phone, $unit_of_interest, $matched_thread_id);
+    $guest_token_stored = $guest_token !== null ? guest_token_hash($guest_token) : null; // the browser gets the raw token below
+    $stmt->bind_param("issssissssssssssi", $user_id, $full_name, $email, $contact_no, $room_name, $occupants, $move_in, $message, $source, $ip, $thread_type, $guest_token_stored, $guest_name, $guest_email, $guest_phone, $unit_of_interest, $matched_thread_id);
     $stmt->execute();
     $inquiry_id = $stmt->insert_id;
     $stmt->close();

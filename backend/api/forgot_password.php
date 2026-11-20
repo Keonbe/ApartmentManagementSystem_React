@@ -8,20 +8,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
 }
 
 require_once "../config.php";
-require_once __DIR__ . '/services/password_reset_schema.php';
 require_once __DIR__ . '/services/frontend_origin.php';
-
-// DDL is intentionally performed before token processing (and before any
-// transaction). CREATE IF NOT EXISTS alone does not repair older installations.
-try {
-    ensure_password_resets_schema($conn);
-} catch (Throwable $e) {
-    error_log('[AMS] forgot_password.php schema setup: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Server error. Please try again."]);
-    $conn->close();
-    exit;
-}
 
 // Ensure the request is POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -88,6 +75,8 @@ $stmt->close();
 $stmt = $conn->prepare("INSERT INTO password_resets (email, token_hash, expires_at, used) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE), 0)");
 $stmt->bind_param("ss", $email, $token_hash);
 if ($stmt->execute()) {
+    // The request is recorded against the account (no email address in the text).
+    try { log_activity($conn, (int)$user['id'], 'auth', 'Requested Password Reset', 'A password reset link was requested from ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), (int)$user['id']); } catch (Throwable $logError) { error_log('[AMS] forgot_password log: ' . $logError->getMessage()); }
     
     require_once __DIR__ . '/services/send_email.php';
     $baseUrl = password_reset_frontend_origin($data['frontend_url'] ?? null, $_SERVER);

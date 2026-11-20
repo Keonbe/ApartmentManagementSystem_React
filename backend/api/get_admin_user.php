@@ -20,9 +20,6 @@ if (!$user_id) {
 
 try {
     $stmt = $conn->prepare("SELECT id, first_name, last_name, suffix, avatar_url, role FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1");
-    if (!$stmt) {
-        throw new Exception('Prepare failed: ' . $conn->error);
-    }
     $stmt->execute();
     $result = $stmt->get_result();
     $admin = $result->fetch_assoc();
@@ -46,9 +43,9 @@ try {
     ]);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => public_error_message($e)]);
 }
 
-$stmt->close();
+$stmt?->close();
 $conn->close();
 ?>

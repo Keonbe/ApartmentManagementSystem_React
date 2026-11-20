@@ -3,10 +3,29 @@
 // retention, file access or data sharing changes, update this file in the same task.
 // Shape: LEGAL[lang][doc] = { title, updated, intro, sections: [{ h, p?: [], li?: [] }] }
 
-const UPDATED_EN = 'Last updated: November 3, 2026';
-const UPDATED_FIL = 'Huling na-update: Nobyembre 3, 2026';
+const UPDATED_EN = 'Last updated: November 19, 2026';
+const UPDATED_FIL = 'Huling na-update: Nobyembre 19, 2026';
+// The application terms (rent application form) were reworded on their own date.
+const UPDATED_APP_EN = 'Last updated: November 14, 2026';
+const UPDATED_APP_FIL = 'Huling na-update: Nobyembre 14, 2026';
 
 const en = {
+  // Shown on the rent application form (RentApplication.jsx) beside the Privacy Notice.
+  application: {
+    title: 'Application Terms & Conditions',
+    updated: UPDATED_APP_EN,
+    intro: 'By submitting a rent application you confirm that you have read these terms and the Privacy Notice.',
+    sections: [
+      {
+        h: '1. Apartment Occupancy Regulations',
+        p: ["Occupancy is subject to the unit's base occupant allowance and maximum occupant limit set by Management. Any occupants beyond the base allowance may incur the applicable additional occupant charge."],
+      },
+      {
+        h: '2. Verification Paperwork Protocols',
+        p: ['Applicants must submit clear, authentic copies of every document listed under Verification Documents, such as a valid government-issued ID. Management may ask for a document again if it cannot be verified.'],
+      },
+    ],
+  },
   terms: {
     title: 'Terms of Service',
     updated: UPDATED_EN,
@@ -44,7 +63,7 @@ const en = {
         h: '4. Rent contract',
         p: ['Your rent contract is generated from Management\'s contract template and is pinned to the version in force when it was created. The standard terms include:'],
         li: [
-          'an occupancy limit per unit, with a fee for each person above it;',
+          'a number of occupants included in the rent and a maximum per unit, with a fee for each person above the included number;',
           'a move-out notice of 15 days;',
           'a security deposit of one month\'s rent, applied to unpaid rent, utilities or damage, with the remainder returned to you (see Refunds and your security deposit);',
           'no sublease or transfer without Management\'s written permission;',
@@ -194,12 +213,16 @@ const en = {
       },
       {
         h: '9. Your choices and rights',
-        p: ['You may ask Management to access or correct your information, object to certain uses, or request that information be blocked or erased where the law allows. Some records must be kept for billing, contract and legal reasons, so a request may be limited to what the law requires. Accounts are archived rather than erased. You can change your contact details and photo in your profile, and turn optional email and SMS categories on or off in your notification settings. You also have the right to lodge a complaint with the National Privacy Commission.'],
-      },
+        p: ['You may ask Management to access or correct your information, object to certain uses, or request that it be blocked or erased where the law allows. You can change your contact details and photo in your profile, and turn optional email and SMS categories on or off in your notification settings. You also have the right to lodge a complaint with the National Privacy Commission.'],
+        li: [
+          'Erasure: once you are a former tenant (your account is archived), you can ask Management to anonymize your account. Your name, contact details, address, emergency contact, profile picture, uploaded documents and IDs, signatures, message text and sign-in records are then erased and cannot be recovered.',
+          'What stays: invoices, payments, contracts and deposit records are kept, without your name (shown as "Former tenant"), because the property needs them for billing, accounting and legal reasons.',
+          'A request may be limited, or wait, while you still owe a balance or a deposit is not yet settled.',
+        ],      },
       {
         h: '10. Contact and changes',
         p: [
-          'Send privacy requests to Management through the Inquiry form or chat in the System.',
+          'Data Protection Officer: the Owner / Management of the property is responsible for personal data in the System (RA 10173). Send privacy requests and complaints to Management through the Inquiry form or chat in the System, or in person at the office.',
           'We may update this notice. The date above shows the current version.',
         ],
       },
@@ -208,6 +231,21 @@ const en = {
 };
 
 const fil = {
+  application: {
+    title: 'Mga Tuntunin at Kundisyon ng Aplikasyon',
+    updated: UPDATED_APP_FIL,
+    intro: 'Sa pagsusumite ng aplikasyon sa pag-upa, kinukumpirma mong nabasa mo ang mga tuntuning ito at ang Paunawa sa Privacy.',
+    sections: [
+      {
+        h: '1. Mga Regulasyon sa Paninirahan',
+        p: ['Ang dami ng maaaring tumira ay nakabatay sa batayang allowance ng unit at sa pinakamataas na bilang ng occupant na itinakda ng Pamunuan. Maaaring may karagdagang bayad para sa mga occupant na lampas sa batayang allowance.'],
+      },
+      {
+        h: '2. Mga Protokol sa Beripikasyon',
+        p: ['Ang mga aplikante ay kinakailangang magsumite ng malinaw at tunay na kopya ng bawat dokumentong nakalista sa Mga Dokumento para sa Beripikasyon, gaya ng valid na government-issued ID. Maaaring hingin muli ng management ang isang dokumento kung hindi ito ma-verify.'],
+      },
+    ],
+  },
   terms: {
     title: 'Mga Tuntunin ng Serbisyo',
     updated: UPDATED_FIL,
@@ -245,7 +283,7 @@ const fil = {
         h: '4. Kontrata sa pag-upa',
         p: ['Ang kontrata mo sa pag-upa ay mula sa contract template ng Pamunuan at nakatali sa bersyong umiiral nang likhain ito. Kabilang sa karaniwang tuntunin:'],
         li: [
-          'limitasyon sa bilang ng nakatira sa bawat unit, na may bayad sa bawat sobra;',
+          'bilang ng nakatira na kasama na sa upa at pinakamataas na limitasyon sa bawat unit, na may bayad sa bawat sobra sa kasamang bilang;',
           'abiso sa paglipat-labas na 15 araw;',
           'security deposit na katumbas ng isang buwang upa, na ginagamit sa hindi nabayarang upa, utilities o pinsala, at ibinabalik sa iyo ang matitira (tingnan ang Mga refund at ang iyong security deposit);',
           'bawal ang sublease o paglilipat nang walang nakasulat na pahintulot ng Pamunuan;',
@@ -395,12 +433,17 @@ const fil = {
       },
       {
         h: '9. Iyong mga pagpipilian at karapatan',
-        p: ['Maaari mong hilingin sa Pamunuan na ma-access o maitama ang impormasyon mo, tumutol sa ilang paggamit, o humiling na i-block o burahin ang impormasyon kung pinapayagan ng batas. Ang ilang record ay kailangang itago para sa billing, kontrata at legal na dahilan, kaya ang request ay maaaring limitado sa hinihingi ng batas. Ina-archive ang account sa halip na burahin. Maaari mong baguhin ang contact details at larawan sa profile, at i-on o i-off ang mga opsyonal na kategorya ng email at SMS sa notification settings. May karapatan ka ring maghain ng reklamo sa National Privacy Commission.'],
+        p: ['Maaari mong hilingin sa Pamunuan na ma-access o maitama ang impormasyon mo, tumutol sa ilang paggamit, o humiling na i-block o burahin ito kung pinapayagan ng batas. Maaari mong baguhin ang contact details at larawan sa profile, at i-on o i-off ang mga opsyonal na kategorya ng email at SMS sa notification settings. May karapatan ka ring maghain ng reklamo sa National Privacy Commission.'],
+        li: [
+          'Pagbura: kapag dati ka nang tenant (naka-archive ang account mo), maaari mong hilingin sa Pamunuan na gawing anonymous ang account mo. Buburahin ang pangalan, contact details, address, emergency contact, larawan sa profile, na-upload na dokumento at ID, pirma, teksto ng mensahe at talaan ng sign-in, at hindi na ito maibabalik.',
+          'Ang mananatili: invoice, bayad, kontrata at record ng deposit, na walang pangalan mo (makikita bilang "Former tenant"), dahil kailangan ito ng property para sa billing, accounting at legal na dahilan.',
+          'Maaaring limitado o maghintay ang request habang may balanse ka pang utang o hindi pa naaayos ang deposit.',
+        ],
       },
       {
         h: '10. Pakikipag-ugnayan at mga pagbabago',
         p: [
-          'Ipadala ang privacy request sa Pamunuan sa pamamagitan ng Inquiry form o chat sa System.',
+          'Data Protection Officer: ang May-ari / Pamunuan ng property ang responsable sa personal na data sa System (RA 10173). Ipadala ang privacy request at reklamo sa Pamunuan sa pamamagitan ng Inquiry form o chat sa System, o nang personal sa opisina.',
           'Maaari naming baguhin ang paunawang ito. Ang petsa sa itaas ang kasalukuyang bersyon.',
         ],
       },

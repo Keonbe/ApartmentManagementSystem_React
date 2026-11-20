@@ -55,7 +55,7 @@ try {
     // written; a database error stays a generic 500.
     if ($e instanceof mysqli_sql_exception || !($e instanceof Exception)) { server_error_response($e, 'Could not cancel application.'); exit; }
     http_response_code(409);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => public_error_message($e)]);
 }
 $conn->close();
 ?>

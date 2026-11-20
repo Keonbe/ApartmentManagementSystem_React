@@ -32,7 +32,7 @@ try {
     $rid = $cr['id']; $refund = $cr['refund']; $fee = $cr['fee']; $paid = $cr['paid']; $invoice = ['id' => $cr['invoice']];
     $conn->commit();
 } catch (Throwable $e) {
-    $conn->rollback(); http_response_code(409); echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
+    $conn->rollback(); if (!($e instanceof Exception)) error_log('[AMS] request_application_cancellation: ' . $e->getMessage()); http_response_code(409); echo json_encode(['success' => false, 'message' => $e instanceof Exception ? public_error_message($e) : 'Server error. Please try again.']); exit;
 }
 notify_admins_queue($conn, 'refund_request', $rid, 'Applicant Cancellation Refund', "Tenant requested cancellation for Unit payment {$invoice['id']}; refund #$rid needs management review.");
 log_activity($conn, (int)$auth['id'], 'billing', 'Cancellation Refund Requested', "Refund #$rid for application #$app_id");

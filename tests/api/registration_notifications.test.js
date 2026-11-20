@@ -30,7 +30,7 @@ describe('registration.php notifications', () => {
 
   it('stores when and to which version of the Terms and Privacy Notice the person agreed (RA 10173)', async () => {
     const user = await one('SELECT terms_agreed_at, terms_version FROM users WHERE email_address = ?', [EMAIL]);
-    expect(user.terms_version).toBe('2026-11-03');
+    expect(user.terms_version).toBe('2026-11-19');
     expect(user.terms_agreed_at).not.toBeNull();
   });
 

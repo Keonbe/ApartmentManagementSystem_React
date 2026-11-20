@@ -3354,6 +3354,27 @@ function payment_window_days($conn) {
     return max(1, min(30, (int)get_setting($conn, 'payment_window_days', 3)));
 }
 
+// Before a sweep clears an online checkout, ask PayMongo whether it was paid: a lost
+// "paid" webhook would otherwise leave the money at PayMongo and the bill reopened
+// for a second payment (SPRINT 183). $why 'due' = bills past their due date (what
+// promote_overdue_invoices() clears), 'window' = checkouts older than the payment
+// window (what void_lapsed_payments() releases). A cheap check first, so the common
+// call (nothing is processing) makes no gateway request; a failure here never stops
+// the sweep it runs in.
+function reconcile_lapsing_checkouts($conn, $why) {
+    try {
+        $cond = $why === 'due'
+            ? "due_date IS NOT NULL AND due_date < CURDATE()"
+            : "processing_since IS NOT NULL AND processing_since < DATE_SUB(NOW(), INTERVAL " . payment_window_days($conn) . " DAY)";
+        $any = $conn->query("SELECT 1 FROM invoices WHERE status = 'processing' AND checkout_session_id IS NOT NULL AND ($cond) LIMIT 1");
+        if (!$any || !$any->fetch_row()) return;
+        require_once __DIR__ . '/paymongo_gateway.php';
+        reconcile_gateway_payments($conn, ['lapsing' => true]);
+    } catch (Throwable $e) {
+        error_log('[AMS] reconcile_lapsing_checkouts: ' . $e->getMessage());
+    }
+}
+
 // Releases checkouts abandoned past the window and cancels approved
 // applications whose move-in invoice went unpaid past its due date. Every row
 // is claimed with a conditional UPDATE and notified only when this call won it,
@@ -3361,6 +3382,7 @@ function payment_window_days($conn) {
 function void_lapsed_payments($conn) {
     $out = ['checkouts_released' => 0, 'applications_voided' => 0];
     $days = payment_window_days($conn);
+    reconcile_lapsing_checkouts($conn, 'window');
 
     // 1. Abandoned checkouts (same release as release_checkout_session.php).
     $stmt = $conn->prepare("SELECT id, user_id FROM invoices
@@ -3444,6 +3466,8 @@ function void_lapsed_payments($conn) {
 const LATE_FEE_MAX_PERCENT = 5.0;
 
 function promote_overdue_invoices($conn) {
+    // A checkout about to be cleared may have been paid with its webhook lost.
+    reconcile_lapsing_checkouts($conn, 'due');
     // Anything still owed past its due date becomes overdue — not just
     // 'pending'. An abandoned checkout ('processing'), a declined payment
     // ('payment-failed') or a missed in-person booking ('scheduled' whose date
@@ -3736,6 +3760,131 @@ function open_complaint_id($conn, $tenant_id) {
 // Ends every session a user holds, optionally keeping the caller's own token.
 // Called whenever a password, role or archive state changes, so the old
 // credentials or privileges stop working at once (security audit A-8).
+// The version of the Terms of Service and Privacy Notice people agree to (registration,
+// rent application). Keep it equal to the "Last updated" date of
+// ams-react/src/config/legalContent.js (UPDATED_EN): tests/api/anonymize_user.test.js
+// compares the two.
+const TERMS_VERSION = '2026-11-19';
+
+// Why an account cannot be anonymized (thrown by anonymize_user(), answered as HTTP 409).
+class AnonymizeRefused extends Exception {}
+
+// Erases the personal data of an ARCHIVED former tenant (RA 10173 right to erasure,
+// SPRINT 177). Never a DELETE: users rows cascade into invoices and payments, which the
+// property must keep for accounting. What happens:
+//   scrubbed   the account (name, email, phone, gender, emergency contact, avatar), the
+//              person's copy on every rent application, household members' names, the
+//              person's own chat messages ("[removed]"), their inquiry and deposit-review
+//              text, the log of what was sent to them;
+//   deleted    uploaded documents and IDs, signatures, parking papers, notifications,
+//              queued messages, devices and sessions, and the files on disk;
+//   kept       invoices, payments, refunds, deposit records, the contract and its signed
+//              copy (accounting and contract records), the office's side of every chat,
+//              visitor logs (the visitors' data, not the tenant's) and the audit log.
+// Refused unless the account is archived, not an admin, not already anonymized, and has
+// nothing open (application, bill, refund, deposit refund, complaint). One transaction;
+// files are deleted after it commits, so a failed delete never undoes the erasure.
+// Returns ['counts' => [...], 'files' => [paths that could not be removed]].
+function anonymize_user($conn, $user_id, $admin_id) {
+    $user_id = (int)$user_id;
+    $paths = [];
+    $counts = [];
+    $conn->begin_transaction();
+    try {
+        $u = $conn->prepare("SELECT id, role, is_archived, anonymized_at, avatar_url FROM users WHERE id = ? FOR UPDATE");
+        $u->bind_param("i", $user_id);
+        $u->execute();
+        $user = $u->get_result()->fetch_assoc();
+        $u->close();
+        if (!$user) throw new AnonymizeRefused("User not found.");
+        if ($user['role'] === 'admin') throw new AnonymizeRefused("Admin accounts cannot be anonymized.");
+        if (!empty($user['anonymized_at'])) throw new AnonymizeRefused("This account is already anonymized.");
+        if ((int)$user['is_archived'] !== 1) throw new AnonymizeRefused("Archive the account first: only a former tenant's data can be erased.");
+
+        $open_sql = [
+            "a rent application or tenancy still open" => ["SELECT 1 FROM rent_applications WHERE user_id = ? AND status IN ('" . implode("','", ROOM_CLAIMING_APPLICATION_STATUSES) . "') LIMIT 1"],
+            "a bill still owed" => ["SELECT 1 FROM invoices WHERE user_id = ? AND status IN " . billing_open_status_sql() . " LIMIT 1"],
+            "a refund request still open" => ["SELECT 1 FROM refund_requests WHERE user_id = ? AND status IN ('" . implode("','", REFUND_OPEN_STATUSES) . "') LIMIT 1"],
+            "a security deposit refund still to be paid" => ["SELECT 1 FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE ra.user_id = ? AND lc.deposit_status = 'Refund Pending' LIMIT 1"],
+            "an unresolved complaint" => ["SELECT 1 FROM complaints WHERE user_id = ? AND status IN ('Open', 'In Review') LIMIT 1"],
+        ];
+        foreach ($open_sql as $what => [$sql]) {
+            $q = $conn->prepare($sql);
+            $q->bind_param("i", $user_id);
+            $q->execute();
+            $open = $q->get_result()->num_rows > 0;
+            $q->close();
+            if ($open) throw new AnonymizeRefused("This person still has $what. Settle it first.");
+        }
+
+        // Files to remove once the data is gone.
+        if (!empty($user['avatar_url'])) $paths[] = $user['avatar_url'];
+        $collect = function ($sql) use ($conn, $user_id, &$paths) {
+            $q = $conn->prepare($sql);
+            $q->bind_param("i", $user_id);
+            $q->execute();
+            foreach ($q->get_result()->fetch_all(MYSQLI_NUM) as $r) if (!empty($r[0])) $paths[] = $r[0];
+            $q->close();
+        };
+        $collect("SELECT ad.file_path FROM application_documents ad JOIN rent_applications ra ON ra.id = ad.rent_application_id WHERE ra.user_id = ?");
+        $collect("SELECT rejection_attachment_path FROM rent_applications WHERE user_id = ?");
+        $collect("SELECT lc.tenant_signature_path FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE ra.user_id = ?");
+        $collect("SELECT document_path FROM parking_reservations WHERE user_id = ?");
+        $collect("SELECT attachment_path FROM messages WHERE sender_id = ? AND attachment_path IS NOT NULL");
+
+        $run = function ($label, $sql, $types = 'i', ...$params) use ($conn, $user_id, &$counts) {
+            $s = $conn->prepare($sql);
+            if (!$params) $params = [$user_id]; // most statements take just the user id
+            $s->bind_param($types, ...$params);
+            $s->execute();
+            $counts[$label] = $s->affected_rows;
+            $s->close();
+        };
+        $email = "anonymized-$user_id@invalid.local"; // ".invalid" can never be mailed
+        $last = "Tenant #$user_id";
+        $password = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+
+        $run('account', "UPDATE users SET first_name = 'Former', middle_name = NULL, last_name = ?, suffix = NULL, contact_no = NULL, gender = NULL,
+                emergency_name = NULL, emergency_relationship = NULL, emergency_phone = NULL, avatar_url = NULL, email_address = ?, password = ?,
+                verification_token = NULL, login_otp = NULL, login_otp_expires_at = NULL, sms_opt_out = 1, email_opt_out = 1, sms_consent_at = NULL,
+                anonymized_at = NOW() WHERE id = ?", 'sssi', $last, $email, $password, $user_id);
+        $run('applications', "UPDATE rent_applications SET first_name = 'Former', middle_name = NULL, last_name = 'Tenant', suffix = NULL, contact_no = '', email = ?,
+                gender = '', previous_address = NULL, emergency_name = NULL, emergency_relationship = NULL, emergency_phone = NULL,
+                rejection_attachment_path = NULL, archive_notes = NULL WHERE user_id = ?", 'si', $email, $user_id);
+        $run('documents', "DELETE ad FROM application_documents ad JOIN rent_applications ra ON ra.id = ad.rent_application_id WHERE ra.user_id = ?");
+        $run('household', "UPDATE household_members hm JOIN rent_applications ra ON ra.id = hm.rent_application_id
+                SET hm.full_name = 'Former household member', hm.contact_no = NULL, hm.age = NULL WHERE ra.user_id = ?");
+        $run('signatures', "UPDATE lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id SET lc.tenant_signature_path = NULL WHERE ra.user_id = ?");
+        $run('parking', "UPDATE parking_reservations SET plate_number = '', vehicle_model = '', document_path = NULL WHERE user_id = ?");
+        $run('messages', "UPDATE messages SET message = '[removed]', attachment_path = NULL WHERE sender_id = ?");
+        $run('inquiries', "UPDATE inquiries SET full_name = 'Former tenant', email = ?, contact_no = '', message = NULL, guest_name = NULL, guest_email = NULL, guest_phone = NULL, ip_address = NULL WHERE user_id = ?", 'si', $email, $user_id);
+        $run('deposit_reviews', "UPDATE deposit_reviews SET message = '[removed]' WHERE user_id = ?");
+        $run('cctv_requests', "UPDATE cctv_requests SET location_details = '', reason_request = '[removed]' WHERE user_id = ?");
+        $run('notifications', "DELETE FROM notifications WHERE user_id = ?");
+        $run('queued', "DELETE FROM notification_queue WHERE user_id = ?");
+        $run('send_log', "UPDATE notification_log SET recipient = NULL, subject = NULL, message_body = NULL WHERE user_id = ?");
+        $run('preferences', "DELETE FROM notification_preferences WHERE user_id = ?");
+        $run('devices', "DELETE FROM trusted_devices WHERE user_id = ?");
+        $run('sessions', "DELETE FROM sessions WHERE user_id = ?");
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        throw $e;
+    }
+
+    // After the commit: files. A failure is reported, not rolled back.
+    $left = [];
+    $base = realpath(UPLOADS_DIR);
+    foreach (array_unique($paths) as $p) {
+        $norm = ltrim(preg_replace('#^(\.\./|/)+#', '', (string)$p), '/');
+        if (!preg_match('#^uploads/[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$#', $norm)) continue; // a data URL or something that is not an upload
+        $real = realpath(__DIR__ . '/' . $norm);
+        if ($real === false || $base === false || strncmp($real, $base, strlen($base)) !== 0) continue;
+        if (is_file($real) && !@unlink($real)) $left[] = $norm;
+    }
+    return ['counts' => $counts, 'files' => $left];
+}
+
 function revoke_user_sessions($conn, $user_id, $keep_token = null) {
     if ($keep_token) {
         $stmt = $conn->prepare("DELETE FROM sessions WHERE user_id = ? AND token <> ?");
@@ -3868,6 +4017,14 @@ function rate_limit_record($conn, $action, $key) {
 // device the guest gets a one-time code by email (guest_chat_resume.php); only
 // its sha256 is stored, it expires after GUEST_CHAT_LINK_DAYS and works once.
 const GUEST_CHAT_LINK_DAYS = 7;
+
+// inquiries.guest_token holds the sha256 of the token the guest's browser keeps
+// (SPRINT 82): a copy of the table or a backup does not hand out working chat
+// access. Every lookup hashes what the client sent; the raw token is only ever
+// generated and returned to the guest (submit_inquiry.php, guest_chat_resume.php).
+function guest_token_hash($token) {
+    return hash('sha256', (string)$token);
+}
 
 // Issues a code for the thread and returns it. Unused older codes for the
 // thread stop working, so at most one link is live at a time.

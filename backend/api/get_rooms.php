@@ -27,8 +27,7 @@ if (throttle_claim($conn, 'room_hold_check_last_run', 60)) {
 }
 
 try {
-    $archiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
-    $activeRoomFilter = ($archiveColumn && $archiveColumn->num_rows > 0) ? ' WHERE archived_at IS NULL' : '';
+    $activeRoomFilter = ' WHERE archived_at IS NULL';
     $stmt = $conn->prepare("SELECT * FROM rooms" . $activeRoomFilter . " ORDER BY id");
     $stmt->execute();
     $result = $stmt->get_result();

@@ -519,11 +519,6 @@ export const translations = {
     'rent.applicationActiveDesc': 'You currently have an active or pending rent application (Status: {status}). Submitting another application is not allowed unless your current one is rejected or declined.',
     'rent.trackApp': 'Track Application',
     'rent.backServices': 'Back to Services',
-    'rent.termsTitle': 'Application Terms & Conditions',
-    'rent.terms1Title': '1. Apartment Occupancy Regulations',
-    'rent.terms1Body': "Occupancy is subject to the unit's base occupant allowance and maximum occupant limit set by Management. Any occupants beyond the base allowance may incur the applicable additional occupant charge.",
-    'rent.terms2Title': '2. Verification Paperwork Protocols',
-    'rent.terms2Body': 'Applicants must submit clear, authentic copies of every document listed under Verification Documents, such as a valid government-issued ID. Management may ask for a document again if it cannot be verified.',
     'rent.acceptAgree': 'Accept & Agree',
     'rent.successMsg': 'Application Submitted Successfully',
 
@@ -2221,11 +2216,6 @@ export const translations = {
     'rent.applicationActiveDesc': 'Mayroon kang aktibo o pending na aplikasyon sa pag-upa (Status: {status}). Hindi pinapayagan ang pagsumite ng isa pang aplikasyon maliban kung na-reject o na-decline ang kasalukuyan.',
     'rent.trackApp': 'Subaybayan ang Aplikasyon',
     'rent.backServices': 'Bumalik sa Mga Serbisyo',
-    'rent.termsTitle': 'Mga Tuntunin at Kundisyon ng Aplikasyon',
-    'rent.terms1Title': '1. Mga Regulasyon sa Paninirahan',
-    'rent.terms1Body': 'Ang dami ng maaaring tumira ay nakabatay sa batayang allowance ng unit at sa pinakamataas na bilang ng occupant na itinakda ng Pamunuan. Maaaring may karagdagang bayad para sa mga occupant na lampas sa batayang allowance.',
-    'rent.terms2Title': '2. Mga Protokol sa Beripikasyon',
-    'rent.terms2Body': 'Ang mga aplikante ay kinakailangang magsumite ng malinaw at tunay na kopya ng bawat dokumentong nakalista sa Mga Dokumento para sa Beripikasyon, gaya ng valid na government-issued ID. Maaaring hingin muli ng management ang isang dokumento kung hindi ito ma-verify.',
     'rent.acceptAgree': 'Tanggapin at Sumang-ayon',
     'rent.successMsg': 'Matagumpay na Naisumite ang Aplikasyon',
 

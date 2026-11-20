@@ -20,7 +20,8 @@ try {
     } else {
         if (strlen($token) !== 64 || !ctype_xdigit($token)) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'Invalid guest token']); exit; }
         $find = $conn->prepare("SELECT id, guest_name, guest_email, guest_phone, unit_of_interest, guest_chat_ended_at, status, closed_reason FROM inquiries WHERE guest_token = ? AND thread_type = 'guest'");
-        $find->bind_param('s', $token);
+        $tokenHash = guest_token_hash($token);
+        $find->bind_param('s', $tokenHash);
     }
     $find->execute(); $thread = $find->get_result()->fetch_assoc(); $find->close();
     if (!$thread) { http_response_code(404); echo json_encode(['success'=>false,'message'=>'Conversation not found']); exit; }

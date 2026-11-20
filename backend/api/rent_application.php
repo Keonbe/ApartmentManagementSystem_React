@@ -285,7 +285,7 @@ try {
         // Update existing application and set status to 'Pending Review' and clear
         // rejection_reason. Restricted to Rejected/Declined applications above and
         // again here so a concurrent status change can't slip through (H4).
-        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, previous_address = ?, emergency_name = ?, emergency_relationship = ?, emergency_phone = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
+        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, previous_address = ?, emergency_name = ?, emergency_relationship = ?, emergency_phone = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW(), terms_version = '" . TERMS_VERSION . "' WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
         $stmt->bind_param("sssssssssssiisssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $emergency_name, $emergency_relationship, $emergency_phone, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $app_id, $user_id);
         if (!$stmt->execute()) throw new Exception("Application update failed: " . $stmt->error);
         if ($stmt->affected_rows === 0) {
@@ -302,7 +302,7 @@ try {
     } else {
         // Insert new application. The legacy valid_id_*/nbi columns stay NULL;
         // the files go to application_documents below.
-        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, previous_address, emergency_name, emergency_relationship, emergency_phone, occupants, months_of_rent, preferred_move_in_date, room_name, monthly_rent, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, previous_address, emergency_name, emergency_relationship, emergency_phone, occupants, months_of_rent, preferred_move_in_date, room_name, monthly_rent, terms_agreed_at, terms_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), '" . TERMS_VERSION . "')");
         $stmt->bind_param("isssssssssssiisss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $emergency_name, $emergency_relationship, $emergency_phone, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent);
         if (!$stmt->execute()) throw new Exception("Application insert failed: " . $stmt->error);
         $new_app_id = $stmt->insert_id;

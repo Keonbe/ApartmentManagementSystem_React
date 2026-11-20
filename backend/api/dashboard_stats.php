@@ -243,17 +243,11 @@ function dashboard_income($conn, DateTime $from, DateTime $to, $advanceMonthsFil
     ];
 }
 
-// Older installations may not yet have the advance-payment migration. Apply
-// the exclusion only when the column exists; otherwise treat all invoices as
-// standard invoices so dashboard statistics remain available.
-$advanceMonthsFilter = '';
-$advanceMonthsColumn = $conn->query("SHOW COLUMNS FROM invoices LIKE 'advance_months'");
+// An advance-rent invoice is not income until its months are billed.
+$advanceMonthsFilter = ' AND advance_months IS NULL';
 $income_only = ($_GET['section'] ?? '') === 'income';
 $attention_only = ($_GET['section'] ?? '') === 'attention';
-if ($advanceMonthsColumn && $advanceMonthsColumn->num_rows > 0) {
-    $advanceMonthsFilter = ' AND advance_months IS NULL';
-    if (!$income_only) promote_overdue_invoices($conn);
-}
+if (!$income_only) promote_overdue_invoices($conn);
 
 if ($attention_only) {
     echo json_encode(['success' => true, 'attention' => dashboard_attention($conn, $advanceMonthsFilter, $attention_days)]);
@@ -272,8 +266,7 @@ if ($income_only) {
     $conn->close();
     exit();
 }
-$roomsArchiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
-$activeRoomsFilter = ($roomsArchiveColumn && $roomsArchiveColumn->num_rows > 0) ? ' WHERE archived_at IS NULL' : '';
+$activeRoomsFilter = ' WHERE archived_at IS NULL';
 
 $response = [
     'success' => true,

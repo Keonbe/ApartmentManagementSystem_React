@@ -814,3 +814,43 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('inquiry_auto_close_days', '30'),
 ('complaint_auto_resolve_days', '14');
+
+-- ===== guest_token_hash =====
+-- (SPRINT 82) inquiries.guest_token now holds the sha256 of the token the guest's
+-- browser keeps. guest_token_hashed marks which rows are already hashed, so this
+-- section can run twice without hashing a hash: add the column (existing rows: 0),
+-- hash every row still at 0, then make new rows default to 1 (the application
+-- writes hashes from now on). The PHP and this update must ship together.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'inquiries' AND column_name = 'guest_token_hashed') = 0,
+  'ALTER TABLE `inquiries` ADD COLUMN `guest_token_hashed` tinyint(1) NOT NULL DEFAULT 0 AFTER `guest_token`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+UPDATE `inquiries` SET `guest_token` = SHA2(`guest_token`, 256), `guest_token_hashed` = 1 WHERE `guest_token` IS NOT NULL AND `guest_token_hashed` = 0;
+UPDATE `inquiries` SET `guest_token_hashed` = 1 WHERE `guest_token` IS NULL AND `guest_token_hashed` = 0;
+
+ALTER TABLE `inquiries` ALTER COLUMN `guest_token_hashed` SET DEFAULT 1;
+
+-- ===== messages_conversation_indexes =====
+-- (SPRINT 206) get_conversations.php reads one person's messages as two index-friendly
+-- halves (sent: sender_id first; received: receiver_id first) and ranks them per partner.
+-- Each composite index serves one half and the ORDER BY created_at.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'messages' AND index_name = 'idx_messages_sender_receiver_created') = 0,
+  'ALTER TABLE `messages` ADD KEY `idx_messages_sender_receiver_created` (`sender_id`, `receiver_id`, `created_at`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'messages' AND index_name = 'idx_messages_receiver_sender_created') = 0,
+  'ALTER TABLE `messages` ADD KEY `idx_messages_receiver_sender_created` (`receiver_id`, `sender_id`, `created_at`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== erasure_and_terms_version =====
+-- (SPRINT 177) users.anonymized_at: set when the office anonymized a former tenant's
+-- account on request (RA 10173 right to erasure); the row stays so invoices and
+-- payments keep their records. rent_applications.terms_version: which Terms version
+-- the applicant agreed to (users already has it).
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'anonymized_at') = 0,
+  'ALTER TABLE `users` ADD COLUMN `anonymized_at` datetime DEFAULT NULL AFTER `is_archived`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'rent_applications' AND column_name = 'terms_version') = 0,
+  'ALTER TABLE `rent_applications` ADD COLUMN `terms_version` varchar(20) DEFAULT NULL AFTER `terms_agreed_at`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;

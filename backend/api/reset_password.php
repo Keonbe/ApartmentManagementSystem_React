@@ -8,18 +8,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
 }
 
 require_once "../config.php";
-require_once __DIR__ . '/services/password_reset_schema.php';
-
-try {
-    // Repair legacy schema before token lookup, outside any active transaction.
-    ensure_password_resets_schema($conn);
-} catch (Throwable $e) {
-    error_log('[AMS] reset_password.php schema setup: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Server error. Please try again."]);
-    $conn->close();
-    exit;
-}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

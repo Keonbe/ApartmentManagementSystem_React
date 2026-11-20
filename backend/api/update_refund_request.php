@@ -219,7 +219,7 @@ try {
         error_log("Refund #$id paid through PayMongo ($gateway_refund_id) but not recorded: " . $e->getMessage());
         refund_fail(500, "PayMongo accepted the refund ($gateway_refund_id) but AMS could not record it. Reload: do not refund again.");
     }
-    refund_fail(409, $e->getMessage());
+    refund_fail(409, public_error_message($e));
 }
 
 // Approved stays in the queue until the payout is recorded.

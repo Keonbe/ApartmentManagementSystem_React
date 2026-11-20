@@ -16,7 +16,12 @@ if (rate_limit_exceeded($conn, 'verify_email', $ip, 30, 60)) {
 }
 rate_limit_record($conn, 'verify_email', $ip);
 if (!preg_match('/^[a-f0-9]{64}$/i', $token)) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Invalid or expired verification link.']); exit; }
+$who = $conn->prepare('SELECT id, email_address FROM users WHERE verification_token = ?');
+$who->bind_param('s', $token); $who->execute(); $owner = $who->get_result()->fetch_assoc(); $who->close();
 $stmt = $conn->prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()), verification_token = NULL WHERE verification_token = ?');
 $stmt->bind_param('s', $token); $stmt->execute(); $ok = $stmt->affected_rows === 1; $stmt->close();
+if ($ok && $owner) {
+    try { log_activity($conn, (int)$owner['id'], 'auth', 'Verified Email', "Email address {$owner['email_address']} verified", (int)$owner['id']); } catch (Throwable $logError) { error_log('[AMS] verify_email log: ' . $logError->getMessage()); }
+}
 echo json_encode(['success'=>$ok,'message'=>$ok ? 'Email verified. You can now sign in.' : 'Invalid or expired verification link.']);
 $conn->close();
