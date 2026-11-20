@@ -20,108 +20,78 @@ if (!$user_id) {
 }
 
 try {
+    // SPRINT 206: the caller's messages are read once, through idx_messages_sender_receiver_created
+    // and idx_messages_receiver_sender_created (one half each, so no OR), and ranked per
+    // partner with a window function. Before, about nine correlated subqueries ran for
+    // every row of users, each filtering messages with an OR and sorting by time.
+    $thread_messages = "SELECT receiver_id AS partner, id, sender_id, message, attachment_path, created_at, is_read
+                          FROM messages WHERE sender_id = ? AND receiver_id <> ?
+                        UNION ALL
+                        SELECT sender_id AS partner, id, sender_id, message, attachment_path, created_at, is_read
+                          FROM messages WHERE receiver_id = ? AND sender_id <> ?";
+
     $query = "SELECT
                 u.id AS other_user_id,
                 TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) AS other_user_name,
                 u.avatar_url AS other_user_avatar,
                 u.email_address AS other_user_email,
-                (
-                    SELECT m.message
-                    FROM messages m
-                    WHERE ((m.sender_id = ? AND m.receiver_id = u.id)
-                       OR (m.sender_id = u.id AND m.receiver_id = ?))
-                      AND m.message LIKE ?
-                    ORDER BY m.created_at DESC, m.id DESC
-                    LIMIT 1
-                ) AS matched_message,
-                (
-                    SELECT m.id
-                    FROM messages m
-                    WHERE ((m.sender_id = ? AND m.receiver_id = u.id)
-                       OR (m.sender_id = u.id AND m.receiver_id = ?))
-                      AND m.message LIKE ?
-                    ORDER BY m.created_at DESC, m.id DESC
-                    LIMIT 1
-                ) AS matched_message_id,
-                (
-                    SELECT message
-                    FROM messages
-                    WHERE (sender_id = ? AND receiver_id = u.id)
-                       OR (sender_id = u.id AND receiver_id = ?)
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT 1
-                ) AS last_message,
-                (
-                    SELECT attachment_path
-                    FROM messages
-                    WHERE (sender_id = ? AND receiver_id = u.id)
-                       OR (sender_id = u.id AND receiver_id = ?)
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT 1
-                ) AS last_message_attachment_path,
-                (
-                    SELECT sender_id
-                    FROM messages
-                    WHERE (sender_id = ? AND receiver_id = u.id)
-                       OR (sender_id = u.id AND receiver_id = ?)
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT 1
-                ) AS last_message_sender_id,
-                (
-                    SELECT created_at
-                    FROM messages
-                    WHERE (sender_id = ? AND receiver_id = u.id)
-                       OR (sender_id = u.id AND receiver_id = ?)
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT 1
-                ) AS last_message_time,
-                (
-                    SELECT COUNT(*)
-                    FROM messages
-                    WHERE sender_id = u.id
-                      AND receiver_id = ?
-                      AND is_read = 0
-                ) AS unread_count,
+                l.message AS last_message,
+                l.attachment_path AS last_message_attachment_path,
+                l.sender_id AS last_message_sender_id,
+                l.created_at AS last_message_time,
+                l.unread_count,
                 u.role AS other_user_role,
                 EXISTS (
                     SELECT 1 FROM rent_applications ra
                     WHERE ra.user_id = u.id AND LOWER(ra.status) IN ('active', 'pending-move-out', 'approved')
-                ) AS is_active_tenant
-              FROM users u
-              WHERE u.id != ?
-                AND (? = '' OR TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) LIKE ? OR u.email_address LIKE ? OR EXISTS (
-                    SELECT 1 FROM messages sm
-                    WHERE ((sm.sender_id = ? AND sm.receiver_id = u.id)
-                       OR (sm.sender_id = u.id AND sm.receiver_id = ?))
-                      AND sm.message LIKE ?
-                ))
-                AND EXISTS (
-                    SELECT 1
-                    FROM messages
-                    WHERE (sender_id = ? AND receiver_id = u.id)
-                       OR (sender_id = u.id AND receiver_id = ?)
-                )
-              ORDER BY last_message_time DESC, u.first_name ASC, u.last_name ASC";
+                ) AS is_active_tenant,
+                (TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) LIKE ? OR u.email_address LIKE ?) AS name_hit
+              FROM (
+                SELECT partner, message, attachment_path, sender_id, created_at,
+                       ROW_NUMBER() OVER (PARTITION BY partner ORDER BY created_at DESC, id DESC) AS rn,
+                       SUM(CASE WHEN sender_id = partner AND is_read = 0 THEN 1 ELSE 0 END) OVER (PARTITION BY partner) AS unread_count
+                FROM ($thread_messages) tm
+              ) l
+              JOIN users u ON u.id = l.partner
+              WHERE l.rn = 1
+              ORDER BY l.created_at DESC, u.first_name ASC, u.last_name ASC";
 
-    $like_search = $search === '' ? '__AMS_EMPTY_SEARCH_NO_MATCH__' : '%' . addcslashes($search, '%_\\') . '%';
+    $like_search = '%' . addcslashes($search, '%_\\') . '%';
     $stmt = $conn->prepare($query);
-    if (!$stmt) {
-        throw new Exception('Prepare failed: ' . $conn->error);
-    }
-    $types = "iisiis" . "iiiiiiiiii" . "sssiisii";
-    $stmt->bind_param($types, $user_id, $user_id, $like_search, $user_id, $user_id, $like_search, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $search, $like_search, $like_search, $user_id, $user_id, $like_search, $user_id, $user_id);
+    // The two LIKE markers are in the select list, so they come before the four in the subquery.
+    $stmt->bind_param("ssiiii", $like_search, $like_search, $user_id, $user_id, $user_id, $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
 
+    // With a search: the newest message of each thread that contains the text.
+    $matches = [];
+    if ($search !== '') {
+        $mq = $conn->prepare("SELECT partner, id, message FROM (
+                                SELECT partner, id, message,
+                                       ROW_NUMBER() OVER (PARTITION BY partner ORDER BY created_at DESC, id DESC) AS rn
+                                FROM ($thread_messages) tm
+                                WHERE message LIKE ?
+                              ) h WHERE rn = 1");
+        $mq->bind_param("iiiis", $user_id, $user_id, $user_id, $user_id, $like_search);
+        $mq->execute();
+        foreach ($mq->get_result()->fetch_all(MYSQLI_ASSOC) as $m) {
+            $matches[(int) $m['partner']] = $m;
+        }
+        $mq->close();
+    }
+
     $conversations = [];
     while ($row = $result->fetch_assoc()) {
+        $partner = (int) $row['other_user_id'];
+        // A search keeps the threads whose person (name, email) or any message matches.
+        if ($search !== '' && !(int) $row['name_hit'] && !isset($matches[$partner])) continue;
         $conversations[] = [
-            'other_user_id' => (int) $row['other_user_id'],
+            'other_user_id' => $partner,
             'other_user_name' => $row['other_user_name'],
             'other_user_avatar' => $row['other_user_avatar'],
             'other_user_email' => $row['other_user_email'],
-            'matched_message' => $row['matched_message'],
-            'matched_message_id' => $row['matched_message_id'] ? (int) $row['matched_message_id'] : null,
+            'matched_message' => $matches[$partner]['message'] ?? null,
+            'matched_message_id' => isset($matches[$partner]) ? (int) $matches[$partner]['id'] : null,
             'last_message' => $row['last_message'],
             'last_message_attachment_path' => $row['last_message_attachment_path'],
             'last_message_sender_id' => isset($row['last_message_sender_id']) ? (int) $row['last_message_sender_id'] : null,
@@ -135,6 +105,7 @@ try {
                 && $row['last_message_time'] !== null && strtotime($row['last_message_time']) < strtotime('-6 months'),
         ];
     }
+    $stmt->close();
 
     // What each conversation is about (SPRINT 226), one query per kind for the whole
     // list: the other person's own, or, in a tenant's chat with the office, the

@@ -196,3 +196,71 @@ describe('get_conversations.php', () => {
     }
   });
 });
+
+// SPRINT 206: the list is now built from the caller's messages in one ranked pass (two
+// composite indexes, no per-user subqueries). These pin the values the page shows.
+describe('get_conversations.php (SPRINT 206: one pass over the caller\'s messages)', () => {
+  const list = async (token, query = {}) => (await api('get_conversations.php', { token, query })).body.conversations;
+  const row = (rows, id) => rows.find((r) => r.other_user_id === id);
+
+  it('last message, its sender and time, and the unread count come from the right message', async () => {
+    await q('DELETE FROM messages');
+    const a = (await send(maria, { receiver_id: adminId, message: 'first from maria' })).body.message.id;
+    const b = (await send(admin, { receiver_id: MARIA, message: 'reply one' })).body.message.id;
+    const c = (await send(admin, { receiver_id: MARIA, message: 'reply two' })).body.message.id;
+    // Same second: the newer id is the last message.
+    await q('UPDATE messages SET created_at = NOW() WHERE id IN (?, ?, ?)', [a, b, c]);
+
+    const asMaria = row(await list(maria), adminId);
+    expect(asMaria).toMatchObject({ last_message: 'reply two', last_message_sender_id: adminId, unread_count: 2, is_admin: true });
+    const asAdmin = row(await list(admin), MARIA);
+    expect(asAdmin).toMatchObject({ last_message: 'reply two', last_message_sender_id: adminId, unread_count: 1, matched_message: null, matched_message_id: null });
+    // Reading the thread clears the caller's unread count only.
+    await history(maria, adminId, { mark_as_read: 1 });
+    expect(row(await list(maria), adminId).unread_count).toBe(0);
+    expect(row(await list(admin), MARIA).unread_count).toBe(1);
+  });
+
+  it('threads are newest first, one row per person, and a message to oneself is no thread', async () => {
+    await q('DELETE FROM messages');
+    const old = (await send(maria, { receiver_id: adminId, message: 'older thread' })).body.message.id;
+    const recent = (await send(jose, { receiver_id: adminId, message: 'newer thread' })).body.message.id;
+    await q("UPDATE messages SET created_at = NOW() - INTERVAL 2 DAY WHERE id = ?", [old]);
+    await q("UPDATE messages SET created_at = NOW() - INTERVAL 1 DAY WHERE id = ?", [recent]);
+    await q('INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)', [adminId, adminId, 'note to self']);
+
+    const rows = await list(admin);
+    expect(rows.map((r) => r.other_user_id)).toEqual([JOSE, MARIA]);
+    expect(rows.every((r) => r.other_user_id !== adminId)).toBe(true);
+    expect(rows).toHaveLength(2);
+  });
+
+  it('a search keeps a thread by person or by any message, and names the newest matching message', async () => {
+    await q('DELETE FROM messages');
+    const oldHit = (await send(maria, { receiver_id: adminId, message: 'about the broken faucet' })).body.message.id;
+    const newHit = (await send(maria, { receiver_id: adminId, message: 'the faucet is still broken' })).body.message.id;
+    const last = (await send(maria, { receiver_id: adminId, message: 'thank you' })).body.message.id;
+    await send(jose, { receiver_id: adminId, message: 'unrelated question' });
+    await q('UPDATE messages SET created_at = NOW() - INTERVAL 3 HOUR WHERE id = ?', [oldHit]);
+    await q('UPDATE messages SET created_at = NOW() - INTERVAL 2 HOUR WHERE id = ?', [newHit]);
+    await q('UPDATE messages SET created_at = NOW() - INTERVAL 1 HOUR WHERE id = ?', [last]);
+
+    const byText = await list(admin, { search: 'faucet' });
+    expect(byText).toHaveLength(1);
+    expect(byText[0]).toMatchObject({ other_user_id: MARIA, last_message: 'thank you', matched_message: 'the faucet is still broken', matched_message_id: newHit });
+
+    // By the person's name (no message needs to match).
+    const byName = await list(admin, { search: 'jose' });
+    expect(byName.map((r) => r.other_user_id)).toEqual([JOSE]);
+    expect(byName[0].matched_message).toBeNull();
+    expect(await list(admin, { search: 'zzz-nothing-matches' })).toEqual([]);
+  });
+
+  it('keeps the attachment of the last message and the archived flag for a quiet non-tenant', async () => {
+    await q('DELETE FROM messages');
+    const id = (await send(maria, { receiver_id: adminId, message: 'has a file' })).body.message.id;
+    await q("UPDATE messages SET attachment_path = 'uploads/messages/x.png' WHERE id = ?", [id]);
+    expect(row(await list(admin), MARIA).last_message_attachment_path).toBe('uploads/messages/x.png');
+    expect(row(await list(admin), MARIA).archived).toBe(false); // an active tenant is never archived
+  });
+});
