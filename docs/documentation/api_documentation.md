@@ -250,7 +250,7 @@ Admin user management — list, edit, reset password, set role, archive/unarchiv
 | **Auth** | `require_admin()` |
 | **Self-Protection** | The session admin cannot modify their own account here (`409`) |
 
-**GET:** Returns all users with full details (sorted admins first), each with `is_self`; plus `max_admins`.
+**GET:** Returns all users with full details (sorted admins first), each with `is_self` and `is_anonymized`; plus `max_admins`.
 
 **POST Actions (JSON body with `action` + `user_id`):**
 
@@ -260,7 +260,8 @@ Admin user management — list, edit, reset password, set role, archive/unarchiv
 | `reset_password` | `new_password` | Min 8 chars; ends the user's sessions |
 | `set_role` | `role` (`user` or `admin`) | Max 3 active admins; last admin can't be demoted; archived accounts can't be promoted; ends the user's sessions |
 | `delete` | — | Soft-archives (sets `is_archived=1`); cannot archive admins; ends the user's sessions |
-| `unarchive` | — | Restores archived user (`409` if not archived) |
+| `unarchive` | — | Restores archived user (`409` if not archived, or if the account was anonymized) |
+| `anonymize` | `confirm: "ANONYMIZE"` | Erases a former tenant's personal data and keeps invoices, payments and contracts under "Former tenant" (RA 10173, `anonymize_user()`). `422` without the confirmation; `409` unless the account is archived, not an admin, not already anonymized and has nothing open (application, bill, refund request, deposit refund, complaint). Files are removed after the commit; the log holds the account id and counts only. Irreversible |
 
 Every action is logged under the `user` category. **Errors:** `404` unknown user, `409` rule violations, `422` invalid input.
 
@@ -747,7 +748,7 @@ Posts a reading's charge onto an invoice. `sync_mode`: `merge` adds it to the te
 ---
 
 ### `GET` [get_utilities_report_data.php](../../backend/api/get_utilities_report_data.php)
-Aggregated utility data for a `timeframe` (`monthly`/`quarterly`/`yearly`) filtered by billing period: consumption and averages per unit-month, invoiced vs. collected utility charges (cancelled excluded), readings pending sync, spike count, top units with `hasSpike`, and — monthly — occupied units still missing a reading. `require_admin()`.
+*No page calls this since 2026-11-15 (the Reports page uses `get_reports.php`); kept with its tests, removal is a follow-up.* Aggregated utility data for a `timeframe` (`monthly`/`quarterly`/`yearly`) filtered by billing period: consumption and averages per unit-month, invoiced vs. collected utility charges (cancelled excluded), readings pending sync, spike count, top units with `hasSpike`, and — monthly — occupied units still missing a reading. `require_admin()`.
 
 ---
 
@@ -1228,7 +1229,7 @@ Endpoints added or split out after the modules above were written (verified agai
 | `GET` [inquiry_thread.php](../../backend/api/inquiry_thread.php) | admin (401 / 403 before the method check) | `id` | `{inquiry{id, userId, status, adminSeenAt, chatEnded}, channel, canReply, noReplyReason, messages[{id, from: prospect / admin, kind: inquiry / text / resolution_check, text, attachment, createdAt, resolutionAnswer}]}`; 422 no id; 404; 405 not GET | The Inquiries chat window. The first message is the inquiry itself; then the guest chat (`guest_messages`) or the account conversation with the signed-in admin since the inquiry (300 max). Marks the inquiry seen (`admin_seen_at`, resolves its `inquiry` bell entry) and the prospect's messages read. Replies go through `guest_chat.php` / `send_message.php` (`inquiry_id`), which mark a New inquiry Contacted. No chat (`channel:none`, `canReply:false`) for walk-in / phone and unverified matched inquiries, or an ended guest chat. Tests: `inquiry_thread.test.js` |
 | `POST` [chat_followup.php](../../backend/api/chat_followup.php) | signed-in session (role per action; the caller is the session) | `{action:'ask', topic:'inquiry'|'complaint', id}` (admin) · `{action:'answer', message_id, answer:'resolved'|'not_yet'}` (the user it was sent to) · `{action:'resolve_report', complaint_id}` (the tenant who filed it) | ask: `{success, message}` (the new chat row); 403 wrong role; 404; 409 already finished or a question still waiting; 422 nothing answered yet, no account chat, bad topic / id / answer. answer: `{success, answer}`; 404 not theirs; 409 answered already. resolve_report: 404 not theirs, 409 already resolved | "Is it resolved?" in an account chat (`backend/followups.php`): ask posts a `messages` row with `kind='resolution_check'` and `inquiry_id` or `complaint_id`; Resolved finishes it (inquiry → Resolved, report → Resolved, queue items cleared), Not yet raises an admin queue item. A guest chat asks through `guest_chat.php`. Tests: `chat_followup.test.js` |
 | `GET` [get_guest_conversations.php](../../backend/api/get_guest_conversations.php) (`guest_chat_inbox.php` includes it) | admin | - | `{conversations[]}` de-duplicated by e-mail / phone, with `ended_at`, `resolved`, `archived` and `archive_reason` (`ended`; `resolved` and no guest message since; `inactive` for 6 months) | none |
-| `POST` [guest_chat_resume.php](../../backend/api/guest_chat_resume.php) | public | `action:'request'` + `email`, or `action:'redeem'` + `code` (64 hex) | request: always the same message (3/hour per e-mail, 10/hour per IP, 429); redeem: `{guest_token, thread_id}`; 410 expired / used | `guest_chat_links` single use; sets `guest_verified_at` |
+| `POST` [guest_chat_resume.php](../../backend/api/guest_chat_resume.php) | public | `action:'request'` + `email`, or `action:'redeem'` + `code` (64 hex) | request: always the same message (3/hour per e-mail, 10/hour per IP, 429); redeem: `{guest_token, thread_id}` (a NEW token: the stored one is a hash, so redeeming rotates it and the old browser's token stops working); 410 expired / used | `guest_chat_links` single use; sets `guest_verified_at` |
 | `GET` [get_notification_preferences.php](../../backend/api/get_notification_preferences.php) | user | - | `{preferences[], always_on[], channels, sms_opt_out, email_opt_out, ...}` | none |
 | `POST` [request_application_documents.php](../../backend/api/request_application_documents.php) | admin | `id` (application), `message` 5-500 characters | `{success, message, notified}`; 404 unknown application; 409 unless the application is Pending Review or Approved; 422 field errors | Notifies the applicant (`application_update`, "More documents needed", links to Track Application); log `tenant` "Requested Application Documents" |
 | `GET` [get_notification_log.php](../../backend/api/get_notification_log.php) | user | `limit` 1-50 (10), `offset`, `channel` sms/email, `status` sent/failed/skipped | `{entries[{id, channel, event_type, subject, status, sent_at}], total, limit, offset}` of the caller's own texts and emails (no recipient, provider error or ids); 400 bad query | none |
@@ -1241,7 +1242,7 @@ Endpoints added or split out after the modules above were written (verified agai
 
 | Endpoint | Auth | Request | Response / errors | Effects |
 |---|---|---|---|---|
-| `POST` [verify_device.php](../../backend/api/verify_device.php) | public (login flow) | `email_address`, `otp` (6 digits) | `{valid:true, role, user, sessionToken}` (`user.first_login` as in `login.php`: the sign-in is recorded here, not when the code is sent) + `ams_trusted_device` cookie (1 year); wrong / expired code is HTTP 200 `valid:false`; 400 malformed | Clears the code, inserts `trusted_devices`, creates the session; 3 wrong tries lock the code |
+| `POST` [verify_device.php](../../backend/api/verify_device.php) | public (login flow) | `email_address`, `otp` (6 digits) | `{valid:true, role, user, sessionToken}` (`user.first_login` as in `login.php`: the sign-in is recorded here, not when the code is sent) + `ams_trusted_device` cookie (1 year); wrong / expired code is HTTP 200 `valid:false`; 400 malformed | Clears the code, inserts `trusted_devices`, creates the session; 3 wrong tries lock the code; log `auth` "Verified New Device" / "Wrong Sign-in Code" (2026-11-19) |
 | `GET` / `POST` [login_otp_settings.php](../../backend/api/login_otp_settings.php) | admin | GET `?q`, `?filter=all|active|past|non_tenant|custom`, `?page` (20 per page); POST `set_global` (`enabled`), `set_user` (`user_id`, `mode` `default` / `on` / `off`), `clear_overrides`, `set_email_verification` (`enabled` bool: new accounts must open the emailed link before signing in) | `{enabled, email_verification, counts, users[], total, page, per_page}`; 404; 422 | `system_settings.login_otp_enabled`, `email_verification_enabled`, `users.login_otp_mode`; log `auth` |
 | `POST` [verify_email.php](../../backend/api/verify_email.php) | public | `token` (64 hex) | `{success}`; unknown / used token is HTTP 200 `success:false`; 400 malformed; 429 after 30 tries an hour per address (2026-11-18) | Sets `email_verified_at`, clears the token |
 | `GET` [get_glass_backgrounds.php](../../backend/api/get_glass_backgrounds.php) | admin | `kind` `glass` / `preview` | `{backgrounds, limit}` | none |
@@ -1424,13 +1425,14 @@ All endpoints return JSON with this shape on error:
 | 37 | [create_checkout_session.php](../../backend/api/create_checkout_session.php) | POST | Billing | User | PayMongo checkout |
 | 38 | [release_checkout_session.php](../../backend/api/release_checkout_session.php) | POST | Billing | User | Release stale checkout |
 | 39 | [paymongo_webhook.php](../../backend/api/paymongo_webhook.php) | POST | Billing | Webhook | PayMongo callback |
+| — | [reconcile_gateway_payments.php](../../backend/api/reconcile_gateway_payments.php) | POST | Billing | Admin | "Check with PayMongo": asks PayMongo about open checkout sessions and settles the paid ones (same function as the webhook) |
 | 40 | [send_payment_reminder.php](../../backend/api/send_payment_reminder.php) | POST | Billing | Admin | Send reminders |
 | 41 | [get_payment_channels.php](../../backend/api/get_payment_channels.php) | GET | Billing | User | Available channels |
 | 42 | [save_utility_reading.php](../../backend/api/save_utility_reading.php) | POST | Utility | Admin | Record meter reading |
 | 43 | [get_utility_readings.php](../../backend/api/get_utility_readings.php) | GET | Utility | User (own) / Admin | List readings |
 | 43a | [delete_utility_reading.php](../../backend/api/delete_utility_reading.php) | POST | Utility | Admin | Delete latest un-invoiced reading |
 | 44 | [sync_utility_to_invoice.php](../../backend/api/sync_utility_to_invoice.php) | POST | Utility | Admin | Post charge to invoice |
-| 45 | [get_utilities_report_data.php](../../backend/api/get_utilities_report_data.php) | GET | Utility | Admin | Utility reports |
+| 45 | [get_utilities_report_data.php](../../backend/api/get_utilities_report_data.php) | GET | Utility | Admin | Old utility report data (no page calls it since 2026-11-15) |
 | 46 | [maintenance_request.php](../../backend/api/maintenance_request.php) | POST | Maintenance | User | Submit ticket |
 | 47 | [create_maintenance_request_admin.php](../../backend/api/create_maintenance_request_admin.php) | POST | Maintenance | Admin | Create ticket for tenant |
 | 48 | [get_maintenance_requests.php](../../backend/api/get_maintenance_requests.php) | GET | Maintenance | Admin | List all tickets |

@@ -56,3 +56,6 @@ backend/qr_codes/*.jpg
 /docs/audits/2026-11-10_real_world_test_guide.md
 /docs/audits/2026-11-10_ui_ux_heuristic_audit.md
 /docs/audits/2026-11-12_panel_policy_gap_audit.md
+# User manual build output and its screenshot/build scripts (local only, not tracked)
+/docs/manual/
+/tests/manual-screenshots/

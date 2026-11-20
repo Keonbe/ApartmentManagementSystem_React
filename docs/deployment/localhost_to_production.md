@@ -250,13 +250,7 @@ error_log = /var/log/php/ams_errors.log
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteRule ^ index.html [QSA,L]
   ```
-- [ ] **Security headers** in Apache vhost or `.htaccess`:
-  ```apache
-  Header set X-Frame-Options "SAMEORIGIN"
-  Header set X-Content-Type-Options "nosniff"
-  Header set Referrer-Policy "strict-origin-when-cross-origin"
-  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
-  ```
+- [x] **Security headers**: already sent by the code (2026-11-19, SPRINT 169): `backend/cors.php` adds `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` and, over HTTPS on a non-local host, `Strict-Transport-Security: max-age=31536000` to every API response; `ams-react/public/.htaccess` (copied into `dist/`) adds the same plus `X-Frame-Options: DENY` for the site. Nothing to add in the vhost; the API has no frame header on purpose (the app previews files from `download_file.php` in an iframe). Check with `curl -I https://yourdomain.com/ ` and `curl -I https://yourdomain.com/backend/api/get_rooms.php`.
 - [ ] **HTTP → HTTPS redirect** in Apache vhost:
   ```apache
   <VirtualHost *:80>

@@ -85,13 +85,12 @@ Smallest set from [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_
 
 | Status | Priority | Task | Source |
 |---|---|---|---|
-| [ ] | Urgent | Force the admin password change on first login, remove the admin device-code skip, `random_int` plus hashed code. | Audit S-14, S-05, S-06; security_audit A-1; SPRINT 145 |
+| [ ] | Urgent | Force the admin password change on first login, remove the admin device-code skip (`random_int` plus hashed code, SPRINT 172: built 2026-11-19 and taken back the same day, see SPRINT.md). | Audit S-14, S-05, S-06; security_audit A-1; SPRINT 145 |
 | [ ] | Urgent | Make every count agree across the docs (79 test files, endpoints 160, tables 51, PHP version) and refresh stale `security_audit.md` rows and checklist Module 11. | Audit §A.13, SPRINT 146 |
 | [ ] | Urgent | Run one SUS session with real users and record n and the score (no user acceptance data exists). | Audit RD-01, SPRINT 148 |
 | [ ] | Medium | Before 2027-01-01: check for the NHSB resolution that follows 2024-01 and update the rent-control settings (cap, coverage limit, valid-until). Existing saved contract templates need re-saving to pick up the new `cl-ejectment` clause and `cl-advice` wording. | SPRINT 149 |
 | [ ] | High | Schedule the nightly backup and record one restore drill. | Audit D-05, SPRINT 87 |
 | [ ] | Low | Still to check by hand: prod PHP error-log path and DB time zone, prepayment legal reading, GitHub `ci.yml` run (closes #81), k6 concurrency on Apache. The local load check is done ([2026-11-13_load_check.md](../audits/2026-11-13_load_check.md)). | SPRINT 153 |
-| [ ] | Medium | `get_conversations.php` takes about 1.1 s with 100 conversations and 5,000 messages (correlated subqueries over single-column indexes): add a composite index and compute the last message once. | Load check, SPRINT 206 |
 
 ---
 
@@ -203,6 +202,8 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | 2026-11-20 (uncommitted): `get_conversations.php` ranked per partner with two composite indexes (206); PayMongo reconciliation, "Check with PayMongo" button and a by-channel pesos report (183); anonymize action for former tenants, terms version on applications, Data Protection Officer in the Privacy Notice (177). | SPRINT 206 / 183 / 177 |
+| [x] | 2026-11-19 (uncommitted): security hardening: raw error text and request-time table creation removed (170), security headers (169), room_images / qr_codes block svg and html (173), house rules, device and email-verify and password-reset writes logged (174), guest chat token stored hashed (82; the sign-in code / trusted-device / lockout changes of 172 were taken back so prod testing is not disturbed); the rent application legal notice uses the shared modal (209). Open from these: everything in the sign-in part of 172 (hashed code, trusted devices, lockout) and the admin sign-in skip (145), the HTTP to HTTPS redirect (deploy). | [SPRINT.md](../../SPRINT.md) |
 | [x] | 2026-11-18 (uncommitted): chat tenant↔admin only with an archived-receiver check and a 20-per-10-seconds cap (SPRINT 167); field validation on 16 more endpoints and the forged `X-Admin-Id` removed (178); reasoned void of a paid desk payment and refund payout method list + proof file (182); My Room / Profile retry states, error boundary and a safe stored-user reader (197). Open from these: write-off of a part-paid bill (audit P-06), tenant-side link to the payout proof, strict SQL mode (179). | [SPRINT.md](../../SPRINT.md) |
 | [x] | 2026-11-18: money and concurrency audit, 11 fixes with `money_audit.test.js`: a saved payment, clearance or termination is never reported as failed because a notice failed after the commit; one room cannot be approved for two applicants or over someone else's hold; reject / cancel of an approved application waits for a proof under review; repeated cash part refused; webhook refunds only the unapplied part of a failed group payment and re-checks the amount under the lock; proof refused while a checkout is open; clearance rolls back when the unit is not the tenant's; cancellation fee on a part-paid move-in bill. The two follow-ups (a group payment in one transaction, and a confirm override for a repeated cash part) are SPRINT 215 and 216. | SPRINT 214 |
 | [x] | Move-out settlement records: bills the deposit covers are marked paid from it, a shortfall is billed as a "Move-out balance" invoice, unused advance rent opens its refund request automatically. Done 2026-11-14 (`move_out_settlement.test.js`). Still open: proration, and a way for a former tenant to pay that invoice online. | SPRINT 211 / 73, audit P-04, LI-1 |

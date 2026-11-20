@@ -44,9 +44,9 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | # | Check | Risk if Missed | Status |
 |---|---|---|---|
 | C-1 | Enable HTTPS via Let's Encrypt (`certbot --apache`) | Login credentials, session tokens, and uploaded documents transmitted in plain text | `[ ]` |
-| C-2 | Redirect all HTTP to HTTPS in Apache vhost | Users who type `http://` bypass TLS entirely | `[ ]` |
+| C-2 | Redirect all HTTP to HTTPS in Apache vhost | Users who type `http://` bypass TLS entirely | `[ ]` (the redirect and certificate stay in the virtual host: the manual step in `localhost_to_production.md`) |
 | C-3 | Lock CORS from `*` to your exact domain in `config.php` | Re-rated **Medium**: auth is a bearer token in a custom header (not a cookie), so a foreign site can't silently ride a logged-in session via a simple cross-origin form/fetch — but the wildcard still widens the blast radius of every endpoint in A-7, and `get_available_parking_slots.php` also sends `Access-Control-Allow-Headers: *` | `[x]` 2026-09-16 — all endpoints include `backend/cors.php` (an exact-match allowlist; note 2026-11-13: the list is hardcoded in `cors.php` and `ALLOWED_ORIGINS` is read only by the chat server, so `check_environment.php`'s `ALLOWED_ORIGINS` checks do not describe the API's CORS; production with no list sends no ACAO); the parking endpoint's `Allow-Headers: *` was already gone |
-| C-4 | Add `Strict-Transport-Security` (HSTS) response header | Browsers allow HTTP downgrade even after first HTTPS visit | `[ ]` |
+| C-4 | Add `Strict-Transport-Security` (HSTS) response header | Browsers allow HTTP downgrade even after first HTTPS visit | `[x]` 2026-11-19 (SPRINT 169): `backend/cors.php` (every API response) and `ams-react/public/.htaccess` send `Strict-Transport-Security: max-age=31536000`, only over HTTPS and never for localhost / 127.0.0.1 |
 
 ### SECTION 4 — Server & Configuration
 
@@ -59,7 +59,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | D-5 | Remove all debug `var_dump()`, `print_r()`, and bare `echo` in PHP files | Internal data structures leaked to any user who triggers an error | `[x]` |
 | D-6 | Set `php.ini` limits: `upload_max_filesize=10M`, `post_max_size=12M` | Uploads silently fail or exceed memory on production | `[x]` |
 | D-7 | Set `APP_ENV=production` in the deployed `config.env.php` (the fallback default in `config.php` and the checked-in `config.env.example.php` are both `development`) | `forgot_password.php` returns the raw reset token (`dev_token`) in the JSON response whenever `APP_ENV !== 'production'` — anyone can reset any account, including the admin, without ever seeing an email | `[x]` 2026-11-13 check: `APP_ENV` now defaults to `production` (`config.php`), and `forgot_password.php` no longer returns `dev_token`. Local `config.env.php` sets `development`. |
-| D-8 | Stop returning `$stmt->error` / `$conn->error` / `$e->getMessage()` in API JSON responses (~30 occurrences) | Leaks table/column names and query structure to any client that triggers a DB error | `[ ]` |
+| D-8 | Stop returning `$stmt->error` / `$conn->error` / `$e->getMessage()` in API JSON responses (~30 occurrences) | Leaks table/column names and query structure to any client that triggers a DB error | `[x]` 2026-11-19 (SPRINT 170): the 8 endpoints that still echoed raw text (`cancel_application`, `create_refund_request`, `get_admin_user`, `get_invoices`, `request_application_cancellation`, `respond_refund_request`, `sync_utility_to_invoice`, `update_refund_request`) use `public_error_message()`; a database error is logged and answered with a generic line |
 | D-9 | Move the runtime `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` calls out of request-time PHP (`submit_inquiry.php`, `get_inquiries.php`, `send_payment_reminder.php`) and into `SetupDB.sql` — `get_utility_readings.php` and `login.php` (`login_attempts`) done September 2026 (`utility_readings` now in `SetupDB.sql` + `2026_09_utility_readings.sql`) | Requires the production DB user to hold schema-DDL privileges, which conflicts with the least-privilege goal in A-3 | `[ ]` Re-checked 2026-11-13: only `get_inquiries.php` still runs request-time DDL; `submit_inquiry.php` and `send_payment_reminder.php` no longer do. |
 
 ### SECTION 5 — Frontend / React
@@ -67,9 +67,9 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | # | Check | Risk if Missed | Status |
 |---|---|---|---|
 | E-1 | Replace all hardcoded `http://localhost` / `http://localhost:8080` strings with `VITE_API_BASE_URL` env var (10 occurrences across `axiosConfig.js`, `TopBar.jsx`, `AdminPayments.jsx`, `AdminMaintainance.jsx`, `AdminParking.jsx`, `AdminServicePage.jsx`, `AdminVisitors.jsx`, `UserMyRequests.jsx`, `UserPaymentHistory.jsx`) | All API calls fail on production; app is broken | `[x]` 2026-09-16 — `axiosConfig.js` reads `VITE_API_BASE_URL` (`ams-react/.env.development` / `.env.production`); all file links use `src/api/fileUrl.js`. Only the XAMPP fallback in `axiosConfig.js` remains |
-| E-2 | Add `X-Frame-Options: SAMEORIGIN` response header | App can be embedded in an iframe for clickjacking attacks | `[ ]` |
-| E-3 | Add `X-Content-Type-Options: nosniff` response header | Browser MIME-sniffing can execute uploaded files as scripts | `[ ]` |
-| E-4 | Add `Referrer-Policy: strict-origin-when-cross-origin` response header | Referrer headers leak internal URLs to third parties | `[ ]` |
+| E-2 | Add `X-Frame-Options: SAMEORIGIN` response header | App can be embedded in an iframe for clickjacking attacks | `[x]` 2026-11-19 (SPRINT 169): the SPA sends `X-Frame-Options: DENY` (`public/.htaccess`). The API does not, on purpose: the app previews files from `download_file.php` in an `<iframe>` |
+| E-3 | Add `X-Content-Type-Options: nosniff` response header | Browser MIME-sniffing can execute uploaded files as scripts | `[x]` 2026-11-19 (SPRINT 169): `nosniff` on every API response, the SPA, and the `room_images/`, `qr_codes/` and `site_assets/` folders |
+| E-4 | Add `Referrer-Policy: strict-origin-when-cross-origin` response header | Referrer headers leak internal URLs to third parties | `[x]` 2026-11-19 (SPRINT 169): `Referrer-Policy: strict-origin-when-cross-origin` on the API and the SPA |
 | E-5 | Run `grep -r "localhost" ams-react/dist/` after build — must return nothing | Production bundle silently calls localhost instead of real API | `[x]` 2026-09-16 — the only remaining hits are react-router/axios internals using `http://localhost` as a URL-parsing base, not requests |
 | E-6 | Confirm admin route guard: only `role === 'admin'` can reach admin pages | `AdminProtectedRoute` in `App.jsx` does this correctly — but it is a UX convenience only, since the real control has to live server-side (see A-7); a tenant who spoofs `X-Admin-Id` cannot get past `require_admin()`/hardened `verify_admin()`, only past endpoints that still skip that check | `[x]` (client-side guard confirmed; server-side is the binding control) |
 | E-7 | Run `npm audit fix` in `ams-react` | 6 high + 1 moderate advisory in dependencies (direct: `react-router-dom`; transitive: `postcss`, `nanoid`, `brace-expansion`, `browserslist`, `react-router`) — all have fixes available | `[ ]` |
@@ -92,7 +92,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 |---|---|---|
 | **Critical** (unauthenticated IDOR / account takeover) | 0 — A-7 resolved 2026-09-14 (§6d); CH-1 resolved 2026-11-13 (§6e) | none open |
 | **High** | 3 (D-7 and L-1 confirmed fixed 2026-11-13) | A-1, B-6 (partial — `chown` is a deploy action; 0777 regressed in `send_sms.php`), E-7 (CH-2 `websocket-server/.env` tracked in git: untracked 2026-10-31, §6e) |
-| **Moderate** | 7 | A-3, A-9 (partial — lockout abuse only), C-1, C-2, D-8, D-9 (CH-3 chat recipients / rate limit fixed 2026-11-18, §6e) |
+| **Moderate** | 7 | A-3, A-9 (partial: lockout abuse only, SPRINT 172 open), C-1, C-2 (certificate and redirect are deploy steps). Fixed 2026-11-19: D-8, D-9, C-4, E-2, E-3, E-4; fixed 2026-11-18: CH-3 chat recipients / rate limit (§6e) |
 | **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-2, E-3, E-4, N-1 Semaphore key in query string (§6e) |
 
 > All **Critical** items must be resolved before any external user (pilot or production) touches the system. **High** items must be done before public access.
@@ -278,6 +278,7 @@ Found by the AI-assisted audit (`2026-11-10_iso25010_evidence_map.md`, §3.4).
 - **Reviews only touch the caller's own settlement.** `request_deposit_review.php` and `get_deposit_statement.php` take the user from the session, never from the request; `resolve_deposit_review.php` / `get_deposit_reviews.php` are `require_admin`. Two tabs cannot open two reviews (the settlement row is locked first) and an answer is claimed with `WHERE status = 'Open'`, so a double submit opens one refund.
 - **Money guards:** an adjustment is capped at what was not returned; a restored tenancy cancels open deposit refunds and is refused once one was paid out (`restore_tenant.php`); the cancellation fee can never exceed what was paid.
 - **Verified:** `deposit_refund.test.js`, `deposit_review.test.js`, `cancellation_fee.test.js`.
+- **Right to erasure (2026-11-20, panel L-06).** `anonymize_user()` (admin only, typed confirmation, archived accounts with nothing open) erases a former tenant's personal data in one transaction and unlinks the files after the commit; invoices, payments and contracts stay under "Former tenant", and the user row is never deleted, so the `ON DELETE CASCADE` links to invoices and payments never fire. The activity log keeps the account id and counts, no name or contact. An anonymized account cannot be restored. Verified: `anonymize_user.test.js`. The Privacy Notice names the Owner / Management as Data Protection Officer (L-04), and the Terms version is stored (`TERMS_VERSION`).
 
 ## 6b. Billing & Payments Hardening (2026-09)
 
