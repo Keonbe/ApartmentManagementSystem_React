@@ -416,14 +416,12 @@ jobs:
 
       - name: Audit frontend dependencies (shipped packages)
         working-directory: ams-react
-        # Non-blocking until the known axios / follow-redirects advisories are
-        # fixed with `npm audit fix`; then remove continue-on-error.
-        continue-on-error: true
+        # Blocking since 2026-11-21 (SPRINT 168): the advisories were fixed with
+        # `npm audit fix`, so a new high one fails the build.
         run: npm audit --omit=dev --audit-level=high
 
       - name: Audit chat server dependencies
         working-directory: websocket-server
-        continue-on-error: true
         run: npm audit --omit=dev --audit-level=high
 
       - name: Audit backend Composer packages
