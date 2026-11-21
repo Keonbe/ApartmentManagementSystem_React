@@ -1607,7 +1607,7 @@ INSERT IGNORE INTO `application_requirements` (`id`, `label`, `label_fil`, `is_r
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
-('floor_rates', '{}'),
+('floor_rates', '{"1F": 4000, "2F": 4000, "3F": 3500}'),
 ('min_household_age', '0'),
 ('child_restricted_floors', '["3F"]'),
 ('child_restricted_below_age', '5'),

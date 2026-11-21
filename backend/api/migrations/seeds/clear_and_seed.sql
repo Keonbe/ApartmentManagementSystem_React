@@ -111,6 +111,7 @@ INSERT INTO `application_requirements` (`id`, `label`, `label_fil`, `is_required
 -- 5. Default System Settings
 INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
+('floor_rates', '{"1F": 4000, "2F": 4000, "3F": 3500}'),
 ('contact_email', 'admin@ams.com'),
 ('contact_phone', '+63 912 345 6789'),
 ('currency_symbol', '₱'),

@@ -854,3 +854,11 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'rent_applications' AND column_name = 'terms_version') = 0,
   'ALTER TABLE `rent_applications` ADD COLUMN `terms_version` varchar(20) DEFAULT NULL AFTER `terms_agreed_at`', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== floor_rates_default =====
+-- (SPRINT 80) Settings -> Floor Rent shipped empty ('{}'), so a new unit had no
+-- price. The manager's rates are the default now: 1F and 2F 4,000, 3F 3,500. A
+-- database where an admin already set rates keeps them; only an empty value is
+-- filled.
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES ('floor_rates', '{"1F": 4000, "2F": 4000, "3F": 3500}');
+UPDATE `system_settings` SET `setting_value` = '{"1F": 4000, "2F": 4000, "3F": 3500}' WHERE `setting_key` = 'floor_rates' AND TRIM(`setting_value`) IN ('', '{}', '[]');
