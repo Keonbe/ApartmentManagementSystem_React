@@ -182,7 +182,7 @@ Initiates a password reset flow by generating a SHA-256 hashed token (expires in
 |----------|--------|
 | **Auth** | None (public) |
 | **Security** | Constant-time response (doesn't reveal email existence) |
-| **Dev Mode** | Returns `dev_token` when `APP_ENV=development` |
+| **Delivery** | Emails the reset link through `send_email()` (needs `notifications_email_enabled` = 1 and a non-`log` `email_driver`). The token is never returned in the response, in any environment |
 
 ---
 
@@ -747,11 +747,6 @@ Posts a reading's charge onto an invoice. `sync_mode`: `merge` adds it to the te
 
 ---
 
-### `GET` [get_utilities_report_data.php](../../backend/api/get_utilities_report_data.php)
-*No page calls this since 2026-11-15 (the Reports page uses `get_reports.php`); kept with its tests, removal is a follow-up.* Aggregated utility data for a `timeframe` (`monthly`/`quarterly`/`yearly`) filtered by billing period: consumption and averages per unit-month, invoiced vs. collected utility charges (cancelled excluded), readings pending sync, spike count, top units with `hasSpike`, and — monthly — occupied units still missing a reading. `require_admin()`.
-
----
-
 ## 8. Maintenance Requests
 
 ```mermaid
@@ -1061,22 +1056,10 @@ Admin → Reports (since 2026-11-15). One report over a date range, cut into per
 | **Money rules** | As `dashboard_stats.php`: money is dated by when it arrived (an installment on its own day, each column taking its share; any other paid bill whole on `paid_at`), security deposits are never revenue, advance-rent invoices are left out; expenses = finished repairs the building paid (actual cost, else estimate) + `expenses` + `report_overhead_pct` |
 | **Previous range** | The same number of whole months before (a month → the month before, a year → the year before), else the same number of days; each summary figure carries `previous` except the "today" ones (occupancy today, overdue today, open today, parking in use) |
 | **Errors** | `422` with `errors.report` / `from` / `to` / `group`; `500` "The report could not be built" |
-| **Tests** | `tests/api/reports.test.js` |
+| **Extra tables** | `collections` has *By channel (pesos)* (Online vs Front desk per method, 2026-11-20); `financial` has *Deposits settled at move-out* (applied, returned, forfeited and deducted by category, moved from the removed `get_report_data.php`, 2026-11-21); `billing` has *Open bills (today)* |
+| **Tests** | `tests/api/reports.test.js`, `balance_rules`, `deposit_review`, `expenses_reports` |
 
 The page draws this answer and saves the same answer as Excel (`ams-react/src/utils/xlsx.js`, no library) or PDF (`jspdf` + `jspdf-autotable`, loaded on demand).
-
-### `GET` [get_report_data.php](../../backend/api/get_report_data.php)
-The Reports page's data until 2026-11-15 (monthly / quarterly / yearly); no page calls it now. Kept with its tests (`balance_rules`, `deposit_review`, `expenses_reports`) until it is removed.
-
-| Property | Detail |
-|----------|--------|
-| **Auth** | `require_admin()`; runs `promote_overdue_invoices()` first |
-| **Parameters** | `timeframe` (`monthly`/`quarterly`/`yearly`), `month`, `quarter`, `year` |
-| **Report Types** | Financial (income statement, revenue streams incl. late fees, unit income, 6-month trend), occupancy, maintenance, tenant, parking |
-| **Expenses** | Recorded maintenance cost (`COALESCE(actual_cost, estimated_cost)`, tenant-responsible excluded, dated by resolution) + `report_overhead_pct` setting (absent = 0%) |
-| **Arrears** | Every `BILLING_OPEN_STATUSES` invoice past its due date |
-
----
 
 ## 13. Inquiries & Reservations
 
@@ -1432,7 +1415,6 @@ All endpoints return JSON with this shape on error:
 | 43 | [get_utility_readings.php](../../backend/api/get_utility_readings.php) | GET | Utility | User (own) / Admin | List readings |
 | 43a | [delete_utility_reading.php](../../backend/api/delete_utility_reading.php) | POST | Utility | Admin | Delete latest un-invoiced reading |
 | 44 | [sync_utility_to_invoice.php](../../backend/api/sync_utility_to_invoice.php) | POST | Utility | Admin | Post charge to invoice |
-| 45 | [get_utilities_report_data.php](../../backend/api/get_utilities_report_data.php) | GET | Utility | Admin | Old utility report data (no page calls it since 2026-11-15) |
 | 46 | [maintenance_request.php](../../backend/api/maintenance_request.php) | POST | Maintenance | User | Submit ticket |
 | 47 | [create_maintenance_request_admin.php](../../backend/api/create_maintenance_request_admin.php) | POST | Maintenance | Admin | Create ticket for tenant |
 | 48 | [get_maintenance_requests.php](../../backend/api/get_maintenance_requests.php) | GET | Maintenance | Admin | List all tickets |
@@ -1461,7 +1443,6 @@ All endpoints return JSON with this shape on error:
 | 70 | [get_system_settings.php](../../backend/api/get_system_settings.php) | GET | System | Public (filtered by caller) | Read settings (visitors: allowlist; tenants: no operational keys; admins: all, secret keys masked) |
 | 71 | [update_system_settings.php](../../backend/api/update_system_settings.php) | POST | System | Admin | Write settings |
 | 72 | [dashboard_stats.php](../../backend/api/dashboard_stats.php) | GET | System | Admin | Dashboard statistics |
-| 73 | [get_report_data.php](../../backend/api/get_report_data.php) | GET | System | Admin | Old report data (no page calls it since 2026-11-15) |
 | 73a | [get_reports.php](../../backend/api/get_reports.php) | GET | System | Admin | Reports by range and period (page, Excel, PDF) |
 | 74 | [submit_inquiry.php](../../backend/api/submit_inquiry.php) | POST | Inquiry | Public | Submit unit inquiry |
 | 75 | [get_inquiries.php](../../backend/api/get_inquiries.php) | GET | Inquiry | Admin | List inquiries |

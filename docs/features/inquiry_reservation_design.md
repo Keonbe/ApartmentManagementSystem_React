@@ -208,7 +208,7 @@ Policy, and stored as `reservation_hold_days` in `system_settings`.
 Decided 2026-09-16; the report and the waitlist were built 2026-09-17.
 
 - **Inquiry conversion-rate report — built.** "Inquiry Conversion" on the
-  Reports *Reservations* tab (`inquiryConversion` in `get_report_data.php`), for
+  Reports *Reservations* tab (the Leasing report of `get_reports.php`), for
   the selected period:
   - inquiries received, broken down by status;
   - conversion rate = inquiries that reached `Converted` ÷ inquiries received;

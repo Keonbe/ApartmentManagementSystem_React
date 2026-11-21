@@ -4,7 +4,7 @@ Thirty hard panel questions based on real decisions and weaknesses in this repo,
 
 Sources read: `docs/features/panelist_feature_checklist.md`, `docs/documentation/system_design.md`, `docs/audits/security_audit.md`, `docs/documentation/module_verification_guide.md`, `docs/planning/todo.md` and `docs/audits/2026-11-12_panel_policy_gap_audit.md` (its Part B limitations and Part C panel simulation). Facts below were checked against the code on 2026-11-18.
 
-Numbers to quote (run 2026-11-18): 168 PHP files in `backend/api/` (163 endpoints), 52 tables, 56 routes, 53 pages, 2 database roles (`user`, `admin`), 2,074 API tests in 100 files (2,071 pass, 3 fail), 41 frontend tests in 6 files (all pass).
+Numbers to quote (run 2026-11-21): 169 PHP files in `backend/api/` (about 164 endpoints), 52 tables, 56 routes, 53 pages, 2 database roles (`user`, `admin`), 2,154 API tests in 108 files (all pass), 45 frontend tests in 7 files (all pass).
 
 ## 1. Architecture and tech choices
 
@@ -25,7 +25,7 @@ Numbers to quote (run 2026-11-18): 168 PHP files in `backend/api/` (163 endpoint
 - **Follow-up:** "Why not an auto-increment id plus a display number?" That is cleaner and is what I'd do next time.
 
 **5. Your frontend has no component tests. Why?**
-- **Answer:** True. Frontend Vitest covers utilities only (41 tests in 6 files). The backend is the tested layer; the UI was checked by hand and in browser checks (SPRINT rows 57-61).
+- **Answer:** True. Frontend Vitest covers utilities only (45 tests in 7 files). The backend is the tested layer; the UI was checked by hand and in browser checks (SPRINT rows 57-61).
 - **Follow-up:** "How do you know the UI shows the right balance?" A shared helper, `invoiceOwed()` in `utils/invoiceBalance.js`, mirrors the SQL rule and is unit-tested. The screens themselves aren't.
 
 **6. `todo.md` says a Vitest suite is optional. Is there one?**
@@ -112,7 +112,7 @@ Numbers to quote (run 2026-11-18): 168 PHP files in `backend/api/` (163 endpoint
 ## 5. Testing and quality
 
 **25. How many tests, and do they pass?**
-- **Answer:** On 2026-11-18: 2,074 API tests in 100 files, with 2,071 passing and 3 failing (2 in `deposit_deductions.test.js`, 1 in `contract_end.test.js`). Frontend: 41 of 41.
+- **Answer:** On 2026-11-21: 2,154 API tests in 108 files, all passing (the 3 failures of 2026-11-18 in `deposit_deductions` and `contract_end` were fixed by `8bbc925`). Frontend: 45 of 45.
 - **Follow-up:** "Why do three fail?" Fix or explain them before the defense.
 
 **26. Where is your user acceptance evidence?**
@@ -120,7 +120,7 @@ Numbers to quote (run 2026-11-18): 168 PHP files in `backend/api/` (163 endpoint
 - **Follow-up:** "Then what is your evidence of usability?" A heuristic audit (AI-assisted) and an ISO 25010 map. Call these preliminary, not user data.
 
 **27. Your docs disagreed on counts. Which is true?**
-- **Answer:** 168 PHP files, 163 endpoints, 52 tables, 100 test files, 2,074 API tests, 56 routes. Older docs were snapshots. I reconciled them in commit `37aea84`.
+- **Answer:** 169 PHP files, about 164 endpoints, 52 tables, 108 test files, 2,154 API tests, 56 routes (2026-11-21). Older docs were snapshots. I reconciled them in commit `37aea84`.
 - **Follow-up:** "How do you stop drift?" There is no automated check. It is a manual rule in `AGENTS.md`.
 
 ## 6. Scope and limitations
@@ -156,7 +156,7 @@ Numbers to quote (run 2026-11-18): 168 PHP files in `backend/api/` (163 endpoint
    - Say: "Both are open findings, A-1 and SPRINT 145. They're acceptable only because the password gets changed at go-live. The code doesn't enforce that."
    - Don't call it a dev-only convenience unless you've made the change.
 3. **Three failing tests (Q25).**
-   - Say: "2,071 of 2,074 pass. The 3 failures are in the deposit and contract-end tests, in the workstream I'm still changing."
+   - Say: "All 2,154 pass (2026-11-21); the earlier deposit and contract-end failures were fixed."
    - Don't say "all tests pass." Fix or explain them first.
 4. **Collecting money after move-out, and no second approver (Q16, Q17).**
    - Say: "The system records and invoices it but can't enforce it. We stated this as a limitation (LI-1, LI-4)."

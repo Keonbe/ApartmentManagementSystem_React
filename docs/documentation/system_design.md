@@ -15,7 +15,7 @@
 
 **Tables (52 in `SetupDB.sql`; the list below is the original 31, the rest are in [database_schema.md](database_schema.md)).** users, rooms, rent_applications, lease_contracts, lease_renewals, household_members · invoices, expenses, utility_readings, parking_charges · maintenance_requests, cctv_requests, parking_reservations, service_catalog, service_requests · visitor_logs, inquiries, unit_reservations, unit_waitlist · announcements, notifications, notification_preferences, notification_queue, notification_log, activity_logs · system_settings, sessions, login_attempts, password_resets, password_reset_requests · messages (chat).
 
-**Endpoints (168 PHP files in `backend/api/`, 163 callable endpoints; the areas below are a partial list, the complete index is in [api_documentation.md](api_documentation.md)), by area:**
+**Endpoints (169 PHP files in `backend/api/`, about 164 callable endpoints; the areas below are a partial list, the complete index is in [api_documentation.md](api_documentation.md)), by area:**
 
 | Area | Endpoints |
 |---|---|
@@ -25,7 +25,7 @@
 | Inquiries & holds | submit_inquiry, get_inquiries, update_inquiry_status, create_reservation, update_reservation_status, expire_reservations, manage_waitlist |
 | Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file, public_file (public images: room photos, QR codes, Glass and Preview photos; no session) |
 | Billing & payments | get_invoices, create_invoice, adjust_invoice, advance_payment, pay_bill, record_payment_admin, upload_payment_proof, reject_payment_proof, schedule_payment, send_payment_reminder, check_due_date_reminders, get_payment_channels, create_checkout_session, release_checkout_session, paymongo_webhook, manage_expenses |
-| Utilities | get_utility_readings, save_utility_reading, delete_utility_reading, sync_utility_to_invoice, get_utilities_report_data |
+| Utilities | get_utility_readings, save_utility_reading, delete_utility_reading, sync_utility_to_invoice |
 | Maintenance | maintenance_request, create_maintenance_request_admin, get_maintenance_requests, update_maintenance_status, sync_maintenance_to_invoice |
 | Services | get_service_catalog, manage_service_catalog, service_request, get_service_requests, update_service_status, sync_service_to_invoice |
 | Parking & CCTV | parking_reservation, get_parking_reservations, update_parking_status, get_available_parking_slots, parking_slots, sync_parking_to_invoice, cctv_request, get_cctv_requests, update_cctv_status |
@@ -33,7 +33,7 @@
 | Requests (tenant) | get_my_requests, cancel_request |
 | Announcements & notifications | create_announcement, get_announcements, create_notification, get_notifications, mark_notification_read, delete_notification, get_notification_preferences, update_notification_preferences, send_test_notification, get_sms_balance |
 | Chat | get_chat_history, send_message, save_message (alias), get_conversations, get_admin_user |
-| Admin & reports | dashboard_stats, get_reports, get_report_data, get_activity_logs, get_system_settings, update_system_settings, upload_glass_background, get_glass_backgrounds, delete_glass_background, upload_preview_image |
+| Admin & reports | dashboard_stats, get_reports, reconcile_gateway_payments, get_activity_logs, get_system_settings, update_system_settings, upload_glass_background, get_glass_backgrounds, delete_glass_background, upload_preview_image |
 
 Shared code: `backend/config.php` (auth, billing, tenancy, notification helpers), `backend/api/services/` (`send_notification.php`, `send_sms.php` — log / Semaphore, `send_email.php` — log / SMTP, `email_templates.php`).
 
@@ -439,7 +439,6 @@ Per-page behaviour (panels, forms, validations, actions) is in [tenant_pages.md]
 | `delete_notification.php` | POST | Delete a notification | ✅ |
 | `dashboard_stats.php` | GET | Aggregate live KPIs + income chart + new tenants | ✅ |
 | `get_reports.php` | GET | One report over a date range, cut by day / week / month / year (`backend/reports.php`) | ✅ |
-| `get_report_data.php` | GET | Old report data by timeframe/month/year (no page calls it since 2026-11-15) | ✅ |
 | `get_activity_logs.php` | GET | Fetch system activity logs | ✅ |
 | `get_system_settings.php` | GET | Fetch system settings from DB, filtered by caller (visitors: public allowlist; tenants: no operational keys; admins: all, secrets masked) | ✅ |
 | `update_system_settings.php` | POST | Update system settings in DB | ✅ |
@@ -797,7 +796,7 @@ Stored in `sessionStorage` under key `loggedInUser`, together with `sessionToken
 | FR-10.3 | The system shall provide a tenant-facing announcement board showing all published announcements. | ✅ |
 | FR-10.4 | The system shall provide a Notification Center with history, read/unread status, and delete functionality. | ✅ |
 | FR-10.5 | The system shall display a live notification bell in the TopBar that reads unread count from the database. | ✅ |
-| FR-10.6 | The system shall allow admins to schedule announcements for future delivery. | 🔲 (drafts exist; scheduled sending does not) |
+| FR-10.6 | The system shall allow admins to schedule announcements for future delivery. | ✅ (`scheduledAt` in `create_announcement.php`, sent by the daily sweep; drafts too) |
 | FR-10.7 | The system shall allow admins to target specific tenants for announcements (instead of all non-admin users). | ✅ (all tenants, one unit, or chosen tenants: `Tenants: 2,3`) |
 | FR-10.8 | The system shall automatically send notifications when admin updates CCTV/parking/maintenance request status. | ✅ |
 | FR-10.9 | The system shall deliver notifications by SMS (Semaphore) and email (SMTP) through a queue with retries, quiet hours, a daily SMS cap and per-user opt-outs. | 🔧 (email SMTP configured for current deployment; verify runtime settings; SMS go-live pending) |
@@ -856,7 +855,7 @@ Stored in `sessionStorage` under key `loggedInUser`, together with `sessionToken
 | ID | Requirement | Status |
 |----|-------------|--------|
 | FR-15.1 | The system shall provide a garbage collection schedule page or announcement. | ✅ (Other Settings → My Room → Garbage collection, each day with morning / afternoon / evening; tenants see this week with the collection days highlighted on My Room. The `/housekeeping` page was folded into My Room on 2026-11-15) |
-| FR-15.2 | The system shall provide a house rules page (static or served via announcements). | 🔲 |
+| FR-15.2 | The system shall provide a house rules page (static or served via announcements). | ✅ (`house_rules.php`: admin-edited rules, shown on My Room, the inquiry form and the application form) |
 
 ---
 

@@ -1,9 +1,9 @@
 # Security Audit — ApartmentManagementSystem (AMS)
 
-> **Last Updated:** 2026-11-13 (CH-1 chat socket authentication fixed; D-7, L-1, CH-4 confirmed fixed and D-9, C-3 corrected against the code; earlier: R-7, R-8 on 2026-11-11, chat + SMS/email surface reviewed 2026-09-24 — see §6e, and the role-based access & activity log audit, §6d)
+> **Last Updated:** 2026-11-21 (E-7 npm audit fixed, erasure and CORS added; earlier: 2026-11-13 (CH-1 chat socket authentication fixed; D-7, L-1, CH-4 confirmed fixed and D-9, C-3 corrected against the code; earlier: R-7, R-8 on 2026-11-11, chat + SMS/email surface reviewed 2026-09-24 — see §6e, and the role-based access & activity log audit, §6d))
 > **Stack:** React 19 (Vite 8 SPA) + Node.js Socket.IO chat server + PHP 8 + MySQL/MariaDB on XAMPP
 > **Status:** Pre-production / Pilot Testing Review
-> **Scope of this pass:** all 83 `backend/api/*.php` endpoints as of 2026-09-14 (104 today — the new chat and notification endpoints are covered by §6e) (auth gate, upload handling, SQL), `backend/config.php`, the frontend auth/routing/API-base code in `ams-react/src`, and `npm audit` on `ams-react`.
+> **Scope of this pass:** all 83 `backend/api/*.php` endpoints as of 2026-09-14 (169 today — the chat, notification, complaint, reconciliation and erasure endpoints are covered by §6b, §6e and the 2026-11 notes) (auth gate, upload handling, SQL), `backend/config.php`, the frontend auth/routing/API-base code in `ams-react/src`, and `npm audit` on `ams-react`.
 
 ---
 
@@ -72,7 +72,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | E-4 | Add `Referrer-Policy: strict-origin-when-cross-origin` response header | Referrer headers leak internal URLs to third parties | `[x]` 2026-11-19 (SPRINT 169): `Referrer-Policy: strict-origin-when-cross-origin` on the API and the SPA |
 | E-5 | Run `grep -r "localhost" ams-react/dist/` after build — must return nothing | Production bundle silently calls localhost instead of real API | `[x]` 2026-09-16 — the only remaining hits are react-router/axios internals using `http://localhost` as a URL-parsing base, not requests |
 | E-6 | Confirm admin route guard: only `role === 'admin'` can reach admin pages | `AdminProtectedRoute` in `App.jsx` does this correctly — but it is a UX convenience only, since the real control has to live server-side (see A-7); a tenant who spoofs `X-Admin-Id` cannot get past `require_admin()`/hardened `verify_admin()`, only past endpoints that still skip that check | `[x]` (client-side guard confirmed; server-side is the binding control) |
-| E-7 | Run `npm audit fix` in `ams-react` | 6 high + 1 moderate advisory in dependencies (direct: `react-router-dom`; transitive: `postcss`, `nanoid`, `brace-expansion`, `browserslist`, `react-router`) — all have fixes available | `[ ]` |
+| E-7 | Run `npm audit fix` in `ams-react` | 6 high + 1 moderate advisory in dependencies (direct: `react-router-dom`; transitive: `postcss`, `nanoid`, `brace-expansion`, `browserslist`, `react-router`) — all have fixes available. **Done 2026-11-21 (SPRINT 168):** `npm audit fix` in `ams-react` and `websocket-server` (axios, follow-redirects, zod, vite, source-map-js, minimatch, qs), 0 vulnerabilities in both; the CI npm audit steps are blocking now | `[x]` |
 
 ### SECTION 6 — Input Validation
 
@@ -91,7 +91,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | Severity | Count | Items |
 |---|---|---|
 | **Critical** (unauthenticated IDOR / account takeover) | 0 — A-7 resolved 2026-09-14 (§6d); CH-1 resolved 2026-11-13 (§6e) | none open |
-| **High** | 3 (D-7 and L-1 confirmed fixed 2026-11-13) | A-1, B-6 (partial — `chown` is a deploy action; 0777 regressed in `send_sms.php`), E-7 (CH-2 `websocket-server/.env` tracked in git: untracked 2026-10-31, §6e) |
+| **High** | 3 (D-7 and L-1 confirmed fixed 2026-11-13) | A-1, B-6 (partial — `chown` is a deploy action; 0777 regressed in `send_sms.php`), (E-7 fixed 2026-11-21; CH-2 `websocket-server/.env` tracked in git: untracked 2026-10-31, §6e) |
 | **Moderate** | 7 | A-3, A-9 (partial: lockout abuse only, SPRINT 172 open), C-1, C-2 (certificate and redirect are deploy steps). Fixed 2026-11-19: D-8, D-9, C-4, E-2, E-3, E-4; fixed 2026-11-18: CH-3 chat recipients / rate limit (§6e) |
 | **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-2, E-3, E-4, N-1 Semaphore key in query string (§6e) |
 
@@ -377,7 +377,7 @@ These are done right — do not regress them.
 | [rent_application.php](../../backend/api/rent_application.php) | File size limit (< 10 MB), extension allowlist, server-side `finfo_file()` MIME check (not client-supplied `type`) |
 | [registration.php](../../backend/api/registration.php) | Password confirmation match + minimum 8-character length enforced |
 | [my_room.php](../../backend/api/my_room.php), [profile.php](../../backend/api/profile.php), [get_documents.php](../../backend/api/get_documents.php), [update_occupants.php](../../backend/api/update_occupants.php), [extend_lease.php](../../backend/api/extend_lease.php), [record_move_out.php](../../backend/api/record_move_out.php) | Identity resolved exclusively via `require_user($conn)` from the session token — this is the pattern every endpoint in Finding 1 needs to adopt |
-| [get_report_data.php](../../backend/api/get_report_data.php) | All year/month/quarter filters safely cast to `(int)` before SQL interpolation |
+| [get_reports.php](../../backend/api/get_reports.php) | Report type and grouping are checked against fixed lists, dates are validated real dates, and every query is a prepared statement (the old `get_report_data.php` was removed 2026-11-21) |
 | [forgot_password.php](../../backend/api/forgot_password.php), [reset_password.php](../../backend/api/reset_password.php) | Reset tokens are random (`random_bytes(32)`) and stored only as a SHA-256 hash, with a 30-minute expiry and single-use deletion after success |
 | All endpoints | Prepared statements (`bind_param`) used consistently — no raw string SQL construction anywhere in `backend/api/` |
 

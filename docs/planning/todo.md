@@ -2,6 +2,8 @@
 
 > **Compiled:** 2026-09-16 from every backlog, audit, checklist, deployment and design doc in the repository. The source files are unchanged and hold the full details, so follow the **Source** link before starting any task.
 >
+> **Updated:** 2026-11-21 — npm audit fixed and blocking (168), CORS allowlist (175), floor rates seeded (80), old report endpoints removed (232), doc drift cleaned (201); the open list matches `SPRINT.md`.
+>
 > **Updated:** 2026-11-06 — moved to `docs/planning/todo.md` (the old `docs/todo.md` backlog was deleted on 2026-11-06; its text is in git history); scheduled announcements (FR-10.6) shipped 2026-11-03.
 >
 > **Updated:** 2026-10-09 — closed L-1, C4, L5, L6, L7, M1, M13, D-8/L1; SetupDB now has payment_transactions, house_rules and invoices.bank_name.
@@ -191,7 +193,6 @@ These are no longer open questions. The features they called for were built on 2
 | [x] | Where report expenses come from | An `expenses` table with manual entry, added to the derived maintenance costs | 2026-09 backlog Reports, PRD Open Questions |
 | [x] | Feature branches or direct pushes to `main` | Routine work and bug fixes go to `main`; big implementations use a `feature/` branch; no required PRs | [cicd Git Branching Strategy](../deployment/cicd_pipeline.md#git-branching-strategy), [CLAUDE.md](../../CLAUDE.md) |
 | [x] | Inquiry waitlist, conversion report, email/SMS | Conversion report: yes. Basic waitlist: yes. Email/SMS on new inquiries: TBA | [inquiry_reservation_design §8](../features/inquiry_reservation_design.md#8-planned-and-deferred) |
-| [ ] | High | Run `npm audit fix` in `ams-react` (axios, follow-redirects, zod advisories), then remove `continue-on-error` from the npm steps in `security-audit`; check the first gitleaks run for history findings. | CI/CD expansion, SPRINT 154 |
 | [ ] | Low | CI/CD guide phases 4 (SSH auto-deploy, needs prod secrets) and 6 (Playwright E2E) are still open. | `cicd_expansion_guide.md`, SPRINT 154 |
 
 ---
@@ -202,6 +203,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | 2026-11-21: `npm audit fix` and blocking CI audit (168); `cors.php` honours `ALLOWED_ORIGINS` and keeps local origins out of production (175); floor rates seeded 4,000 / 4,000 / 3,500 (80); the two old report endpoints removed, their deposit figures now in the Financial report (232). | SPRINT 168 / 175 / 80 / 232 |
 | [x] | 2026-11-20 (uncommitted): `get_conversations.php` ranked per partner with two composite indexes (206); PayMongo reconciliation, "Check with PayMongo" button and a by-channel pesos report (183); anonymize action for former tenants, terms version on applications, Data Protection Officer in the Privacy Notice (177). | SPRINT 206 / 183 / 177 |
 | [x] | 2026-11-19 (uncommitted): security hardening: raw error text and request-time table creation removed (170), security headers (169), room_images / qr_codes block svg and html (173), house rules, device and email-verify and password-reset writes logged (174), guest chat token stored hashed (82; the sign-in code / trusted-device / lockout changes of 172 were taken back so prod testing is not disturbed); the rent application legal notice uses the shared modal (209). Open from these: everything in the sign-in part of 172 (hashed code, trusted devices, lockout) and the admin sign-in skip (145), the HTTP to HTTPS redirect (deploy). | [SPRINT.md](../../SPRINT.md) |
 | [x] | 2026-11-18 (uncommitted): chat tenant↔admin only with an archived-receiver check and a 20-per-10-seconds cap (SPRINT 167); field validation on 16 more endpoints and the forged `X-Admin-Id` removed (178); reasoned void of a paid desk payment and refund payout method list + proof file (182); My Room / Profile retry states, error boundary and a safe stored-user reader (197). Open from these: write-off of a part-paid bill (audit P-06), tenant-side link to the payout proof, strict SQL mode (179). | [SPRINT.md](../../SPRINT.md) |

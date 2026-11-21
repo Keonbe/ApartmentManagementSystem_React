@@ -352,7 +352,7 @@ flowchart LR
 | `processing` | PayMongo checkout started | `create_checkout_session.php` |
 | `paid` | Payment confirmed | Admin or PayMongo webhook |
 | `payment-failed` | PayMongo payment failed | `paymongo_webhook.php` |
-| `overdue` | Past due date, unpaid | Future: cron / manual |
+| `overdue` | Past due date, unpaid | `promote_overdue_invoices()` (daily sweep, and when a billing page or report is opened) |
 
 ---
 

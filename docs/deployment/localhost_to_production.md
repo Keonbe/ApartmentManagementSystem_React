@@ -3,9 +3,9 @@
 > **Stack:** React 19 (Vite SPA) + PHP 8 + MySQL/MariaDB  
 > **Current Environment:** XAMPP on Windows (dev/demo machine)  
 > **Target Environment:** Self-hosted Linux server (VPS or dedicated)  
-> **Last Audited:** August 2026 — re-verified against the live repo September 2026 (see note below)
+> **Last Audited:** August 2026 — re-verified against the live repo September 2026 (see note below); CORS and security headers re-checked 2026-11-21
 
-> ⚠️ **Re-verification note (Sept 2026):** three items below were listed as open action items but are already fixed in the code — MIME-type validation (§1.6), the dead `$_SESSION` code (§1.5), and `backend/uploads/.htaccess` (Phase C) all already exist. The hardcoded-`localhost` audit table (§1.1) has also drifted: line numbers shifted from ongoing feature work, and 5 files that now also hardcode `localhost` were missing from the original list. Both are corrected below. The CORS wildcard count (§1.2) has grown from "44+" to 79 of 80 endpoint files as new features were added. None of this changes the recommended fixes — it means more of the "already fixed" boxes should be checked, and the CORS/localhost cleanup is larger in scope than originally scoped.
+> ⚠️ **Re-verification note (Sept 2026):** three items below were listed as open action items but are already fixed in the code — MIME-type validation (§1.6), the dead `$_SESSION` code (§1.5), and `backend/uploads/.htaccess` (Phase C) all already exist. The hardcoded-`localhost` audit table (§1.1) has also drifted: line numbers shifted from ongoing feature work, and 5 files that now also hardcode `localhost` were missing from the original list. Both are corrected below. The CORS wildcard count (§1.2) has grown from "44+" to 79 of 80 endpoint files as new features were added. **Update 2026-11-21:** the CORS wildcard is gone: every endpoint includes `backend/cors.php`, which allows only the origins in `ALLOWED_ORIGINS` (or the built-in hosts) and keeps localhost out of production (SPRINT 175); security headers are sent by `cors.php` and the SPA `.htaccess` (SPRINT 169). None of this changes the recommended fixes — it means more of the "already fixed" boxes should be checked, and the CORS/localhost cleanup is larger in scope than originally scoped.
 
 ---
 

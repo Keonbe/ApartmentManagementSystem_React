@@ -17,8 +17,8 @@ Written for: the student presenting. Print this on one page. Numbers checked on 
 | Activity-log categories | 12 | `LOG_CATEGORIES` in `config.php` |
 | Feature checklist | 12 modules, 100 rows, 96 done, 4 partial | `panelist_feature_checklist.md` |
 | Partial rows | 6.6 email, 6.7 SMS, 7.1 and 7.6 chat gaps | same |
-| API tests | 2,074 in 100 files (2,071 pass, 3 fail on 2026-11-18) | `tests/api`; takes about 11 min |
-| Frontend tests | 41 in 6 files, all pass | `cd ams-react && npm test` |
+| API tests | 2,154 in 108 files (all pass, 2026-11-21) | `tests/api`; takes about 14 min |
+| Frontend tests | 45 in 7 files, all pass | `cd ams-react && npm test` |
 | Seed | 15 demo tenants plus the admin, 14 rooms | `seed_mock_data.sql` |
 | Max advance rent | 6 months | `ADVANCE_PAYMENT_MAX_MONTHS` |
 | Rent invoice lead time | 7 days | `RENT_INVOICE_LEAD_DAYS` |
@@ -49,7 +49,7 @@ Written for: the student presenting. Print this on one page. Numbers checked on 
 6. "An application can't be approved until its documents are verified, and an unpaid approval lapses and frees the room."
 7. "At move-out the deposit is settled by itemized lines in one locked transaction, and any shortfall becomes an invoice. We cannot force collection after the tenant leaves."
 8. "We audited security in writing, fixed the serious findings, and list the open ones ourselves: the default admin password, unhashed session tokens, and missing security headers."
-9. "The API suite has 2,074 tests on a scratch database that can't touch dev data; three currently fail and I know where." *(update after rerunning)*
+9. "The API suite has 2,154 tests on a scratch database that can't touch dev data, and all of them pass." *(rerun before the defense)*
 10. "We have no user acceptance data yet. The usability kit is ready, and running it is the first thing I would do next."
 
 ## If you only remember five things in Q&A

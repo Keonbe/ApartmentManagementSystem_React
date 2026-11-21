@@ -5,8 +5,6 @@
 > **Scope**: Consolidates all modules in the Apartment Management System that depend on third-party external services (Payment Gateway, Email, SMS). Covers the local XAMPP/self-hosted setup.
 > **Stack**: React 19 (Vite SPA) + PHP 8 (XAMPP/Apache) + MySQL/MariaDB 10 (`ams_db`)
 > **Dev URL**: `http://localhost:8080/ApartmentManagementSystem_React/`
->
-> ⚠️ **Verified against the repo (Sept 2026):** the two migration file links below (§2.1, §2.2) pointed at files that no longer exist — `backend/api/migrations/create_password_resets_table.php` and `backend/api/migrations/payment_channels.php` were both deleted in a later "clean completed migrations" commit without being folded into `SetupDB.sql`. In practice this means **the `password_resets` table and PayMongo's `system_settings` seed keys are absent from a fresh install built from `SetupDB.sql`** — the live dev database still has them because it predates that cleanup. Both links below have been corrected to point at `SetupDB.sql`, and the gap itself is called out inline.
 
 ---
 
@@ -109,11 +107,11 @@ Allows users who have forgotten their passwords to request a secure, time-limite
 **Frontend Files:**
 | File | Role |
 |---|---|
-| [`ams-react/src/UserPages/Login.jsx`](../../ams-react/src/UserPages/Login.jsx) | Forgot Password toggle — shows email form, displays dev-mode reset link when `dev_token` is returned |
+| [`ams-react/src/UserPages/Login.jsx`](../../ams-react/src/UserPages/Login.jsx) | Forgot Password toggle — shows the email form and the generic "link sent" message |
 | [`ams-react/src/UserPages/ResetPassword.jsx`](../../ams-react/src/UserPages/ResetPassword.jsx) | New password form — reads `?email=...&token=...` from URL, submits to `reset_password.php` |
 | [`ams-react/src/App.jsx`](../../ams-react/src/App.jsx) | `<Route path="/reset-password" element={<ResetPassword />} />` |
 
-Password-reset token generation and verification are implemented, but `forgot_password.php` does not send email. In development it returns `dev_token` for UI testing. Do not treat its success response as proof an email was sent; reset-email dispatch and production-safe token handling remain outstanding.
+`forgot_password.php` stores a hashed token and emails the reset link through `send_email()`; the token is never returned in the response. Whether a mail really leaves depends on the host: it needs `notifications_email_enabled` = 1, `email_driver` not `log` and the SMTP settings (SPRINT row 191, `check_environment.php` warns when they are missing). A success response never proves delivery: check `notification_log`.
 
 ---
 
@@ -197,10 +195,9 @@ Preferences decide, per tenant and per category, which channels may deliver. The
 | **Schema changes** | Direct SQL migration scripts |
 | **File storage** | Local `/uploads/` directory |
 | **Cost** | Free (own hardware) |
-| **Backup** | Manual |
+| **Backup** | Nightly dump (see `docs/deployment/backup_and_restore.md`) |
 | **Migration effort** | None |
 
-> [!WARNING]
 ---
 
 ### 2.7 File Storage (Uploads)
@@ -215,9 +212,6 @@ Handles tenant ID documents, payment proof images, and profile photos stored in 
 | **Max size** | Limited by hard drive |
 | **CDN delivery** | None |
 | **Code change** | None |
-
-> [!IMPORTANT]
-> File upload paths hardcoded as `/backend/uploads/...` will break in cloud environments. Before migrating, abstract all file storage behind a PHP function so the storage target (local vs. cloud) can be swapped via a single config flag.
 
 ---
 
@@ -241,13 +235,12 @@ Handles tenant ID documents, payment proof images, and profile photos stored in 
 |---|---|
 | **Provider** | Apache 2.4 + PHP 8 on localhost |
 | **Deployment** | Copy files to `/htdocs/` |
-| **Config** | `config.php` hardcoded |
+| **Config** | `config.env.php` or environment variables, read by `config.php` |
 | **File uploads** | `move_uploaded_file()` to local disk |
 | **Cost** | Free (own hardware) |
 | **Cold starts** | None |
 | **Custom domain** | Requires router port-forwarding |
 
-> [!CAUTION]
 ---
 
 ## 3. Configuration Reference
@@ -299,6 +292,6 @@ The gateway fee scales with how much is paid online, so the owner decides it by 
 | Scenario | Recommended Deployment |
 |---|---|
 | Demo / panelist presentation only | Self-hosted XAMPP (full control, zero cost, LAN accessible) |
-| Production with home server available | Self-hosted + Resend email + Semaphore SMS (already external) |
+| Production with home server available | Self-hosted + SMTP email (PHPMailer) + Semaphore SMS (already external) |
 | Long-term production (>50 tenants) | Dedicated VPS (DigitalOcean, Hetzner) with MySQL + Caddy |
 

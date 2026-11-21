@@ -22,8 +22,8 @@ Timing plan: 19 slides at about 45 seconds = about 14 minutes, plus the 8-minute
 | 12 | Chat and notifications | A guest's inquiry chat continues into the tenant's account; messages queue for SMS and email without blocking actions |
 | 13 | Security: what we audited and fixed | A real audit, with real defects found and closed (identity from the session, chat socket, uploads) |
 | 14 | Security: what remains | You know your own open findings (admin default password, plaintext session tokens, no headers) |
-| 15 | Testing and CI | 2,074 API tests on a scratch database, 41 frontend tests, CI on every push |
-| 16 | Results | 100 checklist rows (96 done, 4 partial), 168 PHP files, 52 tables, 56 routes |
+| 15 | Testing and CI | 2,154 API tests on a scratch database, 45 frontend tests, CI on every push |
+| 16 | Results | 100 checklist rows (96 done, 4 partial), 169 PHP files, 52 tables, 56 routes |
 | 17 | Limitations | Honest list: no user test yet, SMS and email not live, one property, no proration |
 | 18 | Future work | A concrete, ordered next-steps list |
 | 19 | Live demo | The system works end to end with real seeded data |
@@ -92,7 +92,7 @@ Speak these, don't read them. Each note gives the main spoken line, then one fac
 - Keep ready: A-1, L3, C-4/E-2/E-3/E-4, A-3, D-8.
 
 **15. Testing and CI (60 s)**
-"The API test suite has 2,074 tests in 100 files. It builds a scratch database, so it can never touch dev data, and runs a real PHP server. On our last run, 2,071 passed and 3 failed; those three are in the deposit and contract-end tests that I am still changing. The frontend has 41 unit tests on utilities only, and we have no component tests. CI runs lint, build, PHP syntax checks, PHPStan, a schema check, the API suite, a dependency audit and a secret scan on every push."
+"The API test suite has 2,154 tests in 108 files. It builds a scratch database, so it can never touch dev data, and runs a real PHP server. On our last run (2026-11-21) all of them passed. The frontend has 45 unit tests on utilities only, and we have no component tests. CI runs lint, build, PHP syntax checks, PHPStan, a schema check, the API suite, a dependency audit and a secret scan on every push."
 - Keep ready: replace "3 failed" with the real number after you rerun the suite.
 
 **16. Results (45 s)**

@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~5 min, 2,156 tests (107 files; 2026-11-20, all passing)
+npm test           # ~5 min, 2,154 tests (108 files; 2026-11-20, all passing)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -86,7 +86,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `parking_slots.test.js` | 23 | `parking_slots.php`: admin only; refused names, icons, types, OR/CR flag, status, quantity; duplicate name 409; batches numbered after the highest (`M1-M3`, then `M4-M5`); edit, maintenance, remove (archived, name reusable). `parking_reservation.php`: e-bike with no plate, transmission or OR/CR; plate, transmission and OR/CR required where they apply; slot under maintenance or unknown 409; duration from the setting; several per tenant up to `parking_max_per_tenant`, same plate once; cancel own pending only. Tenant view states (free / requested / mine / taken / maintenance, no occupant). Assigning: wrong type 422, maintenance 409, several at once, then the rest closed as "Parking is full" with a notice. Free parking: fee 0, never billed |
 | `notifications_crud.test.js` | 30 | `create_notification` (admin only; length and type limits; muted category), `get_notifications` own inbox only, mark read / archive / delete (own rows, Pending requests protected, 404 for others), notification preferences (validation, per-channel save, global opt-outs) |
 | `chat_messages.test.js` | 22 | `send_message` / `save_message` (chat is tenant↔admin only and refuses an archived receiver, 20 per 10 s cap (2026-11-18); sender from the session, unicode kept, reply must be in the same thread, attachment content check, no orphaned file when the receiver is unknown), `get_chat_history` (members only, mark-as-read scoping), `get_conversations` (own threads, search treats wildcards as text) |
-| `expenses_reports.test.js` | 26 | `manage_expenses` (validation edges, rounding, month filter), `get_activity_logs` (filters, paging, wildcard search, export logged), `delete_utility_reading` (latest uninvoiced only), `get_utilities_report_data` (clamped inputs, counts by covered month), `get_sms_balance` |
+| `expenses_reports.test.js` | 26 | `manage_expenses` (validation edges, rounding, month filter), `get_activity_logs` (filters, paging, wildcard search, export logged), `delete_utility_reading` (latest uninvoiced only), the Utilities report of `get_reports` (counts by covered month, monthly grouping), `get_sms_balance` |
 | `unicode_and_markup.test.js` | 32 | Accents, CJK, RTL, emoji, apostrophes, markup, SQL and template text round trip exactly through maintenance requests, visitor pre-registration and guest inquiries; length counted in characters; honeypot |
 | `method_and_paging.test.js` | 204 | Wrong HTTP method has no side effect; every JSON write endpoint (about 90, admin and tenant) survives wrong-typed input without a 5xx; pages past the end; oversized bodies |
 | `concurrency_races.test.js` | 9 | Duplicate payment, invoice, contract, refund, promotion, move-out notice, occupancy request, hold and remove-vs-hold each take effect once. Runs on `php -S`, which serializes requests, so it proves the duplicate guards, not row locks under overlap |

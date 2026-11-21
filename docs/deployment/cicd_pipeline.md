@@ -6,9 +6,9 @@
 > ⚠️ **Verified against the repo (Sept 2026) before adopting this as-is:**
 > - `npm run lint` is clean (0 errors) as of the September 2026 lint-backlog cleanup. `.github/workflows/ci.yml`'s lint step is a real, blocking check — `continue-on-error` was removed once the backlog was cleared. See [Known Gaps & Fixes](#known-gaps--fixes-before-adopting-this-as-is) below.
 > - Local dev (XAMPP) and `backend/api/migrations/SetupDB.sql` are **MariaDB**, not MySQL — the Database Job below has been updated to use `mariadb:10.11` instead of `mysql:8.0` for this reason (the file uses `ADD COLUMN IF NOT EXISTS`, a MariaDB-only extension that real MySQL rejects). This job, plus a live-endpoint smoke-test job and PHPStan in the backend job, are wired up in `.github/workflows/ci.yml`.
-> - This project has **20 commits, 100% pushed directly to `main`, no PRs opened, no other branch ever created**. The "Git Branching Strategy" section below is a genuine workflow change, not just a config change — read it with that in mind before flipping on branch protection.
+> - This project has **about 600 commits (2026-11-21), 100% pushed directly to `main`, no PRs opened, no other branch ever created**. The "Git Branching Strategy" section below is a genuine workflow change, not just a config change — read it with that in mind before flipping on branch protection.
 >
-> Everything else in this document — the 80-endpoint PHP syntax check, the stack versions, the deployment target guidance — was verified accurate against the current codebase.
+> Everything else in this document — the PHP syntax check of every `backend/**/*.php`, the stack versions, the deployment target guidance — was verified accurate against the current codebase.
 
 > **Scope (2026-11-06):** the project is deployed to one place, the self-hosted XAMPP server. The earlier cloud/SaaS parallel-deployment plan (Vercel and Railway) was dropped on 2026-09-20 and has been removed from this document; git history keeps it.
 
@@ -387,7 +387,7 @@ If any step fails, the entire job fails, and the PR is blocked from merging.
 | `php -l` on all files | Catches syntax errors (missing semicolons, unclosed brackets, invalid PHP) across all 80+ endpoint files |
 | PHPStan (`phpstan.neon`, level 0) | Static analysis — finds type errors, undefined variables, dead code. Pinned to `phpVersion: 80000` to match production PHP 8.0 rather than the CI image's 8.2; a `phpstan-baseline.neon` ignores 7 pre-existing findings caused by this codebase's endpoint-local `function fail(...)` name reuse (see Week 3 above) |
 
-This is particularly valuable because PHP doesn't have a "compile" step. A syntax error in `get_report_data.php` won't surface until someone actually hits that endpoint — CI catches it immediately.
+This is particularly valuable because PHP doesn't have a "compile" step. A syntax error in `get_reports.php` won't surface until someone actually hits that endpoint — CI catches it immediately.
 
 #### 🟨 Database Job
 
@@ -544,7 +544,7 @@ Runs `tests/api` (`npm test`) against a MariaDB 10.11 service and PHP 8.2. The h
 
 | Job | Check |
 |---|---|
-| `security-audit` | `npm audit --omit=dev --audit-level=high` for `ams-react` and `websocket-server` (non-blocking until the known axios / follow-redirects advisories are fixed with `npm audit fix`), and `composer audit` for `backend` (blocking) |
+| `security-audit` | `npm audit --omit=dev --audit-level=high` for `ams-react` and `websocket-server` (blocking since 2026-11-21: the advisories were fixed with `npm audit fix`), and `composer audit` for `backend` (blocking) |
 | `security-secrets` | Gitleaks over the full history, to catch committed SMS, PayMongo, SMTP or database credentials |
 
 #### Weekly backup drill (`backup-drill.yml`)

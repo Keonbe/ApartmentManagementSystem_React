@@ -1477,10 +1477,9 @@ Completing or cancelling a booking also marks its admin intake notification `Res
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
 | `dashboard_stats.php` | GET | `require_admin` | optional `from` + `to` (`YYYY-MM-DD`, at most 3 years; default the last 6 calendar months to today) · `section=income` = the chart only · `attention_days` (1-365; counts only what came in during those days, by each line's own date) · `section=attention` = the attention counts only | `success`, `stats` (`total_revenue`, `pending_dues`, `overdue_dues`, `overdue_count`, `collection_rate`, …), `income_data[]` (per day up to 62 days, else per month: `key`, `label`, `full_label`, `collected`, `pending`, `billed`, `count`), `range` (`from`, `to`, `granularity`, totals, `avg_per_month`, `collection_rate` or `null` when nothing was billed), `pending_actions`, `attention` (per-line counts for the Dashboard "Needs your attention" list, `incomplete` when a group could not be counted, `since_days`, `undated_keys` = lines with no start date that ignore the period), `rooms_summary`, `activity_logs` | `401` no token · `403` tenant · `422` bad, reversed, half-given or over-3-year period |
-| `get_report_data.php` | GET | `require_admin` | `timeframe` = `monthly` / `quarterly` / `yearly`, `month`, `quarter`, `year` | `success`, `data` incl. `incomeStatement`, `revenueStreams[]`, `diversification`, `unitIncome[]`, `trendPoints[]`, `outstandingBalances[]`, `paymentRecords[]`, `tenantList[]`, `maintAvgResolutionHours` | `401` · `403` |
-| `get_utilities_report_data.php` | GET | `require_admin` | same as above | see [§10.1](#101-api-contract) | `401` · `403` |
+| `get_reports.php` | GET | `require_admin` | `report` (`financial`, `collections`, `billing`, `occupancy`, `maintenance`, `utilities`, `leasing`, `services`), `from`, `to`, `group` (`day`/`week`/`month`/`year`) | `summary[]`, `chart`, `periods`, `tables[]` | `401` · `403` · `422` |
 
-`dashboard_stats.php` and `get_report_data.php` both call `promote_overdue_invoices()` before reading, so **opening a report can change invoice status** — the same behaviour as `get_invoices.php`.
+`dashboard_stats.php` and `get_reports.php` both call `promote_overdue_invoices()` before reading, so **opening a report can change invoice status** — the same behaviour as `get_invoices.php`. *Removed 2026-11-21 (SPRINT 232): `get_report_data.php` and `get_utilities_report_data.php` had no page caller after the 2026-11-15 Reports rework. Their checks moved to `get_reports.php` (`reports.test.js`, `balance_rules`, `deposit_review`, `expenses_reports`).*
 
 **How each figure is computed** — this table is the contract a test asserts against:
 
@@ -1525,8 +1524,8 @@ flowchart LR
     end
     subgraph Endpoints
         E1[dashboard_stats.php]
-        E2[get_report_data.php]
-        E3[get_utilities_report_data.php]
+        E2[get_reports.php]
+        E3[get_reports.php]
         E4[create_invoice.php]
     end
     subgraph Tables
@@ -1549,7 +1548,7 @@ flowchart LR
 ### 9.3 Step-by-Step Workflow
 
 1. **Admin — open the dashboard** · `/admin-dashboard` → `dashboard_stats.php` → revenue, receivables, overdue total and the action queue. Lapsed invoices are promoted to `overdue` on this call.
-2. **Admin — open reports** · Sidebar → General → *Reports* (`/admin-reports`, reworked 2026-11-15) → pick one of eight reports, a range (*Days* from–to, a *Week*, a *Month* or a *Year*, stepped with ‹ ›, or a quick pick) and *Group by* day / week / month / year → `get_reports.php?report=…&from=…&to=…&group=…`. The choice stays in the address bar. `get_report_data.php` and `get_utilities_report_data.php` are no longer called by the page (kept, with their tests).
+2. **Admin — open reports** · Sidebar → General → *Reports* (`/admin-reports`, reworked 2026-11-15) → pick one of eight reports, a range (*Days* from–to, a *Week*, a *Month* or a *Year*, stepped with ‹ ›, or a quick pick) and *Group by* day / week / month / year → `get_reports.php?report=…&from=…&to=…&group=…`. The choice stays in the address bar. The two old report endpoints were removed on 2026-11-21 (SPRINT 232).
 3. **Income statement (8.2, 8.3)** · revenue (money received, deposits out, installments on the day received), expenses (repairs the building paid + recorded expenses + `report_overhead_pct`), net income and margin, each against the previous range; the statement lists every revenue stream and expense category with its share; the chart and *By …* table give each period.
 4. **Payments received / Billing and arrears** · receipts by method and every payment; bills issued in the range with collected and still owed, still owed by age today, and the open bills.
 5. **Export** · *Print* (every row, tables unfolded), *Excel* (`.xlsx`: Summary, one sheet per table, ₱ / % / date cells) or *PDF* (A4, summary cards, chart, tables, page numbers), built in the browser from the same answer.
@@ -1566,11 +1565,11 @@ Expected values marked *audit DB* came from the database this audit ran against,
 
 | ID | Type | Scenario | Precondition | Action | Expected | Verify |
 |---|---|---|---|---|---|---|
-| **M8F-01** | Sec | Report with a forged admin header and no token | — | `GET get_report_data.php` with only `X-Admin-Id: 4` | `401 "Authentication required"` | The header is no longer trusted |
-| **M8F-02** | Sec | Tenant opens the financial report | Maria's token | `GET get_report_data.php` | `403` | — |
+| **M8F-01** | Sec | Report with a forged admin header and no token | — | `GET get_reports.php?report=financial&…` with only `X-Admin-Id: 4` | `401 "Authentication required"` | The header is no longer trusted |
+| **M8F-02** | Sec | Tenant opens the financial report | Maria's token | `GET get_reports.php?report=financial&…` | `403` | — |
 | **M8F-03** | Sec | Dashboard with a forged admin header | — | `GET dashboard_stats.php` with only `X-Admin-Id: 4` | `401` | — |
-| **M8F-04** | Money | Arrears include `overdue` invoices | Seed data | `GET get_report_data.php?timeframe=monthly&month=9&year=2026` | `incomeStatement.totalOutstanding` equals the query; `outstandingBalances` has one row per invoice (*audit DB*: 4 rows, ₱21,615) | `SELECT COUNT(*), SUM(total_amount) FROM invoices WHERE status IN ('pending','unpaid','overdue','pending-verification','scheduled','processing','payment-failed') AND due_date < CURDATE();` — before the fix the report returned ₱0 |
-| **M8F-05** | Money | Efficiency is below 100% while arrears exist | M8F-04 | Same call | `collectionEfficiency` < 100 (*audit DB*: 29.9, measured while deposits counted as revenue) | = gross ÷ (gross + arrears) |
+| **M8F-04** | Money | Arrears include `overdue` invoices | Seed data | `GET get_reports.php?report=billing&from=2026-01-01&to=2026-12-31&group=month` | the *Open bills (today)* table has one row per open invoice, advance rent left out (`balance_rules.test.js`) | `SELECT COUNT(*), SUM(total_amount) FROM invoices WHERE status IN ('pending','unpaid','overdue','pending-verification','scheduled','processing','payment-failed') AND due_date < CURDATE();` — before the fix the report returned ₱0 |
+| **M8F-05** | Money | Efficiency is below 100% while arrears exist | M8F-04 | Same call | The *Collection rate* metric is below 100 | = collected ÷ billed |
 | **M8F-06** | Happy | Tenant list includes `active` tenants | Seed data | Same call | `tenantList` length = current tenants (11) | `SELECT COUNT(*) FROM rent_applications WHERE status IN ('Approved','active','pending-move-out');` |
 | **M8F-07** | Money | Streams reconcile with gross revenue | Seed data | `GET …?timeframe=monthly&month=8&year=2026` | 7 streams (no deposit stream); their `amount`s sum to `incomeStatement.grossRevenue`, which excludes deposits (*audit DB*: ₱48,345 paid − ₱4,000 deposits = ₱44,345; ₱48,345 before 2026-09-30) | Add the amounts; `SELECT SUM(total_amount - security_deposit) FROM invoices WHERE status='paid' AND advance_months IS NULL AND …` — verified live 2026-09-30 for September (₱32,960 − ₱7,000 = ₱25,960) |
 | **M8F-08** | Money | No invented overhead | `report_overhead_pct` absent | Same call | `operatingOverhead` 0, `overheadPct` 0 | Previously 15% of gross |
@@ -1625,7 +1624,6 @@ Seed fixtures: rooms **A** (Maria, user 2) and **K** (Ana, user 12) have July an
 | `save_utility_reading.php` | POST JSON | `require_admin` | `room_name`, `billing_period` (`YYYY-MM`), `reading_date`, `water_curr_reading`, `electric_curr_reading`; optional rates (default: the unit's previous rate, else 40 / 12), `water_other_fees`, `electric_other_fees`, `notes` | `success`, `id`, consumption, `total_amount`, plus `items` support (extra utility types, §20.4) | `422` bad period, unknown unit, **a unit with no tenant (2026-10-11)**, bad or future date, non-numeric or negative reading, rate outside (0, 1000], negative fee, current below previous · `409` reading exists for this or a later period |
 | `delete_utility_reading.php` | POST JSON | `require_admin` | `id` | `success` | `404` · `409` already invoiced, or not the unit's latest reading |
 | `sync_utility_to_invoice.php` | POST JSON | `require_admin` | `id`, `sync_mode` = `merge` / `separate` / `paid`, `due_date` (for `separate`) | `success`, `invoice_id`, `merged` | `404` · `409` already synced, or the merge target already has water/electricity charges · `422` no billable tenant, bad mode, due date outside today…+10 days |
-| `get_utilities_report_data.php` | GET | `require_admin` | `timeframe`, `month`, `quarter`, `year` | `water`, `electric` (totals, average per unit-month, billed), `financials` (`totalBilled`, `totalCollected`, `outstanding`, `recoveryRate`), `pendingSync`, `spikeCount`, `topUnits[]` with `hasSpike`, `coverage` (monthly only: `occupiedUnits`, `unitsRead`, `missingUnits`) | `401` · `403` |
 
 **Rules** — in `backend/config.php` and the endpoints above:
 
@@ -1707,7 +1705,7 @@ flowchart LR
         E2[save_utility_reading.php]
         E3[delete_utility_reading.php]
         E4[sync_utility_to_invoice.php]
-        E5[get_utilities_report_data.php]
+        E5[get_reports.php]
         E6[get_rooms.php]
         E7[get_invoices.php]
     end
@@ -1763,7 +1761,7 @@ VALUES ('H', 11, '2026-08', '2026-08-31', 20, 300, 4);
 | **M8U-01** | Sec | Forged tenant header, no token | — | `GET get_utility_readings.php` with only `X-User-Id: 8` | `401 "Authentication required"` | Previously returned that tenant's readings with name and email |
 | **M8U-02** | Sec | Tenant reads only their own rows | Maria's token | `GET get_utility_readings.php?room_name=K` | Only `user_id = 2` rows (rooms A July/August) | The filter is ignored for tenants |
 | **M8U-03** | Happy | Month-over-month change | Maria's token | `GET get_utility_readings.php` | August: `water_change_pct` −6.7, `electric_change_pct` −1.4; July: both `null` | — |
-| **M8U-04** | Sec | Tenant writes and admin reports | Maria's token; then no token | `save_utility_reading.php`, `sync_utility_to_invoice.php`, `get_utilities_report_data.php`; then sync with no token | `403`, `403`, `403`; `401` | — |
+| **M8U-04** | Sec | Tenant writes and admin reports | Maria's token; then no token | `save_utility_reading.php`, `sync_utility_to_invoice.php`, `get_reports.php?report=utilities`; then sync with no token | `403`, `403`, `403`; `401` | — |
 | **M8U-05** | Negative | Invalid input | Admin token | Period `2026-13`; unit `ZZ`; `reading_date` tomorrow | `422` for each | No row written |
 | **M8U-06** | Negative | Meter reads backwards | Room A August water = 114.5 | Save A `2026-09` with `water_curr_reading` 110 | `422 "Water reading (110) is lower than the previous reading (114.5)…"` | Previously saved with 0 consumption |
 | **M8U-07** | Negative | Out-of-order reading | Room A has August | Save A `2026-06` | `409 "…already has a reading for 2026-08. Readings must be recorded in order…"` | — |
@@ -1776,7 +1774,7 @@ VALUES ('H', 11, '2026-08', '2026-08-31', 20, 300, 4);
 | **M8U-14** | Money | Month already paid → utilities-only invoice | `UPDATE invoices SET status='paid', paid_at=NOW() WHERE id='INV-TEST-UTIL-K';` | Sync the K reading, `merge` | `200`, `merged` false, *"No open invoice for September 2026…"* | New invoice: `base_rent 0.00`, `water 280.00`, `electricity 780.00`, `total 1060.00`, `September 2026`, `pending`, due `2026-10-05` |
 | **M8U-15** | Negative | Separate invoice due-date bounds | Save L `2026-09` (water 5, electricity 50) | Sync `separate` with due today + 30; then today + 5 | `422`, reading still unclaimed; then `200` | Invoice `pending`, `base_rent 0.00`, `total 800.00`, due date as sent; latest notification for user 13 = *"Utility Charges Billed: September 2026"* |
 | **M8U-16** | Negative | Only the latest reading can be deleted | H fixture; save H `2026-09` (water 26, electricity 360) | Delete H August; then H September | `409 "Only the most recent reading for Unit H…"`; then `200` | — |
-| **M8U-17** | Happy | Reading coverage and spikes in the report | After M8U-08…M8U-15 | `GET get_utilities_report_data.php?timeframe=monthly&month=9&year=2026` | `spikeCount` ≥ 1; `coverage.unitsRead` counts A, K, L; `coverage.missingUnits` lists the other occupied units | `financials` exclude cancelled invoices |
+| **M8U-17** | Removed | Reading coverage and spikes in the report | After M8U-08…M8U-15 | old endpoint removed 2026-11-21 | not applicable | `financials` exclude cancelled invoices |
 | **M8U-18** | Boundary | Average is per unit-month | Seed data | `GET …?timeframe=monthly&month=8&year=2026` | `water.avgM3` = `water.totalM3` ÷ number of readings | For quarterly and yearly views the average stays per month, not ×3 or ×12 |
 
 **Restore:**
@@ -1841,7 +1839,6 @@ After restoring, `SELECT COUNT(*) FROM utility_readings;` should be back to the 
 | `get_activity_logs.php` | GET | `require_admin` | `category` (a key below, or `all`), `performer` = `all` / `admin` / `tenant` / `system`, `search`, `from`, `to` (`YYYY-MM-DD`), `page`, `limit` (≤ 100), `export=1` (up to 5,000 rows, logged) | `logs[]` (`id`, `category`, `categoryLabel`, `action`, `details`, `createdAt`, `performerName`, `performerEmail`, `performerRole`), `total`, `page`, `pages`, `categories`, `categoryCounts` | `401` · `403` · `422` unknown category |
 | `update_system_settings.php` | POST | `require_admin` | `{ key: value, … }` — keys `[A-Za-z0-9_]` | `success`, `changed` (count) | `400` empty · `422` invalid key or out-of-range value (e.g. `min_lease_duration` 1–24). All keys save in one transaction: any refusal leaves every key unchanged |
 | `get_tenants.php` | GET | `require_admin` | — | `data[]` incl. `paymentStatus` (`overdue` / `due` / `current`), `outstandingBalance`, `overdueBalance`, `daysOverdue`, `leaseEnd`, `contractStatus`; for moved-out/archived tenants `depositOutcome {status, amount, damage, utility, refundDate, items[]}` (one bulk `deposit_deductions_for()` call) | `401` · `403` |
-| `get_report_data.php` | GET | `require_admin` | `timeframe`, `month`, `quarter`, `year` | Beyond §9: `tenantList[]` (status `active` / `pending-move-out`), `moveIns`, `moveOuts`, `depositsApplied`, `depositDeductions {total, byCategory[]}`, `roomApproved`/`Rejected`/`Pending`, `maintOpenByPriority`, `maintCategoryCounts`, `maintAvgResolutionHours`, `maintenanceBudget`, `vacantRentPotential`, `avgStayDuration` (contracted months) | `401` · `403` |
 | `dashboard_stats.php` | GET | `require_admin` | — | `activity_logs[]` — the 10 newest entries | `401` · `403` |
 
 **Activity log categories** — `LOG_CATEGORIES` in `backend/config.php`. `normalize_log_category()` maps legacy spellings on write; anything unknown becomes `system`.
@@ -1913,7 +1910,7 @@ flowchart LR
         E1[get_activity_logs.php]
         E2[dashboard_stats.php]
         E3[get_tenants.php]
-        E4[get_report_data.php]
+        E4[get_reports.php]
         E5[update_system_settings.php]
     end
     subgraph Tables
@@ -1969,7 +1966,7 @@ Values marked *audit DB* came from the database this audit ran against (its bill
 | **M8L-13** | Happy | Legacy categories are normalised | Migration applied | — | Only the 12 category keys remain | `SELECT DISTINCT category FROM activity_logs;` |
 | **M8R-01** | Happy | Tenant payment status is real | Admin token | `GET get_tenants.php` | Status follows invoices (*audit DB*: D `overdue` ₱10,975; B `overdue` ₱10,640; A `current`) | `SELECT user_id, SUM(total_amount) FROM invoices WHERE status IN ('pending','unpaid','overdue','pending-verification','scheduled','processing','payment-failed') AND due_date < CURDATE() GROUP BY user_id;` — previously `paid` for everyone |
 | **M8R-02** | Sec | Tenant reads the tenant list | Tenant token | `GET get_tenants.php` | `403` | — |
-| **M8R-03** | Happy | Maintenance budget comes from the setting | Admin token | `get_report_data.php` monthly, then yearly | `maintenanceBudget` = setting (50,000), then × 12 (600,000) | `SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_monthly_budget';` |
+| **M8R-03** | Removed | Maintenance budget comes from the setting | Admin token | old endpoint removed 2026-11-21 | not applicable | `SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_monthly_budget';` |
 | **M8R-04** | Happy | Occupancy gap uses real rents | Admin token | Monthly report | `vacantRentPotential` = sum of vacant rooms' rent (*audit DB*: 11,500) | `SELECT SUM(monthly_rent) FROM rooms WHERE LOWER(status)='vacant';` — previously vacant units × ₱4,000 |
 | **M8R-05** | Happy | Open maintenance by priority | Admin token | Monthly report | `maintOpenByPriority` matches (*audit DB*: Low 1, Medium 2) | `SELECT urgency, COUNT(*) FROM maintenance_requests WHERE status IN ('Pending','In Progress') GROUP BY urgency;` |
 | **M8R-06** | Happy | Tenant list statuses | Admin token | Monthly report | `tenantList` has one row per current tenant; `pending-move-out` tenants show as such | `SELECT status, COUNT(*) FROM rent_applications WHERE status IN ('Approved','active','pending-move-out') GROUP BY status;` |
@@ -2911,7 +2908,7 @@ Also: `expire_contracts.php` and `expire_reservations.php` used to mutate rows w
 - **~~No `status` allowlist on `rooms`~~** Resolved 2026-10-07 (audit M6): `update_room.php` accepts only `occupied` as a tenant assignment and refuses any other status with `422` (M2-14).
 - **Seed data predates the 1.7 gate** — see [§1.5](#15--the-seed-data-predates-the-acceptance-criteria-gate). No seeded application can be approved.
 - **Some booking refusals return HTTP 200.** `service_request.php` reports an inactive service, a disabled category or a date inside the lead time as `success:false` with HTTP 200. Only a missing tenancy (`403`) and a malformed date (`422`) set an error status, so assert on `success` for the others.
-- **Arrears are a snapshot, not a period figure.** `totalOutstanding` in `get_report_data.php` is everything past due *today*, whichever month is selected — so a past month's collection efficiency moves as tenants pay. See [§9.1](#91-api-contract).
+- **Arrears are a snapshot, not a period figure.** the *Still owed by age* and *Open bills* tables of the Billing report (`get_reports.php`) is everything past due *today*, whichever month is selected — so a past month's collection efficiency moves as tenants pay. See [§9.1](#91-api-contract).
 - **Overhead is 0 until configured.** `report_overhead_pct` is not seeded and has no admin UI; set it with SQL ([§9.3](#93-step-by-step-workflow)).
 - **Older databases can hold orphan utility readings.** Before `utility_readings` was in `SetupDB.sql`, rows could be saved for units that don't exist in `rooms` (the audit machine had units `101`, `102`, `104`). `room_name` has no FK, so they still count in report unit totals. Drop and re-import to clear them.
 - **~~No catch-all route~~** Resolved 2026-10-07 (audit L8): unknown paths show a *Page not found* page (`UserPages/NotFound.jsx`). Load failures that only reach `console.error` still show nothing to the user (shared toast not adopted).

@@ -91,7 +91,7 @@ admin rejected can never be completed or billed.
 `parking`. Billing through `invoices` rather than a separate ledger means service
 charges inherit due-date reminders and overdue flags from
 `check_due_date_reminders.php` for free, and surface in
-`get_report_data.php` revenue reporting.
+`get_reports.php` revenue reporting.
 
 Unlike `water` / `electricity` — which `sync_utility_to_invoice.php` **overwrites**
 — `services` **accumulates**. Several completed bookings in one month add into
@@ -224,7 +224,7 @@ uses and `AdminServicePage.jsx` had to strip.
 
 ## 7. Reporting
 
-`get_report_data.php` aggregates revenue **column-wise**, so a new stream is
+`get_reports.php` (`report_receipt_sums()`) aggregates revenue **column-wise**, so a new stream is
 invisible unless every aggregate learns about it. Updated: current and previous
 period sums, `incomeStatement.serviceRevenue`, a fifth `revenueStreams` entry,
 the per-unit ledger, and the 6-month trend fallback.

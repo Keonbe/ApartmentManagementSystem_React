@@ -1,6 +1,6 @@
 # AMS Development Progress Report
 
-**Reporting period:** 2026-06-30 → 2026-11-06 (approx. 18 weeks, about 500 commits). Last updated 2026-11-06. Task-level detail is in [SPRINT.md](../../SPRINT.md).
+**Reporting period:** 2026-06-30 → 2026-11-21 (approx. 20 weeks, about 600 commits). Last updated 2026-11-21. Task-level detail is in [SPRINT.md](../../SPRINT.md).
 
 This report tracks the development of the Apartment Management System — a React + Vite tenant/admin portal backed by a plain PHP 8 API and MariaDB — as a chronological timeline of work phases, from initial scaffolding through to the current state. It is a project timeline, not a code-metrics report.
 
@@ -83,6 +83,13 @@ gantt
     Visit scheduling, ratings, sign-in codes, light/dark admin :2026-11-04, 3d
     Docs reorganised, QA guide and 67 API test files :2026-11-06, 1d
 
+    section Phase 10 - Refunds, Reports, Chat & Security Hardening
+    Deposit refund rules, move-out settlement records :2026-11-11, 4d
+    Complaints as flagged chat, reports rework, legal notice :2026-11-13, 3d
+    Money and concurrency audit, group payments, cash-part override :2026-11-18, 2d
+    Units page rework, inquiries as chat, chat follow-ups :2026-11-19, 2d
+    Security hardening, PayMongo reconciliation, erasure, CORS, npm audit :2026-11-19, 3d
+
     section Milestones
     Project start                          :milestone, 2026-06-30, 0d
     Payment gateway integrated             :milestone, 2026-08-29, 0d
@@ -91,6 +98,7 @@ gantt
     API test suite (first run)             :milestone, 2026-10-15, 0d
     Full-coverage demo seed                :milestone, 2026-10-28, 0d
     QA guide and 1,598 API tests           :milestone, 2026-11-06, 0d
+    2,154 API tests, security hardening done :milestone, 2026-11-21, 0d
 
     section Paper
     Chapter 1 revision   :crit, active, 2026-06-30, 2026-09-21
@@ -255,6 +263,10 @@ Goal: raise quality across both portals and document and test what exists.
 - My Room redesign (important info panel, household cards, rent term, house rules) and an account area with side menu.
 - QA guide and gap audit with 17 new API test files (67 files, 1,598 tests), bugs found by them fixed.
 - `docs/` reorganised into folders; database, API and tenant page docs refreshed (49 tables, 62 endpoints added to the API reference).
+- Refundable deposit and move-out settlement records, complaints as a flagged chat thread, the Reports page rebuilt (eight reports, print / Excel / PDF), and the Units and Inquiries pages reworked.
+- Money and concurrency audit fixes, grouped payments in one transaction, PayMongo reconciliation with a by-channel report, and a faster conversation list.
+- Security hardening: raw errors hidden, security headers, hashed guest chat token, CORS allowlist from `ALLOWED_ORIGINS`, `npm audit` clean and blocking in CI; right-to-erasure (anonymize) and a stored terms version (RA 10173).
+- 2,154 API tests in 108 files and 45 frontend tests, all passing.
 
 ## Branches in progress
 
@@ -272,6 +284,7 @@ None. Everything goes straight to `main` (the former `WS-Chat-test` chat branch 
 | 2026-10-28 | Full-coverage demo seed | Demo accounts and data for every workflow state, safe to load next to real data. |
 | 2026-11-06 | QA guide and 1,598 API tests | Per-module QA method, 67 test files, docs reorganised and refreshed. |
 | 2026-11-11 | Refundable security deposit and refund rules | Adviser feedback: the deposit is refundable per contract (default on for new contracts), settled in one place for move-out and termination, with itemized forfeiture, a 30-day refund, a cancellation fee, a tenant review request and a refund matrix in the Terms. |
+| 2026-11-21 | 2,154 API tests, security hardening done | Raw errors hidden, security headers, hashed guest token, CORS allowlist, clean and blocking `npm audit`, PayMongo reconciliation, right to erasure; every API and frontend test passes. |
 
 ## Paper Track
 
