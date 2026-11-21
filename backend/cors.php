@@ -7,7 +7,36 @@
 // API requests can also carry the HttpOnly trusted-device cookie. Credentialed
 // CORS requires an explicit allowed origin; never combine it with wildcard ACAO.
 
+// The origins allowed to call the API with credentials (SPRINT 175, panel S-10).
+// ALLOWED_ORIGINS (config.env.php constant or environment variable, comma
+// separated) is used exactly as given; "*" is ignored and a trailing slash is
+// dropped. When it is unset, the built-in list applies: the deployed hosts always,
+// and the local dev origins only outside production, so a production host never
+// answers a page served from localhost. Declared before the CLI return so
+// cron/check_environment.php can show the same list.
+function ams_cors_origins() {
+    $configured = defined('ALLOWED_ORIGINS') ? (string) ALLOWED_ORIGINS : (string) getenv('ALLOWED_ORIGINS');
+    $list = array_values(array_filter(array_map(
+        fn($o) => rtrim(trim($o), '/'),
+        explode(',', $configured)
+    ), fn($o) => $o !== '' && $o !== '*'));
+    if ($list) return $list;
+
+    $list = ['https://angcanan-ams.com', 'https://www.angcanan-ams.com', 'http://168.107.72.9'];
+    $env = defined('APP_ENV') ? APP_ENV : ((string) getenv('APP_ENV') ?: 'production');
+    if ($env !== 'production') {
+        array_push($list, 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080');
+    }
+    return $list;
+}
+
 if (PHP_SAPI === 'cli') return;
+
+// Endpoints include this file before config.php, so read config.env.php here too
+// (the same file, once). The test suite skips it, as config.php does.
+if (getenv('AMS_TEST_MODE') !== '1' && file_exists(__DIR__ . '/config.env.php')) {
+    require_once __DIR__ . '/config.env.php';
+}
 
 // Security headers on every API response (SPRINT 169, security_audit C-1/C-4/E-2).
 // No X-Frame-Options here on purpose: the app previews files from download_file.php
@@ -30,13 +59,7 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 
 // Let the browser reuse a preflight answer. Without this every cross-origin API
 // call (the Authorization header forces one) costs an extra OPTIONS round-trip.
-$ams_cors_list = [
-    'https://angcanan-ams.com',
-    'https://www.angcanan-ams.com',
-    'http://localhost:5174',
-    'http://localhost:5173',
-    'http://168.107.72.9',
-];
+$ams_cors_list = ams_cors_origins();
 $ams_cors_origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 header_remove('Access-Control-Allow-Origin');

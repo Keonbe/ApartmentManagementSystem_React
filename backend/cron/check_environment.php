@@ -94,7 +94,7 @@ if ($prod) {
         $errors[] = 'SaaS APP_URL must be https://.';
     }
     if (!$origins) {
-        $warnings[] = 'ALLOWED_ORIGINS is unset: only a frontend on the same origin as the API can call it.';
+        $warnings[] = 'ALLOWED_ORIGINS is unset: cors.php falls back to its built-in production hosts. Set it to the frontend origin of this deployment.';
     }
     foreach ($origins as $o) {
         if ($is_local_url($o)) {
@@ -158,6 +158,40 @@ foreach (['paymongo_secret_key', 'paymongo_webhook_secret'] as $key) {
         $warnings[] = "PayMongo is in test mode in production ($source).";
     } elseif (!$prod && str_starts_with($value, 'sk_live_')) {
         $errors[] = "A live PayMongo key is configured on a development deployment ($source).";
+    }
+}
+
+// --- Go-live readiness (production only; SPRINT rows 88, 89, 191, 200) ------
+// Warnings, not errors: a host can legitimately run without email or SMS.
+if ($prod) {
+    $gl = [];
+    $keys = "'email_driver','notifications_email_enabled','notifications_sms_enabled','sms_provider','sms_api_key','smtp_host','smtp_username','smtp_password','parking_monthly_fee'";
+    $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ($keys)");
+    while ($res && ($row = $res->fetch_assoc())) $gl[$row['setting_key']] = trim((string) $row['setting_value']);
+
+    if (($gl['email_driver'] ?? 'log') === 'log') {
+        $warnings[] = "email_driver is 'log': no real email goes out (password reset, guest chat links).";
+    } elseif (($gl['smtp_host'] ?? '') === '' || ($gl['smtp_username'] ?? '') === '' || ($gl['smtp_password'] ?? '') === '') {
+        $warnings[] = 'email_driver is on but smtp_host / smtp_username / smtp_password is empty.';
+    }
+    if (($gl['notifications_email_enabled'] ?? '0') !== '1') {
+        $warnings[] = 'Settings > Notifications email is OFF: emailed guest chat links and reset mails are not sent.';
+    }
+    if (($gl['notifications_sms_enabled'] ?? '0') === '1' && ($gl['sms_api_key'] ?? '') === '') {
+        $warnings[] = 'SMS is switched on but sms_api_key is empty.';
+    }
+    if (($gl['parking_monthly_fee'] ?? '') !== '301') {
+        $warnings[] = 'parking_monthly_fee is ' . (($gl['parking_monthly_fee'] ?? '') === '' ? 'unset (code default 300)' : $gl['parking_monthly_fee']) . ', expected 301.';
+    }
+    $admin = $conn->query("SELECT COUNT(*) AS c FROM users WHERE email_address = 'admin@gmail.com' AND is_archived = 0");
+    if ($admin && (int) $admin->fetch_assoc()['c'] > 0) {
+        $warnings[] = 'The seeded admin@gmail.com account still exists: replace it with the real owner account.';
+    }
+    foreach ([__DIR__ . '/../test.txt', __DIR__ . '/../api/test.txt', UPLOADS_DIR . '/test.txt'] as $stray) {
+        if (file_exists($stray)) $warnings[] = 'Stray test file present: ' . realpath($stray);
+    }
+    if (version_compare(PHP_VERSION, '8.0.0', '<')) {
+        $errors[] = 'PHP ' . PHP_VERSION . ' is older than the 8.0 the code targets.';
     }
 }
 

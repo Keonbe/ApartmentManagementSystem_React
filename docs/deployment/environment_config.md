@@ -82,9 +82,11 @@ This replaces `header('Access-Control-Allow-Origin: *');`. `backend/cors.php` lo
 
 | Environment | `ALLOWED_ORIGINS` | Result |
 |---|---|---|
-| any | set | Only an `Origin` in the list is echoed back in `Access-Control-Allow-Origin` (plus `Vary: Origin`) |
-| development | unset | `localhost`/`127.0.0.1` on ports 5173 and 8080 are echoed; any other origin gets `*` (XAMPP behaves as before) |
-| production | unset | No `Access-Control-Allow-Origin`, so browsers on other origins are blocked |
+| any | set | Only an `Origin` in the list is echoed back in `Access-Control-Allow-Origin` (plus `Vary: Origin` and `Access-Control-Allow-Credentials: true`). The built-in hosts are **not** added, `*` is ignored |
+| development | unset | The built-in hosts plus `http://localhost:5173`, `:5174` and `:8080` |
+| production (or `APP_ENV` unset) | unset | Only the built-in hosts (`https://angcanan-ams.com`, `https://www.angcanan-ams.com`, `http://168.107.72.9`); local origins are never allowed |
+
+`cors.php` reads `ALLOWED_ORIGINS` itself (from `config.env.php` or the environment) because endpoints include it before `config.php`; `cron/check_environment.php` checks the same value. Tests: `cors_origins.test.js` (SPRINT 175, panel S-10).
 
 Origins must match exactly: scheme, host and port, with no trailing slash. Separate several with commas:
 
@@ -92,7 +94,7 @@ Origins must match exactly: scheme, host and port, with no trailing slash. Separ
 ALLOWED_ORIGINS=https://ams.example.com,http://localhost:5173
 ```
 
-Add `http://localhost:5173` only if you want to run `npm run dev` against the production API. Each endpoint's `Allow-Methods` / `Allow-Headers` lines are unchanged. No `Allow-Credentials` header is needed, because auth is a bearer token.
+Add `http://localhost:5173` only if you want to run `npm run dev` against the production API. `Allow-Methods` / `Allow-Headers` are set centrally in `cors.php`. Auth is a bearer token; `Allow-Credentials: true` is sent only to an allowed origin, for the trusted-device cookie.
 
 ---
 

@@ -24,9 +24,9 @@ define('DEPLOYMENT_TARGET', 'local');
 // links must start with it once it is set.
 // define('APP_URL', 'http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html');
 
-// Comma-separated origins allowed to call the API (see cors.php). When unset,
-// development allows everything and production allows no cross-origin calls.
-// "*" is ignored.
+// Comma-separated origins allowed to call the API (see cors.php), used exactly as
+// listed. When unset, the built-in production hosts apply, plus the localhost dev
+// origins outside production. "*" is ignored.
 // define('ALLOWED_ORIGINS', 'http://localhost:5173,http://localhost:8080');
 
 // Optional: PayMongo keys from here instead of Admin > Settings (database).
