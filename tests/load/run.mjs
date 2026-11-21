@@ -68,7 +68,7 @@ const ENDPOINTS = [
   ['get_invoices.php'], ['get_tenants.php'], ['get_users.php'], ['get_applications.php'],
   ['get_maintenance_requests.php'], ['get_contracts.php'], ['get_visitors.php'], ['get_inquiries.php'],
   ['get_rooms.php'], ['get_notifications.php'], ['get_conversations.php'], ['dashboard_stats.php'],
-  ['get_report_data.php'], ['get_activity_logs.php', { page: 1, limit: 50 }],
+  ['get_reports.php', { report: 'financial', from: '2026-01-01', to: '2026-12-31', group: 'month' }], ['get_activity_logs.php', { page: 1, limit: 50 }],
 ];
 
 async function call(endpoint, query, token) {

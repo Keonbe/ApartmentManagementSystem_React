@@ -1,4 +1,4 @@
-// manage_expenses.php, get_activity_logs.php, delete_utility_reading.php, get_utilities_report_data.php,
+// manage_expenses.php, get_activity_logs.php, delete_utility_reading.php, utilities in get_reports.php,
 // get_sms_balance.php. QA guide rows Q8-03, Q8-04.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { api, loginAs } from './lib/api.js';
@@ -171,34 +171,25 @@ describe('delete_utility_reading.php', () => {
   });
 });
 
-describe('get_utilities_report_data.php', () => {
-  it('is admin only', async () => {
-    expect((await api('get_utilities_report_data.php')).status).toBe(401);
-    expect((await api('get_utilities_report_data.php', { token: maria })).status).toBe(403);
-  });
+describe('Utilities report (get_reports.php)', () => {
+  const utilities = (from, to) => api('get_reports.php', { token: admin, query: { report: 'utilities', from, to, group: 'month' } });
+  const water = (res) => res.body.summary.find((m) => m.key === 'water').value;
 
-  it('answers each timeframe and clamps wild month and quarter values', async () => {
-    for (const query of [
-      { timeframe: 'monthly', month: 1, year: 2026 },
-      { timeframe: 'quarterly', quarter: 2, year: 2026 },
-      { timeframe: 'yearly', year: 2026 },
-      { timeframe: 'weekly', month: 99, quarter: -4, year: 2026 }, // unknown timeframe falls back to monthly
-      { month: 'abc', year: 'xyz' },
-    ]) {
-      const res = await api('get_utilities_report_data.php', { token: admin, query });
-      expect(res.status, JSON.stringify(query)).toBe(200);
-      expect(res.body.data.period.start).toMatch(/^\d{4}-\d{2}$/);
-    }
-    const clamped = await api('get_utilities_report_data.php', { token: admin, query: { month: 99, year: 2026 } });
-    expect(clamped.body.data.period).toEqual({ start: '2026-12', end: '2026-12' });
+  it('is admin only', async () => {
+    expect((await api('get_reports.php', { query: { report: 'utilities', from: '2030-08-01', to: '2030-08-31', group: 'month' } })).status).toBe(401);
+    expect((await api('get_reports.php', { token: maria, query: { report: 'utilities', from: '2030-08-01', to: '2030-08-31', group: 'month' } })).status).toBe(403);
   });
 
   it('counts a reading in the month it covers, not the day it was read', async () => {
     await q("INSERT INTO utility_readings (room_name, billing_period, reading_date, water_consumption, water_amount) VALUES ('A', '2030-08', '2030-09-02', 12, 480)");
-    const aug = await api('get_utilities_report_data.php', { token: admin, query: { timeframe: 'monthly', month: 8, year: 2030 } });
-    const sep = await api('get_utilities_report_data.php', { token: admin, query: { timeframe: 'monthly', month: 9, year: 2030 } });
-    expect(aug.body.data.water.totalM3).toBe(12);
-    expect(sep.body.data.water.totalM3).toBe(0);
+    expect(water(await utilities('2030-08-01', '2030-08-31'))).toBe(12);
+    expect(water(await utilities('2030-09-01', '2030-09-30'))).toBe(0);
+  });
+
+  it('groups by month even when asked for days (meter readings are monthly)', async () => {
+    const res = await api('get_reports.php', { token: admin, query: { report: 'utilities', from: '2030-08-01', to: '2030-08-31', group: 'day' } });
+    expect(res.status).toBe(200);
+    expect(res.body.note).toMatch(/monthly/i);
   });
 });
 

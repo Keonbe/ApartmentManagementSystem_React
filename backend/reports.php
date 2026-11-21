@@ -356,6 +356,23 @@ function report_financial($conn, array $ctx) {
     $stmt[] = $line('Net income', $net, 'total', $revenue);
     $out['tables'][] = ['key' => 'statement', 'title' => 'Income statement', 'note' => 'Share is of total revenue.', 'columns' => [report_col('line', 'Line'), report_col('amount', 'Amount', 'money'), report_col('share', 'Share', 'percent')], 'rows' => $stmt];
 
+    // Deposits settled at move-out in the range. They stay out of revenue: an applied
+    // deposit only offsets what the tenant owed, a returned one goes back, a forfeited one
+    // (the 'forfeiture' lines) is kept by the owner and is not a deduction category.
+    $dep = fn($sql) => (float)(report_rows($conn, $sql, 'ss', $ctx['from'], $ctx['end'])[0]['total'] ?? 0);
+    $applied = $dep("SELECT COALESCE(SUM(deposit_amount), 0) AS total FROM lease_contracts WHERE deposit_status LIKE 'Applied%' AND refund_date IS NOT NULL AND refund_date >= ? AND refund_date < ?");
+    $returned = $dep("SELECT COALESCE(SUM(refund_amount), 0) AS total FROM lease_contracts WHERE deposit_status IN ('Refund Pending', 'Refunded') AND refund_date IS NOT NULL AND refund_date >= ? AND refund_date < ?");
+    $forfeited = $dep("SELECT COALESCE(SUM(amount), 0) AS total FROM deposit_deductions WHERE category = 'forfeiture' AND created_at >= ? AND created_at < ?");
+    $deductions = report_rows($conn, "SELECT category, SUM(amount) AS total FROM deposit_deductions WHERE category <> 'forfeiture' AND created_at >= ? AND created_at < ? GROUP BY category ORDER BY total DESC", 'ss', $ctx['from'], $ctx['end']);
+    $depRows = [
+        ['line' => 'Applied to what the tenant owed', 'amount' => report_money($applied)],
+        ['line' => 'Returned to tenants', 'amount' => report_money($returned)],
+        ['line' => 'Forfeited (kept by the owner)', 'amount' => report_money($forfeited)],
+    ];
+    foreach ($deductions as $d) $depRows[] = ['line' => 'Deducted: ' . deposit_deduction_label($d['category']), 'amount' => report_money($d['total'])];
+    $out['tables'][] = ['key' => 'depositSettlements', 'title' => 'Deposits settled at move-out', 'note' => 'Held for tenants, never income. Settled in the range.',
+        'columns' => [report_col('line', 'Line'), report_col('amount', 'Amount', 'money')], 'rows' => $depRows];
+
     // Every expense in the range.
     $list = report_rows($conn, "
         SELECT DATE(COALESCE(m.resolved_at, m.created_at)) AS d, 'Maintenance repairs' AS category,

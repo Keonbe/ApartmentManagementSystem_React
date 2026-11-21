@@ -231,12 +231,13 @@ describe('reports', () => {
   it('count returned and withheld deposits apart from the deduction categories', async () => {
     await cleared();
     await q("INSERT INTO deposit_deductions (rent_application_id, contract_id, category, reason, amount) VALUES (?, ?, 'forfeiture', 'No move-out notice was given', 1200)", [APP, CONTRACT]);
-    const res = await api('get_report_data.php', { token: admin });
+    const year = new Date().getFullYear();
+    const res = await api('get_reports.php', { token: admin, query: { report: 'financial', from: `${year - 1}-01-01`, to: `${year + 1}-12-31`, group: 'year' } });
     expect(res.status).toBe(200);
-    const d = res.body.data;
-    expect(d.depositsRefunded).toBeGreaterThanOrEqual(3000);
-    expect(d.depositsForfeited).toBeGreaterThanOrEqual(1200);
-    expect(d.depositDeductions.byCategory.map((c) => c.category)).not.toContain('forfeiture');
-    expect(d.depositDeductions.byCategory.map((c) => c.category)).toContain('damage');
+    const lines = Object.fromEntries(res.body.tables.find((t) => t.key === 'depositSettlements').rows.map((r) => [r.line, r.amount]));
+    expect(lines['Returned to tenants']).toBeGreaterThanOrEqual(3000);
+    expect(lines['Forfeited (kept by the owner)']).toBeGreaterThanOrEqual(1200);
+    expect(Object.keys(lines).filter((l) => l.startsWith('Deducted:')).join()).not.toMatch(/forfeit/i);
+    expect(Object.keys(lines).some((l) => l.startsWith('Deducted:'))).toBe(true);
   });
 });

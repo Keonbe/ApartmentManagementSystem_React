@@ -24,19 +24,22 @@ beforeAll(async () => {
   admin = await loginAs('admin');
 });
 
+// Billing report (get_reports.php): its "Open bills (today)" table lists every bill still owed.
+const openBills = () => api('get_reports.php', { token: admin, query: { report: 'billing', from: '2026-01-01', to: '2026-12-31', group: 'month' } });
+
 describe('Reports → outstanding balances', () => {
   it('lists the remaining balance of a part-paid overdue bill, not its total', async () => {
     await addBill('INV-TEST-BAL-PART', { amount: 1500, paid: 400 });
-    const res = await api('get_report_data.php', { token: admin });
+    const res = await openBills();
     expect(res.status).toBe(200);
-    const row = res.body.data.outstandingBalances.find((r) => r.invoiceId === 'INV-TEST-BAL-PART');
-    expect(row.balance).toBe(1100);
+    const row = res.body.tables.find((t) => t.key === 'open').rows.find((r) => r.invoice === 'INV-TEST-BAL-PART');
+    expect(row.owed).toBe(1100);
   });
 
   it('leaves out an advance-rent invoice', async () => {
     await addBill('INV-TEST-BAL-ADV', { advance: 2, status: 'pending' });
-    const res = await api('get_report_data.php', { token: admin });
-    expect(res.body.data.outstandingBalances.find((r) => r.invoiceId === 'INV-TEST-BAL-ADV')).toBeUndefined();
+    const res = await openBills();
+    expect(res.body.tables.find((t) => t.key === 'open').rows.find((r) => r.invoice === 'INV-TEST-BAL-ADV')).toBeUndefined();
   });
 });
 
