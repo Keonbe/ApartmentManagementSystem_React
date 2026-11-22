@@ -3759,7 +3759,11 @@ function emergency_contact_check($name, $relationship, $phone, $own_phone, $requ
 // A tenant files a complaint with a category; the admin moves it Open -> In Review
 // -> Resolved. The conversation stays in `messages`: messages that belong to a
 // complaint carry its id (messages.complaint_id).
+// Every category a stored complaint may have (the column's enum, older reports included).
 const COMPLAINT_CATEGORIES = ['Maintenance', 'Billing', 'Neighbor', 'Noise', 'Staff', 'Other'];
+// What a tenant can pick for a new report (2026-11-23): repairs go through Maintenance
+// requests, so the chat's report form offers only these.
+const COMPLAINT_NEW_CATEGORIES = ['Billing', 'Neighbor'];
 const COMPLAINT_TRANSITIONS = [
     'Open'      => ['In Review', 'Resolved'],
     'In Review' => ['Resolved', 'Open'],

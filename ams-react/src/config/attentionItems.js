@@ -28,6 +28,8 @@ export const ATTENTION_GROUPS = [
       { key: 'extension_requests', tone: 'amber', to: '/admin-tenants?filter=extension', one: 'rent extension request to decide', many: 'rent extension requests to decide' },
       { key: 'requests_to_decide', tone: 'amber', to: '/admin-notifications?filter=decide', one: 'occupancy or household request to decide', many: 'occupancy or household requests to decide' },
       { key: 'new_inquiries', tone: 'amber', to: '/admin-inquiries', one: 'new inquiry to answer', many: 'new inquiries to answer' },
+      // A prospect (guest, or an account that never applied) wrote again: answered on Inquiries, not in the chat widget.
+      { key: 'inquiry_messages', tone: 'amber', to: '/admin-inquiries', one: 'inquiry with a new message', many: 'inquiries with a new message' },
     ],
   },
   {

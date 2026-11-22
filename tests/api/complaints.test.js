@@ -24,17 +24,19 @@ beforeAll(async () => {
 
 describe('file_complaint.php', () => {
   it('needs a tenant session', async () => {
-    expect((await file(undefined, { category: 'Noise', message: 'Loud music every night' })).status).toBe(401);
-    const asAdmin = await file(admin, { category: 'Noise', message: 'Loud music every night' });
+    expect((await file(undefined, { category: 'Neighbor', message: 'Loud music every night' })).status).toBe(401);
+    const asAdmin = await file(admin, { category: 'Neighbor', message: 'Loud music every night' });
     expect(asAdmin.status).toBe(403);
   });
 
   it.each([
     ['no category', { message: 'Loud music every night' }, 'category'],
     ['an unknown category', { category: 'Gossip', message: 'Loud music every night' }, 'category'],
-    ['a message that is too short', { category: 'Noise', message: 'No' }, 'message'],
-    ['a message over 2,000 characters', { category: 'Noise', message: 'x'.repeat(2001) }, 'message'],
-    ['an array where a value is expected', { category: ['Noise'], message: 'Loud music every night' }, null],
+    // Older categories stay on stored reports but a new one is Billing or Neighbor only.
+    ['a category no longer offered', { category: 'Noise', message: 'Loud music every night' }, 'category'],
+    ['a message that is too short', { category: 'Neighbor', message: 'No' }, 'message'],
+    ['a message over 2,000 characters', { category: 'Neighbor', message: 'x'.repeat(2001) }, 'message'],
+    ['an array where a value is expected', { category: ['Neighbor'], message: 'Loud music every night' }, null],
   ])('refuses %s and files nothing', async (_label, body, field) => {
     const before = (await one('SELECT COUNT(*) AS c FROM complaints')).c;
     const res = await file(maria, body);
@@ -44,18 +46,18 @@ describe('file_complaint.php', () => {
   });
 
   it('files an Open complaint with its first message, tells the admin queue and logs it', async () => {
-    const res = await file(maria, { category: 'Noise', message: '  Loud music from the unit above every night  ' });
+    const res = await file(maria, { category: 'Neighbor', message: '  Loud music from the unit above every night  ' });
     expect(res.status).toBe(200);
     const id = res.body.complaint.id;
-    expect(res.body.complaint).toMatchObject({ category: 'Noise', status: 'Open' });
+    expect(res.body.complaint).toMatchObject({ category: 'Neighbor', status: 'Open' });
 
     expect(await one('SELECT user_id, category, status, resolved_at FROM complaints WHERE id = ?', [id]))
-      .toEqual({ user_id: MARIA, category: 'Noise', status: 'Open', resolved_at: null });
+      .toEqual({ user_id: MARIA, category: 'Neighbor', status: 'Open', resolved_at: null });
     const first = await one('SELECT sender_id, receiver_id, message, complaint_id FROM messages WHERE id = ?', [res.body.message.id]);
     expect(first).toEqual({ sender_id: MARIA, receiver_id: adminId, message: 'Loud music from the unit above every night', complaint_id: id });
     expect(await queueRow(id)).toEqual({ status: 'Pending' });
     const log = await one("SELECT performed_by, details FROM activity_logs WHERE action = 'Filed Complaint' ORDER BY id DESC LIMIT 1");
-    expect(log).toEqual({ performed_by: MARIA, details: `Complaint #${id} (Noise)` });
+    expect(log).toEqual({ performed_by: MARIA, details: `Complaint #${id} (Neighbor)` });
   });
 
   it('refuses a second complaint while one is still open, and keeps one row', async () => {
@@ -91,11 +93,11 @@ describe('the conversation follows the complaint', () => {
   it('the admin inbox and the tenant widget both show the open complaint', async () => {
     const inbox = await api('get_conversations.php', { token: admin });
     const row = inbox.body.conversations.find((c) => c.other_user_id === MARIA);
-    expect(row.complaint).toEqual(expect.objectContaining({ id: complaintId, category: 'Noise', status: 'Open', awaitingAnswer: false }));
+    expect(row.complaint).toEqual(expect.objectContaining({ id: complaintId, category: 'Neighbor', status: 'Open', awaitingAnswer: false }));
     expect(inbox.body.conversations.find((c) => c.other_user_id === JOSE)?.complaint ?? null).toBeNull();
 
     const mine = await api('get_conversations.php', { token: maria });
-    expect(mine.body.conversations.find((c) => c.is_admin).complaint).toEqual(expect.objectContaining({ id: complaintId, category: 'Noise', status: 'Open' }));
+    expect(mine.body.conversations.find((c) => c.is_admin).complaint).toEqual(expect.objectContaining({ id: complaintId, category: 'Neighbor', status: 'Open' }));
   });
 });
 
@@ -168,7 +170,7 @@ describe('abuse limits', () => {
     await q("UPDATE complaints SET status = 'Resolved' WHERE user_id = ?", [JOSE]);
     await q("DELETE FROM rate_limit_events WHERE action = 'complaint'");
     for (let i = 0; i < 5; i++) await q("INSERT INTO rate_limit_events (action, rate_key) VALUES ('complaint', ?)", [String(JOSE)]);
-    const res = await file(jose, { category: 'Staff', message: 'The staff were rude to me' });
+    const res = await file(jose, { category: 'Billing', message: 'I was billed twice this month' });
     expect(res.status).toBe(429);
     expect(await one('SELECT COUNT(*) AS c FROM complaints WHERE user_id = ?', [JOSE])).toEqual({ c: 0 });
   });

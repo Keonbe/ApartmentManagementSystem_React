@@ -4,7 +4,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTimes, faPaperPlane, faEnvelope, faPhone, faBuilding, faCalendarAlt, faUsers,
   faCircleQuestion, faCircleCheck, faHourglassHalf, faCommentSlash, faArrowUpRightFromSquare, faPaperclip,
-  faCamera, faVideo,
 } from '@fortawesome/free-solid-svg-icons';
 import api, { API_WRITE_EVENT } from '../../../api/axiosConfig';
 import fileUrl from '../../../api/fileUrl';
@@ -15,7 +14,7 @@ import { btn } from '../ui/styles';
 import JumpToLatest from '../../chat/JumpToLatest';
 import ChatAttachmentPreview from '../../form/ChatAttachmentPreview';
 import useChatScroll from '../../../hooks/useChatScroll';
-import useHasCamera from '../../../hooks/useHasCamera';
+import CameraCapture from '../../chat/CameraCapture';
 import useFilePreview from '../../../hooks/useFilePreview';
 import { useChat } from '../../../context/ChatContext';
 import { CHAT_UPDATED_EVENT } from '../../../config/chatTopics';
@@ -33,6 +32,7 @@ import { acceptFor, checkChatFile, FILE_RULES } from '../../../utils/fileLimits'
 const POLL_MS = 8000;
 const MAX_LEN = 4000;
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
+const CAMERA_BUTTON = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-slate-500 hover:bg-slate-100 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
 
 const parseDb = (v) => (v ? new Date(String(v).replace(' ', 'T')) : null);
 const timeLabel = (v) => {
@@ -77,10 +77,7 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
   const [tab, setTab] = useState('chat'); // phones: chat | details
   const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
   const [asking, setAsking] = useState(false);
-  const hasCamera = useHasCamera();
   const { notifyChatChanged } = useChat();
-  const cameraRef = useRef(null);
-  const videoRef = useRef(null);
   const seenReported = useRef(false);
   const onChangedRef = useRef(onChanged);
   useEffect(() => { onChangedRef.current = onChanged; }, [onChanged]);
@@ -324,14 +321,8 @@ export default function InquiryChatModal({ inquiry, statusBadge, meta, onClose, 
                       <FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /><span className="sr-only">Attach a file</span>
                       <input type="file" accept={CHAT_ACCEPT} className="sr-only" onChange={pickAttachment} disabled={!thread || sending} />
                     </label>
-                    {hasCamera && (
-                      <>
-                        <button type="button" onClick={() => cameraRef.current?.click()} aria-label="Take a photo" title="Take a photo (max 10 MB)" className="flex h-9 w-9 items-center justify-center rounded-full border-0 bg-transparent text-slate-500 hover:bg-slate-100 cursor-pointer"><FontAwesomeIcon icon={faCamera} aria-hidden="true" /></button>
-                        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                        <button type="button" onClick={() => videoRef.current?.click()} aria-label="Record a video" title="Record a video (max 25 MB)" className="flex h-9 w-9 items-center justify-center rounded-full border-0 bg-transparent text-slate-500 hover:bg-slate-100 cursor-pointer"><FontAwesomeIcon icon={faVideo} aria-hidden="true" /></button>
-                        <input ref={videoRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                      </>
-                    )}
+                    <CameraCapture mode="photo" disabled={!thread || sending} onFile={(file) => pickAttachment({ target: { files: [file] } })} className={CAMERA_BUTTON} />
+                    <CameraCapture mode="video" disabled={!thread || sending} onFile={(file) => pickAttachment({ target: { files: [file] } })} className={CAMERA_BUTTON} />
                   </div>
                   <label htmlFor="inquiry-reply" className="sr-only">Reply to {inquiry.fullName}</label>
                   <textarea

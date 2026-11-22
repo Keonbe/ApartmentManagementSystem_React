@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faReply, faTimes, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
@@ -23,7 +23,7 @@ import ResolutionCheck from '../Components/chat/ResolutionCheck';
 import TopicBanner from '../Components/chat/TopicBanner';
 import JumpToLatest from '../Components/chat/JumpToLatest';
 import useChatScroll from '../hooks/useChatScroll';
-import useHasCamera from '../hooks/useHasCamera';
+import CameraCapture from '../Components/chat/CameraCapture';
 import { INQUIRY_TONES, REPORT_TONES } from '../config/chatTopics';
 import { textIn } from '../config/i18n';
 
@@ -31,6 +31,7 @@ import { textIn } from '../config/i18n';
 const tEn = (key) => textIn('en', key);
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
+const CAMERA_BUTTON = 'flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors';
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
 const GUEST_BADGE_CLASS = 'ml-1.5 shrink-0 text-blue-600 font-semibold text-xs';
 
@@ -156,8 +157,6 @@ const AdminMessages = () => {
     }, 3000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [openGuestThreadId]);
-  const cameraInputRef = useRef(null);
-  const videoInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const selectedConversationIdRef = useRef(null);
   const highlightTimerRef = useRef(null);
@@ -223,7 +222,6 @@ const AdminMessages = () => {
   // New messages follow only while at the bottom; "Latest" brings them back.
   const shownCount = (activeChat?.thread_type === 'guest' ? guestMessages : messages).length;
   const { ref: scrollRef, atBottom, unseen, onScroll: onChatScroll, toBottom: scrollToLatest } = useChatScroll(shownCount, activeChat ? `${activeChat.thread_type}-${activeChat.thread_id ?? activeChat.other_user_id}` : '');
-  const hasCamera = useHasCamera();
   const [complaintBusy, setComplaintBusy] = useState(false);
   const moveComplaint = async (status) => {
     if (!activeComplaint || complaintBusy) return;
@@ -710,11 +708,9 @@ const AdminMessages = () => {
                     <form onSubmit={handleSend} className={`relative z-10 p-3 md:p-4 flex shrink-0 items-center gap-1 bg-white ${replyingTo || attachment ? '' : 'border-t border-slate-100'}`}>
                     <div className="flex shrink-0 items-center gap-1">
                     <label className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
-                    {hasCamera && <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with the camera" title="Take a photo with the camera (max 10 MB)" className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} /></button>}
+                    <CameraCapture mode="photo" onFile={(file) => pickAttachment({ target: { files: [file] } })} className={CAMERA_BUTTON} />
                     </div>
-                    {hasCamera && <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />}
-                    {hasCamera && <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with the camera" title="Record a video with the camera (max 25 MB)" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} /></button>}
-                    {hasCamera && <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />}
+                    <CameraCapture mode="video" onFile={(file) => pickAttachment({ target: { files: [file] } })} className={CAMERA_BUTTON} />
                     <div className="flex h-10 min-w-0 flex-1 items-center rounded-card bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
                       <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
                         aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}

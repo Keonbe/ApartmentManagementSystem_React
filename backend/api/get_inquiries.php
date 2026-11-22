@@ -46,10 +46,13 @@ $query = "SELECT i.id,
                  i.admin_seen_at AS adminSeenAt,
                  i.guest_chat_ended_at AS chatEndedAt,
                  -- Unread prospect messages in the inquiry's chat (guest thread, or the
-                 -- account conversation since the inquiry), for the list's chat badge.
+                 -- account conversation since the inquiry), for the list's red chat count.
+                 -- An account counts only while it never applied: an applicant's or a
+                 -- tenant's chat is answered in the chat widget / Messages, not here
+                 -- (same rule as dashboard_stats.php inquiry_messages).
                  CASE WHEN i.thread_type = 'guest'
                       THEN (SELECT COUNT(*) FROM guest_messages g WHERE g.inquiry_id = i.id AND g.sender_role = 'guest' AND g.is_read = 0)
-                      WHEN i.user_id IS NOT NULL
+                      WHEN i.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM rent_applications ra WHERE ra.user_id = i.user_id)
                       THEN (SELECT COUNT(*) FROM messages m JOIN users a ON a.id = m.receiver_id AND a.role = 'admin'
                             WHERE m.sender_id = i.user_id AND m.is_read = 0 AND m.created_at >= i.created_at)
                       ELSE 0 END AS unreadCount,

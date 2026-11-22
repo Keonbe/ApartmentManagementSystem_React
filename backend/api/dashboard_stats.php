@@ -147,8 +147,18 @@ function dashboard_attention($conn, $advanceMonthsFilter, $sinceDays) {
             (SELECT COUNT(*) FROM service_requests WHERE status = 'Pending' AND created_at >= NOW() - INTERVAL ? DAY) AS service_requests,
             (SELECT COUNT(*) FROM refund_requests WHERE status = 'Pending Review' AND created_at >= NOW() - INTERVAL ? DAY) AS refunds_to_review,
             (SELECT COUNT(*) FROM inquiries WHERE status = 'New' AND admin_seen_at IS NULL AND created_at >= NOW() - INTERVAL ? DAY) AS new_inquiries,
-            (SELECT COUNT(*) FROM utility_readings WHERE is_invoiced = 0 AND created_at >= NOW() - INTERVAL ? DAY) AS readings_to_invoice
-    ", 'iiiiii', $days, $days, $days, $days, $days, $days), ['parking_requests', 'cctv_requests', 'service_requests', 'refunds_to_review', 'new_inquiries', 'readings_to_invoice']);
+            (SELECT COUNT(*) FROM utility_readings WHERE is_invoiced = 0 AND created_at >= NOW() - INTERVAL ? DAY) AS readings_to_invoice,
+            -- Inquiries whose prospect wrote again and nobody read it yet: a guest thread,
+            -- or an account holder who never applied (the Inquiries page is where both
+            -- are answered; tenants' chats count on Messages).
+            (SELECT COUNT(DISTINCT g.inquiry_id) FROM guest_messages g
+              WHERE g.sender_role = 'guest' AND g.is_read = 0 AND g.created_at >= NOW() - INTERVAL ? DAY)
+            + (SELECT COUNT(DISTINCT m.sender_id) FROM messages m
+                 JOIN users a ON a.id = m.receiver_id AND a.role = 'admin'
+                 JOIN inquiries i ON i.user_id = m.sender_id AND m.created_at >= i.created_at
+                WHERE m.is_read = 0 AND m.created_at >= NOW() - INTERVAL ? DAY
+                  AND NOT EXISTS (SELECT 1 FROM rent_applications ra WHERE ra.user_id = m.sender_id)) AS inquiry_messages
+    ", 'iiiiiiii', $days, $days, $days, $days, $days, $days, $days, $days), ['parking_requests', 'cctv_requests', 'service_requests', 'refunds_to_review', 'new_inquiries', 'readings_to_invoice', 'inquiry_messages']);
 
     // Contracts still in force; "missing documents" is the same rule as the Contracts page
     // filter, counted for current tenants only (the Contracts page opens on them): the

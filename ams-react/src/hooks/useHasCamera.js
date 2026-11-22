@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
-// Whether this device has a camera, for the chat's "take a photo / record a video"
-// buttons: without one, a capture input just opens the file picker, which the
-// attach button already does. navigator.mediaDevices lists device kinds without
-// asking for permission (labels stay empty). Re-checked when a camera is plugged
-// in or out. false while unknown, so the buttons never flash in and out.
+// Whether this device has a camera, for the chat's "take a photo / record a
+// video" buttons (Components/chat/CameraCapture.jsx): with none, they open the
+// file manager instead of the camera window. navigator.mediaDevices lists device
+// kinds without asking for permission (labels stay empty). Re-checked when a
+// camera is plugged in or out. null while unknown (the camera window then tries).
 let cached = null; // shared by every chat on the page
 
 async function detect() {
@@ -18,7 +18,7 @@ async function detect() {
 }
 
 export default function useHasCamera() {
-  const [hasCamera, setHasCamera] = useState(cached ?? false);
+  const [hasCamera, setHasCamera] = useState(cached);
   useEffect(() => {
     let active = true;
     const refresh = () => detect().then((found) => { cached = found; if (active) setHasCamera(found); });
