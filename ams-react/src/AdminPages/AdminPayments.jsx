@@ -106,6 +106,24 @@ const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : 
 // counted as a debt after all.
 const owedBalance = (t) => t.outstandingBalance ?? 0;
 
+// Collections tab: aging buckets in order, [agingData key, label, bar colour].
+const AGING_BUCKETS = [['current', 'Current', 'bg-emerald-500'], ['days15', '1–15 days', 'bg-amber-400'], ['days30', '16–30 days', 'bg-orange-500'], ['days60plus', '31+ days', 'bg-red-600']];
+
+// Status pill in the Collections table, same colours as the tenant list.
+const COLLECTION_STATUS_CLS = {
+  paid: 'bg-emerald-100 text-emerald-800',
+  'pending-verification': 'bg-indigo-100 text-indigo-800',
+  scheduled: 'bg-blue-100 text-blue-800',
+  processing: 'bg-amber-100 text-amber-800',
+  unpaid: 'bg-amber-100 text-amber-800',
+  pending: 'bg-amber-100 text-amber-800',
+};
+const CollectionStatus = ({ status }) => (
+  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap capitalize ${COLLECTION_STATUS_CLS[status] || 'bg-rose-100 text-rose-700'}`}>
+    {status === 'pending-verification' ? 'Verify' : String(status || '').replace('-', ' ')}
+  </span>
+);
+
 const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
@@ -117,7 +135,9 @@ const AdminPayments = () => {
   const [depositFilter, setDepositFilter] = useState('all');
   const [depositSort, setDepositSort] = useState('tenant-asc');
   const [contracts, setContracts] = useState([]);
-  const [activeTab, setActiveTab] = useUrlFilter('tab', 'billing', ['billing', 'deposits']);
+  const [activeTab, setActiveTab] = useUrlFilter('tab', 'billing', ['billing', 'deposits', 'collections']);
+  // Collections tab: the tenant table's sort column and direction.
+  const [collectionSort, setCollectionSort] = useState({ key: 'owed', dir: 'desc' });
   const [loading, setLoading] = useState(true);
   // Why the invoices or the deposit ledger did not load. Shown instead of the
   // "no ledgers" / "no deposits" messages, which would read as nothing owed.
@@ -650,6 +670,28 @@ const AdminPayments = () => {
   const monthlyTarget = tenants.reduce((sum, t) => sum + billedTotal(t), 0);
   const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + billedTotal(t), 0);
   const collectionPct = monthlyTarget > 0 ? Math.round((monthlyCollected / monthlyTarget) * 100) : 0;
+  const paidTenantCount = tenants.filter(t => t.status === 'paid').length;
+  // Collections row -> that tenant on the billing tab.
+  const openTenantBilling = (id) => { setSelectedTenantId(id); setHistoryPage(1); setActiveTab('billing'); };
+
+  // Collections tab: one row per tenant, sorted by the chosen column. Oldest is
+  // the most days past due among the tenant's open bills (0 = none overdue).
+  const collectionRows = useMemo(() => {
+    const rows = tenants.map(t => {
+      const open = t.openInvoices || [];
+      const oldest = open.filter(isPastDue).reduce((max, inv) => Math.max(max, daysPastDue(inv) || 0), 0);
+      return { t, openCount: open.length, owed: owedBalance(t), oldest };
+    });
+    const { key, dir } = collectionSort;
+    const sign = dir === 'asc' ? 1 : -1;
+    const value = (r) => (key === 'name' ? r.t.name.toLowerCase() : key === 'oldest' ? r.oldest : r.owed);
+    return rows.sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (va < vb) return -1 * sign;
+      if (va > vb) return 1 * sign;
+      return a.t.name.localeCompare(b.t.name);
+    });
+  }, [tenants, collectionSort]);
 
   const getDaysUntilDue = (dueDateStr) => {
     if (!dueDateStr) return null;
@@ -1028,20 +1070,27 @@ const handleMarkAsPaid = async () => {
               </div>
             )}
 
-            <div className="flex border-b border-slate-200 mb-2 gap-4">
+            <div className="flex border-b border-slate-200 mb-2 gap-4 overflow-x-auto">
               <button 
                 onClick={() => setActiveTab('billing')}
-                className={`pb-3 pt-1 text-body font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                className={`shrink-0 whitespace-nowrap pb-3 pt-1 text-body font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               >
                 <FontAwesomeIcon icon={faFileAlt} className="mr-2" />
                 Tenant Billing & Payments
               </button>
               <button 
                 onClick={() => setActiveTab('deposits')}
-                className={`pb-3 pt-1 text-body font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'deposits' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                className={`shrink-0 whitespace-nowrap pb-3 pt-1 text-body font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'deposits' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
               >
                 <FontAwesomeIcon icon={faShieldAlt} className="mr-2" />
                 Security Deposit Ledger
+              </button>
+              <button
+                onClick={() => setActiveTab('collections')}
+                className={`shrink-0 whitespace-nowrap pb-3 pt-1 text-body font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'collections' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              >
+                <FontAwesomeIcon icon={faChartBar} className="mr-2" />
+                Collections
               </button>
             </div>
 
@@ -1188,6 +1237,21 @@ const handleMarkAsPaid = async () => {
                       </div>
                     )}
                   </div>
+
+                  {/* The whole account, not just this bill: every open bill's balance. */}
+                  {(() => {
+                    const owed = owedBalance(activeTenant);
+                    const n = (activeTenant.openInvoices || []).length;
+                    return (
+                      <div className={`mb-4 flex items-center justify-between gap-3 rounded-control border px-4 py-3 ${owed > 0 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                        <p className={`m-0 flex items-center gap-2 text-body font-semibold ${owed > 0 ? 'text-red-800' : 'text-emerald-800'}`}>
+                          <FontAwesomeIcon icon={faBalanceScale} aria-hidden="true" />
+                          {owed > 0 ? `Owed on ${n} open bill${n === 1 ? '' : 's'}` : 'Nothing owed'}
+                        </p>
+                        {owed > 0 && <p className="m-0 text-title font-bold text-red-700 tabular-nums">{formatCurrency(owed)}</p>}
+                      </div>
+                    );
+                  })()}
 
                   {/* Read-only: what the bill says. The period, charges and due
                       date are changed with "Adjust invoice", never at the till. */}
@@ -1650,125 +1714,110 @@ const handleMarkAsPaid = async () => {
                 )}
               </div>
             </div>
-
-            {/* ─── PAYMENT TRACKING DASHBOARD ─── */}
-            <div className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2">
-                  <FontAwesomeIcon icon={faChartBar} className="text-indigo-600" />
-                  Payment Tracking Dashboard
-                </h3>
-              </div>
-              <div className="p-6 space-y-6">
-
-                {/* Monthly Collection Progress */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-label font-medium text-slate-600">Monthly Collection Progress</span>
-                    <span className="text-label font-bold text-indigo-600">{collectionPct}%</span>
-                  </div>
-                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${collectionPct >= 80 ? 'bg-emerald-500' : collectionPct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${collectionPct}%` }}></div>
-                  </div>
-                  <div className="flex justify-between text-caption text-slate-500 mt-1">
-                    <span>Collected: {formatCurrency(monthlyCollected)}</span>
-                    <span>Target: {formatCurrency(monthlyTarget)}</span>
-                  </div>
-                </div>
-
-                {/* Outstanding Balance Aging */}
-                <div>
-                  <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Outstanding Balance Aging</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-control p-3 text-center">
-                      <p className="text-body lg:text-title font-bold text-emerald-700 m-0">{formatCurrency(agingData.current)}</p>
-                      <p className="text-caption text-emerald-700 font-semibold m-0 mt-0.5">Current</p>
-                    </div>
-                    <div className="bg-amber-50 border border-amber-100 rounded-control p-3 text-center">
-                      <p className="text-body lg:text-title font-bold text-amber-700 m-0">{formatCurrency(agingData.days15)}</p>
-                      <p className="text-caption text-amber-700 font-semibold m-0 mt-0.5">1–15 Days</p>
-                    </div>
-                    <div className="bg-orange-50 border border-orange-100 rounded-control p-3 text-center">
-                      <p className="text-body lg:text-title font-bold text-orange-700 m-0">{formatCurrency(agingData.days30)}</p>
-                      <p className="text-caption text-orange-700 font-semibold m-0 mt-0.5">16–30 Days</p>
-                    </div>
-                    <div className="bg-red-50 border border-red-100 rounded-control p-3 text-center">
-                      <p className="text-body lg:text-title font-bold text-red-700 m-0">{formatCurrency(agingData.days60plus)}</p>
-                      <p className="text-caption text-red-700 font-semibold m-0 mt-0.5">60+ Days</p>
-                    </div>
-                  </div>
-                  {/* Aging visual bar */}
-                  {totalOutstanding > 0 && (
-                    <div className="flex h-2 rounded-full overflow-hidden mt-3">
-                      <div className="bg-emerald-400" style={{ width: `${(agingData.current / totalOutstanding) * 100}%` }}></div>
-                      <div className="bg-amber-400" style={{ width: `${(agingData.days15 / totalOutstanding) * 100}%` }}></div>
-                      <div className="bg-orange-400" style={{ width: `${(agingData.days30 / totalOutstanding) * 100}%` }}></div>
-                      <div className="bg-red-400" style={{ width: `${(agingData.days60plus / totalOutstanding) * 100}%` }}></div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Per-Tenant Payment Status */}
-                <div>
-                  <h4 className="text-label font-medium text-slate-600 mb-3 m-0">Per-Tenant Payment Status</h4>
-                  <div className="space-y-2">
-                    {tenants.map(t => {
-                      const paidCount = t.history.filter(h => h.status === 'paid').length;
-                      return (
-                        <div key={t.id} className="flex items-center gap-3 p-2 rounded-control bg-slate-50 border border-slate-100">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-label font-bold shrink-0">{t.name.charAt(0)}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-label font-medium text-slate-700 truncate">{t.name} · Unit {t.unit}</span>
-                              <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${
-                                t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
-                                t.status === 'pending-verification' ? 'bg-indigo-100 text-indigo-800' : 
-                                t.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 
-                                t.status === 'processing' ? 'bg-amber-100 text-amber-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>{t.status.toUpperCase()}</span>
-                            </div>
-                            <div className="flex justify-between mt-0.5">
-                              <span className="text-caption text-slate-500">{paidCount} payments recorded</span>
-                              {(t.outstandingBalance || 0) > 0 && <span className="text-caption text-red-700 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                
-                {/* ─── OUTSTANDING BALANCE ─── */}
-                {/* Payments, full or part, are recorded via Record Payment
-                    above; this panel only monitors what is still owed. */}
-                <div className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
-                  <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                    <h3 className="text-body font-bold text-slate-800 m-0 flex items-center gap-2">
-                      <FontAwesomeIcon icon={faBalanceScale} className="text-violet-600" />
-                      Outstanding Balance — {activeTenant?.name || 'No tenant selected'}
-                    </h3>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    {/* Outstanding Balance Monitor */}
-                    <div className={`rounded-card p-4 border flex items-center justify-between ${(activeTenant?.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
-                      <div className="flex items-center gap-3">
-                        <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant?.outstandingBalance || 0) > 0 ? 'text-red-600 text-xl' : 'text-emerald-700 text-xl'} />
-                        <div>
-                          <p className="text-body font-bold text-slate-800 m-0">Outstanding Balance</p>
-                          <p className="text-caption text-slate-500 m-0 mt-0.5">{activeTenant?.name || 'No tenant selected'} · Unit {activeTenant?.unit || '—'}</p>
-                        </div>
-                      </div>
-                      <p className={`text-page font-bold m-0 ${(activeTenant?.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                        {formatCurrency(activeTenant?.outstandingBalance || 0)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
             </>
+            )}
+
+            {activeTab === 'collections' && (
+            <div className="space-y-6">
+              {/* The building at a glance: this month's collection and what is owed, by age. */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <section aria-labelledby="col-month" className="bg-white border border-slate-200 rounded-card shadow-card p-5 sm:p-6">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3 id="col-month" className="m-0 text-body font-bold text-slate-800">This month</h3>
+                    <span className="text-section font-bold text-slate-900 tabular-nums">{collectionPct}%</span>
+                  </div>
+                  <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={collectionPct} aria-label="Collected this month">
+                    <div className={`h-full rounded-full transition-[width] duration-500 ${collectionPct >= 80 ? 'bg-emerald-500' : collectionPct >= 50 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${collectionPct}%` }} />
+                  </div>
+                  <p className="m-0 mt-3 text-body text-slate-700 tabular-nums">{formatCurrency(monthlyCollected)} of {formatCurrency(monthlyTarget)} billed</p>
+                  <p className="m-0 mt-1 text-label text-slate-500">{paidTenantCount} of {tenants.length} tenant{tenants.length === 1 ? '' : 's'} paid</p>
+                </section>
+
+                <section aria-labelledby="col-aging" className="bg-white border border-slate-200 rounded-card shadow-card p-5 sm:p-6">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3 id="col-aging" className="m-0 text-body font-bold text-slate-800">Outstanding by age</h3>
+                    <span className="text-section font-bold text-slate-900 tabular-nums">{formatCurrency(totalOutstanding)}</span>
+                  </div>
+                  <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                    {totalOutstanding > 0 && AGING_BUCKETS.map(([key, , bar]) => (
+                      <div key={key} className={bar} style={{ width: `${(agingData[key] / totalOutstanding) * 100}%` }} />
+                    ))}
+                  </div>
+                  <ul className="m-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 p-0 list-none sm:grid-cols-2">
+                    {AGING_BUCKETS.map(([key, label, bar]) => (
+                      <li key={key} className={`flex items-center justify-between gap-3 text-label ${agingData[key] > 0 ? 'text-slate-700' : 'text-slate-400'}`}>
+                        <span className="flex items-center gap-2"><span className={`inline-block h-2.5 w-2.5 rounded-full ${agingData[key] > 0 ? bar : 'bg-slate-300'}`} aria-hidden="true" />{label}</span>
+                        <span className="font-semibold tabular-nums">{formatCurrency(agingData[key])}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+
+              {/* Every tenant: what they owe and for how long. A row opens them on the billing tab. */}
+              <section aria-labelledby="col-tenants" className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
+                <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+                  <h3 id="col-tenants" className="m-0 text-body font-bold text-slate-800">Tenants</h3>
+                  <span className="text-label text-slate-500">Select a tenant to open their billing</span>
+                </div>
+                {collectionRows.length === 0 ? (
+                  <p className="m-0 p-6 text-body text-slate-600">No tenants are billed yet.</p>
+                ) : (
+                  <>
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left whitespace-nowrap">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            {[['name', 'Tenant', ''], [null, 'Unit', ''], [null, 'Status', ''], [null, 'Open bills', 'text-right'], ['owed', 'Owed', 'text-right'], ['oldest', 'Oldest overdue', 'text-right']].map(([key, label, align]) => {
+                              const active = key && collectionSort.key === key;
+                              return (
+                                <th key={label} scope="col" className={`${TH} ${align}`} aria-sort={active ? (collectionSort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+                                  {key ? (
+                                    <button type="button"
+                                      onClick={() => setCollectionSort((cur) => ({ key, dir: cur.key === key ? (cur.dir === 'asc' ? 'desc' : 'asc') : key === 'name' ? 'asc' : 'desc' }))}
+                                      className={`inline-flex items-center gap-1 border-0 bg-transparent p-0 text-label font-medium cursor-pointer ${active ? 'text-indigo-700' : 'text-slate-600 hover:text-slate-900'}`}>
+                                      {label}{active && <span aria-hidden="true">{collectionSort.dir === 'asc' ? '▲' : '▼'}</span>}
+                                    </button>
+                                  ) : label}
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {collectionRows.map(({ t, openCount, owed, oldest }) => (
+                            <tr key={t.id} {...clickable(() => openTenantBilling(t.id))} className="cursor-pointer hover:bg-slate-50 transition-colors outline-none focus-visible:bg-indigo-50">
+                              <td className="px-4 py-3 text-body font-semibold text-slate-800">{t.name}</td>
+                              <td className="px-4 py-3 text-body text-slate-700">{t.unit}</td>
+                              <td className="px-4 py-3"><CollectionStatus status={t.status} /></td>
+                              <td className="px-4 py-3 text-body text-slate-700 text-right tabular-nums">{openCount}</td>
+                              <td className={`px-4 py-3 text-body text-right font-bold tabular-nums ${owed > 0 ? 'text-red-700' : 'text-slate-500'}`}>{formatCurrency(owed)}</td>
+                              <td className={`px-4 py-3 text-body text-right tabular-nums ${oldest > 30 ? 'font-semibold text-red-700' : 'text-slate-700'}`}>{oldest > 0 ? `${oldest} day${oldest === 1 ? '' : 's'}` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <ul className="md:hidden m-0 p-0 list-none divide-y divide-slate-100">
+                      {collectionRows.map(({ t, openCount, owed, oldest }) => (
+                        <li key={t.id}>
+                          <button type="button" onClick={() => openTenantBilling(t.id)} className="w-full border-0 bg-transparent px-4 py-3 text-left cursor-pointer hover:bg-slate-50">
+                            <span className="flex items-center justify-between gap-3">
+                              <span className="min-w-0 truncate text-body font-semibold text-slate-800">{t.name} · Unit {t.unit}</span>
+                              <CollectionStatus status={t.status} />
+                            </span>
+                            <span className="mt-1 flex items-center justify-between gap-3 text-label text-slate-600">
+                              <span>{openCount} open bill{openCount === 1 ? '' : 's'}{oldest > 0 ? ` · oldest ${oldest} day${oldest === 1 ? '' : 's'}` : ''}</span>
+                              <span className={`font-bold tabular-nums ${owed > 0 ? 'text-red-700' : 'text-slate-500'}`}>{formatCurrency(owed)}</span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </section>
+            </div>
             )}
 
             {activeTab === 'deposits' && (
