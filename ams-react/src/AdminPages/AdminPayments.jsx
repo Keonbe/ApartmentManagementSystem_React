@@ -4,9 +4,9 @@ import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faCalendarAlt,
-  faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle,
+  faFileAlt, faExclamationTriangle, faTimes, faHistory, faInfoCircle,
   faChartBar, faBalanceScale, faShieldAlt, faEye, faExternalLinkAlt,
-  faBell, faUser
+  faBell, faUser, faPesoSign, faFileInvoiceDollar, faClipboardCheck, faHandHoldingDollar, faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
@@ -220,6 +220,7 @@ const AdminPayments = () => {
               outstandingBalance: 0,
               advanceAwaiting: 0,
               overdueInvoices: 0,
+              overdueAmount: 0,
               pendingInvoiceId: null,
               lastReminderDate: inv.last_reminder_date || null,
               reminderCount: inv.reminder_count || 0
@@ -239,7 +240,7 @@ const AdminPayments = () => {
               t.advanceAwaiting += stillOwed;
             } else {
               t.outstandingBalance += stillOwed;
-              if (isPastDue(inv)) t.overdueInvoices += 1;
+              if (isPastDue(inv)) { t.overdueInvoices += 1; t.overdueAmount += stillOwed; }
             }
             (t.openInvoices = t.openInvoices || []).push(inv);
             if (inv.created_at && (!t.latestInvoiceCreatedAt || inv.created_at > t.latestInvoiceCreatedAt)) {
@@ -549,8 +550,20 @@ const AdminPayments = () => {
   const overdueCount = tenants.filter(t => t.overdueInvoices > 0).length;
   const overdueInvoiceCount = tenants.reduce((sum, t) => sum + t.overdueInvoices, 0);
   const advanceAwaitingTotal = tenants.reduce((sum, t) => sum + t.advanceAwaiting, 0);
-  const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification' || t.status === 'scheduled' || t.status === 'processing').length;
   const totalOutstanding = tenants.reduce((sum, t) => sum + owedBalance(t), 0);
+  // For the summary cards' footers (same tenant statuses as the list's filter).
+  const overdueAmount = tenants.reduce((sum, t) => sum + t.overdueAmount, 0);
+  const owingCount = tenants.filter((t) => owedBalance(t) > 0).length;
+  const toVerifyCount = tenants.filter((t) => t.status === 'pending-verification').length;
+  const scheduledCount = tenants.filter((t) => t.status === 'scheduled').length;
+  const processingCount = tenants.filter((t) => t.status === 'processing').length;
+  const thisMonth = localDateString().slice(0, 7);
+  const collectedThisMonth = tenants.reduce((sum, t) => sum + t.history
+    .filter((h) => h.status === 'paid' && String(h.datePaid || '').slice(0, 7) === thisMonth)
+    .reduce((s, h) => s + h.amount, 0), 0);
+  // A card click shows those tenants in the list below.
+  const showTenants = (status) => { setActiveTab('billing'); setStatusFilter(status); };
+  const cardStatus = loading ? 'loading' : undefined;
 
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
@@ -1023,31 +1036,65 @@ const handleMarkAsPaid = async () => {
     <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
-      <main className="flex-1 flex flex-col min-h-screen text-left bg-slate-50">
+      <main className="flex-1 flex flex-col min-h-screen min-w-0 text-left bg-slate-50">
         <Header title="Payment Management" />
 
         <div className="flex-1 overflow-y-auto">
           <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-            {/* Summary Cards */}
-            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard icon={faDollarSign} color="emerald" title="Total Collected" value={formatCurrency(totalCollected)} />
+            {/* Key figures, in the Dashboard's card style. Each card that names a
+                group of tenants filters the list below to them. */}
+            <section aria-label="Payment summary" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <StatCard
+                icon={faPesoSign}
+                showIconBadge={false}
+                color="emerald"
+                title="Collected"
+                value={formatCurrency(totalCollected)}
+                subtext={collectedThisMonth > 0 ? `${formatCurrency(collectedThisMonth)} this month` : 'Nothing paid yet this month'}
+                tooltip="Every bill marked paid, across all tenants"
+                status={cardStatus}
+              />
+              <StatCard
+                icon={faFileInvoiceDollar}
+                showIconBadge={false}
+                color={overdueCount > 0 ? 'amber' : totalOutstanding > 0 ? 'blue' : 'emerald'}
+                title="Still owed"
+                value={formatCurrency(totalOutstanding)}
+                subtext={advanceAwaitingTotal > 0
+                  ? `${owingCount} tenant${owingCount === 1 ? '' : 's'} · advance rent of ${formatCurrency(advanceAwaitingTotal)} not counted`
+                  : owingCount > 0 ? `${owingCount} tenant${owingCount === 1 ? '' : 's'} with open bills` : 'Everyone is paid up'}
+                tooltip="Unpaid balance of every open bill; advance rent awaiting payment is not a debt"
+                status={cardStatus}
+                onClick={owingCount > 0 ? () => showTenants('unpaid') : undefined}
+              />
               <StatCard
                 icon={faExclamationTriangle}
-                color={overdueCount > 0 ? 'red' : 'slate'}
-                title="Overdue Accounts"
-                value={overdueCount}
-                subtext={overdueInvoiceCount > 0 ? `across ${overdueInvoiceCount} invoice${overdueInvoiceCount === 1 ? '' : 's'}` : null}
+                showIconBadge={false}
+                color={overdueCount > 0 ? 'red' : 'emerald'}
+                title="Overdue"
+                value={`${overdueCount} tenant${overdueCount === 1 ? '' : 's'}`}
+                subtext={overdueCount > 0
+                  ? `${overdueInvoiceCount} bill${overdueInvoiceCount === 1 ? '' : 's'} · ${formatCurrency(overdueAmount)}`
+                  : 'Nothing overdue'}
+                tooltip="Tenants with a bill past its due date"
+                status={cardStatus}
+                onClick={overdueCount > 0 ? () => showTenants('overdue') : undefined}
               />
-              <StatCard icon={faCalendarAlt} color="amber" title="Pending Payments" value={pendingCount} />
               <StatCard
-                icon={faMoneyBillWave}
-                color={totalOutstanding > 0 ? 'red' : 'slate'}
-                title="Total Outstanding"
-                value={formatCurrency(totalOutstanding)}
-                subtext={advanceAwaitingTotal > 0 ? `Excludes ${formatCurrency(advanceAwaitingTotal)} advance rent awaiting payment` : null}
+                icon={faClipboardCheck}
+                showIconBadge={false}
+                color={toVerifyCount > 0 ? 'violet' : 'slate'}
+                title="To verify"
+                value={toVerifyCount}
+                subtext={scheduledCount || processingCount
+                  ? [scheduledCount && `${scheduledCount} booked to pay in person`, processingCount && `${processingCount} paying online`].filter(Boolean).join(' · ')
+                  : toVerifyCount > 0 ? 'Payment proofs waiting for you' : 'No proofs waiting'}
+                tooltip="Payments a tenant sent with a proof, waiting for the office to confirm"
+                status={cardStatus}
+                onClick={toVerifyCount > 0 ? () => showTenants('pending-verification') : undefined}
               />
-            </div>
+            </section>
 
             {/* Due Date Indicator Bar with Batch Reminder Button */}
             {(dueWithin5DaysCount > 0 || overdueCount > 0) && (
@@ -1055,7 +1102,10 @@ const handleMarkAsPaid = async () => {
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-700 text-base" />
                   <span>
-                    <strong>{overdueCount}</strong> overdue account(s) and <strong>{dueWithin5DaysCount}</strong> bill(s) due within 5 days.
+                    {[
+                      overdueCount > 0 && <Fragment key="o"><strong>{overdueCount}</strong> overdue tenant{overdueCount === 1 ? '' : 's'}</Fragment>,
+                      dueWithin5DaysCount > 0 && <Fragment key="d"><strong>{dueWithin5DaysCount}</strong> bill{dueWithin5DaysCount === 1 ? '' : 's'} due within 5 days</Fragment>,
+                    ].filter(Boolean).reduce((acc, part, i) => (i ? [...acc, ' and ', part] : [part]), [])}.
                   </span>
                 </div>
                 <button
@@ -1833,13 +1883,18 @@ const handleMarkAsPaid = async () => {
               </div>
               
               <div className="p-6 space-y-6">
-                {/* Deposit metrics summary cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <StatCard icon={faShieldAlt} color="emerald" title="Total Deposits Held" value={formatCurrency(totalDepositsHeld)} />
-                  <StatCard icon={faCheckCircle} color="blue" title="Deposits Returned / Refund Pending" value={formatCurrency(totalDepositRefunds)} />
-                  <StatCard icon={faExclamationTriangle} color="red" title="Deposits Withheld (Forfeited)" value={formatCurrency(totalDepositForfeited)} />
-                  <StatCard icon={faExclamationTriangle} color="amber" title="Total Billing Deductions Applied" value={formatCurrency(totalDepositDeductions)} />
-                  <StatCard icon={faCheckCircle} color="indigo" title="Total Applied to Last Rent Month" value={formatCurrency(totalAppliedToRent)} />
+                {/* Deposit figures, in the Dashboard's card style. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
+                  <StatCard icon={faShieldAlt} showIconBadge={false} color="emerald" title="Deposits held" value={formatCurrency(totalDepositsHeld)}
+                    subtext="With current tenants" tooltip="Security deposits the building holds now" status={depositsState.isLoading ? 'loading' : undefined} />
+                  <StatCard icon={faRotateLeft} showIconBadge={false} color="blue" title="Returned or to return" value={formatCurrency(totalDepositRefunds)}
+                    subtext="Refunded or refund pending" tooltip="Deposit refunds paid out or approved and waiting to be paid" status={depositsState.isLoading ? 'loading' : undefined} />
+                  <StatCard icon={faExclamationTriangle} showIconBadge={false} color={totalDepositForfeited > 0 ? 'red' : 'slate'} title="Withheld" value={formatCurrency(totalDepositForfeited)}
+                    subtext="Forfeited under the rent terms" tooltip="Deposit amounts kept as a forfeiture" status={depositsState.isLoading ? 'loading' : undefined} />
+                  <StatCard icon={faFileInvoiceDollar} showIconBadge={false} color={totalDepositDeductions > 0 ? 'amber' : 'slate'} title="Deducted for bills" value={formatCurrency(totalDepositDeductions)}
+                    subtext="Damage and utility deductions" tooltip="Unpaid charges taken out of deposits at move-out" status={depositsState.isLoading ? 'loading' : undefined} />
+                  <StatCard icon={faHandHoldingDollar} showIconBadge={false} color="indigo" title="Applied to last month" value={formatCurrency(totalAppliedToRent)}
+                    subtext="Used as the final month's rent" tooltip="Deposits applied to a tenant's last month of rent" status={depositsState.isLoading ? 'loading' : undefined} />
                 </div>
 
                 {/* Ledger search, filter and sort */}
