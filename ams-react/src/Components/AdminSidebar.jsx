@@ -173,7 +173,9 @@ function SidebarNav({ narrow = false, mobile = false, flyouts = false, nav }) {
 
       {/* Navigation */}
       {/* The rail hides its scrollbar: a scrollbar gutter would push the icons off centre. */}
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden py-4 min-h-0 admin-sidebar-nav-scroll ${narrow ? 'px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-3'}`} aria-label="Admin">
+      {/* relative: the badges' sr-only labels are absolute; without a positioned
+          scroller they escape its clip and make the whole page scroll. */}
+      <nav className={`relative flex-1 overflow-y-auto overflow-x-hidden py-4 min-h-0 admin-sidebar-nav-scroll ${narrow ? 'px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-3'}`} aria-label="Admin">
         <NavLink
           to={DASHBOARD.to}
           onClick={mobile ? handleClose : undefined}
