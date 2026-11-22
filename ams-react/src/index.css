@@ -3,6 +3,12 @@
 @import "./assets/styles/animations.user.css";
 @import "./assets/styles/themes.user.css";
 
+/* `dark:` follows the app's own themes (admin Dark, tenant Dark / Glass), not the
+   operating system's setting. With Tailwind's default (prefers-color-scheme) a
+   light admin page on a dark OS got dark-mode colours on a light background:
+   unreadable banners and bars. */
+@custom-variant dark (&:where(.admin-dark, .admin-dark *, .ut-dark, .ut-dark *, .ut-glass, .ut-glass *));
+
 /* Keep KPI surfaces in sync with the admin theme instead of relying on a
    generic `.dark` selector (admin dark mode is keyed by html.admin-dark). */
 .admin-stat-card {

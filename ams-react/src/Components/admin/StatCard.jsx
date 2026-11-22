@@ -31,9 +31,9 @@ const COLORS = {
 
   amber: { tile: 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/25', bar: 'bg-amber-500', mark: 'text-orange-500 dark:text-orange-400' },
 
-  violet: { tile: 'bg-gradient-to-br from-violet-500 to-purple-700 shadow-violet-600/25', bar: 'bg-violet-500', mark: 'text-violet-500/40' },
+  violet: { tile: 'bg-gradient-to-br from-violet-500 to-purple-700 shadow-violet-600/25', bar: 'bg-violet-500', mark: 'text-violet-500' },
 
-  slate: { tile: 'bg-gradient-to-br from-slate-500 to-slate-700 shadow-slate-600/25', bar: 'bg-slate-500', mark: 'text-slate-500/40' },
+  slate: { tile: 'bg-gradient-to-br from-slate-500 to-slate-700 shadow-slate-600/25', bar: 'bg-slate-500', mark: 'text-slate-500' },
 
 };
 
@@ -89,7 +89,7 @@ export default function StatCard({
 
       {icon && (
 
-        <div aria-hidden="true" className={`pointer-events-none select-none absolute -bottom-4 -right-3 leading-none transition-none transform-none z-0 ${tone.mark} ${quietMark ? 'text-[4.5rem] opacity-20' : 'text-[5.5rem]'}`} style={{ willChange: 'auto', transform: 'none' }}>
+        <div aria-hidden="true" className={`pointer-events-none select-none absolute -bottom-4 -right-3 leading-none transition-none transform-none z-0 opacity-20 ${tone.mark} ${quietMark ? 'text-[4.5rem]' : 'text-[5.5rem]'}`} style={{ willChange: 'auto', transform: 'none' }}>
           <FontAwesomeIcon className="block transition-none" icon={icon} />
         </div>
 
@@ -164,9 +164,9 @@ export default function StatCard({
 
           {progress !== undefined && progress !== null && (
 
-            <div className={`${color === 'blue' && title === 'Occupancy' ? 'my-2 h-2 w-full max-w-[200px] sm:max-w-[180px] lg:max-w-[160px] xl:max-w-[180px] overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200/50 dark:border-white/5' : 'my-2 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60'}`} aria-hidden="true">
+            <div className="relative z-10 my-2 h-2 w-full max-w-[220px] overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700/70" aria-hidden="true">
 
-              <div className={`h-full rounded-full ${color === 'blue' && title === 'Occupancy' ? 'bg-blue-600 dark:bg-blue-500 transition-[width] duration-500 ease-out' : `${tone.bar} transition-all duration-500`}`} style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+              <div className={`h-full rounded-full ${tone.bar} transition-[width] duration-500 ease-out`} style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
 
             </div>
 
@@ -195,7 +195,7 @@ export default function StatCard({
 
           )}
 
-          {subtext && <p className="relative z-10 text-xs text-slate-500 dark:text-slate-400 m-0">{subtext}</p>}
+          {subtext && <p className="relative z-10 text-xs text-slate-600 dark:text-slate-400 m-0">{subtext}</p>}
 
         </div>
 

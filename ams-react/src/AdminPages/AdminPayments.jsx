@@ -4,7 +4,7 @@ import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faCalendarAlt,
-  faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
+  faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle,
   faChartBar, faBalanceScale, faShieldAlt, faEye, faExternalLinkAlt,
   faBell, faUser
 } from '@fortawesome/free-solid-svg-icons';
@@ -1051,7 +1051,7 @@ const handleMarkAsPaid = async () => {
               {/* Tenant Selector */}
               <div className="lg:col-span-4 lg:sticky lg:top-24 max-h-[calc(100vh-250px)] min-h-[300px] overflow-y-auto custom-scrollbar bg-white border border-slate-200 rounded-card flex flex-col">
                 <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-2">
-                  <h3 className="text-body font-semibold text-slate-800 m-0">Select Tenant</h3>
+                  <h3 className="text-body font-semibold text-slate-800 m-0 flex items-center justify-between gap-2">Select Tenant <span className="rounded-full bg-slate-200 px-2 py-0.5 text-caption font-semibold text-slate-700">{filteredTenants.length}</span></h3>
                   {/* Search on its own row: beside the two filters it was squeezed to "Searc". */}
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-control px-3 py-1.5 focus-within:border-indigo-500 transition-all">
@@ -1089,8 +1089,6 @@ const handleMarkAsPaid = async () => {
                 </div>
                 <div ref={tenantListRef} className="relative">
                   {filteredTenants.map(t => {
-                    const days = getDaysUntilDue(t.dueDate);
-                    const isDueSoon = t.status !== 'paid' && days !== null && days >= 0 && days <= 5;
                     const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance;
                     const tenantTotalDue = t.outstandingBalance > 0 ? t.outstandingBalance : fallbackTotal;
                     return (
@@ -1098,12 +1096,7 @@ const handleMarkAsPaid = async () => {
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-body font-semibold text-slate-800 m-0 flex items-center gap-2 min-w-0 truncate">
                             <span className="truncate">{t.name}</span>
-                            {t.status === 'overdue' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-600 animate-pulse" />}
-                            {t.status === 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-600 animate-pulse" />}
-                            {t.status === 'pending-verification' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-indigo-500 animate-pulse" />}
-                            {t.status === 'scheduled' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-blue-500" />}
-                            {t.status === 'processing' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-700 animate-pulse" />}
-                            {isDueSoon && t.status !== 'pending-verification' && t.status !== 'scheduled' && t.status !== 'processing' && t.status !== 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-700" />}
+                            {/* The status badge on the right says it; a second dot only repeated it. */}
                           </p>
                           <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-center shrink-0 capitalize ${
                             t.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :

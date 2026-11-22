@@ -6,6 +6,26 @@
    Unlayered rules, so they win over Tailwind utilities without !important.
    ===================================================== */
 
+/* The shell is exactly one screen tall and its columns scroll inside it. clip
+   (unlike hidden) can't be scrolled by a focus jump or find-in-page, which used
+   to slide the whole sidebar and header up and leave blank page under them. */
+@media screen {
+  /* relative: makes the shell the containing block of absolutely placed things
+     inside it (menus, tooltips, off-screen panels), so clip catches those too;
+     otherwise one that hangs below the bottom stretches the document and the
+     page scrolls past the end (seen in Brave). */
+  .admin-shell {
+    position: relative;
+    overflow: clip;
+  }
+
+  /* An admin page is one screen; its columns scroll, the document never does. */
+  html:has(.admin-shell),
+  html:has(.admin-shell) body {
+    overflow: hidden;
+  }
+}
+
 /* Admin typeface (index.css @theme --font-admin, self-hosted via
    @fontsource-variable/ibm-plex-sans, imported in AdminSidebar.jsx). Tabular
    figures keep money and counts aligned in columns. Pages and some inner
