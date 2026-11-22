@@ -316,8 +316,9 @@ input.no-spinner {
 
 /* Text fields that took `outline-none` (bare search boxes inside a pill, inline
    editors) had no focus indication at all. They get the same ring unless they
-   draw their own focus border/ring or use .focus-glow. */
-:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), textarea):focus-visible:not([class*="focus:ring"]):not([class*="focus:border"]):not([class*="focus-visible:ring"]):not(.focus-glow) {
+   draw their own focus border/ring, use .focus-glow, or are inside a container that
+   already handles focus-within styling. */
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), textarea):focus-visible:not([class*="focus:ring"]):not([class*="focus:border"]):not([class*="focus-visible:ring"]):not([class*="focus:outline-none"]):not(.focus-glow):not(.no-focus-outline):not(:where(:is(div, label, form):is([class*="focus-within:ring"], [class*="focus-within:border"]) *)) {
   outline: 2px solid #6366f1;
   outline-offset: 1px;
 }

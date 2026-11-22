@@ -5,9 +5,9 @@ import {
   faGaugeHigh, faBuilding, faUsers, faCreditCard,
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
   faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt,
-  faEnvelopeOpenText, faEnvelope, faMoneyBillTransfer, faChartBar, faSlidersH, faIdCard,
+  faEnvelopeOpenText, faMoneyBillTransfer, faChartBar, faSlidersH, faIdCard,
   faCogs, faComments, faHouseUser, faFileInvoiceDollar, faScrewdriverWrench, faUserGear,
-  faChevronDown, faThumbtack, faArrowPointer, faAnglesLeft,
+  faChevronDown, faThumbtack, faArrowPointer, faAnglesLeft, faLayerGroup,
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useApplyAdminTheme } from '../config/adminTheme';
@@ -27,10 +27,10 @@ const NAV_GROUPS = [
   {
     id: 'general',
     title: 'General',
-    icon: faComments,
+    icon: faLayerGroup,
     items: [
       { to: '/admin-reports', icon: faChartBar, label: 'Reports' },
-      { to: '/admin-messages', icon: faEnvelope, label: 'Messages' },
+      { to: '/admin-messages', icon: faComments, label: 'Messages' },
       { to: '/admin-notifications', icon: faBell, label: 'Notifications' },
       { to: '/admin-announcements', icon: faBullhorn, label: 'Announcements' },
     ],

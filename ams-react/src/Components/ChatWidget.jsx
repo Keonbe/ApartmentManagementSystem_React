@@ -377,6 +377,10 @@ const ChatWidget = () => {
     const chatInquiry = activeConv?.inquiry ?? null;
     const guestInquiry = isGuestChat && guestThread ? { status: guestThread.status, unit: guestThread.unit_of_interest } : null;
     const topicInquiry = chatInquiry || guestInquiry;
+    const isTenant = isTenantChat || activeConv?.is_active_tenant;
+    const showInquiryBanner = topicInquiry && topicInquiry.status
+        && !['Converted', 'Resolved', 'Closed'].includes(topicInquiry.status)
+        && !isTenant;
     const reportOpen = Boolean(chatReport) && chatReport.status !== 'Resolved';
     const inquiryTitle = (unit) => (isAdmin ? `Inquiry${unit ? ` · Unit ${unit}` : ''}` : unit ? t('chat.topic.inquiryUnit', { unit }) : t('chat.topic.inquiry'));
     const topicStatus = (status) => (isAdmin ? status : t(`chat.topic.status.${status}`));
@@ -572,7 +576,7 @@ const ChatWidget = () => {
                                 )}
                             </TopicBanner>
                         )}
-                        {topicInquiry && topicInquiry.status && (
+                        {showInquiryBanner && (
                             <TopicBanner kind="inquiry" title={inquiryTitle(topicInquiry.unit)} status={topicStatus(topicInquiry.status)} tone={INQUIRY_TONES[topicInquiry.status]}
                                 note={topicInquiry.awaitingAnswer ? (isAdmin ? 'Asked if it is resolved' : t('chat.topic.asked')) : null} />
                         )}
@@ -748,7 +752,7 @@ const ChatWidget = () => {
                                     value={newMessage}
                                     onChange={(e) => { handleInputChange(e); if (sendError) setSendError(''); }}
                                     placeholder={reportMode && isTenantChat ? t('chat.report.placeholder') : t('chat.placeholder')}
-                                    className="h-full flex-1 min-w-0 bg-transparent px-2 text-base sm:text-sm outline-none border-0"
+                                    className="h-full flex-1 min-w-0 bg-transparent px-2 text-base sm:text-sm outline-none border-0 focus:outline-none no-focus-outline"
                                 />
                                 </div>
                                 <button

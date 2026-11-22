@@ -219,6 +219,9 @@ const AdminMessages = () => {
     : activeChat.thread_type === 'guest'
       ? (() => { const live = guestThreads.find((g) => String(g.thread_id) === String(activeChat.thread_id)) || activeChat; return { id: live.thread_id, unit: live.unit_of_interest, status: live.inquiry_status }; })()
       : conversations.find((c) => String(c.other_user_id) === String(activeChat.other_user_id))?.inquiry ?? null;
+  const showActiveInquiryBanner = activeInquiry && activeInquiry.status
+    && !['Converted', 'Resolved', 'Closed'].includes(activeInquiry.status)
+    && !activeChat?.is_active_tenant;
   // New messages follow only while at the bottom; "Latest" brings them back.
   const shownCount = (activeChat?.thread_type === 'guest' ? guestMessages : messages).length;
   const { ref: scrollRef, atBottom, unseen, onScroll: onChatScroll, toBottom: scrollToLatest } = useChatScroll(shownCount, activeChat ? `${activeChat.thread_type}-${activeChat.thread_id ?? activeChat.other_user_id}` : '');
@@ -257,26 +260,27 @@ const AdminMessages = () => {
     const current = all.filter((conversation) => !conversation.archived);
     return {
       all: current.length,
-      registered: current.filter((conversation) => !isGuestConversation(conversation)).length,
+      active: current.filter((c) => c.is_active_tenant && !isGuestConversation(c)).length,
+      past: current.filter((c) => c.is_past_tenant && !isGuestConversation(c)).length,
+      complaints: current.filter((c) => c.complaint && c.complaint.status !== 'Resolved').length,
       guest: current.filter(isGuestConversation).length,
       archived: all.length - current.length,
-      complaints: current.filter((conversation) => conversation.complaint && conversation.complaint.status !== 'Resolved').length,
     };
   }, [conversations, guestThreads]);
 
   const listReady = conversationsStatus === 'ready' && guestStatus === 'ready';
   const listFailed = conversationsStatus === 'error' || guestStatus === 'error';
   // A search looks through everything, archived chats included.
-  const visibleConversations = filteredConversations.filter((conversation) => (
-    search.trim() ? true
-      : conversationFilter === 'archived' ? conversation.archived
-      : conversationFilter === 'complaints' ? Boolean(conversation.complaint && conversation.complaint.status !== 'Resolved')
-      : !conversation.archived && (
-        conversationFilter === 'all'
-        || (conversationFilter === 'guest' && isGuestConversation(conversation))
-        || (conversationFilter === 'registered' && !isGuestConversation(conversation))
-      )
-  ));
+  const visibleConversations = filteredConversations.filter((conversation) => {
+    if (search.trim()) return true;
+    if (conversationFilter === 'archived') return Boolean(conversation.archived);
+    if (conversation.archived) return false;
+    if (conversationFilter === 'active') return Boolean(conversation.is_active_tenant && !isGuestConversation(conversation));
+    if (conversationFilter === 'past') return Boolean(conversation.is_past_tenant && !isGuestConversation(conversation));
+    if (conversationFilter === 'complaints') return Boolean(conversation.complaint && conversation.complaint.status !== 'Resolved');
+    if (conversationFilter === 'guest') return isGuestConversation(conversation);
+    return true; // 'all'
+  });
 
   const activeMessageMatches = useMemo(() => {
     const query = debouncedSearch.toLowerCase();
@@ -474,23 +478,49 @@ const AdminMessages = () => {
                   </div>
                   <FontAwesomeIcon icon={faComments} className="text-indigo-500 text-xl" />
                 </div>
-                <label className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-card border border-slate-200 bg-slate-50 focus-within:border-indigo-400">
-                  <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-xs" />
-                  <input maxLength={LIMITS.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tenants or messages" className="w-full bg-transparent outline-none border-0 text-body text-slate-800" />
-                </label>
-                <div className="flex flex-wrap items-center gap-1.5 mt-3" role="group" aria-label="Filter conversations">
-                  {[
-                    ['all', `All (${conversationCounts.all})`],
-                    ['registered', `Registered (${conversationCounts.registered})`],
-                    ['guest', `Guest (${conversationCounts.guest})`],
-                    ['complaints', `Complaints (${conversationCounts.complaints})`],
-                    ['archived', `Archived (${conversationCounts.archived})`],
-                  ].map(([filter, label]) => (
-                    <button key={filter} type="button" onClick={() => setConversationFilter(filter)} aria-pressed={conversationFilter === filter}
-                      className={`text-label font-medium px-3 py-1.5 rounded-full transition ${conversationFilter === filter ? 'bg-indigo-600 text-white shadow-card' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                      {label}
+                <div className="mt-4 relative flex items-center rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 focus-within:border-indigo-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs shrink-0 mr-2" />
+                  <input
+                    id="conversation-search"
+                    maxLength={LIMITS.search}
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search tenants or messages..."
+                    className="w-full bg-transparent outline-none border-0 text-body text-slate-800 no-focus-outline focus:outline-none placeholder:text-slate-400 text-sm"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch('')}
+                      aria-label="Clear search"
+                      className="p-1 text-slate-400 hover:text-slate-600 transition-colors border-0 bg-transparent cursor-pointer shrink-0"
+                    >
+                      <FontAwesomeIcon icon={faTimes} className="text-xs" />
                     </button>
-                  ))}
+                  )}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <label htmlFor="conversation-filter" className="text-xs font-semibold uppercase tracking-wider text-slate-400 shrink-0">
+                    Filter:
+                  </label>
+                  <div className="relative flex-1">
+                    <select
+                      id="conversation-filter"
+                      value={conversationFilter}
+                      onChange={(e) => setConversationFilter(e.target.value)}
+                      className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer no-focus-outline"
+                    >
+                      <option value="all">All Conversations ({conversationCounts.all})</option>
+                      <option value="active">Active Tenants ({conversationCounts.active})</option>
+                      <option value="past">Past Tenants ({conversationCounts.past})</option>
+                      <option value="complaints">Problem Reports ({conversationCounts.complaints})</option>
+                      <option value="guest">Guest Inquiries ({conversationCounts.guest})</option>
+                      <option value="archived">Archived ({conversationCounts.archived})</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+                      <FontAwesomeIcon icon={faChevronDown} className="text-[10px]" />
+                    </div>
+                  </div>
                 </div>
               </div>
               {!search && visibleConversations.length > 0 && listFailed && (
@@ -505,7 +535,15 @@ const AdminMessages = () => {
                 ) : !search && visibleConversations.length === 0 && listFailed ? (
                   <LoadError title="Couldn't load conversations" onRetry={retryConversations} />
                 ) : visibleConversations.length === 0 ? (
-                  <div className="p-8 text-center text-body text-slate-500">{search ? 'No matching conversations.' : conversationFilter === 'complaints' ? 'No open complaints.' : conversationFilter === 'archived' ? 'No archived chats. Resolved or ended inquiries, and people not renting who have been quiet for 6 months, show here.' : 'No tenant conversations yet.'}</div>
+                  <div className="p-8 text-center text-body text-slate-500">
+                    {search ? 'No matching conversations.'
+                      : conversationFilter === 'active' ? 'No active tenant conversations.'
+                      : conversationFilter === 'past' ? 'No past tenant conversations.'
+                      : conversationFilter === 'complaints' ? 'No open complaints.'
+                      : conversationFilter === 'guest' ? 'No guest inquiries.'
+                      : conversationFilter === 'archived' ? 'No archived chats. Resolved or ended inquiries, and people not renting who have been quiet for 6 months, show here.'
+                      : 'No tenant conversations yet.'}
+                  </div>
                 ) : visibleConversations.map((conversation) => {
                   const convKey = conversation.thread_type === 'guest' ? `guest_${conversation.thread_id}` : `user_${conversation.other_user_id}`;
                   const selectedKey = activeChat?.thread_type === 'guest' ? `guest_${activeChat.thread_id}` : activeChat ? `user_${activeChat.other_user_id}` : null;
@@ -519,12 +557,22 @@ const AdminMessages = () => {
                           <span className="flex min-w-0 items-center overflow-hidden font-semibold text-body text-slate-900">
                             <span className="truncate">{conversation.other_user_name || 'Tenant'}</span>
                             {isGuestConversation(conversation) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
+                            {conversation.is_active_tenant && !isGuestConversation(conversation) && (
+                              <span className="ml-1.5 shrink-0 rounded-full bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[10px] font-semibold text-emerald-700" title="Active Tenant">
+                                Active
+                              </span>
+                            )}
+                            {conversation.is_past_tenant && !isGuestConversation(conversation) && (
+                              <span className="ml-1.5 shrink-0 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600" title="Past Tenant">
+                                Past
+                              </span>
+                            )}
                             {conversation.complaint && conversation.complaint.status !== 'Resolved' && (
                               <span className="ml-1.5 shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700" title={`Problem report: ${conversation.complaint.category}`}>
                                 Report · {conversation.complaint.status}
                               </span>
                             )}
-                            {conversation.inquiry && !['Converted', 'Resolved', 'Closed'].includes(conversation.inquiry.status) && !isGuestConversation(conversation) && (
+                            {conversation.inquiry && !['Converted', 'Resolved', 'Closed'].includes(conversation.inquiry.status) && !isGuestConversation(conversation) && !conversation.is_active_tenant && (
                               <span className="ml-1.5 shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700" title="Has an open inquiry">Inquiry</span>
                             )}
                             {conversation.archived && (
@@ -582,7 +630,7 @@ const AdminMessages = () => {
                       ))}
                     </TopicBanner>
                   )}
-                  {activeInquiry && activeInquiry.status && (
+                  {showActiveInquiryBanner && (
                     <TopicBanner kind="inquiry" title={`Inquiry${activeInquiry.unit ? ` · Unit ${activeInquiry.unit}` : ''}`} status={activeInquiry.status}
                       tone={INQUIRY_TONES[activeInquiry.status]} className="px-4 md:px-6"
                       note={activeChat.thread_type === 'guest'
@@ -716,7 +764,7 @@ const AdminMessages = () => {
                         aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
                         maxLength={LIMITS.message} value={draft}
                         onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
-                        placeholder="Write a reply..." className="h-full w-full min-w-0 px-2 bg-transparent border-0 focus:outline-none text-body" />
+                        placeholder="Write a reply..." className="h-full w-full min-w-0 px-2 bg-transparent border-0 focus:outline-none no-focus-outline text-body" />
                     </div>
                     <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-transparent text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 disabled:bg-transparent disabled:text-slate-300 disabled:cursor-not-allowed border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPaperPlane} className="text-lg" /></button>
                   </form>

@@ -45,6 +45,15 @@ try {
                     SELECT 1 FROM rent_applications ra
                     WHERE ra.user_id = u.id AND LOWER(ra.status) IN ('active', 'pending-move-out', 'approved')
                 ) AS is_active_tenant,
+                (
+                    EXISTS (
+                        SELECT 1 FROM rent_applications ra_past
+                        WHERE ra_past.user_id = u.id AND LOWER(ra_past.status) IN ('moved-out', 'terminated', 'expired')
+                    ) AND NOT EXISTS (
+                        SELECT 1 FROM rent_applications ra_act
+                        WHERE ra_act.user_id = u.id AND LOWER(ra_act.status) IN ('active', 'pending-move-out', 'approved')
+                    )
+                ) AS is_past_tenant,
                 EXISTS (SELECT 1 FROM rent_applications ra2 WHERE ra2.user_id = u.id) AS has_application,
                 (TRIM(CONCAT_WS(' ', u.first_name, u.last_name, NULLIF(TRIM(u.suffix), ''))) LIKE ? OR u.email_address LIKE ?) AS name_hit
               FROM (
@@ -99,6 +108,7 @@ try {
             'last_message_time' => $row['last_message_time'],
             'unread_count' => (int) ($row['unread_count'] ?? 0),
             'is_active_tenant' => (bool) $row['is_active_tenant'],
+            'is_past_tenant' => (bool) $row['is_past_tenant'],
             'is_admin' => $row['other_user_role'] === 'admin',
             // A prospect: an account holder who never applied (an inquiry chat). The
             // admin's chat widget leaves them out; they are answered on Inquiries.
