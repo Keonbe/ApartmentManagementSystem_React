@@ -156,6 +156,12 @@ if ($db_error !== null) {
 // tables; Asia/Manila has no DST, so the offset never changes.
 $conn->set_charset('utf8mb4');
 $conn->query("SET time_zone = '" . date('P') . "'");
+// The test suite runs with the strict mode of MariaDB 10.11 (what CI and most hosts
+// use), so a query that leaves a NOT NULL column without a value fails here too.
+// Local XAMPP ships with a looser mode that hides those.
+if ($ams_test_mode) {
+    $conn->query("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION'");
+}
 
 // Priority 4: Observability
 //

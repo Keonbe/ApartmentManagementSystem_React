@@ -39,6 +39,7 @@ Files run one at a time against the one shared scratch database. Tests inside a 
 
 ### Safety
 
+- **Strict SQL mode, like CI.** Local XAMPP MariaDB runs without strict mode, while CI's MariaDB 10.11 is strict, so an insert that left a NOT NULL column (`preferred_time`, `label_snapshot`, `sessions.role`...) passed here and failed only on GitHub (the `api-tests` job failed from 2026-11-19, SPRINT 236). Both the test PHP server (`config.php`, only under `AMS_TEST_MODE`) and the fixture pool (`lib/db.js`) now set `STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION`, so a fixture that omits a required column fails locally. Give every NOT NULL column without a default a value in a new fixture.
 - **`ams_db` is never touched.** `backend/config.php` and `backend/cors.php` skip `config.env.php` when `AMS_TEST_MODE=1` (its constants would otherwise pin the dev database), and `config.php` answers 500 unless `DB_NAME` ends in `_test`. Apache and production never set `AMS_TEST_MODE`.
 - The test config itself refuses a database name that does not end in `_test`.
 - **Seed data uses `@demo.example` only** (fake domain, never a real mailbox). The test server sets `DEVICE_OTP_BYPASS_DOMAINS=demo.example`, so those accounts skip the device sign-in code; `ams_skips_device_otp()` in `config.php` is always false in production.

@@ -39,10 +39,10 @@ beforeAll(async () => {
            VALUES ('INV-ANON-2', ?, 3000, 3000, 0, 'Monthly', 'scheduled', CURDATE() + INTERVAL 5 DAY)`, [OPEN_ID]);
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   fs.writeFileSync(path.join(UPLOAD_DIR, FILE), 'x');
-  await q(`INSERT INTO application_documents (rent_application_id, requirement_id, file_path) VALUES (88011, (SELECT id FROM application_requirements LIMIT 1), ?)`, [`uploads/documents/${FILE}`]);
+  await q(`INSERT INTO application_documents (rent_application_id, requirement_id, label_snapshot, file_path) VALUES (88011, (SELECT id FROM application_requirements LIMIT 1), 'Valid ID', ?)`, [`uploads/documents/${FILE}`]);
   const adminId = (await one("SELECT id FROM users WHERE email_address = 'admin@gmail.com'")).id;
   await q("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, 'My phone is 0917 123 4888')", [ID, adminId]);
-  await q("INSERT INTO sessions (user_id, token, expires_at) VALUES (?, REPEAT('b', 64), NOW() + INTERVAL 1 DAY)", [ID]);
+  await q("INSERT INTO sessions (user_id, role, token, expires_at) VALUES (?, 'user', REPEAT('b', 64), NOW() + INTERVAL 1 DAY)", [ID]);
 });
 
 afterAll(() => { fs.rmSync(path.join(UPLOAD_DIR, FILE), { force: true }); });

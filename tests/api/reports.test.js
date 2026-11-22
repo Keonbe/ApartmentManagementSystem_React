@@ -23,9 +23,9 @@ beforeAll(async () => {
   await q(`INSERT INTO payment_transactions (invoice_id, amount, payment_method, created_at)
            VALUES ('INV-RPT-2', 1000, 'Cash', '2001-03-06 09:00:00'), ('INV-RPT-2', 500, 'Cash', '2001-03-13 09:00:00')`);
   await q("INSERT INTO expenses (category, amount, expense_date, description, created_by) VALUES ('supplies', 300, '2001-03-08', 'Cleaning supplies', 1)");
-  await q(`INSERT INTO maintenance_requests (user_id, issue_category, urgency, description, status, room_name, created_at, resolved_at, actual_cost, tenant_responsible)
-           VALUES (2, 'Plumbing', 'High', 'Leak', 'Completed', 'A', '2001-03-02 08:00:00', '2001-03-09 08:00:00', 250, 0),
-                  (2, 'Electrical', 'Low', 'Broken socket', 'Completed', 'A', '2001-03-03 08:00:00', '2001-03-04 08:00:00', 999, 1)`);
+  await q(`INSERT INTO maintenance_requests (user_id, issue_category, urgency, description, status, room_name, preferred_date, preferred_time, created_at, resolved_at, actual_cost, tenant_responsible)
+           VALUES (2, 'Plumbing', 'High', 'Leak', 'Completed', 'A', '2001-03-02', 'Morning', '2001-03-02 08:00:00', '2001-03-09 08:00:00', 250, 0),
+                  (2, 'Electrical', 'Low', 'Broken socket', 'Completed', 'A', '2001-03-03', 'Morning', '2001-03-03 08:00:00', '2001-03-04 08:00:00', 999, 1)`);
 });
 
 describe('who may ask, and what', () => {

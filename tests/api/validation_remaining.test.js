@@ -185,7 +185,7 @@ describe('maintenance and service forms', () => {
   });
 
   it('update_maintenance_status.php: infinite costs, a long assignee and a long reason are field errors', async () => {
-    const id = (await q("INSERT INTO maintenance_requests (user_id, title, issue_category, description, status, urgency) VALUES (2, 'Leak', 'Plumbing', 'Dripping tap', 'Pending', 'Medium')")).insertId;
+    const id = (await q("INSERT INTO maintenance_requests (user_id, title, issue_category, description, status, urgency, preferred_date, preferred_time) VALUES (2, 'Leak', 'Plumbing', 'Dripping tap', 'Pending', 'Medium', CURDATE(), 'Morning')")).insertId;
     const upd = (body) => api('update_maintenance_status.php', { token: admin, json: { id, ...body } });
     expectFields(await upd({ actualCost: '1e400' }), ['actualCost']);
     expectFields(await upd({ estimatedCost: 1e12 }), ['estimatedCost']);

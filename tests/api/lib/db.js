@@ -4,7 +4,12 @@ import { DB } from './env.js';
 
 let pool;
 function getPool() {
-  pool ??= mysql.createPool({ ...DB, dateStrings: true, connectionLimit: 2 });
+  if (!pool) {
+    pool = mysql.createPool({ ...DB, dateStrings: true, connectionLimit: 2 });
+    // Same strict mode as CI's MariaDB 10.11 (local XAMPP is looser), so a fixture
+    // that omits a NOT NULL column fails here and not only on GitHub.
+    pool.pool.on('connection', (c) => c.query("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION'"));
+  }
   return pool;
 }
 
