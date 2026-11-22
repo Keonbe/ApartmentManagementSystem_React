@@ -368,7 +368,6 @@ const ChatWidget = () => {
     // What the chat is about (get_conversations.php: the latest inquiry and problem
     // report, open or finished in the last week; guest_chat.php: the guest's inquiry).
     const isTenantChat = Boolean(userId) && userRole !== 'admin';
-    const supportConv = isTenantChat ? conversations.find((c) => c.is_admin) : null;
     const isAdmin = userRole === 'admin';
     const activeConv = activeChat
         ? conversations.find((c) => String(c.other_user_id) === String(activeChat.other_user_id)) || activeChat
@@ -554,13 +553,6 @@ const ChatWidget = () => {
                                 ))
                             )}
                             </div>
-                            {isTenantChat && openSupportChat && !(supportConv?.complaint && supportConv.complaint.status !== 'Resolved') && (
-                                <div className="shrink-0 border-t border-slate-100 p-2 text-center">
-                                    <button type="button" onClick={startReport} className="min-h-[40px] rounded-full border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 cursor-pointer hover:bg-rose-50">
-                                        {t('chat.report.start')}
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     ) : (
                         /* Active Conversation Message Stream */
