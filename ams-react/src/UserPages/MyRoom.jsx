@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faFileContract, faFileSignature, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight, faStamp } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
 import RoomKeyTag from '../Components/tenant/RoomKeyTag';
@@ -20,6 +20,7 @@ import useDialog from '../hooks/useDialog';
 import { isPastDue } from '../utils/billingPeriod';
 import { addDays, checkDate, checkIntRange } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import askConfirm from '../utils/askConfirm';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { invalidCls } from '../Components/form/formHelpers';
@@ -79,6 +80,11 @@ export default function MyRoom() {
     // so it gets a retry instead of the no-room page.
     const [error, setError] = useState(null);
     const [loadFailed, setLoadFailed] = useState(false);
+    // The rent contract's notarized copy (my_room.php; backend/signed_contract.php): whether the
+    // office asks for one, whether it has it, and whether the tenant already said it is ready.
+    const [notarize, setNotarize] = useState(null);
+    const [notarizeBusy, setNotarizeBusy] = useState(false);
+    const [contractInfo, setContractInfo] = useState(null);
     const [roomDetails, setRoomDetails] = useState({
         name: "Unassigned",
         type: "Studio Apartment",
@@ -148,6 +154,23 @@ export default function MyRoom() {
                     setOccupants(count);
                     setCurrentOccupants(count);
                 }
+
+                setNotarize(data.contract_id ? {
+                    contractId: data.contract_id,
+                    contractStatus: data.contract_status,
+                    required: data.notarized_required !== false,
+                    done: !!data.notarized,
+                    readyAt: data.notarized_ready_at || null,
+                    signedOnFile: !!data.signed_lease_path && data.signed_lease_review !== 'rejected',
+                } : null);
+
+                setContractInfo(data.contract_id ? {
+                    contractId: data.contract_id,
+                    contractStatus: data.contract_status,
+                    signedPath: data.signed_lease_path || null,
+                    signedReview: data.signed_lease_review || null,
+                    signedReviewNote: data.signed_lease_review_note || null,
+                } : null);
 
                 setExtension(data.extension || null);
                 // Start the months picker inside the allowed range.
@@ -501,6 +524,71 @@ export default function MyRoom() {
                 text: `${parts.join(' and ')} ${queued + removals === 1 ? 'is' : 'are'} waiting for management. You'll be notified of their decision.`,
             });
         }
+    }
+
+    // An updated signed contract is needed when the rent term is extended (or if
+    // returned by management). Prompt the tenant to view and upload it.
+    if (contractInfo && !movedOut && ['active', 'eviction-pending'].includes(contractInfo.contractStatus)) {
+        if (!contractInfo.signedPath) {
+            importantItems.push({
+                key: 'sign-updated-contract',
+                tone: 'action',
+                icon: faFileSignature,
+                title: 'Sign your updated rent contract',
+                text: 'Your rent term has been extended. Please view, sign, and upload your updated rent contract.',
+                action: { label: 'View contract', onClick: () => navigate('/view-contract') },
+            });
+        } else if (contractInfo.signedReview === 'rejected') {
+            importantItems.push({
+                key: 'signed-contract-rejected',
+                tone: 'urgent',
+                icon: faFileSignature,
+                title: 'Signed contract returned',
+                text: contractInfo.signedReviewNote
+                    ? `Management returned your signed contract: "${contractInfo.signedReviewNote}". Please review and upload an updated copy.`
+                    : 'Management returned your signed contract. Please review and upload an updated copy.',
+                action: { label: 'Upload contract', onClick: () => navigate('/view-contract') },
+            });
+        } else if (contractInfo.signedReview === 'pending') {
+            importantItems.push({
+                key: 'signed-contract-pending',
+                tone: 'pending',
+                icon: faFileSignature,
+                title: 'Updated contract in review',
+                text: 'Your uploaded signed contract is waiting for management review.',
+                action: { label: 'View contract', onClick: () => navigate('/view-contract') },
+            });
+        }
+    }
+
+    // The notarized rent contract: asked for while the Contracts settings require one, once
+    // the signed copy is on file. The tenant tells the office it is ready, then hands it in.
+    const tellNotarized = async () => {
+        if (notarizeBusy || !notarize) return;
+        if (!(await askConfirm('Tell the office your rent contract is notarized? Then hand the notarized copy to management.', { title: 'Notarized contract', confirmLabel: 'Tell the office', tone: 'primary' }))) return;
+        setNotarizeBusy(true);
+        try {
+            const res = await api.post('notarized_contract.php', { contractId: notarize.contractId, action: 'ready' });
+            if (res.data?.success === false) throw new Error(res.data.message);
+            await loadRoom();
+        } catch (err) {
+            alert(apiErrorMessage(err, err?.message || 'Nothing was sent. Please try again.'));
+        } finally {
+            setNotarizeBusy(false);
+        }
+    };
+    if (notarize?.required && !notarize.done && notarize.signedOnFile && !movedOut
+        && ['draft', 'active', 'eviction-pending'].includes(notarize.contractStatus)) {
+        importantItems.push(notarize.readyAt ? {
+            key: 'notarize', tone: 'pending', icon: faStamp,
+            title: 'Hand your notarized contract to the office',
+            text: `You told the office on ${fmtDay(notarize.readyAt)} that your rent contract is notarized. Bring the notarized copy to management; they will mark it received.`,
+        } : {
+            key: 'notarize', tone: 'action', icon: faStamp,
+            title: 'Have your rent contract notarized',
+            text: 'Bring your signed rent contract to a notary public. When it is notarized, tell the office here and hand them the notarized copy.',
+            action: { label: notarizeBusy ? 'Sending…' : 'It is notarized', onClick: tellNotarized },
+        });
     }
 
     // What My Room shows, by section id (config/myRoomPage.js); the admin

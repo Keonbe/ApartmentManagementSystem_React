@@ -173,6 +173,7 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('inquiry_move_in_max_months', '6'),
 ('included_occupants', '4'),
 ('late_fee_enabled', 'false'),
+('contract_require_notarized', '1'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),
 ('min_household_age', '0'),

@@ -28,12 +28,31 @@ $result = $conn->query("
            (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed) AS outstanding,
            (SELECT COALESCE(SUM($bal), 0) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS overdue_amount,
            (SELECT MIN(i.due_date) FROM invoices i WHERE $invoice_scope AND $owed AND i.due_date < CURDATE()) AS oldest_overdue_due,
-           u.emergency_name AS cur_emergency_name, u.emergency_relationship AS cur_emergency_relationship, u.emergency_phone AS cur_emergency_phone
+           u.emergency_name AS cur_emergency_name, u.emergency_relationship AS cur_emergency_relationship, u.emergency_phone AS cur_emergency_phone,
+           u.avatar_url
     FROM rent_applications ra
     LEFT JOIN users u ON u.id = ra.user_id
     LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
     ORDER BY ra.id DESC
 ");
+
+// Rent extension requests waiting for a decision (extend_lease.php), newest per
+// tenant, so the Tenants page can approve or reject them where the tenant is
+// (process_tenant_request.php). One query for the whole list.
+$extension_by_user = [];
+$ext_res = $conn->query("SELECT id, user_id, metadata_value, created_at FROM notifications
+                         WHERE type = 'lease_extension_request' AND status = 'Pending' ORDER BY id DESC");
+while ($ext = $ext_res->fetch_assoc()) {
+    $uid = (int)$ext['user_id'];
+    if (!isset($extension_by_user[$uid])) {
+        $extension_by_user[$uid] = [
+            'id' => (int)$ext['id'],
+            'months' => (int)$ext['metadata_value'],
+            'requestedAt' => $ext['created_at'],
+        ];
+    }
+}
+$current_statuses = ['Approved', 'active', 'pending-move-out'];
 
 $tenants = [];
 $requirements = application_requirements_list($conn);
@@ -105,6 +124,10 @@ foreach ($rows as $row) {
         'depositAmount' => round((float)($row['deposit_amount'] ?? 0), 2),
         'depositHeld' => ($row['deposit_status'] ?? '') === 'Held',
         'user_id' => $row['user_id'] ?? null,
+        'avatar' => $row['avatar_url'] ?: null,
+        // Only on the tenancy in force: an older moved-out application of the same user gets none.
+        'extensionRequest' => in_array($row['status'], $current_statuses, true)
+            ? ($extension_by_user[(int)($row['user_id'] ?? 0)] ?? null) : null,
     ];
 }
 

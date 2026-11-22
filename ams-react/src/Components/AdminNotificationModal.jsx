@@ -21,6 +21,8 @@ const TYPE_CONFIG = {
   lease_extension_request: { label: 'Rent Extension', icon: faCalendarPlus, tone: 'emerald' },
   new_user: { label: 'New Account', icon: faUsers, tone: 'blue' },
   rent_application: { label: 'Rent Application', icon: faFileContract, tone: 'indigo' },
+  signed_contract: { label: 'Signed Contract', icon: faFileContract, tone: 'amber' },
+  notarized_contract: { label: 'Notarized Contract', icon: faFileContract, tone: 'amber' },
   maintenance_request: { label: 'Maintenance', icon: faWrench, tone: 'amber' },
   parking_reservation: { label: 'Parking', icon: faCar, tone: 'teal' },
   cctv_request: { label: 'CCTV Request', icon: faVideo, tone: 'slate' },

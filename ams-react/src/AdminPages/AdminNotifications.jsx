@@ -43,6 +43,8 @@ const typeConfig = {
   lease_extension_request: { label: 'Rent Extension', icon: faCalendarPlus, color: 'bg-emerald-100 text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
   new_user: { label: 'New Account', icon: faUsers, color: 'bg-blue-100 text-blue-600', badge: 'bg-blue-100 text-blue-700' },
   rent_application: { label: 'Rent Application', icon: faFileContract, color: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' },
+  signed_contract: { label: 'Signed Contract', icon: faFileContract, color: 'bg-amber-100 text-amber-700', badge: 'bg-amber-100 text-amber-800' },
+  notarized_contract: { label: 'Notarized Contract', icon: faFileContract, color: 'bg-amber-100 text-amber-700', badge: 'bg-amber-100 text-amber-800' },
   maintenance_request: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-100 text-amber-700', badge: 'bg-amber-100 text-amber-700' },
   parking_reservation: { label: 'Parking', icon: faCar, color: 'bg-teal-100 text-teal-600', badge: 'bg-teal-100 text-teal-700' },
   cctv_request: { label: 'CCTV Request', icon: faVideo, color: 'bg-slate-100 text-slate-600', badge: 'bg-slate-100 text-slate-700' },
@@ -62,13 +64,14 @@ const typeConfig = {
 const FILTERS = [
   { key: 'all', label: 'All', types: null },
   { key: 'decide', label: 'Occupancy & Rent', types: ['occupancy_request', 'household_request', 'lease_extension_request'] },
-  { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'new_user', 'inquiry', 'unit_waitlist', 'complaint'] },
+  { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'signed_contract', 'notarized_contract', 'new_user', 'inquiry', 'unit_waitlist', 'complaint'] },
   { key: 'maintenance', label: 'Maintenance', types: ['maintenance_request'] },
   { key: 'services', label: 'Services, CCTV & Parking', types: ['service_request', 'cctv_request', 'parking_reservation'] },
   { key: 'payments', label: 'Payments', types: ['payment_verification', 'cash_payment_declared', 'payment', 'refund_request', 'deposit_review', 'payment_followup', 'document_followup'] },
 ];
 
-const DECIDED_HERE = ['occupancy_request', 'household_request', 'lease_extension_request'];
+// Rent extension requests are decided on the Tenants page (filter Extension requests).
+const DECIDED_HERE = ['occupancy_request', 'household_request'];
 
 const AdminNotifications = () => {
   const navigate = useNavigate();
@@ -371,7 +374,7 @@ const AdminNotifications = () => {
 
                           <p className="text-label text-slate-600 m-0 leading-relaxed">{n.message}</p>
 
-                          {decideHere && n.type === 'lease_extension_request' && n.tenantOverdueTotal > 0 && (
+                          {isPending && n.type === 'lease_extension_request' && n.tenantOverdueTotal > 0 && (
                             <p className="rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap mt-2 mb-0 inline-flex items-center gap-1.5 bg-red-50 text-red-700 ring-red-200 ring-1 ring-inset">
                               <FontAwesomeIcon icon={faTimesCircle} />
                               Overdue: ₱{n.tenantOverdueTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })} — approval is refused until it's settled.

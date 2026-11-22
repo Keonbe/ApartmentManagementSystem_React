@@ -374,7 +374,8 @@ foreach ($input as $key => $value) {
     // Contract End (Other Settings): on/off switches are stored as '1' / '0'.
     // Language (Other Settings): language_switch_enabled shows the EN / FIL switch to tenants and guests.
     // Parking: parking_free makes new requests free (no fee, never billed).
-    if (in_array($key, ['lease_end_reminders_enabled', 'lease_end_reminder_email', 'lease_end_reminder_sms', 'upcoming_rooms_enabled', 'language_switch_enabled', 'parking_free', 'late_fee_enabled'], true)) {
+    // Contracts page settings: contract_require_notarized asks for a notarized copy of each contract.
+    if (in_array($key, ['lease_end_reminders_enabled', 'lease_end_reminder_email', 'lease_end_reminder_sms', 'upcoming_rooms_enabled', 'language_switch_enabled', 'parking_free', 'late_fee_enabled', 'contract_require_notarized'], true)) {
         if (!in_array($value, ['1', '0', 'true', 'false'], true)) {
             $refuse("Choose on or off for $key.");
         }

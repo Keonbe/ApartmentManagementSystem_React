@@ -22,6 +22,7 @@ import Modal from '../Components/admin/Modal';
 import { TH, btn } from '../Components/admin/ui/styles';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import LoadError from '../Components/admin/ui/LoadError';
+import SignedContractReview from '../Components/admin/SignedContractReview';
 
 const STATUS_OPTIONS = [
   { 
@@ -190,6 +191,7 @@ const AdminApplications = () => {
       const res = await api.get('/get_applications.php');
       if (res.data.success) {
         setApplications(res.data.data);
+        return res.data.data;
       } else {
         setErrorMsg("API returned success=false");
       }
@@ -199,6 +201,13 @@ const AdminApplications = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // After a decision inside the open detail: reload, and show the fresh row there.
+  const refreshSelectedApp = async () => {
+    const list = await loadApplications();
+    const fresh = list?.find((a) => a.id === selectedApp?.id);
+    if (fresh) setSelectedApp(fresh);
   };
 
   const fetchApplications = () => {
@@ -784,6 +793,9 @@ const AdminApplications = () => {
                           {/* Status */}
                           <td className="px-4 py-4">
                             {renderStatusBadge(app.status)}
+                            {app.contract?.review === 'pending' && (
+                              <span className="mt-1 block w-fit rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200">Signed contract to check</span>
+                            )}
                           </td>
 
                           {/* Actions */}
@@ -830,7 +842,9 @@ const AdminApplications = () => {
                               <div className="text-label text-slate-500 truncate">{app.email || '—'}</div>
                             </div>
                           </div>
-                          <div className="shrink-0">{renderStatusBadge(app.status)}</div>
+                          <div className="shrink-0 text-right">{renderStatusBadge(app.status)}{app.contract?.review === 'pending' && (
+                              <span className="mt-1 ml-auto block w-fit rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200">Signed contract to check</span>
+                            )}</div>
                         </div>
                         <dl className="space-y-1.5 text-body m-0">
                           {[
@@ -1088,6 +1102,19 @@ const AdminApplications = () => {
                  </div>
                  )}
               </div>
+
+              {/* The rent contract the tenant signed (after approval), with the office's check. */}
+              {selectedApp.contract && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium text-slate-800 mb-3 border-b border-slate-200 pb-2">Rent contract</h4>
+                  <SignedContractReview
+                    contract={selectedApp.contract}
+                    tenantName={selectedApp.first_name || 'The tenant'}
+                    onPreview={(path, title) => openPreview(null, path, title)}
+                    onChanged={refreshSelectedApp}
+                  />
+                </div>
+              )}
 
               {/* Ask the applicant for more documents (a notice; they answer by chat or at the office) */}
               {(selectedApp.status === 'Pending Review' || selectedApp.status === 'Approved') && (

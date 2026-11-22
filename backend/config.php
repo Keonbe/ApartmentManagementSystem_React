@@ -676,7 +676,7 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
         throw new ExtensionRefused("Only a tenant who has moved in can have their rent extended.");
     }
 
-    $stmt = $conn->prepare("SELECT id, status, lease_start, lease_end FROM lease_contracts WHERE rent_application_id = ? FOR UPDATE");
+    $stmt = $conn->prepare("SELECT id, status, lease_start, lease_end, signed_lease_path, notarized_lease_path FROM lease_contracts WHERE rent_application_id = ? FOR UPDATE");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
     $contract = $stmt->get_result()->fetch_assoc();
@@ -729,8 +729,21 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
     $stmt->execute();
     $stmt->close();
 
+    // When extended, the previous executed contracts are preserved in lease_renewals
+    // and the contract requires an updated signed copy for the new term.
     $stmt = $conn->prepare("UPDATE lease_contracts SET lease_end = DATE_ADD(lease_end, INTERVAL ? MONTH),
-                                   status = IF(status = 'expired', 'active', status), renewal_reminder_sent_at = NULL
+                                   status = IF(status = 'expired', 'active', status),
+                                   renewal_reminder_sent_at = NULL,
+                                   signed_lease_path = NULL,
+                                   signed_lease_uploaded_at = NULL,
+                                   signed_lease_review = NULL,
+                                   signed_lease_review_note = NULL,
+                                   signed_lease_reviewed_at = NULL,
+                                   signed_lease_reviewed_by = NULL,
+                                   notarized_ready_at = NULL,
+                                   notarized_at = NULL,
+                                   notarized_by = NULL,
+                                   notarized_lease_path = NULL
                             WHERE id = ?");
     $stmt->bind_param("is", $add_months, $contract['id']);
     $stmt->execute();
@@ -754,9 +767,12 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
     $stmt->close();
 
     $admin_id_param = $admin_id ? (int)$admin_id : null;
+    $prev_signed = $contract['signed_lease_path'] ?? null;
+    $prev_notarized = $contract['notarized_lease_path'] ?? null;
     // previous_rent is what rent_cap_refusal() measures this year's raises from.
-    $stmt = $conn->prepare("INSERT INTO lease_renewals (contract_id, added_months, previous_lease_end, new_lease_end, previous_rent, rent_at_renewal, approved_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sissddi", $contract['id'], $add_months, $previous_end, $new_end, $current_rent, $rent_at_renewal, $admin_id_param);
+    // previous_signed_lease_path preserves the executed agreement from before this extension.
+    $stmt = $conn->prepare("INSERT INTO lease_renewals (contract_id, added_months, previous_lease_end, new_lease_end, previous_rent, rent_at_renewal, previous_signed_lease_path, previous_notarized_lease_path, approved_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sissddssi", $contract['id'], $add_months, $previous_end, $new_end, $current_rent, $rent_at_renewal, $prev_signed, $prev_notarized, $admin_id_param);
     $stmt->execute();
     $stmt->close();
 
@@ -4113,7 +4129,11 @@ const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     // Follow-up monitor: an overdue tenant, or an applicant with documents outstanding.
     'payment_followup', 'document_followup',
     // A tenant's complaint waits for an admin until it is resolved.
-    'complaint'
+    'complaint',
+    // A tenant's signed contract copy waits for the office's check (signed_contract.php).
+    'signed_contract',
+    // A tenant's notarized contract waits to be handed in (notarized_contract.php).
+    'notarized_contract'
 ];
 
 // Age categories (infant / toddler / minor ...), edited in Settings → Minors & Pets.

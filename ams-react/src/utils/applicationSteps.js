@@ -63,7 +63,9 @@ export function applicationSteps(app) {
   const status = normalizeApplicationStatus(app.status);
   if (['pending-move-out', 'moved-out', 'none'].includes(status)) return [];
 
-  const signed = !!app.signed_lease_path;
+  // A copy the office sent back (signed_lease_review 'rejected') has to be uploaded again.
+  const sentBack = !!app.signed_lease_path && app.signed_lease_review === 'rejected';
+  const signed = !!app.signed_lease_path && !sentBack;
   // Cancellation can follow a fully settled move-in invoice, or an invoice
   // with received installments. Keep the payment state from my_room.php even
   // when cancellation means there is no longer an open invoice to inspect.
@@ -82,8 +84,9 @@ export function applicationSteps(app) {
       : (status === 'pending' || status === 'action') ? 'current' : 'upcoming');
   const contractState = cancelledAt ? (signed || hasPayment ? 'done' : 'upcoming')
     : housed || signed || hasPayment ? 'done' : status === 'approved' ? 'current' : 'upcoming';
+  // A copy sent back reopens the contract step, but a payment already started stays open.
   const paymentState = stopIf('payment', housed || paid ? 'done'
-    : status === 'approved' && signed ? 'current' : 'upcoming');
+    : status === 'approved' && (signed || (sentBack && hasPayment)) ? 'current' : 'upcoming');
   const moveInState = stopIf('movein', housed ? 'done' : status === 'approved' && paid ? 'current' : 'upcoming');
 
   const verifying = app.pending_invoice_status === 'pending-verification';
@@ -111,7 +114,9 @@ export function applicationSteps(app) {
       label: 'Sign your rent contract',
       state: contractState,
       tone: 'action',
-      note: contractState === 'current' ? 'Read the contract, sign it, and upload the signed copy.' : '',
+      note: contractState === 'current'
+        ? (sentBack ? 'The office asked for a new copy of your signed contract.' : 'Read the contract, sign it, and upload a photo or PDF of the signed copy.')
+        : '',
     },
     {
       key: 'payment',
