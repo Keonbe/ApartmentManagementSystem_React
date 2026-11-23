@@ -47,6 +47,7 @@ export const SETTINGS_SCHEMA = [
   { key: 'leaseEndRemindersEnabled', db: 'lease_end_reminders_enabled', type: 'bool', default: true, missingIsOn: true }, // the rent-end reminder (in-app)...
   { key: 'leaseEndReminderEmail', db: 'lease_end_reminder_email', type: 'bool', default: true, missingIsOn: true },       // ...also by email
   { key: 'leaseEndReminderSms', db: 'lease_end_reminder_sms', type: 'bool', default: true, missingIsOn: true },         // ...also by SMS
+  { key: 'contractRequireNotarized', db: 'contract_require_notarized', type: 'bool', default: true, missingIsOn: true }, // Contracts page settings: each contract needs a notarized copy
   { key: 'upcomingRoomsEnabled', db: 'upcoming_rooms_enabled', type: 'bool', default: true, missingIsOn: true },       // Preview lists units that will free up
   { key: 'languageSwitchEnabled', db: 'language_switch_enabled', type: 'bool', default: true, missingIsOn: true },     // tenants and guests see the EN / FIL switch; off = English only
   { key: 'maintenanceMonthlyBudget', db: 'maintenance_monthly_budget', type: 'float', default: 50000 }, // PHP

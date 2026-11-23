@@ -38,7 +38,7 @@ if (!$is_admin) {
 }
 
 if (!empty($user_id)) {
-    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.suffix, ra.contact_no, ra.previous_address, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
+    $stmt = $conn->prepare("SELECT lc.*, ra.user_id, ra.first_name, ra.last_name, ra.suffix, ra.contact_no, ra.previous_address, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
                             FROM rent_applications ra 
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
                             LEFT JOIN rooms rm ON ra.room_name = rm.id
@@ -49,7 +49,46 @@ if (!empty($user_id)) {
     $res = $stmt->get_result();
     $contract = $res && $res->num_rows > 0 ? $res->fetch_assoc() : null;
     $stmt->close();
-    echo json_encode(["success" => !empty($contract), "contract" => $contract, "contracts" => $contract ? [$contract] : []]);
+
+    $renewals = [];
+    $past_contracts = [];
+    if (!empty($contract['id'])) {
+        $ren_stmt = $conn->prepare("SELECT id, contract_id, added_months, previous_lease_end, new_lease_end, previous_rent, rent_at_renewal, previous_signed_lease_path, previous_notarized_lease_path, created_at FROM lease_renewals WHERE contract_id = ? ORDER BY id DESC");
+        $ren_stmt->bind_param("s", $contract['id']);
+        $ren_stmt->execute();
+        $ren_res = $ren_stmt->get_result();
+        if ($ren_res) {
+            while ($r = $ren_res->fetch_assoc()) {
+                $renewals[] = $r;
+            }
+        }
+        $ren_stmt->close();
+    }
+
+    $past_stmt = $conn->prepare("SELECT lc.*, ra.room_name, ra.monthly_rent, rm.type, ra.created_at as app_created_at
+                                 FROM lease_contracts lc
+                                 JOIN rent_applications ra ON lc.rent_application_id = ra.id
+                                 LEFT JOIN rooms rm ON ra.room_name = rm.id
+                                 WHERE ra.user_id = ? AND lc.id <> ?
+                                 ORDER BY lc.generated_at DESC");
+    $curr_cid = $contract['id'] ?? '';
+    $past_stmt->bind_param("is", $user_id, $curr_cid);
+    $past_stmt->execute();
+    $past_res = $past_stmt->get_result();
+    if ($past_res) {
+        while ($p = $past_res->fetch_assoc()) {
+            $past_contracts[] = $p;
+        }
+    }
+    $past_stmt->close();
+
+    echo json_encode([
+        "success" => !empty($contract),
+        "contract" => $contract,
+        "contracts" => $contract ? [$contract] : [],
+        "renewals" => $renewals,
+        "pastContracts" => $past_contracts
+    ]);
 } else if (!empty($email)) {
     // Lookup by email exists only for the admin contract preview. Tenants read
     // their own contract through the ?userId= branch above, which is scoped to
@@ -60,7 +99,7 @@ if (!empty($user_id)) {
         exit;
     }
 
-    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.suffix, ra.contact_no, ra.previous_address, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
+    $stmt = $conn->prepare("SELECT lc.*, ra.user_id, ra.first_name, ra.last_name, ra.suffix, ra.contact_no, ra.previous_address, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
                             FROM rent_applications ra
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
                             LEFT JOIN rooms rm ON ra.room_name = rm.id
@@ -71,7 +110,28 @@ if (!empty($user_id)) {
     $res = $stmt->get_result();
     $contract = $res && $res->num_rows > 0 ? $res->fetch_assoc() : null;
     $stmt->close();
-    echo json_encode(["success" => !empty($contract), "contract" => $contract, "contracts" => $contract ? [$contract] : []]);
+
+    $renewals = [];
+    if (!empty($contract['id'])) {
+        $ren_stmt = $conn->prepare("SELECT id, contract_id, added_months, previous_lease_end, new_lease_end, previous_rent, rent_at_renewal, previous_signed_lease_path, previous_notarized_lease_path, created_at FROM lease_renewals WHERE contract_id = ? ORDER BY id DESC");
+        $ren_stmt->bind_param("s", $contract['id']);
+        $ren_stmt->execute();
+        $ren_res = $ren_stmt->get_result();
+        if ($ren_res) {
+            while ($r = $ren_res->fetch_assoc()) {
+                $renewals[] = $r;
+            }
+        }
+        $ren_stmt->close();
+    }
+
+    echo json_encode([
+        "success" => !empty($contract),
+        "contract" => $contract,
+        "contracts" => $contract ? [$contract] : [],
+        "renewals" => $renewals,
+        "pastContracts" => []
+    ]);
 } else {
     // Admin-only global contract list
     if (!$is_admin) {
@@ -80,7 +140,8 @@ if (!empty($user_id)) {
         exit;
     }
 
-    $query = "SELECT c.*, r.user_id, r.first_name, r.last_name, r.suffix, r.email, r.room_name, r.monthly_rent, rm.type
+    // application_status: the tenancy behind the contract (Contracts shows current tenants first).
+    $query = "SELECT c.*, r.user_id, r.first_name, r.last_name, r.suffix, r.email, r.contact_no, r.previous_address, r.room_name, r.monthly_rent, r.status AS application_status, rm.type
               FROM lease_contracts c
               LEFT JOIN rent_applications r ON c.rent_application_id = r.id
               LEFT JOIN rooms rm ON r.room_name = rm.id

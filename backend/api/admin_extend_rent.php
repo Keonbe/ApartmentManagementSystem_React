@@ -62,7 +62,8 @@ try {
 
     $msg = "Your rent for Unit $room_id was extended by $add_months month(s), to " . date('M j, Y', strtotime($extension['new_end'])) . "."
         . ($new_rent !== null ? " Monthly rent from now on: ₱" . number_format($new_rent, 2) . "." : '')
-        . " Each added month is billed a week before it starts.";
+        . " Each added month is billed a week before it starts."
+        . " Please view, sign, and upload your updated rent contract.";
     if ($extension['holdover_invoices']) {
         $msg .= " Your contract had expired, so the " . count($extension['holdover_invoices']) . " month(s) you stayed since then (₱"
             . number_format($extension['holdover_total'], 2) . ") are now billed, due " . date('M j, Y', strtotime('+' . RENT_INVOICE_LEAD_DAYS . ' days')) . ".";

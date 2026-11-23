@@ -53,6 +53,20 @@ $six = [$candidates[0], $candidates[1], $candidates[0], $candidates[1], $candida
 
 $owner = null;
 $access = 'owner';
+// The owner's e-signature on the contract template (Edit Contract → Details) is
+// printed on every tenant's contract, so any signed-in user may load it, but
+// only while it is the signature in force (an old or unused upload is not served).
+// An admin may open any of them: the editor previews a new one before it is saved.
+if (strpos($normalized, 'uploads/contract_signatures/') === 0) {
+    require_once __DIR__ . '/../contract_template.php';
+    $sig_viewer = get_authenticated_user($conn);
+    if (!$sig_viewer) download_fail(401, "Unauthorized.");
+    if ($sig_viewer['role'] !== 'admin') {
+        $current_sig = contract_template_current($conn)['content']['details']['owner_signature'] ?? '';
+        if ($current_sig === '' || $current_sig !== $normalized) download_fail(404, "File not found.");
+    }
+    $access = 'signed_in';
+}
 $chat_participants = null;
 $guest_thread_id = null;
 $notification_recipients = null;
@@ -78,6 +92,10 @@ if ($owner === null) {
 }
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) OR lc.tenant_signature_path IN (?,?) OR lc.owner_signature_path IN (?,?) LIMIT 1", array_merge($six, $two));
+}
+if ($owner === null) {
+    // Previous executed contract documents preserved during tenancy extensions / renewals
+    $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_renewals lr JOIN lease_contracts lc ON lc.id = lr.contract_id JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lr.previous_signed_lease_path IN (?,?) OR lr.previous_notarized_lease_path IN (?,?) LIMIT 1", array_merge($two, $two));
 }
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM utility_readings WHERE bill_file_path IN (?,?) AND user_id IS NOT NULL LIMIT 1", $two);
@@ -146,9 +164,11 @@ if ($owner === null) {
     if ($owner !== null) $access = 'admin_only';
 }
 
-if ($owner === null && $chat_participants === null && $guest_thread_id === null && $notification_recipients === null) download_fail(404, "File not found.");
+if ($access !== 'signed_in' && $owner === null && $chat_participants === null && $guest_thread_id === null && $notification_recipients === null) download_fail(404, "File not found.");
 
-if ($notification_recipients !== null) {
+if ($access === 'signed_in') {
+    // Checked above: the current owner signature and a signed-in caller.
+} elseif ($notification_recipients !== null) {
     $auth = get_authenticated_user($conn);
     if (!$auth || ($auth['role'] !== 'admin' && !in_array((int)$auth['id'], $notification_recipients, true))) {
         download_fail($auth ? 403 : 401, $auth ? "Forbidden." : "Unauthorized.");

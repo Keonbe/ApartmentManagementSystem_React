@@ -45,3 +45,39 @@ export async function printElement(node, { variant = 'sheet' } = {}) {
   // and never fire afterprint, so clean up eventually either way.
   fallbackTimer = setTimeout(cleanup, 60000);
 }
+
+// The browser's own print (Ctrl+P, the menu) on a page whose printable part is
+// one element: copy it into #print-root the same way printElement() does, so it
+// prints exactly like the page's Print button. A print printElement() already
+// isolated is left alone. Returns the cleanup for a useEffect.
+export function isolateBrowserPrint(getNode, { variant = 'document' } = {}) {
+  let ours = false;
+  const before = () => {
+    if (document.body.classList.contains('print-isolated')) return;
+    const node = getNode();
+    if (!node) return;
+    let printRoot = document.getElementById('print-root');
+    if (!printRoot) {
+      printRoot = document.createElement('div');
+      printRoot.id = 'print-root';
+      document.body.appendChild(printRoot);
+    }
+    printRoot.dataset.variant = variant;
+    printRoot.replaceChildren(node.cloneNode(true));
+    document.body.classList.add('print-isolated');
+    ours = true;
+  };
+  const after = () => {
+    if (!ours) return;
+    ours = false;
+    document.body.classList.remove('print-isolated');
+    document.getElementById('print-root')?.replaceChildren();
+  };
+  window.addEventListener('beforeprint', before);
+  window.addEventListener('afterprint', after);
+  return () => {
+    window.removeEventListener('beforeprint', before);
+    window.removeEventListener('afterprint', after);
+    after();
+  };
+}

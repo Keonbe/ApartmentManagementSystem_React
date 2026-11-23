@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
+require_once __DIR__ . '/../signed_contract.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -138,9 +139,14 @@ if ($action === 'remove') {
         }
     }
 
-    $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = NULL WHERE id = ?");
+    // Removing the signed copy also ends its review (signed_contract.php).
+    $clear_review = $doc_type === 'signedLease'
+        ? ", signed_lease_uploaded_at = NULL, signed_lease_review = NULL, signed_lease_review_note = NULL, signed_lease_reviewed_at = NULL, signed_lease_reviewed_by = NULL"
+        : '';
+    $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = NULL$clear_review WHERE id = ?");
     $stmt->bind_param("s", $contract_id);
     if ($stmt->execute()) {
+        if ($doc_type === 'signedLease') resolve_admin_queue($conn, SIGNED_CONTRACT_QUEUE, $contract_id);
         log_activity($conn, $admin_id ?: $user_id, 'contract', "Removed Rent Document", "Document: $doc_type from Contract: $contract_id");
         echo json_encode(["success" => true, "message" => "Document removed successfully"]);
     } else {
@@ -152,15 +158,18 @@ if ($action === 'remove') {
 }
 
 // Uploading overwrites the stored document, so a tenant gets the same limit as
-// removing (audit M1): only while the contract is still a draft. Management's
-// own documents were already refused above.
+// removing (audit M1): only while the contract is still a draft, or if the contract
+// is active but has no signed lease on file (e.g. an extended tenancy awaiting updated
+// signed contract), or a signed copy the office sent back (review 'rejected').
 if (!$is_admin) {
-    $status_stmt = $conn->prepare("SELECT status FROM lease_contracts WHERE id = ?");
+    $status_stmt = $conn->prepare("SELECT status, signed_lease_path, signed_lease_review FROM lease_contracts WHERE id = ?");
     $status_stmt->bind_param("s", $contract_id);
     $status_stmt->execute();
     $status_row = $status_stmt->get_result()->fetch_assoc();
     $status_stmt->close();
-    if (!$status_row || $status_row['status'] !== 'draft') {
+    $sent_back = $status_row && $doc_type === 'signedLease' && signed_contract_review_state($status_row) === 'rejected';
+    $needs_signed = $status_row && $doc_type === 'signedLease' && empty($status_row['signed_lease_path']);
+    if (!$status_row || ($status_row['status'] !== 'draft' && !$sent_back && !$needs_signed)) {
         http_response_code(409);
         echo json_encode(["success" => false, "message" => "This contract is no longer a draft, so its documents can't be replaced — contact management."]);
         exit;
@@ -211,12 +220,39 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
     $destination = $upload_dir . $unique_file_name;
 
     if (move_uploaded_file($file_tmp, $destination)) {
-        $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = ? WHERE id = ?");
-        $stmt->bind_param("ss", $destination, $contract_id);
-        
+        if ($doc_type === 'signedLease') {
+            // A tenant's copy waits for the office's check; the office's own upload is accepted.
+            $review = $is_admin ? 'accepted' : 'pending';
+            $stmt = $conn->prepare("UPDATE lease_contracts
+                                       SET signed_lease_path = ?, signed_lease_uploaded_at = NOW(), signed_lease_review = ?, signed_lease_review_note = NULL,
+                                           signed_lease_reviewed_at = IF(? = 'accepted', NOW(), NULL), signed_lease_reviewed_by = ?
+                                     WHERE id = ?");
+            $stmt->bind_param("sssis", $destination, $review, $review, $admin_id, $contract_id);
+        } else {
+            $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = ? WHERE id = ?");
+            $stmt->bind_param("ss", $destination, $contract_id);
+        }
+
         if ($stmt->execute()) {
+            if ($doc_type === 'signedLease') {
+                try {
+                    if ($is_admin) resolve_admin_queue($conn, SIGNED_CONTRACT_QUEUE, $contract_id);
+                    else signed_contract_queue_review($conn, $contract_id);
+                } catch (Throwable $e) {
+                    error_log('upload_lease_document queue: ' . $e->getMessage());
+                }
+            }
+            // A scan of the notarized copy counts as received: the "to collect" alert goes.
+            if ($doc_type === 'notarizedLease') {
+                try {
+                    resolve_admin_queue($conn, NOTARIZED_CONTRACT_QUEUE, $contract_id);
+                } catch (Throwable $e) {
+                    error_log('upload_lease_document queue: ' . $e->getMessage());
+                }
+            }
             log_activity($conn, $admin_id ?: $user_id, 'contract', "Uploaded Rent Document", "Document: $doc_type to Contract: $contract_id");
-            echo json_encode(["success" => true, "message" => "Document uploaded successfully", "filePath" => $destination, "contractId" => $contract_id]);
+            echo json_encode(["success" => true, "message" => "Document uploaded successfully", "filePath" => $destination, "contractId" => $contract_id,
+                              "review" => $doc_type === 'signedLease' ? $review : null]);
         } else {
             echo json_encode(["success" => false, "message" => "Database update failed"]);
         }

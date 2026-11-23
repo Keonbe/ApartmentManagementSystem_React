@@ -14,6 +14,8 @@ export const FILE_RULES = {
   paymentProof: { maxMB: 10, ext: ['jpg', 'jpeg', 'png', 'webp', 'pdf'], label: 'JPG, PNG, WEBP or PDF' },
   // PaymentUpload receipt photo (the page promises JPG/PNG up to 5 MB)
   receiptImage: { maxMB: 5, ext: ['jpg', 'jpeg', 'png'], label: 'JPG or PNG' },
+  // The owner's e-signature on the contract template (upload_contract_signature.php).
+  signature:   { maxMB: 2, ext: ['png', 'jpg', 'jpeg'], label: 'PNG or JPG' },
   // store_room_image()
   image:       { maxMB: 10, ext: IMAGE, label: 'JPG, PNG, GIF or WEBP' },
   // profile.php avatar (no animated GIFs)

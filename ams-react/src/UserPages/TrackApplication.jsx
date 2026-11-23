@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faHourglassHalf, faCheckCircle, faArrowRight, faArrowLeft,
-    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faEye, faFilePdf, faQrcode
+    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faEye, faFilePdf, faQrcode,
+    faRotateLeft, faClock
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
@@ -95,7 +96,7 @@ export default function TrackApplication() {
     const validateAndSetContractFile = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const fileError = checkFile(file, FILE_RULES.pdf);
+        const fileError = checkFile(file, FILE_RULES.document);
         setContractError(fileError);
         if (fileError) {
             e.target.value = '';
@@ -140,7 +141,7 @@ export default function TrackApplication() {
         e?.preventDefault();
         if (uploadingContract) return;
         if (!contractFile) {
-            setContractError("Please select the signed contract (PDF) to upload.");
+            setContractError("Choose a photo or a PDF of your signed contract.");
             return;
         }
         setContractError('');
@@ -158,11 +159,13 @@ export default function TrackApplication() {
             if (res.data.success) {
                 setNotice({
                     message: 'Rent Contract Uploaded',
-                    subtext: 'Signed rent contract uploaded successfully! You may now proceed to initial payment.'
+                    subtext: 'The office will check your signed contract. You can go on to the move-in payment now.'
                 });
                 setApplication(prev => ({
                     ...prev,
                     signed_lease_path: res.data.filePath,
+                    signed_lease_review: res.data.review || 'pending',
+                    signed_lease_review_note: null,
                     contract_id: res.data.contractId
                 }));
                 clearContractFile();
@@ -181,6 +184,7 @@ export default function TrackApplication() {
         e.preventDefault();
         if (paying) return;
         setPayError('');
+        // A copy the office sent back does not stop a payment already under way.
         if (!application?.signed_lease_path) {
             setPayError("Please upload your signed rent contract before proceeding to payment.");
             return;
@@ -412,7 +416,10 @@ export default function TrackApplication() {
     const status = normalizeApplicationStatus(application?.status);
     const applicationChip = APPLICATION_STATUS_CHIP[status];
     const moveInPaymentSettled = isMoveInPaymentSettled(application);
-    const chip = status === 'approved' && application?.signed_lease_path && !moveInPaymentSettled
+    // The signed copy the office has not sent back (signed_lease_review, backend/signed_contract.php).
+    const signedReview = application?.signed_lease_path ? (application.signed_lease_review || 'accepted') : null;
+    const signedOnFile = !!signedReview && signedReview !== 'rejected';
+    const chip = status === 'approved' && signedOnFile && !moveInPaymentSettled
         ? { label: 'Pending Payment', tone: 'waiting' }
         : applicationChip;
     const steps = applicationSteps(application);
@@ -578,20 +585,27 @@ export default function TrackApplication() {
 
     const contractBody = (
         <div className="space-y-4">
+            {signedReview === 'rejected' && (
+                <div role="note" className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                    <p className="m-0 flex items-center gap-2 text-sm font-bold text-rose-800"><FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" /> The office asked for a new copy</p>
+                    {application.signed_lease_review_note && <p className="m-0 mt-1 text-sm leading-relaxed text-slate-800">{application.signed_lease_review_note}</p>}
+                </div>
+            )}
             <button type="button" onClick={() => navigate('/view-contract')} className={BTN_QUIET}>
                 <FontAwesomeIcon icon={faFileContract} aria-hidden="true" /> {t('trackApp.viewPrintContract')}
             </button>
             <form onSubmit={handleContractUpload} className="track-app-upload-form space-y-3" noValidate>
                 <label htmlFor="contract-file" className="block text-sm font-bold text-slate-800">
-                    Signed contract <span className="font-normal text-slate-600">(PDF, up to 5 MB)</span>
+                    Signed contract <span className="font-normal text-slate-600">(a photo or a PDF, up to {FILE_RULES.document.maxMB} MB)</span>
                 </label>
+                <p className="m-0 text-sm text-slate-600">Print the contract, sign it, then take a clear photo of the signed page (or scan it to PDF).</p>
                 <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
                     <input
                         key={contractInputKey}
                         type="file"
                         id="contract-file"
                         name="file"
-                        accept={acceptFor(FILE_RULES.pdf)}
+                        accept={acceptFor(FILE_RULES.document)}
                         aria-invalid={contractError ? true : undefined}
                         aria-describedby={contractError ? 'contract-file-error' : undefined}
                         onChange={validateAndSetContractFile}
@@ -609,17 +623,25 @@ export default function TrackApplication() {
     );
 
     // The signed copy is on file: shown above the payment, with a way to replace it.
-    const signedContractRow = application?.signed_lease_path && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+    // A copy sent back is replaced from the contract step above; a draft's copy can be replaced here.
+    const canReplaceSigned = application?.contract_status === 'draft' || signedReview === 'rejected';
+    const SIGNED_ROW = {
+        pending: { box: 'border-sky-200 bg-sky-50', text: 'text-sky-800', icon: faClock, label: 'Your signed contract was sent. The office will check it.' },
+        accepted: { box: 'border-emerald-200 bg-emerald-50', text: 'text-emerald-800', icon: faCheckCircle, label: 'The office accepted your signed contract.' },
+        rejected: { box: 'border-rose-200 bg-rose-50', text: 'text-rose-800', icon: faRotateLeft, label: 'The office asked for a new copy of your signed contract.' },
+    }[signedReview];
+    const signedContractRow = SIGNED_ROW && (
+        <div className={`rounded-xl border p-4 space-y-3 ${SIGNED_ROW.box}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="m-0 flex items-center gap-2 text-sm font-semibold text-emerald-800">
-                    <FontAwesomeIcon icon={faCheckCircle} aria-hidden="true" /> Your signed contract is on file.
+                <p className={`m-0 flex items-center gap-2 text-sm font-semibold ${SIGNED_ROW.text}`}>
+                    <FontAwesomeIcon icon={SIGNED_ROW.icon} aria-hidden="true" /> {SIGNED_ROW.label}
                 </p>
                 <span className="flex flex-wrap items-center gap-2">
                     <button type="button" onClick={openSubmittedContractPreview} className={BTN_QUIET}>
                         <FontAwesomeIcon icon={faEye} aria-hidden="true" /> View
                     </button>
                     {/* The input stays focusable (sr-only, not hidden), so the label works from the keyboard. */}
+                    {canReplaceSigned && (
                     <label className={`relative ${BTN_QUIET} focus-within:ring-2 focus-within:ring-indigo-500`}>
                         {t('trackApp.reupload')}
                         <input
@@ -627,13 +649,14 @@ export default function TrackApplication() {
                             type="file"
                             id="contract-file"
                             name="file"
-                            accept={acceptFor(FILE_RULES.pdf)}
+                            accept={acceptFor(FILE_RULES.document)}
                             aria-invalid={contractError ? true : undefined}
                             aria-describedby={contractError ? 'contract-file-error' : undefined}
                             className="sr-only"
                             onChange={validateAndSetContractFile}
                         />
                     </label>
+                    )}
                 </span>
             </div>
             {contractFile && (
@@ -736,10 +759,14 @@ export default function TrackApplication() {
     );
 
     const moveInBody = (
-        <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => navigate('/view-contract')} className={BTN_QUIET}>
-                <FontAwesomeIcon icon={faFileContract} aria-hidden="true" /> {t('trackApp.viewContract')}
-            </button>
+        <div className="space-y-4">
+            {/* Where the office's check of the signed copy stands (a copy sent back opens the upload above). */}
+            {signedReview && signedReview !== 'rejected' && signedContractRow}
+            <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => navigate('/view-contract')} className={BTN_QUIET}>
+                    <FontAwesomeIcon icon={faFileContract} aria-hidden="true" /> {t('trackApp.viewContract')}
+                </button>
+            </div>
         </div>
     );
 
@@ -823,6 +850,11 @@ export default function TrackApplication() {
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
                         <section aria-label="Application progress" className={`${PANEL} p-5 sm:p-7`}>
+                            {/* A copy sent back after the contract step was passed (already paid or moved in). */}
+                            {/* (The contract step's own body, or the payment step's signed-copy row, covers it otherwise.) */}
+                            {signedReview === 'rejected' && !steps.some((s) => ['contract', 'payment'].includes(s.key) && s.state === 'current') && (
+                                <div className="mb-6 border-b border-slate-200 pb-6">{contractBody}</div>
+                            )}
                             <ApplicationStepper steps={steps} bodies={bodies} />
                             {status === 'active' && (
                                 <button type="button" onClick={() => navigate('/my-room')} className={`${BTN_PRIMARY} mt-6`}>

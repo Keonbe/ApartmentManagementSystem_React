@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
+require_once __DIR__ . '/../signed_contract.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -146,27 +147,51 @@ function dashboard_attention($conn, $advanceMonthsFilter, $sinceDays) {
             (SELECT COUNT(*) FROM service_requests WHERE status = 'Pending' AND created_at >= NOW() - INTERVAL ? DAY) AS service_requests,
             (SELECT COUNT(*) FROM refund_requests WHERE status = 'Pending Review' AND created_at >= NOW() - INTERVAL ? DAY) AS refunds_to_review,
             (SELECT COUNT(*) FROM inquiries WHERE status = 'New' AND admin_seen_at IS NULL AND created_at >= NOW() - INTERVAL ? DAY) AS new_inquiries,
-            (SELECT COUNT(*) FROM utility_readings WHERE is_invoiced = 0 AND created_at >= NOW() - INTERVAL ? DAY) AS readings_to_invoice
-    ", 'iiiiii', $days, $days, $days, $days, $days, $days), ['parking_requests', 'cctv_requests', 'service_requests', 'refunds_to_review', 'new_inquiries', 'readings_to_invoice']);
+            (SELECT COUNT(*) FROM utility_readings WHERE is_invoiced = 0 AND created_at >= NOW() - INTERVAL ? DAY) AS readings_to_invoice,
+            -- Inquiries whose prospect wrote again and nobody read it yet: a guest thread,
+            -- or an account holder who never applied (the Inquiries page is where both
+            -- are answered; tenants' chats count on Messages).
+            (SELECT COUNT(DISTINCT g.inquiry_id) FROM guest_messages g
+              WHERE g.sender_role = 'guest' AND g.is_read = 0 AND g.created_at >= NOW() - INTERVAL ? DAY)
+            + (SELECT COUNT(DISTINCT m.sender_id) FROM messages m
+                 JOIN users a ON a.id = m.receiver_id AND a.role = 'admin'
+                 JOIN inquiries i ON i.user_id = m.sender_id AND m.created_at >= i.created_at
+                WHERE m.is_read = 0 AND m.created_at >= NOW() - INTERVAL ? DAY
+                  AND NOT EXISTS (SELECT 1 FROM rent_applications ra WHERE ra.user_id = m.sender_id)) AS inquiry_messages
+    ", 'iiiiiiii', $days, $days, $days, $days, $days, $days, $days, $days), ['parking_requests', 'cctv_requests', 'service_requests', 'refunds_to_review', 'new_inquiries', 'readings_to_invoice', 'inquiry_messages']);
 
-    // Contracts still in force; "missing documents" is the same rule as the Contracts page filter.
+    // Contracts still in force; "missing documents" is the same rule as the Contracts page
+    // filter, counted for current tenants only (the Contracts page opens on them): the
+    // application behind the contract is Approved, active or giving notice. The notarized
+    // copy counts only while the Contracts page setting asks for it (signed_contract.php).
+    $notarized_missing = contract_requires_notarized($conn)
+        ? " OR (lc.notarized_at IS NULL AND (lc.notarized_lease_path IS NULL OR lc.notarized_lease_path = ''))"
+        : '';
     $fill($attn("
         SELECT
-            SUM(status = 'eviction-pending' OR eviction_status = 'flagged') AS eviction_pending,
-            SUM(status IN ('draft', 'active', 'eviction-pending')
-                AND (signed_lease_path IS NULL OR signed_lease_path = '' OR notarized_lease_path IS NULL OR notarized_lease_path = '')
-                AND generated_at >= NOW() - INTERVAL ? DAY) AS contracts_missing_docs,
-            SUM(status = 'draft' AND generated_at >= NOW() - INTERVAL ? DAY) AS contracts_draft,
-            SUM(status = 'active' AND lease_end BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)) AS contracts_ending
-        FROM lease_contracts
-    ", 'iii', $days, $days, $endingDays), ['eviction_pending', 'contracts_missing_docs', 'contracts_draft', 'contracts_ending']);
+            SUM(lc.status = 'eviction-pending' OR lc.eviction_status = 'flagged') AS eviction_pending,
+            SUM(lc.status IN ('draft', 'active', 'eviction-pending') AND ra.status IN ('Approved', 'active', 'pending-move-out')
+                AND (lc.signed_lease_path IS NULL OR lc.signed_lease_path = ''$notarized_missing)
+                AND lc.generated_at >= NOW() - INTERVAL ? DAY) AS contracts_missing_docs,
+            SUM(lc.status = 'draft' AND lc.generated_at >= NOW() - INTERVAL ? DAY) AS contracts_draft,
+            -- A tenant's signed copy waiting for the office's check (signed_contract.php); never ages out.
+            SUM(lc.signed_lease_review = 'pending' AND lc.signed_lease_path IS NOT NULL AND lc.signed_lease_path <> '' AND ra.status IN ('Approved', 'active', 'pending-move-out')) AS signed_contracts_to_review,
+            -- A tenant said the notarized copy is ready to hand in and the office has not marked it received.
+            SUM(lc.notarized_ready_at IS NOT NULL AND lc.notarized_at IS NULL AND (lc.notarized_lease_path IS NULL OR lc.notarized_lease_path = '') AND ra.status IN ('Approved', 'active', 'pending-move-out')) AS notarized_contracts_to_collect,
+            SUM(lc.status = 'active' AND lc.lease_end BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)) AS contracts_ending
+        FROM lease_contracts lc
+        LEFT JOIN rent_applications ra ON ra.id = lc.rent_application_id
+    ", 'iii', $days, $days, $endingDays), ['eviction_pending', 'contracts_missing_docs', 'contracts_draft', 'signed_contracts_to_review', 'notarized_contracts_to_collect', 'contracts_ending']);
     $attention['contracts_ending_days'] = $endingDays;
 
-    // Requests only decided from the admin queue (Notifications page).
-    $fill($attn("SELECT COUNT(*) AS requests_to_decide FROM notifications WHERE status = 'Pending' AND type IN ('occupancy_request', 'household_request', 'lease_extension_request') AND created_at >= NOW() - INTERVAL ? DAY", 'i', $days), ['requests_to_decide']);
+    // Requests decided from the admin queue: occupancy and household changes on the
+    // Notifications page, rent extensions on the Tenants page (one query, two counts).
+    $fill($attn("SELECT COALESCE(SUM(type IN ('occupancy_request', 'household_request')), 0) AS requests_to_decide,
+                        COALESCE(SUM(type = 'lease_extension_request'), 0) AS extension_requests
+                 FROM notifications WHERE status = 'Pending' AND type IN ('occupancy_request', 'household_request', 'lease_extension_request') AND created_at >= NOW() - INTERVAL ? DAY", 'i', $days), ['requests_to_decide', 'extension_requests']);
 
     $attention['since_days'] = $sinceDays;
-    $attention['undated_keys'] = ['proofs_to_verify', 'cash_visits', 'failed_payments', 'move_in_due', 'move_out_requests', 'eviction_pending', 'contracts_ending'];
+    $attention['undated_keys'] = ['proofs_to_verify', 'cash_visits', 'failed_payments', 'move_in_due', 'move_out_requests', 'eviction_pending', 'signed_contracts_to_review', 'notarized_contracts_to_collect', 'contracts_ending'];
     return $attention;
 }
 

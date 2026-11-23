@@ -183,7 +183,18 @@ CREATE TABLE `lease_contracts` (
   `lease_end` date DEFAULT NULL,
   `status` enum('draft','active','expired','terminated','eviction-pending') NOT NULL DEFAULT 'draft',
   `signed_lease_path` varchar(255) DEFAULT NULL,
+  -- The office's check of the tenant's signed copy (signed_contract_review):
+  -- pending / accepted / rejected with a note; NULL with a file = accepted (older copy).
+  `signed_lease_uploaded_at` datetime DEFAULT NULL,
+  `signed_lease_review` enum('pending','accepted','rejected') DEFAULT NULL,
+  `signed_lease_review_note` varchar(255) DEFAULT NULL,
+  `signed_lease_reviewed_at` datetime DEFAULT NULL,
+  `signed_lease_reviewed_by` int(11) DEFAULT NULL,
   `notarized_lease_path` varchar(255) DEFAULT NULL,
+  -- Notarized in person (SPRINT 240): the tenant said it is ready, the office marked it received.
+  `notarized_ready_at` datetime DEFAULT NULL,
+  `notarized_at` datetime DEFAULT NULL,
+  `notarized_by` int(11) DEFAULT NULL,
   -- contract_template_versions.id the terms were issued under (NULL = latest).
   `template_version_id` int(11) DEFAULT NULL,
   `eviction_status` varchar(50) DEFAULT NULL,
@@ -237,6 +248,9 @@ CREATE TABLE IF NOT EXISTS `lease_renewals` (
   -- first raise of the calendar year (rent_cap_refusal()).
   `previous_rent` decimal(10,2) DEFAULT NULL,
   `rent_at_renewal` decimal(10,2) DEFAULT NULL,
+  -- Signed contract on file before this renewal (archived into history on extension)
+  `previous_signed_lease_path` varchar(255) DEFAULT NULL,
+  `previous_notarized_lease_path` varchar(255) DEFAULT NULL,
   `approved_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
@@ -1727,6 +1741,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('inquiry_move_in_max_months', '6'),
 ('included_occupants', '4'),
 ('late_fee_enabled', 'false'),
+('contract_require_notarized', '1'),
 -- Off: rent is billed by whole tenancy months; on: the last period of a mid-period move-out is charged per day (rent ÷ 30).
 ('prorate_final_period', '0'),
 ('late_fee_type', 'flat'),

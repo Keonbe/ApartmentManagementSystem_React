@@ -77,7 +77,8 @@ const SIDE_TITLE = 'm-0 text-label font-semibold text-slate-800';
 const statusMatches = (item, filter) => {
   const s = (item.status || '').toLowerCase();
   if (filter === 'all') return true;
-  if (filter === 'open') return OPEN_STATUSES.includes(s);
+  // Open also keeps an inquiry whose prospect wrote again, whatever its status (the red chat count).
+  if (filter === 'open') return OPEN_STATUSES.includes(s) || Number(item.unreadCount) > 0;
   return s === filter;
 };
 // MySQL "YYYY-MM-DD HH:MM:SS" as a local date (Safari rejects the space).
@@ -236,6 +237,23 @@ export default function AdminInquiries() {
     const load = async () => { await Promise.all([loadData(), fetchSupporting()]); };
     load();
   }, [loadData, fetchSupporting]);
+
+  // A prospect's new message shows on its row (the red chat count) without a reload:
+  // the list is read again every 15 s while the tab is in view. A failed read just
+  // waits for the next one.
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const res = await api.get('get_inquiries.php');
+        if (res.data?.success) {
+          setInquiries(res.data.inquiries || []);
+          setReservations(res.data.reservations || []);
+        }
+      } catch { /* the next poll tries again */ }
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   const runExpirySweep = async () => {
     try {
@@ -518,7 +536,8 @@ export default function AdminInquiries() {
   const newCount = inquiries.filter(isNewInquiry).length;
   const shownNew = view === 'inquiries' ? filteredInquiries.filter(isNewInquiry).length : 0;
   const shownAwaiting = view === 'inquiries' ? filteredInquiries.filter(isAwaitingReply).length : 0;
-  const waitingParts = [shownNew && `${shownNew} new`, shownAwaiting && `${shownAwaiting} waiting for a reply`].filter(Boolean);
+  const shownMessages = view === 'inquiries' ? filteredInquiries.filter((i) => i.unreadCount > 0).length : 0;
+  const waitingParts = [shownNew && `${shownNew} new`, shownAwaiting && `${shownAwaiting} waiting for a reply`, shownMessages && `${shownMessages} with a new message`].filter(Boolean);
   const filterSummary = `${shownCount} ${statusFilter === 'all' ? '' : `${tabLabel(statusFilter).toLowerCase()} `}${noun}${q ? ` matching “${searchQuery.trim()}”` : ''}${waitingParts.length ? ` (${waitingParts.join(', ')})` : ''}, ${sort === 'newest' ? 'newest' : 'oldest'} first`;
   const isOpenInquiry = (inq) => OPEN_STATUSES.includes((inq.status || '').toLowerCase());
 
@@ -676,9 +695,9 @@ export default function AdminInquiries() {
                                 <span className="min-w-0">{inq.fullName}</span>
                                 {isNewInquiry(inq) && <span className="sr-only">(new, not opened yet)</span>}
                                 {inq.unreadCount > 0 && (
-                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-600 px-1.5 py-px text-[10px] font-bold text-white" title={`${inq.unreadCount} unread message${inq.unreadCount === 1 ? '' : 's'}`}>
+                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-1.5 py-px text-[10px] font-bold text-white" title={`${inq.unreadCount} new message${inq.unreadCount === 1 ? '' : 's'} from ${inq.fullName}`}>
                                     <FontAwesomeIcon icon={faComment} className="text-[9px]" aria-hidden="true" />{inq.unreadCount}
-                                    <span className="sr-only"> unread messages</span>
+                                    <span className="sr-only"> new messages</span>
                                   </span>
                                 )}
                               </p>

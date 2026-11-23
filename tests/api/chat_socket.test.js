@@ -219,7 +219,7 @@ describe('sending', () => {
 
 describe('complaints over the socket (SPRINT 189)', () => {
   it('a message between a tenant and the office follows the tenant\'s open complaint; others do not', async () => {
-    const filed = await api('file_complaint.php', { token: maria, json: { category: 'Noise', message: 'Loud music from the unit above' } });
+    const filed = await api('file_complaint.php', { token: maria, json: { category: 'Neighbor', message: 'Loud music from the unit above' } });
     const complaintId = filed.body.complaint.id;
     const [mariaSock, joseSock] = await Promise.all([connect(maria), connect(jose)]);
 

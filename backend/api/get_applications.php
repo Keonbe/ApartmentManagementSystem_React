@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "../config.php";
+require_once __DIR__ . '/../signed_contract.php';
 
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
@@ -23,9 +24,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $query = "SELECT 
                 ra.*, 
                 u.avatar_url,
-                EXISTS(SELECT 1 FROM invoices i WHERE i.rent_application_id = ra.id AND i.security_deposit > 0 AND i.status = 'paid') AS initial_payment_paid
+                EXISTS(SELECT 1 FROM invoices i WHERE i.rent_application_id = ra.id AND i.security_deposit > 0 AND i.status = 'paid') AS initial_payment_paid,
+                lc.id AS contract_id, lc.status AS contract_status, lc.signed_lease_path, lc.signed_lease_uploaded_at,
+                lc.signed_lease_review, lc.signed_lease_review_note, lc.signed_lease_reviewed_at
               FROM rent_applications ra
-              LEFT JOIN users u ON ra.user_id = u.id 
+              LEFT JOIN users u ON ra.user_id = u.id
+              LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
               ORDER BY ra.id DESC";
               
     $result = $conn->query($query);
@@ -72,6 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'avatar_url' => $row['avatar_url'] ?? null, 
                 'rejection_reason' => $row['rejection_reason'] ?? null,
                 'rejection_attachment_path' => $row['rejection_attachment_path'] ?? null,
+                // The rent contract once the application is approved, with the
+                // tenant's signed copy and the office's check of it (signed_contract.php).
+                'contract' => empty($row['contract_id']) ? null : [
+                    'id' => $row['contract_id'],
+                    'status' => $row['contract_status'],
+                    'signedPath' => $row['signed_lease_path'] ?: null,
+                ] + signed_contract_review_payload($row),
             ];
         }
         echo json_encode(["success" => true, "data" => $applications]);

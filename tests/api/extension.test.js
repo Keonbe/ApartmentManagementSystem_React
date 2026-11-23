@@ -148,6 +148,41 @@ describe('admin Extend Rent uses the same range (unit C)', () => {
     expect(renewal?.added_months).toBe(3);
   });
 
+  it('extending archives the previous signed contract to lease_renewals and resets contract for updated signing', async () => {
+    // Give Rosa a signed lease on file
+    await q("UPDATE lease_contracts SET signed_lease_path = 'uploads/contracts/rosa_old_signed.pdf' WHERE rent_application_id = 3");
+    const res = await api('admin_extend_rent.php', { token: admin, json: { roomId: 'C', addMonths: 3 } });
+    expect(res.status).toBe(200);
+
+    const renewal = await one('SELECT previous_signed_lease_path FROM lease_renewals WHERE contract_id = (SELECT id FROM lease_contracts WHERE rent_application_id = 3) ORDER BY id DESC LIMIT 1');
+    expect(renewal.previous_signed_lease_path).toBe('uploads/contracts/rosa_old_signed.pdf');
+
+    const contract = await one('SELECT signed_lease_path, signed_lease_review FROM lease_contracts WHERE rent_application_id = 3');
+    expect(contract.signed_lease_path).toBeNull();
+    expect(contract.signed_lease_review).toBeNull();
+
+    // Notification contains prompt to upload updated contract
+    const notif = await one("SELECT message FROM notifications WHERE user_id = 5 AND type = 'contract_update' ORDER BY id DESC LIMIT 1");
+    expect(notif.message).toContain('Please view, sign, and upload your updated rent contract');
+
+    // Tenant reads their contract and renewals history
+    const tenantContracts = await api('get_contracts.php?userId=5', { token: rosa });
+    expect(tenantContracts.status).toBe(200);
+    expect(tenantContracts.body.renewals.length).toBeGreaterThan(0);
+    expect(tenantContracts.body.renewals[0].previous_signed_lease_path).toBe('uploads/contracts/rosa_old_signed.pdf');
+
+    // Tenant uploads updated signed contract for the extended term
+    const photo = { bytes: Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64'), type: 'image/jpeg', name: 'updated_contract.jpg' };
+    const form = new FormData();
+    form.append('contractId', tenantContracts.body.contract.id);
+    form.append('docType', 'signedLease');
+    form.append('file', new Blob([photo.bytes], { type: photo.type }), photo.name);
+    const uploadRes = await api('upload_lease_document.php', { token: rosa, form });
+    expect(uploadRes.status).toBe(200);
+    expect(uploadRes.body.success).toBe(true);
+    expect(uploadRes.body.review).toBe('pending');
+  });
+
   it('KB-E04 a tenant cannot call admin Extend Rent', async () => {
     const res = await api('admin_extend_rent.php', { token: rosa, json: { roomId: 'C', addMonths: 3 } });
     expect(res.status).toBe(403);

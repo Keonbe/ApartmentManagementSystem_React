@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
+require_once __DIR__ . '/../signed_contract.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -50,7 +51,7 @@ if (!empty($_GET['summary'])) {
 
 expire_lapsed_contracts($conn);
 
-$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.previous_address, ra.emergency_name, ra.emergency_relationship, ra.emergency_phone, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path, rm.type AS room_type, rm.floor AS room_floor FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id LEFT JOIN rooms rm ON rm.id = ra.room_name WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.previous_address, ra.emergency_name, ra.emergency_relationship, ra.emergency_phone, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.signed_lease_review, lc.signed_lease_review_note, lc.signed_lease_uploaded_at, lc.notarized_lease_path, lc.notarized_ready_at, lc.notarized_at, rm.type AS room_type, rm.floor AS room_floor FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id LEFT JOIN rooms rm ON rm.id = ra.room_name WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -146,6 +147,11 @@ if ($result->num_rows > 0) {
             'deadline' => $deadline,
         ];
     }
+
+    // The notarized contract (Contracts page settings; backend/signed_contract.php): whether
+    // the office needs one, and whether it has it (marked received or a scan on file).
+    $room_data['notarized_required'] = contract_requires_notarized($conn);
+    $room_data['notarized'] = contract_is_notarized($room_data);
 
     echo json_encode(["success" => true, "data" => $room_data]);
 } else {

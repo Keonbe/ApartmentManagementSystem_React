@@ -4,7 +4,9 @@
 // The contract is one JSON document, versioned in contract_template_versions
 // (highest version in force). Shape, as produced by contract_template_sanitize():
 //
-//   details          landlord_name, landlord_address, landlord_contact, property_address
+//   details          landlord_name, landlord_address, landlord_contact, property_address,
+//                    owner_signature (path of the owner's e-signature image, '' for none;
+//                    upload_contract_signature.php, printed on every contract without its own)
 //   payment_accounts [{ id, type: gcash|bank|ewallet|cash|other, label, account_number,
 //                       account_name, note: {en, tl} }]
 //   variables        [{ key, label, value }]            custom {{key}} placeholders
@@ -18,6 +20,17 @@
 // renders it as text nodes — no HTML is ever stored or interpreted.
 //
 // Requires config.php (for $conn helpers) to be loaded first.
+
+// The owner's e-signature image (Edit Contract → Details), stored by
+// upload_contract_signature.php as uploads/contract_signatures/<32 hex>.png|jpg.
+const CONTRACT_SIGNATURE_DIR = 'uploads/contract_signatures/';
+const CONTRACT_SIGNATURE_MAX_BYTES = 2 * 1024 * 1024;
+
+// A template's owner_signature value is a file this endpoint stored, and it still exists.
+function contract_signature_path_ok($path) {
+    if (!is_string($path) || !preg_match('#^uploads/contract_signatures/[a-f0-9]{32}\.(png|jpg)$#', $path)) return false;
+    return is_file(__DIR__ . '/' . $path);
+}
 
 // Filled in per tenant/contract by the renderer (ams-react/src/Components/contract/contractRender.js).
 const CONTRACT_BUILTIN_PLACEHOLDERS = [
@@ -340,6 +353,13 @@ function contract_template_sanitize($input, &$error) {
         $out['details'][$key] = ct_clean_string($d[$key] ?? '', $L['detail'], $label, $key === 'landlord_name', $error);
         if ($error) return null;
     }
+    // Optional: the owner's e-signature, only a file upload_contract_signature.php stored.
+    $sig = is_string($d['owner_signature'] ?? null) ? trim($d['owner_signature']) : '';
+    if ($sig !== '' && !contract_signature_path_ok($sig)) {
+        $error = "The owner's signature image was not found. Upload it again.";
+        return null;
+    }
+    $out['details']['owner_signature'] = $sig;
 
     // Payment accounts
     $accounts = is_array($input['payment_accounts'] ?? null) ? array_values($input['payment_accounts']) : [];
@@ -434,7 +454,13 @@ function contract_template_sanitize($input, &$error) {
 // Short description of what changed between two documents, for the activity log.
 function contract_template_change_summary($old, $new) {
     $parts = [];
-    if (($old['details'] ?? null) != $new['details']) $parts[] = 'landlord details';
+    $old_details = $old['details'] ?? [];
+    $new_details = $new['details'] ?? [];
+    $old_sig = $old_details['owner_signature'] ?? '';
+    $new_sig = $new_details['owner_signature'] ?? '';
+    unset($old_details['owner_signature'], $new_details['owner_signature']);
+    if ($old_details != $new_details) $parts[] = 'landlord details';
+    if ($old_sig !== $new_sig) $parts[] = $new_sig === '' ? 'owner e-signature removed' : 'owner e-signature';
     if (($old['payment_accounts'] ?? null) != $new['payment_accounts']) $parts[] = 'payment accounts';
     if (($old['variables'] ?? null) != $new['variables']) $parts[] = 'custom values';
     if (($old['terms'] ?? null) != $new['terms']) $parts[] = 'clauses/terms';

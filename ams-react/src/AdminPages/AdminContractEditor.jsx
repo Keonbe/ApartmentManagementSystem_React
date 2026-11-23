@@ -7,7 +7,7 @@ import {
   faFileSignature, faListOl, faAddressCard, faEye, faHistory, faPlus, faTrash, faArrowUp, faArrowDown,
   faChevronDown, faChevronRight, faSave, faSpinner, faUndo, faCheckCircle, faExclamationTriangle, faTimes,
   faWallet, faUserShield, faCode, faInfoCircle, faRotateLeft, faSearch, faCopy, faPrint,
-  faExpandAlt, faCompressAlt, faUsers, faEdit, faFileContract
+  faExpandAlt, faCompressAlt, faUsers, faEdit, faFileContract, faSignature, faUpload
 } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, Callout, INPUT } from './settings/SettingsSection';
 import ContractDocument from '../Components/contract/ContractDocument';
@@ -19,6 +19,8 @@ import {
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { printElement } from '../utils/print';
+import { fileUrl } from '../api/fileUrl';
+import { FILE_RULES, checkFile } from '../utils/fileLimits';
 import { btn } from '../Components/admin/ui/styles';
 import Spinner from '../Components/admin/ui/Spinner';
 import { LIMITS } from '../utils/validation';
@@ -254,6 +256,31 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
       input.focus();
       input.setSelectionRange(start + token.length, start + token.length);
     }, 0);
+  };
+
+  // The owner's e-signature image: uploaded at once, applied with the next save.
+  const [sigBusy, setSigBusy] = useState(false);
+  const [sigError, setSigError] = useState('');
+  const uploadOwnerSignature = async (file) => {
+    if (!file || sigBusy) return;
+    const problem = checkFile(file, FILE_RULES.signature);
+    if (problem) { setSigError(problem); return; }
+    setSigBusy(true);
+    setSigError('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await api.post('upload_contract_signature.php', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (res.data?.success && res.data.path) {
+        update((d) => { d.details.owner_signature = res.data.path; });
+      } else {
+        setSigError(res.data?.message || 'Could not upload the signature.');
+      }
+    } catch (err) {
+      setSigError(apiErrorMessage(err, 'Could not upload the signature.'));
+    } finally {
+      setSigBusy(false);
+    }
   };
 
   const update = useCallback((fn) => {
@@ -759,6 +786,55 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
               className={INPUT}
             />
           </Field>
+        </div>
+
+        {/* Owner's e-signature: printed on the owner's line of every contract */}
+        <div className="mt-5 border-t border-slate-100 pt-5">
+          <div className="flex flex-wrap items-start gap-4">
+            <div
+              className="flex h-24 w-64 max-w-full shrink-0 items-center justify-center rounded-control border border-dashed border-slate-300 bg-white p-2"
+              aria-label={draft.details.owner_signature ? "Owner's e-signature" : 'No e-signature yet'}
+            >
+              {draft.details.owner_signature ? (
+                <img src={fileUrl(draft.details.owner_signature)} alt="Owner's e-signature" className="max-h-full max-w-full object-contain" />
+              ) : (
+                <span className="text-caption text-slate-400 inline-flex items-center gap-1.5">
+                  <FontAwesomeIcon icon={faSignature} aria-hidden="true" /> No e-signature yet
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="m-0 text-body font-semibold text-slate-800">Owner's e-signature</p>
+              <p className="m-0 text-label text-slate-500">
+                Printed on the owner's signature line of every contract, so a tenant's printed copy is already signed by the owner.
+                Use a PNG with a transparent background (or a JPG on white), up to 2 MB. Save the contract to apply it.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className={`${btn('secondary', 'sm')} relative ${sigBusy ? 'pointer-events-none opacity-60' : ''}`}>
+                  <FontAwesomeIcon icon={sigBusy ? faSpinner : faUpload} spin={sigBusy} aria-hidden="true" />
+                  {sigBusy ? 'Uploading…' : draft.details.owner_signature ? 'Replace image' : 'Upload image'}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    className="sr-only"
+                    disabled={sigBusy}
+                    onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; uploadOwnerSignature(f); }}
+                  />
+                </label>
+                {draft.details.owner_signature && (
+                  <button
+                    type="button"
+                    className={btn('danger-outline', 'sm')}
+                    disabled={sigBusy}
+                    onClick={() => { setSigError(''); update((d) => { d.details.owner_signature = ''; }); }}
+                  >
+                    <FontAwesomeIcon icon={faTrash} aria-hidden="true" /> Remove
+                  </button>
+                )}
+              </div>
+              {sigError && <p role="alert" className="m-0 text-label font-semibold text-red-700">{sigError}</p>}
+            </div>
+          </div>
         </div>
       </SettingsSection>
 

@@ -863,6 +863,71 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES ('floor_rates', '{"1F": 4000, "2F": 4000, "3F": 3500}');
 UPDATE `system_settings` SET `setting_value` = '{"1F": 4000, "2F": 4000, "3F": 3500}' WHERE `setting_key` = 'floor_rates' AND TRIM(`setting_value`) IN ('', '{}', '[]');
 
+-- ===== signed_contract_review =====
+-- (SPRINT 239) The tenant's signed copy of the rent contract (a photo or a PDF from
+-- Track Application) is checked by the office before it counts: pending -> accepted,
+-- or rejected with a note, after which the tenant uploads a new copy. NULL with a file
+-- = a copy from before this review existed, treated as accepted. A copy still on a
+-- draft contract is put in the queue to check.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'signed_lease_uploaded_at') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `signed_lease_uploaded_at` datetime DEFAULT NULL AFTER `signed_lease_path`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'signed_lease_review') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `signed_lease_review` enum(''pending'',''accepted'',''rejected'') DEFAULT NULL AFTER `signed_lease_uploaded_at`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'signed_lease_review_note') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `signed_lease_review_note` varchar(255) DEFAULT NULL AFTER `signed_lease_review`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'signed_lease_reviewed_at') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `signed_lease_reviewed_at` datetime DEFAULT NULL AFTER `signed_lease_review_note`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'signed_lease_reviewed_by') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `signed_lease_reviewed_by` int(11) DEFAULT NULL AFTER `signed_lease_reviewed_at`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+UPDATE `lease_contracts` SET `signed_lease_review` = 'pending'
+ WHERE `status` = 'draft' AND `signed_lease_path` IS NOT NULL AND `signed_lease_path` <> '' AND `signed_lease_review` IS NULL;
+
+-- ===== notarized_contract =====
+-- (SPRINT 240) Notarizing the rent contract in person. The tenant takes the signed
+-- contract to a notary and tells the office from My Room (notarized_ready_at, admin
+-- queue type notarized_contract); the office marks it received on Contracts
+-- (notarized_at / notarized_by). A scan in notarized_lease_path counts as notarized too.
+-- contract_require_notarized ('1' / '0', Contracts page settings) decides whether a
+-- contract without a notarized copy counts as missing documents.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'notarized_ready_at') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `notarized_ready_at` datetime DEFAULT NULL AFTER `notarized_lease_path`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'notarized_at') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `notarized_at` datetime DEFAULT NULL AFTER `notarized_ready_at`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_contracts' AND column_name = 'notarized_by') = 0,
+  'ALTER TABLE `lease_contracts` ADD COLUMN `notarized_by` int(11) DEFAULT NULL AFTER `notarized_at`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES ('contract_require_notarized', '1');
+
+-- ===== contract_renewal_history =====
+-- (SPRINT 241) Tenant contract history and renewed contract signing.
+-- When a rent term is extended (extend_tenancy), the previous signed contract is preserved
+-- in lease_renewals (previous_signed_lease_path), and the extended term requires an updated
+-- signed contract from the tenant. ViewContract features the uploaded signed document as the
+-- primary view, with history navigation for past renewals/terms.
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_renewals' AND column_name = 'previous_signed_lease_path') = 0,
+  'ALTER TABLE `lease_renewals` ADD COLUMN `previous_signed_lease_path` varchar(255) DEFAULT NULL AFTER `rent_at_renewal`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_renewals' AND column_name = 'previous_notarized_lease_path') = 0,
+  'ALTER TABLE `lease_renewals` ADD COLUMN `previous_notarized_lease_path` varchar(255) DEFAULT NULL AFTER `previous_signed_lease_path`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
 -- ===== list_paging_indexes =====
 -- Server-side list paging: Admin Payments reads only the open bills
 -- (get_invoices.php ?view=desk, WHERE status IN (...)) and the maintenance board

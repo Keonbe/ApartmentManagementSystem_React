@@ -200,7 +200,7 @@ try {
     $title = ($action === 'approve') ? "Request Approved" : "Request Declined";
     $msg = "Your $label has been " . strtolower($statusText) . " by management.";
     if ($extension_billed_monthly) {
-        $msg .= " Each added month is billed a week before it starts, due on your usual rent day.";
+        $msg .= " Each added month is billed a week before it starts, due on your usual rent day. Please view, sign, and upload your updated rent contract.";
         if (!empty($extension['holdover_invoices'])) {
             $msg .= " Your contract had expired, so the " . count($extension['holdover_invoices']) . " month(s) you stayed since then (₱" . number_format($extension['holdover_total'], 2) . ") are now billed, due " . date('M j, Y', strtotime('+' . RENT_INVOICE_LEAD_DAYS . ' days')) . ".";
         }

@@ -23,9 +23,13 @@ export const ATTENTION_GROUPS = [
     items: [
       { key: 'applications_to_review', tone: 'amber', to: '/admin-applications?status=pending', one: 'application to review', many: 'applications to review' },
       { key: 'move_in_due', tone: 'amber', to: '/admin-applications?status=approved', one: 'approved tenant not moved in yet', many: 'approved tenants not moved in yet' },
+      { key: 'signed_contracts_to_review', tone: 'amber', to: '/admin-contracts?status=to-check', one: 'signed contract to check', many: 'signed contracts to check' },
       { key: 'move_out_requests', tone: 'amber', to: '/admin-tenants?filter=pending-move-out', one: 'move-out request', many: 'move-out requests' },
-      { key: 'requests_to_decide', tone: 'amber', to: '/admin-notifications?filter=decide', one: 'occupancy or rent request to decide', many: 'occupancy or rent requests to decide' },
+      { key: 'extension_requests', tone: 'amber', to: '/admin-tenants?filter=extension', one: 'rent extension request to decide', many: 'rent extension requests to decide' },
+      { key: 'requests_to_decide', tone: 'amber', to: '/admin-notifications?filter=decide', one: 'occupancy or household request to decide', many: 'occupancy or household requests to decide' },
       { key: 'new_inquiries', tone: 'amber', to: '/admin-inquiries', one: 'new inquiry to answer', many: 'new inquiries to answer' },
+      // A prospect (guest, or an account that never applied) wrote again: answered on Inquiries, not in the chat widget.
+      { key: 'inquiry_messages', tone: 'amber', to: '/admin-inquiries', one: 'inquiry with a new message', many: 'inquiries with a new message' },
     ],
   },
   {
@@ -33,6 +37,7 @@ export const ATTENTION_GROUPS = [
     items: [
       { key: 'eviction_pending', tone: 'red', to: '/admin-contracts?status=eviction-pending', one: 'contract pending eviction', many: 'contracts pending eviction' },
       { key: 'contracts_missing_docs', tone: 'amber', to: '/admin-contracts?status=docs-missing', one: 'contract missing documents', many: 'contracts missing documents' },
+      { key: 'notarized_contracts_to_collect', tone: 'amber', to: '/admin-contracts?status=to-collect', one: 'notarized contract to collect', many: 'notarized contracts to collect' },
       { key: 'contracts_draft', tone: 'sky', to: '/admin-contracts?status=draft', one: 'draft contract not yet active', many: 'draft contracts not yet active' },
       { key: 'contracts_ending', tone: 'sky', to: '/admin-contracts?status=ending', text: (a) => `${countLabel(a.contracts_ending, 'rent term ends', 'rent terms end')} within ${a.contracts_ending_days ?? 30} days` },
     ],

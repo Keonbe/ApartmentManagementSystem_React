@@ -36,7 +36,7 @@ $input = read_json_input();
 $category = trim((string)($input['category'] ?? ''));
 $message = trim((string)($input['message'] ?? ''));
 $errors = array_filter([
-    'category' => v_enum($category, 'Category', COMPLAINT_CATEGORIES),
+    'category' => v_enum($category, 'Category', COMPLAINT_NEW_CATEGORIES),
     'message' => v_str($message, 'Message', 5, 2000),
 ]);
 if ($errors) validation_fail($errors);
