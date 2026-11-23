@@ -2,7 +2,7 @@
 
 > **Module:** 5.4 / 5.5 — Add-On Service Catalog, Booking & Billing
 > **Status:** ✅ Implemented
-> **Last Updated:** September 2026
+> **Last Updated:** 2026-11-23
 
 ---
 
@@ -40,6 +40,11 @@ one is a business decision, the other an operational one.
 Categories are fixed at `cleaning`, `laundry`, `other` because they map 1:1 to
 the three `system_settings` keys. Everything else about a service — name, price,
 unit, quantity range, lead time, icon — is admin-editable data.
+
+Maintenance budget and tenant-responsibility settings are edited from the gear
+button on `/admin-maintenance`; CCTV camera locations, incident types and
+footage windows are edited from the gear button on `/admin-cctv`. Both settings
+panels were moved out of Other Settings so each is beside its request queue.
 
 ---
 

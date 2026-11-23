@@ -15,11 +15,9 @@ import {
 } from './settings/tabs';
 import LeasingPanel from './settings/LeasingPanel';
 import NotificationsPanel from './settings/NotificationsPanel';
-import MaintenancePanel from './settings/MaintenancePanel';
 import HouseRulesPanel from './settings/HouseRulesPanel';
 import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
-import CctvPanel from './settings/CctvPanel';
 import MinorsPanel from './settings/MinorsPanel';
 import GlassModePanel from './settings/GlassModePanel';
 import LanguagePanel from './settings/LanguagePanel';
@@ -191,7 +189,7 @@ const AdminOtherSettings = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-800 m-0">Other Settings</h2>
               <p className="text-sm text-slate-500 m-0 mt-1">
-                Configure rent policies, contract end, contact and payment details, notifications, maintenance, the Home, Preview and My Room pages, Glass theme and language switch, floor rates, and building rules.
+                Configure rent policies, contract end, contact and payment details, notifications, the Home, Preview and My Room pages, Glass theme and language switch, floor rates, and building rules.
               </p>
             </div>
 
@@ -269,7 +267,6 @@ const AdminOtherSettings = () => {
             {activeTab === 'house-rules' && <HouseRulesPanel />}
             {activeTab === 'floor-rent' && <FloorRentPanel />}
             {activeTab === 'utility-types' && <UtilityTypesPanel />}
-            {activeTab === 'cctv' && <CctvPanel />}
             {activeTab === 'minors' && <MinorsPanel />}
             {activeTab === 'sign-in-codes' && <LoginOtpPanel />}
 
@@ -302,9 +299,6 @@ const AdminOtherSettings = () => {
                     smsBalance={smsBalance}
                     onCheckBalance={handleCheckBalance}
                   />
-                </div>
-                <div data-tab="maintenance" hidden={activeTab !== 'maintenance'} className="space-y-6">
-                  <MaintenancePanel {...panelProps} />
                 </div>
                 <div data-tab="glass-mode" hidden={activeTab !== 'glass-mode'} className="space-y-6">
                   <GlassModePanel {...panelProps} savedBgImage={savedSettings?.glassBgImage ?? ''} />

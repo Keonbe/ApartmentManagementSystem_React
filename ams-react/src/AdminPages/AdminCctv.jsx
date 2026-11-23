@@ -5,7 +5,7 @@ import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faVideo, faCheck, faTimes, faSearch, faSync, 
-  faBuilding, faCalendarAlt, faEye
+  faBuilding, faCalendarAlt, faEye, faGear, faXmark
 } from '@fortawesome/free-solid-svg-icons';
 import CctvDetailsModal from '../Components/CctvDetailsModal';
 import { CCTV_DEFAULTS, incidentTypeLabel, loadCctvConfig } from '../config/cctvConfig';
@@ -13,10 +13,12 @@ import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { LIMITS } from '../utils/validation';
 import useUrlFilter from '../hooks/useUrlFilter';
-import { TH, THEAD } from '../Components/admin/ui/styles';
+import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
+import CctvPanel from './settings/CctvPanel';
+import Modal from '../Components/admin/Modal';
 
 export default function AdminCctv() {
   const [requests, setRequests] = useState([]);
@@ -25,6 +27,7 @@ export default function AdminCctv() {
   const [searchQuery, setSearchQuery] = useState('');
   const [detailId, setDetailId] = useState(null);
   const [detailAction, setDetailAction] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [footageDays, setFootageDays] = useState(14);
   // The incident types the admin has set up, for the badge labels.
   const [incidentTypes, setIncidentTypes] = useState(CCTV_DEFAULTS.incidentTypes);
@@ -130,14 +133,26 @@ export default function AdminCctv() {
                     options={['all', 'pending', 'approved', 'rejected'].map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1), count: loading || error ? null : tabCounts[t] }))}
                   />
 
-                  <button
-                    type="button"
-                    onClick={fetchCctvRequests}
-                    className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
-                    title="Refresh"
-                  >
-                    <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowSettings(true)}
+                      aria-label="CCTV settings"
+                      title="CCTV settings"
+                      className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors cursor-pointer"
+                    >
+                      <FontAwesomeIcon icon={faGear} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={fetchCctvRequests}
+                      aria-label="Refresh CCTV requests"
+                      className="flex h-9 w-9 items-center justify-center rounded-card border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors cursor-pointer"
+                      title="Refresh"
+                    >
+                      <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -271,6 +286,29 @@ export default function AdminCctv() {
           />
         ) : null;
       })()}
+
+      {showSettings && (
+        <Modal
+          labelledBy="cctv-settings-title"
+          onClose={() => setShowSettings(false)}
+          className="bg-white rounded-dialog shadow-dialog w-full max-w-4xl mx-4 overflow-hidden flex flex-col max-h-[90vh]"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <h2 id="cctv-settings-title" className="m-0 flex items-center gap-2 text-title font-semibold text-slate-900">
+              <FontAwesomeIcon icon={faGear} className="text-slate-500" /> CCTV settings
+            </h2>
+            <button type="button" onClick={() => setShowSettings(false)} aria-label="Close CCTV settings" className={btn('secondary', 'sm')}>
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 p-5">
+            <CctvPanel onSaved={(config) => {
+              setIncidentTypes(config.incidentTypes);
+              setFootageDays(config.footageDays);
+            }} />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

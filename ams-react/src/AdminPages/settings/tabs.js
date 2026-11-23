@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faIdCard, faImage, faHouse, faAddressCard, faVideo, faHourglassHalf, faEye, faKey, faLanguage, faBed } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faBell, faClipboardList, faLayerGroup, faBolt, faChildren, faIdCard, faImage, faHouse, faAddressCard, faHourglassHalf, faEye, faKey, faLanguage, faBed } from '@fortawesome/free-solid-svg-icons';
 
 export const PAYMENT_KEYS = [
   'paymentWindowDays',
@@ -56,13 +56,6 @@ export const SETTINGS_TABS = [
       'notificationsDispatchMode', 'notificationsQuietStart', 'notificationsQuietEnd',
       'notificationLogRetentionDays', 'smsUnitCost',
     ],
-  },
-  {
-    id: 'maintenance',
-    label: 'Maintenance',
-    icon: faWrench,
-    description: 'The monthly maintenance budget and the tenant-responsibility clause.',
-    keys: ['maintenanceMonthlyBudget', 'tenantResponsibilityClause'],
   },
   {
     id: 'glass-mode',
@@ -125,12 +118,6 @@ export const SETTINGS_TABS = [
     description: 'Other utilities beyond water and electricity, such as internet or gas.',
   },
   {
-    id: 'cctv',
-    label: 'CCTV',
-    icon: faVideo,
-    description: 'The camera locations and incident types on the CCTV request form, and how far back footage is kept.',
-  },
-  {
     id: 'minors',
     label: 'Children & Pets',
     icon: faChildren,
@@ -168,7 +155,7 @@ export const OTHER_SETTINGS_GROUPS = [
     key: 'operations',
     title: 'Operations & Tenant Site',
     accentDot: 'bg-sky-500',
-    tabIds: ['site', 'notifications', 'maintenance', 'cctv', 'home-page', 'preview-page', 'my-room', 'glass-mode', 'language'],
+    tabIds: ['site', 'notifications', 'home-page', 'preview-page', 'my-room', 'glass-mode', 'language'],
   },
   {
     key: 'policies',
@@ -180,4 +167,4 @@ export const OTHER_SETTINGS_GROUPS = [
 
 // Tabs that save on their own (their panel talks to its own endpoints), so the
 // shared settings form and its save bar stay out of the way.
-export const SELF_SAVING_TAB_IDS = ['site', 'house-rules','floor-rent', 'utility-types', 'cctv', 'minors', 'requirements', 'sign-in-codes'];
+export const SELF_SAVING_TAB_IDS = ['site', 'house-rules','floor-rent', 'utility-types', 'minors', 'requirements', 'sign-in-codes'];

@@ -504,7 +504,7 @@ const AdminApplications = () => {
               </div>
               <div className="flex items-center gap-3 w-full max-w-sm bg-white border border-slate-200 rounded-control px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-card">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
-                <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="focus-glow flex-1 bg-transparent text-body text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
+                <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="flex-1 bg-transparent text-body text-slate-700 outline-none p-0 border-0 placeholder-slate-400 focus-visible:outline-none focus-visible:ring-0" />
               </div>
             </div>
 

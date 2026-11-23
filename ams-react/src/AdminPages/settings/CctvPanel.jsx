@@ -42,7 +42,7 @@ function EditableList({ items, onChange, get, set, noun, max, locked = null }) {
 
 // Settings -> CCTV. Saves on its own (like Floor Rent): the tenant form and
 // cctv_request.php both read these, so a removed choice can no longer be filed.
-export default function CctvPanel() {
+export default function CctvPanel({ onSaved }) {
   const [saved, setSaved] = useState(null);
   const [locations, setLocations] = useState([]);
   const [types, setTypes] = useState([]);          // everything but "Other"
@@ -70,8 +70,10 @@ export default function CctvPanel() {
       const config = parseCctvConfig(res.data?.settings);
       setSaved(snapshot(config));
       apply(config);
+      return config;
     } catch (err) {
       setNotice({ ok: false, text: apiErrorMessage(err, 'Could not load the CCTV settings.') });
+      return null;
     }
   }, [apply]);
 
@@ -120,7 +122,8 @@ export default function CctvPanel() {
       });
       if (!res.data.success) throw res;
       setNotice({ ok: true, text: 'CCTV settings saved. The request form uses them straight away; requests already filed are unchanged.' });
-      await load();
+      const updated = await load();
+      if (updated) onSaved?.(updated);
     } catch (err) {
       setNotice({ ok: false, text: apiErrorMessage(err, 'Could not save the CCTV settings.') });
     } finally {

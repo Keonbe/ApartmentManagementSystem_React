@@ -17,9 +17,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus, faSearch, faTableCells, faList, faClock, faWrench, faCheckCircle, faExclamationTriangle,
   faTimes, faMapPin, faCalendarAlt, faImage, faArrowRight, faUser, faFilter, faUpload, faPaperPlane,
-  faShieldAlt, faChartBar, faInfoCircle, faFileContract, faBan, faUndo, faChevronDown
+  faShieldAlt, faChartBar, faInfoCircle, faFileContract, faBan, faUndo, faChevronDown, faGear
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
+import MaintenanceSettingsModal from '../Components/admin/MaintenanceSettingsModal';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
@@ -825,6 +826,7 @@ const AdminMaintainance = () => {
   const [actionModal, setActionModal] = useState(null);
 
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [isSubmittingNew, setIsSubmittingNew] = useState(false);
 
   // The board loads every open ticket but closed ones only from the last
@@ -1006,10 +1008,19 @@ const AdminMaintainance = () => {
                   Details
                   <FontAwesomeIcon icon={faChevronDown} className={`text-[10px] transition-transform ${budgetOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(true)}
+                  aria-label="Maintenance settings"
+                  title="Maintenance settings"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faGear} aria-hidden="true" />
+                </button>
               </div>
               {budgetOpen && (
               <div id="maint-budget-details" className="p-6 border-t border-slate-200">
-                <p className="text-caption text-slate-500 m-0 mb-4">Counts requests resolved this month. Monthly budget is set in Settings.</p>
+                <p className="text-caption text-slate-500 m-0 mb-4">Counts requests resolved this month. Change the monthly budget or tenant responsibility clause in Maintenance settings.</p>
                 <div className="stagger-children grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
                   <div className="bg-slate-50 rounded-control p-3 border border-slate-100 text-center">
                     <p className="text-title font-bold text-slate-800 m-0">{formatCurrency(monthlyBudget)}</p>
@@ -1248,6 +1259,17 @@ const AdminMaintainance = () => {
           onToggleTenantResponsible={handleToggleTenantResponsible}
           onSaveField={handleFieldSave}
           onAddNote={handleAddNoteSave}
+        />
+      )}
+
+      {showSettings && (
+        <MaintenanceSettingsModal
+          onClose={() => setShowSettings(false)}
+          onSaved={(savedSettings) => {
+            setSettings((current) => ({ ...current, ...savedSettings }));
+            setShowSettings(false);
+            toast.success('Maintenance settings saved.');
+          }}
         />
       )}
 
