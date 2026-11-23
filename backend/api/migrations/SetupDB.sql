@@ -404,6 +404,8 @@ CREATE TABLE `rent_applications` (
   `archive_reason` varchar(255) DEFAULT NULL,
   `archive_notes` text DEFAULT NULL,
   `requested_move_out_date` date DEFAULT NULL,
+  -- The day the tenant actually left, set at the move-out clearance (2026_11_workstream.sql final_period_proration).
+  `moved_out_date` date DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_rent_room` (`room_name`),
   KEY `fk_rent_user` (`user_id`),
@@ -1702,6 +1704,8 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('inquiry_move_in_max_months', '6'),
 ('included_occupants', '4'),
 ('late_fee_enabled', 'false'),
+-- Off: rent is billed by whole tenancy months; on: the last period of a mid-period move-out is charged per day (rent ÷ 30).
+('prorate_final_period', '0'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),
 -- SMS and email notification channels (checklist 6.6 / 6.7). sms_provider accepts

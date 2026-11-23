@@ -874,3 +874,14 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'maintenance_requests' AND index_name = 'idx_maint_status_created') = 0,
   'ALTER TABLE `maintenance_requests` ADD KEY `idx_maint_status_created` (`status`, `created_at`)', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== final_period_proration =====
+-- Settings -> Payments "Prorate the final rent period" (off by default, so billing
+-- stays by whole tenancy months until the owner turns it on). The move-out
+-- clearance records the day the tenant actually left in rent_applications.moved_out_date;
+-- with the setting on, the last rent period is charged rent / 30 per day up to that day.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'rent_applications' AND column_name = 'moved_out_date') = 0,
+  'ALTER TABLE `rent_applications` ADD COLUMN `moved_out_date` date DEFAULT NULL AFTER `requested_move_out_date`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES ('prorate_final_period', '0');

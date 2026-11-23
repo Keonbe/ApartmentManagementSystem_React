@@ -1,5 +1,18 @@
 import { faUserShield, faFileContract, faCreditCard, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faIdCard, faImage, faHouse, faAddressCard, faVideo, faHourglassHalf, faEye, faKey, faLanguage, faBed } from '@fortawesome/free-solid-svg-icons';
 
+export const PAYMENT_KEYS = [
+  'paymentWindowDays',
+  'overdueThresholdDays',
+  'lateFeeEnabled', 'lateFeeType', 'lateFeeValue',
+  'paymentMode', 'paymentSandboxEnabled',
+  'paymentChGcashManual', 'paymentChBankManual', 'paymentChQrphManual', 'paymentChInPerson',
+  'paymentChGcashSandbox', 'paymentChBankSandbox', 'paymentChMaya',
+  'duplicateReferencePolicy',
+  'paymongoSecretKey', 'paymongoPublicKey', 'paymongoWebhookSecret',
+  'qrphSlots', 'qrphActiveSlot',
+  'prorateFinalPeriod',
+];
+
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
 // a panel must be listed here too. Account has none — its profile and password
@@ -29,17 +42,7 @@ export const SETTINGS_TABS = [
     label: 'Payment Options',
     icon: faCreditCard,
     description: 'Enable or disable payment options, configure QR Ph slots and active QR code, overdue policy, and gateway settings.',
-    keys: [
-      'paymentWindowDays',
-      'overdueThresholdDays',
-      'lateFeeEnabled', 'lateFeeType', 'lateFeeValue',
-      'paymentMode', 'paymentSandboxEnabled',
-      'paymentChGcashManual', 'paymentChBankManual', 'paymentChQrphManual', 'paymentChInPerson',
-      'paymentChGcashSandbox', 'paymentChBankSandbox', 'paymentChMaya',
-      'duplicateReferencePolicy',
-      'paymongoSecretKey', 'paymongoPublicKey', 'paymongoWebhookSecret',
-      'qrphSlots', 'qrphActiveSlot',
-    ],
+    keys: PAYMENT_KEYS,
   },
   {
     id: 'notifications',

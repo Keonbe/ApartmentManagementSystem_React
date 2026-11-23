@@ -7,19 +7,9 @@ import { getSystemSettings, saveSystemSettings } from '../config/systemSettings'
 import { apiErrorSummary } from '../utils/apiError';
 import PaymentsPanel from './settings/PaymentsPanel';
 import LoadError from '../Components/admin/ui/LoadError';
+import { PAYMENT_KEYS } from './settings/tabs';
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-const PAYMENT_KEYS = [
-  'paymentWindowDays',
-  'overdueThresholdDays',
-  'paymentMode', 'paymentSandboxEnabled',
-  'paymentChGcashManual', 'paymentChBankManual', 'paymentChQrphManual', 'paymentChInPerson',
-  'paymentChGcashSandbox', 'paymentChBankSandbox', 'paymentChMaya',
-  'duplicateReferencePolicy',
-  'paymongoSecretKey', 'paymongoPublicKey', 'paymongoWebhookSecret',
-  'qrphSlots', 'qrphActiveSlot',
-];
 
 const AdminPaymentOptions = () => {
   const [settings, setSettings] = useState(null);

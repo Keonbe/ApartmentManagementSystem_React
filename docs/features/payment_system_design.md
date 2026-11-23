@@ -407,7 +407,8 @@ At a move-out clearance or a contract termination `settle_deposit()` works out d
 - Invariant (tested): after a clearance the open invoice balances add up to the reported `balance_due`.
 - Reports: revenue is paid invoices' `total_amount − security_deposit`, so a bill paid from the deposit is counted once, when it is settled (the same pattern as `Advance credit`).
 - Undo: `restore_tenant.php` → `reverse_deposit_application()` reopens those invoices, cancels the balance invoice and the automatic advance refund request; refused once the balance invoice has a payment.
-- Limits: a former tenant cannot open Pay Bills, so the balance invoice is paid at the office and recorded by the admin (cash on a `pending` or `overdue` bill is allowed). Rent is still billed by whole months; proration stays open (SPRINT 73, delimitation DE-10). Move-outs before this change keep their "Settled from deposit" rows.
+- Limits: a former tenant cannot open Pay Bills, so the balance invoice is paid at the office and recorded by the admin (cash on a `pending` or `overdue` bill is allowed). Move-outs before this change keep their "Settled from deposit" rows.
+- **Final-period proration (2026-11, SPRINT 73):** When Settings → Payments "Prorate the final rent period" (`prorate_final_period`) is enabled (off by default), the final rent period containing the actual move-out date (`rent_applications.moved_out_date`) is prorated at `base_rent ÷ 30 × days occupied` via `prorate_final_rent_period()`. Any untouched invoices issued for periods starting after the move-out date are cancelled. Unused rent days already paid are credited to the tenant's refund pool. Tests: `tests/api/proration.test.js`.
 - Tests: `tests/api/move_out_settlement.test.js`.
 
 ## Void a paid desk payment, and refund payout proof (2026-11-18, SPRINT 182)

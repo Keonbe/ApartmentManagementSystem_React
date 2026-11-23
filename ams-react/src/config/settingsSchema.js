@@ -31,6 +31,9 @@ export const SETTINGS_SCHEMA = [
   { key: 'lateFeeEnabled', db: 'late_fee_enabled', type: 'bool', default: false },
   { key: 'lateFeeType', db: 'late_fee_type', type: 'enum', values: ['flat', 'percent'], default: 'flat' },
   { key: 'lateFeeValue', db: 'late_fee_value', type: 'float', default: 200, min: 0 },
+  // Payment Options tab. Off: rent is billed by whole tenancy months. On: the move-out clearance charges the last
+  // period only for the days lived in (rent ÷ 30 a day; prorate_final_rent_period() in config.php).
+  { key: 'prorateFinalPeriod', db: 'prorate_final_period', type: 'bool', default: false },
   { key: 'cancellationFee', db: 'cancellation_fee', type: 'float', default: 0, min: 0 },              // PHP kept when an admin cancels a paid application at the tenant's request
   { key: 'depositRefundDays', db: 'deposit_refund_days', type: 'int', default: 30, min: 1 },          // days after the clearance within which a deposit refund is due
   { key: 'moveInMinDays', db: 'move_in_min_days', type: 'int', default: 0 },                        // a preferred move-in date is at least this many days away (0 = today)

@@ -63,7 +63,7 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 3. ~~**Audit Phase 2 (trustworthy writes):** H7 first, then H5, then H4, then the combined end-of-tenancy helper (H6, M3, M4).~~ Done 2026-09-17 (see [Recently Completed](#recently-completed)).
 4. ~~**Audit Phase 3 (documents):** H2 / B-8, B-6, and the checkout return URLs.~~ Done 2026-09-17 (see [Recently Completed](#recently-completed)).
 5. ~~**Audit Phase 4 (billing integrity):** H8, H9, M12, H10, M8.~~ Done 2026-09-20 (see [Recently Completed](#recently-completed)).
-6. **Close the [Urgent](#urgent--panelist-checklist-gaps) panelist checklist gaps** — the only features the Master Checklist in `panelist_feature_checklist.md` still marks short of ✅: email/SMS notifications, and two-way chat + complaints. (Prorated billing on lease extension — 3.10 — done 2026-09-20, see [Recently Completed](#recently-completed).)
+6. **Close the [Urgent](#urgent--panelist-checklist-gaps) panelist checklist gaps** — the only features the Master Checklist in `panelist_feature_checklist.md` still marks short of ✅: email/SMS notifications, and two-way chat + complaints. (Final-period proration — 3.10 — completed 2026-11 via `prorate_final_period`, see [Recently Completed](#recently-completed).)
 7. **Self-hosted hardening:** HTTPS plus security headers (see Security).
 8. **Remaining work:** the Phase 5 Mediums, then the Phase 6 Lows.
 9. **Last:** other backlog enhancements and fixing stale docs.
@@ -72,7 +72,7 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 
 ## Urgent — Panelist Checklist Gaps
 
-Every feature `panelist_feature_checklist.md`'s Master Checklist still marks 🔧 (partial), 📋 (designed, not built) or ❌ (not started) — i.e. everything short of ✅. Modules 1, 2, 3, 5 and 9–12 are fully ✅ (3.10 closed 2026-09-20 — see [Recently Completed](#recently-completed)); these are the only gaps left, across Modules 6 and 7. Pulled out of Backend/Frontend into its own category because these are panel-facing scope, not audit findings — a panelist grading the checklist will grade these directly.
+Every feature `panelist_feature_checklist.md`'s Master Checklist still marks 🔧 (partial), 📋 (designed, not built) or ❌ (not started) — i.e. everything short of ✅. Modules 1, 2, 3, 5 and 9–12 are fully ✅ (3.10 final-period proration closed 2026-11 — see [Recently Completed](#recently-completed)); these are the only gaps left, across Modules 6 and 7. Pulled out of Backend/Frontend into its own category because these are panel-facing scope, not audit findings — a panelist grading the checklist will grade these directly.
 
 | Status | Priority | Task | Source |
 |---|---|---|---|
