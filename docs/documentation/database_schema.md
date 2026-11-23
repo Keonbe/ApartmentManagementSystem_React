@@ -5,7 +5,9 @@ Authoritative reference for the `ams_db` MySQL/MariaDB schema and the SQL files 
 This document reflects the schema as actually defined in
 [`SetupDB.sql`](../../backend/api/migrations/SetupDB.sql) —
 verified table-by-table against that file, not against any earlier design doc.
-Last re-checked 2026-11-23: 53 tables in `SetupDB.sql` (54 in migrated/active `ams_db` with `schema_migrations`; no views, triggers or events), each drawn in the ER diagram below and with a row in §2; new columns are explained in "Column notes".
+Last re-checked 2026-11-23: 53 tables in `SetupDB.sql` (54 in migrated/active `ams_db` with `schema_migrations`; no views, triggers or events), each drawn in the ER diagram below and with a row in §2; new columns are explained in "Column notes". New installations use `utf8mb4_general_ci`; the connection session pins that collation. `2026_11_workstream.sql` repairs legacy MariaDB-only `SetupDB.sql` column/index alters on MySQL 8 and normalizes existing database/table collations.
+
+**MySQL 8 schema repair:** The new opening section of `2026_11_workstream.sql` uses `information_schema` guards and prepared statements for legacy `SetupDB.sql` column/index alters, sets the database default to `utf8mb4_general_ci`, and converts existing base tables. Back up first; table conversions may be lengthy and MySQL DDL commits implicitly. Test against a clone of the deployed schema before production.
 
 > For workflows, API inventory, and frontend wiring status, see
 > [system_design.md](system_design.md). This doc covers only the database layer.

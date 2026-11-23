@@ -1,5 +1,178 @@
 -- November 2026 workstream, merged into one file before the first prod run (CLAUDE.md rule).
--- Idempotent: every statement is guarded. Sections are the former per-feature files.
+-- Idempotent MySQL 8/MariaDB schema repair for SetUpDB's MariaDB-only alters;
+-- the guarded charset conversions below also include generated-column tables.
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='notifications' AND column_name='status')=0, 'ALTER TABLE `notifications` ADD COLUMN `status` varchar(20) DEFAULT ''Pending''', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='notifications' AND column_name='metadata_value')=0, 'ALTER TABLE `notifications` ADD COLUMN `metadata_value` varchar(255) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='notifications' AND column_name='attachment_path')=0, 'ALTER TABLE `notifications` ADD COLUMN `attachment_path` varchar(255) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='notifications' AND column_name='is_archived')=0, 'ALTER TABLE `notifications` ADD COLUMN `is_archived` tinyint(1) NOT NULL DEFAULT 0', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='notifications' AND index_name='idx_type_status')=0, 'ALTER TABLE `notifications` ADD INDEX `idx_type_status` (`type`,`status`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='notifications' AND index_name='idx_user_read')=0, 'ALTER TABLE `notifications` ADD INDEX `idx_user_read` (`user_id`,`is_read`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='invoices' AND column_name='services')=0, 'ALTER TABLE `invoices` ADD COLUMN `services` decimal(10,2) NOT NULL DEFAULT 0.00', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='invoices' AND column_name='maintenance')=0, 'ALTER TABLE `invoices` ADD COLUMN `maintenance` decimal(10,2) NOT NULL DEFAULT 0.00', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='invoices' AND column_name='late_fee')=0, 'ALTER TABLE `invoices` ADD COLUMN `late_fee` decimal(10,2) NOT NULL DEFAULT 0.00', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='invoices' AND column_name='late_fee_waived')=0, 'ALTER TABLE `invoices` ADD COLUMN `late_fee_waived` tinyint(1) NOT NULL DEFAULT 0', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='invoices' AND column_name='last_reminder_date')=0, 'ALTER TABLE `invoices` ADD COLUMN `last_reminder_date` date DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='invoices' AND column_name='reminder_count')=0, 'ALTER TABLE `invoices` ADD COLUMN `reminder_count` int(11) NOT NULL DEFAULT 0', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='rent_applications' AND column_name='pre_archive_status')=0, 'ALTER TABLE `rent_applications` ADD COLUMN `pre_archive_status` varchar(20) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='rent_applications' AND column_name='terms_agreed_at')=0, 'ALTER TABLE `rent_applications` ADD COLUMN `terms_agreed_at` timestamp NULL DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='rent_applications' AND column_name='documents_verified_at')=0, 'ALTER TABLE `rent_applications` ADD COLUMN `documents_verified_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- Maintenance billing and timeline columns from SetupDB.sql.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='room_name')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `room_name` varchar(50) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='title')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `title` varchar(150) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='acknowledged_at')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `acknowledged_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='started_at')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `started_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='resolved_at')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `resolved_at` datetime DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='actual_cost')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `actual_cost` decimal(10,2) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='rejection_reason')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `rejection_reason` varchar(255) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='is_invoiced')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `is_invoiced` tinyint(1) NOT NULL DEFAULT 0', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='invoice_id')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `invoice_id` varchar(50) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='billing_period')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `billing_period` varchar(50) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND column_name='invoiced_amount')=0, 'ALTER TABLE `maintenance_requests` ADD COLUMN `invoiced_amount` decimal(10,2) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND index_name='idx_maint_invoiced')=0, 'ALTER TABLE `maintenance_requests` ADD INDEX `idx_maint_invoiced` (`is_invoiced`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND index_name='idx_maint_status_created')=0, 'ALTER TABLE `maintenance_requests` ADD INDEX `idx_maint_status_created` (`status`,`created_at`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- Convert every existing base table. The generated columns are deterministic
+-- expressions over columns converted by ALTER TABLE and remain generated.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='activity_logs' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `activity_logs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='advance_credits' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `advance_credits` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='announcements' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `announcements` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='application_documents' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `application_documents` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='application_requirements' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `application_requirements` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='cctv_requests' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `cctv_requests` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='complaints' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `complaints` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='contract_template_versions' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `contract_template_versions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='deposit_deductions' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `deposit_deductions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='deposit_reviews' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `deposit_reviews` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='expenses' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `expenses` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='guest_chat_links' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `guest_chat_links` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='guest_messages' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `guest_messages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='household_members' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `household_members` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='house_rules' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `house_rules` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='inquiries' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `inquiries` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='invoice_adjustments' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `invoice_adjustments` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='invoices' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `invoices` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='lease_contracts' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `lease_contracts` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='lease_renewals' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `lease_renewals` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='login_attempts' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `login_attempts` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='maintenance_requests' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `maintenance_requests` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='messages' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `messages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='notification_log' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `notification_log` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='notification_preferences' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `notification_preferences` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='notification_queue' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `notification_queue` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='notifications' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `notifications` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='parking_charges' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `parking_charges` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='parking_reservations' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `parking_reservations` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='parking_slots' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `parking_slots` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='password_reset_requests' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `password_reset_requests` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='password_resets' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `password_resets` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='payment_proof_parts' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `payment_proof_parts` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='payment_transactions' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `payment_transactions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='rate_limit_events' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `rate_limit_events` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='rent_applications' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `rent_applications` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='refund_request_events' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `refund_request_events` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='refund_requests' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `refund_requests` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='room_transfers' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `room_transfers` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='rooms' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `rooms` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='service_catalog' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `service_catalog` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='service_categories' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `service_categories` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='service_requests' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `service_requests` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='sessions' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `sessions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='system_settings' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `system_settings` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='trusted_devices' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `trusted_devices` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='unit_reservations' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `unit_reservations` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='unit_waitlist' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `unit_waitlist` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='users' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `users` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='utility_reading_items' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `utility_reading_items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='utility_readings' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `utility_readings` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='utility_types' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `utility_types` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+SET @s = IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='visitor_logs' AND table_type='BASE TABLE') > 0, 'ALTER TABLE `visitor_logs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
 
 -- ===== 2026_11_appearance_settings.sql =====
 -- ===== glass_theme_settings =====
@@ -1000,7 +1173,7 @@ CREATE TEMPORARY TABLE `ams_contract_link_candidates` (
   `rent_application_id` int(11) NOT NULL,
   PRIMARY KEY (`contract_id`),
   UNIQUE KEY `uq_ams_contract_link_app` (`rent_application_id`)
-) ENGINE=MEMORY;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `ams_contract_link_candidates` (`contract_id`, `rent_application_id`)
 SELECT contract_candidates.`contract_id`, contract_candidates.`rent_application_id`

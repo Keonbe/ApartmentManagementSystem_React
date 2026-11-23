@@ -604,6 +604,7 @@ Returns invoices — admin sees all, tenant sees own only.
 | **Side Effect** | Calls `promote_overdue_invoices()` (auto-marks overdue + applies late fee) |
 | **Query Params** | `?userId=` (admin can filter by tenant); `?view=desk` (admin open-bill list) |
 | **Desk summary** | `view=desk` returns `paid_summary`, `collected` (all paid invoices), and `collected_this_month` (paid invoices with `paid_at` in the current database-session month). These fields are omitted from the full list and tenant history responses. |
+| **Schema compatibility** | The MySQL session uses `utf8mb4_general_ci` to match the schema and avoid mixed-collation comparisons. Production databases must have the current migrations applied. |
 
 ---
 

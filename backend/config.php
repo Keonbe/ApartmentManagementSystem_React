@@ -155,6 +155,7 @@ if ($db_error !== null) {
 // Same clock for NOW()/CURDATE(). A numeric offset needs no MySQL timezone
 // tables; Asia/Manila has no DST, so the offset never changes.
 $conn->set_charset('utf8mb4');
+$conn->query("SET NAMES utf8mb4 COLLATE utf8mb4_general_ci");
 $conn->query("SET time_zone = '" . date('P') . "'");
 // The test suite runs with the strict mode of MariaDB 10.11 (what CI and most hosts
 // use), so a query that leaves a NOT NULL column without a value fails here too.
