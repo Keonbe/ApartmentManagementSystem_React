@@ -111,7 +111,7 @@ describe('admin notifications', () => {
 });
 
 describe('Admin Payments desk view', () => {
-  it('sends only open bills, a paid summary per tenant and the collected total', async () => {
+  it('sends only open bills, a paid summary per tenant and collection totals', async () => {
     await q("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, amount_paid, billing_period, status, due_date, paid_at) VALUES ('INV-PAGE-PAID', ?, 1, 700, 700, 700, 'Paging', 'paid', CURDATE(), NOW())", [MARIA]);
     await q("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date) VALUES ('INV-PAGE-OPEN', ?, 1, 800, 800, 'Paging', 'pending', CURDATE() + INTERVAL 5 DAY)", [MARIA]);
     const [desk, full] = await Promise.all([
@@ -130,11 +130,14 @@ describe('Admin Payments desk view', () => {
     expect(maria2.paid_total).toBeCloseTo(Number(paid.t), 2);
     const allPaid = await one("SELECT COALESCE(SUM(total_amount), 0) AS t FROM invoices WHERE status = 'paid' AND user_id IS NOT NULL");
     expect(desk.body.collected).toBeCloseTo(Number(allPaid.t), 2);
+    const paidThisMonth = await one("SELECT COALESCE(SUM(total_amount), 0) AS t FROM invoices WHERE status = 'paid' AND user_id IS NOT NULL AND paid_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND paid_at < DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')");
+    expect(desk.body.collected_this_month).toBeCloseTo(Number(paidThisMonth.t), 2);
     expect(desk.body.accounts).toBeTruthy();
 
     // The full list is unchanged for the other callers.
     expect(full.body.invoices.map((i) => i.id)).toContain('INV-PAGE-PAID');
     expect(full.body.paid_summary).toBeUndefined();
+    expect(full.body.collected_this_month).toBeUndefined();
   });
 
   it('the opened tenant\'s history comes from ?userId= and includes the paid bill', async () => {

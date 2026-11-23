@@ -987,3 +987,57 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
   ('utility_auto_sync', '1'),
   ('utility_default_billing_mode', 'merge'),
   ('utility_allow_tenant_self_pay', '1');
+
+-- ===== recover_unlinked_current_contracts =====
+-- Older deployed data can have active/draft contracts with a NULL
+-- rent_application_id. The Contracts page then classifies every one as a past
+-- tenant. Link only uniquely matched current applications: same rent/deposit,
+-- move-in and lease start within seven days, and current application plus
+-- active/draft contract statuses. Ambiguous or incomplete rows stay untouched.
+DROP TEMPORARY TABLE IF EXISTS `ams_contract_link_candidates`;
+CREATE TEMPORARY TABLE `ams_contract_link_candidates` (
+  `contract_id` varchar(50) NOT NULL,
+  `rent_application_id` int(11) NOT NULL,
+  PRIMARY KEY (`contract_id`),
+  UNIQUE KEY `uq_ams_contract_link_app` (`rent_application_id`)
+) ENGINE=MEMORY;
+
+INSERT INTO `ams_contract_link_candidates` (`contract_id`, `rent_application_id`)
+SELECT contract_candidates.`contract_id`, contract_candidates.`rent_application_id`
+  FROM (
+    SELECT lc.`id` AS `contract_id`, MIN(ra.`id`) AS `rent_application_id`
+      FROM `lease_contracts` lc
+      JOIN `rent_applications` ra
+        ON ra.`status` IN ('active', 'Approved', 'pending-move-out')
+       AND ra.`move_in_date` IS NOT NULL
+       AND ra.`monthly_rent` = lc.`deposit_amount`
+       AND ABS(DATEDIFF(lc.`lease_start`, ra.`move_in_date`)) <= 7
+     WHERE lc.`rent_application_id` IS NULL
+       AND lc.`status` IN ('active', 'draft')
+     GROUP BY lc.`id`
+    HAVING COUNT(*) = 1
+  ) AS contract_candidates
+  JOIN (
+    SELECT app_candidates.`rent_application_id`
+      FROM (
+        SELECT lc.`id` AS `contract_id`, ra.`id` AS `rent_application_id`
+          FROM `lease_contracts` lc
+          JOIN `rent_applications` ra
+            ON ra.`status` IN ('active', 'Approved', 'pending-move-out')
+           AND ra.`move_in_date` IS NOT NULL
+           AND ra.`monthly_rent` = lc.`deposit_amount`
+           AND ABS(DATEDIFF(lc.`lease_start`, ra.`move_in_date`)) <= 7
+         WHERE lc.`rent_application_id` IS NULL
+           AND lc.`status` IN ('active', 'draft')
+      ) AS app_candidates
+     GROUP BY app_candidates.`rent_application_id`
+    HAVING COUNT(*) = 1
+  ) AS unique_applications
+    ON unique_applications.`rent_application_id` = contract_candidates.`rent_application_id`;
+
+UPDATE `lease_contracts` lc
+JOIN `ams_contract_link_candidates` candidates ON candidates.`contract_id` = lc.`id`
+   SET lc.`rent_application_id` = candidates.`rent_application_id`
+ WHERE lc.`rent_application_id` IS NULL;
+
+DROP TEMPORARY TABLE IF EXISTS `ams_contract_link_candidates`;
