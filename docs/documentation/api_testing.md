@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~5 min, 2,200 tests (113 files; 2026-11-23, all passing)
+npm test           # ~3 min, 2,234 tests (116 files; 2026-11-23, all passing)
 npx vitest run webhook.test.js   # one file
 ```
 

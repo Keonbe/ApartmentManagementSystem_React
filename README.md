@@ -9,7 +9,7 @@ A full-featured Apartment Management System for tenant self-service and day-to-d
 | Chat server | Node.js, Express 5, Socket.IO 4, mysql2 | [websocket-server/](websocket-server) |
 | Database | MariaDB 10.4+ / MySQL 8 (`ams_db`) | [backend/api/migrations/](backend/api/migrations) |
 
-> Last reviewed against the code: **2026-10-31**.
+> Last reviewed against the code: **2026-11-23** (pre-defense update).
 
 ---
 
@@ -75,7 +75,7 @@ ApartmentManagementSystem_React/
 │       ├── App.jsx                 # Router and route guards
 │       └── main.jsx
 ├── backend/                        # PHP 8 REST API
-│   ├── api/                        # ~135 endpoint files, one per action (get_*, add_*, update_*, …)
+│   ├── api/                        # ~174 endpoint files, one per action (get_*, add_*, update_*, …)
 │   │   ├── services/               # send_notification.php (dispatcher + queue), send_sms.php (log / Semaphore),
 │   │   │                           #   send_email.php (log / SMTP), email_templates.php
 │   │   └── migrations/             # SetupDB.sql (full schema), dated 2026_*.sql upgrades,
@@ -234,22 +234,24 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
 
 - **Public & applicants:**
   - Unit preview with admin-uploaded showcase photos or floor plans; public inquiry form with holds and a waitlist; guest chat for visitors.
-  - Online application with the document uploads the admin requires and the previous address, live application tracking, move-in invoice payment.
+  - Online application with the document uploads the admin requires and the previous address, live application tracking, move-in invoice payment, and signed contract upload.
   - Forgot / reset password.
 - **Tenant portal:**
-  - **My Room**: unit details, household members, rent extension (billed on approval), move-out requests and deposit refunds.
-  - Bills: PayMongo online checkout (sandbox), split payments, proof-of-payment upload, payment history, utility readings.
+  - **My Room**: unit details, customizable section layout, garbage schedule, household members, rent extension (with contract renewal signing and history), move-out requests, and deposit refunds.
+  - Bills: PayMongo online checkout (sandbox), split payments, proof-of-payment upload, payment history, utility readings, and move-out proration.
   - Service catalog and bookings, maintenance tickets with photo/video, parking reservations, CCTV footage requests, visitor pre-registration.
   - Announcements, notification center with per-category preferences, and **live chat with the admin**.
 - **Admin panel:**
-  - Dashboard with a needs-attention list; units (pricing, status, showcase images); tenants (active/archived, restore, move-out); applications; inquiries and waitlist; contracts.
-  - Payments and invoices (advance/deposit, adjustments, proof verification/rejection, reminders, scheduled payments), payment options, refunds; utilities; building expenses.
+  - Dashboard with a needs-attention list; units (pricing, status, showcase images); tenants (active/archived, restore, move-out, and **in-place room transfer** with deposit top-up/refund adjustments); applications; inquiries and waitlist; contracts.
+  - Contracts management: executed copy upload review (acceptance/rejection notes), in-person notarization tracking (`contract_require_notarized`), renewal history, and bilingual contract template customization.
+  - Payments and invoices (advance/deposit, adjustments, proof verification/rejection, reminders, scheduled payments), payment options, refunds, **Collections tab** with aging breakdown (31+ days) and sortable tenant balances; utilities; building expenses.
   - Maintenance board, service requests, parking slots and automated parking billing, CCTV and visitor management.
+  - Server-side pagination and sortable headers across high-volume admin tables (Payments, Maintenance, Visitors, Notifications, Refunds, Activity Logs).
   - Announcements to all tenants or one unit, with optional SMS/email channels and drafts.
-  - **Messages** inbox (real-time chat).
-  - Reports (monthly, yearly, occupancy, maintenance, income statement, revenue diversification) with CSV/print export.
-  - User management (RBAC), activity log.
-  - Tabbed settings: account, floor rent, house rules, payments, parking, notifications (Semaphore SMS, SMTP), maintenance, document requirements.
+  - **Messages** inbox (real-time chat with active/past tenant filters, inquiry/problem report resolution checks, and live updates).
+  - Reports (monthly, yearly, occupancy, maintenance, income statement, revenue diversification, 8 reports total) with CSV/Excel/print export.
+  - User management (RBAC), activity log with URL-persisted search.
+  - Tabbed settings: account, floor rent, house rules, payments (final-period proration), parking, notifications (Semaphore SMS, SMTP), maintenance, document requirements, My Room layout, Glass mode.
 - **Notifications:** in-app for every workflow. SMS through **Semaphore** and email through SMTP share one dispatcher with a queue, retries, quiet hours, a daily SMS cap and tenant opt-outs. Actual email delivery depends on the database's email-enabled switch, SMTP driver selection, and queue processing. SMS go-live remains pending.
 
 ---
@@ -258,10 +260,10 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
 
 - **Frontend:** React 19, React Router 7, Axios, Tailwind CSS 4, Font Awesome, socket.io-client.
 - **Backend:** PHP 8 REST endpoints (no framework), MySQLi prepared statements for all request input.
-- **Chat server:** Node.js with Express 5, Socket.IO 4 and mysql2 ([websocket-server/](websocket-server)).
-- **Quality:** Vitest API suite (2,074 tests in 100 files; see docs/documentation/api_testing.md) plus CI: ESLint + production build, PHP syntax checks and PHPStan, schema/seed/migration validation on MariaDB, and a live-endpoint smoke test ([ci.yml](.github/workflows/ci.yml)).
+- **Chat server:** Node.js with Express 5, Socket.IO 4 and mysql2 ([websocket-server/](websocket-server)), with session token authentication.
+- **Quality:** Vitest API suite (2,234 tests in 116 files; see docs/documentation/api_testing.md) plus 68 Vitest unit tests in ams-react (2,302 automated tests total) and CI: ESLint + production build, PHP syntax checks and PHPStan, schema/seed/migration validation on MariaDB, and a live-endpoint smoke test ([ci.yml](.github/workflows/ci.yml)).
 - **Auth:** login issues a session token stored in the `sessions` table. The frontend sends it as `Authorization: Bearer …`, and `require_admin()` / `require_user()` / `require_owner_or_admin()` resolve identity from it; client-sent identity headers are overwritten. A 401 signs the user out.
 - **Uploads:** extension + MIME allowlists; private files are served only through `download_file.php`.
 - **Audit logging:** `log_activity()` into `activity_logs` for every write.
 - **Secrets:** real credentials live only in the gitignored `backend/config.env.php` or environment variables (and the optional `websocket-server/.env`); templates ending in `.example` hold placeholders only.
-- **Open risks:** the Socket.IO chat server does not authenticate connections yet, so do not expose port 3001 to the public internet before reading [docs/audits/security_audit.md](docs/audits/security_audit.md) (§6e), which tracks this and the other open items.
+- **Security hardening:** prepared statements throughout, strict input validation, CSRF/CORS protections, error-sanitization, and rate-limiting. Detailed threat model in [docs/audits/security_audit.md](docs/audits/security_audit.md).

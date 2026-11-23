@@ -1544,3 +1544,4 @@ All endpoints return JSON with this shape on error:
 | 162 | [notarized_contract.php](../../backend/api/notarized_contract.php) | POST | Contract | User/Admin | See §15.2 |
 | 163 | [get_contract_history.php](../../backend/api/get_contract_history.php) | GET | Contract | Admin | See §15.2 |
 | 164 | [upload_contract_signature.php](../../backend/api/upload_contract_signature.php) | POST | Contract | Admin | See §15 |
+| 165 | [transfer_room.php](../../backend/api/transfer_room.php) | GET/POST | Tenants | Admin | See §15.2 |
