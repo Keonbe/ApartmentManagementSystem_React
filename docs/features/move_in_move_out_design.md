@@ -181,3 +181,24 @@ The tenant's My Room page ([tenant_pages.md](tenant_pages.md) §3) now leads wit
 - **Household.** One shared contract; only the lease holder signs in (decision 2026-09-16). Members are added or removed through `household_members.php` and every change waits for admin approval (cards show "Awaiting approval" / "Removal requested", with Withdraw). Age is required for a child (17 or less); the dialog previews the rent change from the per-person surcharge above 4 occupants. Rows: `household_members` with `age` and `age_category`.
 - **Move-in date.** The admin confirms it with `schedule_move_in.php` (today to +365 days; tenant notified, `move_in_notified_at`); it becomes the contract `lease_start` at move-in. Track Application shows the six steps from submitted to moved in.
 - **Extending** is blocked while a bill is overdue (the card links to Pay Bills) and honours `extension_deadline_days`; reminders before the end use `send_lease_end_reminders()` and `renewal_reminder_sent_at`.
+
+---
+
+## 7. Room Transfer in Place (2026-11)
+An active tenant can move to another vacant unit without terminating the tenancy or re-applying (`transfer_room.php`, migration `2026_11_workstream.sql` table `room_transfers`).
+
+* **Core invariants:**
+  * The tenancy stays on the same `rent_applications` row and contract. Rent anniversary, payment history, household, and assigned parking stay untouched.
+  * Only active tenancies can transfer (pending-move-out or payment in review are refused).
+  * Target must be vacant and unreserved (not held by `unit_reservations` or competing approved application).
+  * Child floor rules (`child_floor_restriction()`) apply to the new unit.
+  * Advance credits block transfer (refunded first to prevent mismatched rates).
+* **Financial settlement:**
+  * **Rent:** New unit rent + occupant surcharge applies starting the next unstarted rent period. Any unpaid bills already issued for unstarted periods are repriced with an `invoice_adjustments` audit record.
+  * **Deposit:** Deposit is matched to the new rent. If higher, a `Deposit top-up` invoice is issued (`billing_period = 'Deposit top-up'`). If lower, a refund request (`refund_requests`) is raised for the excess.
+* **Side effects:**
+  * Old room becomes `vacant` with `last_tenant` set; new room becomes `occupied`.
+  * Waitlist for the old room is notified (`notify_unit_waitlist()`).
+  * Old unit visitor pre-registrations are cancelled (`cancel_user_visitor_registrations()`).
+  * Permanent audit trail recorded in `room_transfers`.
+  * Displayed on admin profile, contract timeline, and tenant My Room page.

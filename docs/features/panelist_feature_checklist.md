@@ -619,7 +619,7 @@ flowchart TD
 
 Source: [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_panel_policy_gap_audit.md) Part B (full wording and justification there). A ✅ above means the feature is built, not that it covers everything a property office does; these are the edges, each with what covers it off-system.
 
-**Delimitations (chosen not to cover):** DE-1 one property of about 15–100 units, no multi-building or multi-owner · DE-2 one login per unit, other occupants are household members without accounts · DE-3 no separate owner or accountant role, the admin does all office work · DE-4 not an accounting or tax system, no BIR official receipts or general ledger · DE-5 no tenant screening or credit check · DE-6 utility readings are entered by the admin, no metering · DE-7 no invoice dispute screen (adjustments carry a reason) · DE-8 pesos and Philippine phone formats only · DE-9 responsive web app, no native app · DE-10 no mid-month proration or automated room transfer.
+**Delimitations (chosen not to cover):** DE-1 one property of about 15–100 units, no multi-building or multi-owner · DE-2 one login per unit, other occupants are household members without accounts · DE-3 no separate owner or accountant role, the admin does all office work · DE-4 not an accounting or tax system, no BIR official receipts or general ledger · DE-5 no tenant screening or credit check · DE-6 utility readings are entered by the admin, no metering · DE-7 no invoice dispute screen (adjustments carry a reason) · DE-8 pesos and Philippine phone formats only · DE-9 responsive web app, no native app · DE-10 retired 2026-11 (final-period proration and room transfers in place are built).
 
 **Limitations (cannot do, or depends on people or other parties):**
 
@@ -640,7 +640,7 @@ Source: [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_panel_poli
 
 **True gaps still open before defense** (SPRINT rows 144-153): admin sign-in hardening · doc counts that disagree · registration consent checkbox · SUS session · rent-increase cap warning · panel writing (novelty, running costs, admin quick start) · clearance while a proof is pending · late webhook after a desk payment · checks that stay UNVERIFIED.
 
-**Status wording to keep honest:** Module 11 "Security & Access" shows 5/5 above while admin sign-in (A-1, S-05) is open in `security_audit.md`; read it as "built, with the open findings listed there". Not built, by design: multi-building, installment scheduler, four-eyes approval, frontend test suite, pagination on every list, proration, room transfers, native app.
+**Status wording to keep honest:** Module 11 "Security & Access" shows 5/5 above while admin sign-in (A-1, S-05) is open in `security_audit.md`; read it as "built, with the open findings listed there". Not built, by design: multi-building, installment scheduler, four-eyes approval, frontend component test suite, pagination on all minor pickers/lists, native app (final-period proration, room transfers, and major list server pagination built 2026-11).
 
 ---
 

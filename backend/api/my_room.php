@@ -62,7 +62,8 @@ if ($result->num_rows > 0) {
     // Check if there is a pending move-in invoice (security_deposit > 0) for this application
     // 'overdue' too: a move-in bill with a part already paid is kept past its
     // payment window (the sweep does not cancel it), so it can go overdue.
-    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount, amount_paid, proof_rejection_reason FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'overdue') AND security_deposit > 0 LIMIT 1");
+    // A deposit top-up after a room transfer is not the move-in bill.
+    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount, amount_paid, proof_rejection_reason FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'overdue') AND security_deposit > 0 AND billing_period <> '" . DEPOSIT_TOPUP_PERIOD . "' LIMIT 1");
     $inv_stmt->bind_param("i", $app_id);
     $inv_stmt->execute();
     $inv_res = $inv_stmt->get_result();
@@ -115,6 +116,9 @@ if ($result->num_rows > 0) {
 
     // Itemized move-out deductions from the deposit (empty until clearance).
     $room_data['deposit_deductions'] = deposit_deductions_for($conn, [(int)$app_id])[(int)$app_id] ?? [];
+
+    // Room-transfer history (empty until the admin moves the tenant to another unit).
+    $room_data['transfers'] = room_transfers_for($conn, [(int)$app_id])[(int)$app_id] ?? [];
     
     // Whether the rent can be extended right now, and why not (config.php
     // extension_block_reason(): scheduled move-out, contract state, overdue

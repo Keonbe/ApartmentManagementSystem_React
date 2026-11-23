@@ -1483,6 +1483,29 @@ CREATE TABLE IF NOT EXISTS `refund_request_events` (
   CONSTRAINT `fk_refund_event_request` FOREIGN KEY (`refund_request_id`) REFERENCES `refund_requests` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- A tenant moved to another unit without moving out (transfer_room.php,
+-- 2026_11_workstream.sql room_transfers): one row per move, the paper trail.
+CREATE TABLE IF NOT EXISTS `room_transfers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `from_room` varchar(50) NOT NULL,
+  `to_room` varchar(50) NOT NULL,
+  `old_rent` decimal(10,2) NOT NULL,
+  `new_rent` decimal(10,2) NOT NULL,
+  `old_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `new_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `effective_period_start` date DEFAULT NULL,
+  `deposit_invoice_id` varchar(50) DEFAULT NULL,
+  `refund_request_id` int(11) DEFAULT NULL,
+  `reason` varchar(255) NOT NULL,
+  `transferred_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_room_transfers_app` (`rent_application_id`),
+  CONSTRAINT `fk_room_transfers_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Extra utility types (2026_10_panelist_gaps.sql). Charges post to invoices.services.
 CREATE TABLE IF NOT EXISTS `utility_types` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

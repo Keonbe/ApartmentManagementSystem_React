@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -6,10 +7,10 @@ import {
   faSearch, faTimes, faUser, faCalendarAlt,
   faExclamationTriangle, faCheckCircle, faEye,
   faArchive, faDollarSign, faWrench, faFileAlt,
-  faSignOutAlt, faClipboardCheck
+  faSignOutAlt, faClipboardCheck, faExchangeAlt
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, addDays, checkAmount, checkDate, checkText, dateProblem } from '../utils/validation';
+import { LIMITS, addDays, checkAmount, checkDate, checkText, dateProblem, localDateString } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
@@ -32,6 +33,8 @@ import AdminHouseholdList from '../Components/AdminHouseholdList';
 import DepositOutcome from '../Components/DepositOutcome';
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
+import useSort, { sortRows } from '../hooks/useSort';
+import SortableTh from '../Components/admin/ui/SortableTh';
 import { TH, btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
@@ -51,6 +54,8 @@ const daysRemaining = (leaseEnd) => {
   return diff;
 };
 
+const TENANT_SORT = { name: (t) => t.name, unit: (t) => t.unit };
+
 const AdminTenants = () => {
   const [tenants, setTenants] = useState([]);
   // loading | error | ready. Until ready the list shows a skeleton or the error,
@@ -58,11 +63,11 @@ const AdminTenants = () => {
   const tenantsState = useLoadState();
   const [archivedTenants, setArchivedTenants] = useState(initialArchivedTenants);
   const [activeFilter, setActiveFilter] = useUrlFilter('filter', 'all', ['all', 'active', 'pending-move-out', 'moved-out', 'archived']);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useUrlFilter('q', '');
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [sortBy, setSortBy] = useState('name'); // 'name' | 'unit'
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
+  // The column headers and the mobile selects drive the same ?sort= / ?dir= state.
+  const { sortKey: sortBy, sortDir: sortOrder, toggle: toggleSort, setSortKey: setSortBy, setSortDir: setSortOrder } = useSort(['name', 'unit']);
 
   const [invoices, setInvoices] = useState([]);
   const [maintenanceRequests, setMaintenanceRequests] = useState([]);
@@ -84,10 +89,24 @@ const AdminTenants = () => {
   const [clearanceTarget, setClearanceTarget] = useState(null);
   // Bank interest the deposit earned, returned with it at clearance (RA 9653 Sec. 7).
   const [depositInterest, setDepositInterest] = useState('');
+  // The day the tenant actually left (update_tenant_status.php move_out_date):
+  // the date on their notice once it has passed, otherwise today.
+  const [clearanceMoveOut, setClearanceMoveOut] = useState('');
+  const [clearanceMoveOutError, setClearanceMoveOutError] = useState('');
   // Itemized deductions for the clearance: [{key, category, reason, amount}].
   const [deductionLines, setDeductionLines] = useState([]);
   const [deductionErrors, setDeductionErrors] = useState([]);
   const [damageNotes, setDamageNotes] = useState('');
+
+  // Room transfer ("Change unit") modal
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferTarget, setTransferTarget] = useState(null);
+  const [transferToRoom, setTransferToRoom] = useState('');
+  const [transferReason, setTransferReason] = useState('');
+  const [transferPreview, setTransferPreview] = useState(null);
+  const [transferError, setTransferError] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [vacantRooms, setVacantRooms] = useState([]);
 
   const fetchInvoices = async () => {
     try {
@@ -159,6 +178,9 @@ const AdminTenants = () => {
     setDeductionErrors([]);
     setDamageNotes('');
     setDepositInterest('');
+    const today = localDateString();
+    setClearanceMoveOut(tenant.requestedMoveOutDate && tenant.requestedMoveOutDate <= today ? tenant.requestedMoveOutDate : today);
+    setClearanceMoveOutError('');
     setShowProfileModal(false);
     tenantForms.setErrors({});
     setShowClearanceModal(true);
@@ -169,7 +191,7 @@ const AdminTenants = () => {
   const [savingAction, setSavingAction] = useState('');
   const [moveOutWindow, setMoveOutWindow] = useState(DEFAULT_MOVE_OUT_WINDOW);
   useEffect(() => {
-    getSystemSettings().then((s) => setMoveOutWindow({
+    getSystemSettings({ warn: true }).then((s) => setMoveOutWindow({
       min: s.moveOutMinNoticeDays ?? DEFAULT_MOVE_OUT_WINDOW.min,
       max: s.moveOutMaxNoticeDays ?? DEFAULT_MOVE_OUT_WINDOW.max,
     })).catch(() => {});
@@ -236,7 +258,10 @@ const AdminTenants = () => {
     setDeductionLines(lines);
     setDeductionErrors(lineErrors);
     const linesOk = lineErrors.every((e) => !e.category && !e.reason && !e.amount);
-    if (!tenantForms.validateAll({ ...tenantValues, damage_notes: notes }, ['damage_notes']) || !linesOk) return;
+    const moveOutProblem = !clearanceMoveOut ? 'Enter the move-out date.'
+      : clearanceMoveOut > localDateString() ? 'The move-out date cannot be in the future.' : '';
+    setClearanceMoveOutError(moveOutProblem);
+    if (!tenantForms.validateAll({ ...tenantValues, damage_notes: notes }, ['damage_notes']) || !linesOk || moveOutProblem) return;
 
     const itemText = lines.map((l) => `${deductionLabel(l.category)} – ${l.reason}: ₱${money(l.amount).toLocaleString()}`).join('; ');
     const summaryNotes = `Clearance Summary — Deposit: ₱${clearanceDeposit.toLocaleString()}, Deductions: ₱${deductionTotal.toLocaleString()}${itemText ? ` (${itemText})` : ''}${notes ? `, Notes: ${notes}` : ''}`;
@@ -249,14 +274,17 @@ const AdminTenants = () => {
         deductions: lines.map((l) => ({ category: l.category, reason: l.reason, amount: Math.round(money(l.amount) * 100) / 100 })),
         damage_notes: notes,
         deposit_interest: clearanceInterest,
+        move_out_date: clearanceMoveOut,
         clearance_notes: summaryNotes
       });
 
       if (res.data.success) {
         const peso = (n) => `₱${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
         const d = res.data;
-        alert([
+        toast.success([
           "Move-out clearance completed successfully. Room is now marked vacant.",
+          d.prorated ? `Last rent period prorated to the move-out date: ${d.prorated.lines.join('; ')}.` : '',
+          d.rent_credit_refund ? `A refund request of ${peso(d.rent_credit_refund.amount)} was opened for rent paid for days after the move-out. See Refunds.` : '',
           d.invoices_paid_from_deposit > 0 ? `${d.invoices_paid_from_deposit} unpaid invoice(s) were paid from the deposit.` : '',
           d.balance_invoice ? `Move-out balance invoice ${d.balance_invoice.id} for ${peso(d.balance_invoice.amount)} was created.` : '',
           d.advance_refund ? `A refund request of ${peso(d.advance_refund.amount)} was opened for unused advance rent. See Refunds.` : '',
@@ -265,11 +293,11 @@ const AdminTenants = () => {
         setClearanceTarget(null);
         fetchTenants();
       } else if (!tenantForms.applyServerErrors(res)) {
-        alert(res.data.message || "Failed to complete move-out clearance.");
+        toast.error(res.data.message || "Failed to complete move-out clearance.");
       }
     } catch (err) {
       console.error("Error confirming clearance:", err);
-      if (!tenantForms.applyServerErrors(err)) alert(apiErrorMessage(err, "Failed to submit move-out clearance."));
+      if (!tenantForms.applyServerErrors(err)) toast.error(apiErrorMessage(err, "Failed to submit move-out clearance."));
     } finally {
       setSavingAction('');
     }
@@ -299,16 +327,16 @@ const AdminTenants = () => {
       });
 
       if (res.data.success) {
-        alert("Move-out scheduled successfully.");
+        toast.success("Move-out scheduled successfully.");
         setShowMoveOutModal(false);
         setMoveOutTarget(null);
         fetchTenants();
       } else if (!tenantForms.applyServerErrors(res)) {
-        alert(res.data.message || "Failed to update tenant status.");
+        toast.error(res.data.message || "Failed to update tenant status.");
       }
     } catch (err) {
       console.error("Error setting move out date:", err);
-      if (!tenantForms.applyServerErrors(err)) alert(apiErrorMessage(err, "Failed to update status. Please try again."));
+      if (!tenantForms.applyServerErrors(err)) toast.error(apiErrorMessage(err, "Failed to update status. Please try again."));
     } finally {
       setSavingAction('');
     }
@@ -328,7 +356,7 @@ const AdminTenants = () => {
       };
       const res = await api.post('/archive_tenant.php', payload);
       if (!res.data.success) {
-        if (!tenantForms.applyServerErrors(res)) alert(apiErrorMessage(res, 'Failed to archive tenant.'));
+        if (!tenantForms.applyServerErrors(res)) toast.error(apiErrorMessage(res, 'Failed to archive tenant.'));
         return;
       }
       fetchTenants();
@@ -338,7 +366,7 @@ const AdminTenants = () => {
       setArchiveNotes('');
     } catch (err) {
       console.error("Error archiving tenant:", err);
-      if (!tenantForms.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to archive tenant.'));
+      if (!tenantForms.applyServerErrors(err)) toast.error(apiErrorMessage(err, 'Failed to archive tenant.'));
     } finally {
       setSavingAction('');
     }
@@ -348,14 +376,14 @@ const AdminTenants = () => {
     try {
       const res = await api.post('/restore_tenant.php', { id });
       if (res.data.success) {
-        alert(res.data.message || 'Tenant restored successfully.');
+        toast.success(res.data.message || 'Tenant restored successfully.');
         fetchTenants();
       } else {
-        alert(res.data.message || 'Failed to restore tenant.');
+        toast.error(res.data.message || 'Failed to restore tenant.');
       }
     } catch (err) {
       console.error("Error restoring tenant:", err);
-      alert(apiErrorMessage(err, 'Failed to restore tenant.'));
+      toast.error(apiErrorMessage(err, 'Failed to restore tenant.'));
     }
   };
 
@@ -365,6 +393,87 @@ const AdminTenants = () => {
     setArchiveNotes('');
     tenantForms.setErrors({});
     setShowArchiveModal(true);
+  };
+
+  const openTransferModal = async (tenant) => {
+    setTransferTarget(tenant);
+    setTransferToRoom('');
+    setTransferReason('');
+    setTransferPreview(null);
+    setTransferError('');
+    setShowTransferModal(true);
+    try {
+      const res = await api.get('/get_rooms.php');
+      if (res.data.success && Array.isArray(res.data.rooms)) {
+        setVacantRooms(res.data.rooms.filter(r => r.status === 'vacant' && r.id !== tenant.unit));
+      }
+    } catch (err) {
+      console.error('Error fetching vacant rooms:', err);
+      toast.error('Could not load vacant rooms.');
+    }
+  };
+
+  const handleRoomSelect = async (roomId) => {
+    setTransferToRoom(roomId);
+    setTransferPreview(null);
+    setTransferError('');
+    if (!roomId || !transferTarget) return;
+    setPreviewLoading(true);
+    try {
+      const res = await api.post('/transfer_room.php', {
+        applicationId: transferTarget.id,
+        toRoom: roomId,
+        preview: true,
+      });
+      if (res.data.success) {
+        setTransferPreview(res.data);
+      } else {
+        setTransferError(res.data.message || 'Cannot transfer to this unit.');
+      }
+    } catch (err) {
+      setTransferError(apiErrorMessage(err, 'Cannot transfer to this unit.'));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleConfirmTransfer = async () => {
+    if (!transferTarget || !transferToRoom) {
+      setTransferError('Please choose a unit.');
+      return;
+    }
+    const r = transferReason.trim();
+    if (r.length < 5 || r.length > 255) {
+      setTransferError('Give a reason of 5 to 255 characters.');
+      return;
+    }
+    setSavingAction('transfer');
+    try {
+      const res = await api.post('/transfer_room.php', {
+        applicationId: transferTarget.id,
+        toRoom: transferToRoom,
+        reason: r,
+      });
+      if (res.data.success) {
+        const d = res.data;
+        const msg = [
+          `Unit changed from ${d.fromRoom} to ${d.toRoom}.`,
+          d.depositInvoiceId ? `Deposit top-up bill ${d.depositInvoiceId} created for ₱${Number(d.depositDifference).toLocaleString(undefined, { minimumFractionDigits: 2 })}.` : '',
+          d.refundRequestId ? `Refund request #${d.refundRequestId} opened for deposit excess of ₱${Number(-d.depositDifference).toLocaleString(undefined, { minimumFractionDigits: 2 })}.` : '',
+          d.repricedBills > 0 ? `${d.repricedBills} future unstarted bill(s) repriced to new rent.` : '',
+        ].filter(Boolean).join('\n');
+        toast.success(msg);
+        setShowTransferModal(false);
+        setTransferTarget(null);
+        fetchTenants();
+      } else {
+        setTransferError(res.data.message || 'Failed to transfer room.');
+      }
+    } catch (err) {
+      setTransferError(apiErrorMessage(err, 'Failed to transfer room.'));
+    } finally {
+      setSavingAction('');
+    }
   };
 
   // Count logic
@@ -408,23 +517,7 @@ const AdminTenants = () => {
     );
   }
 
-  // Sort logic
-  displayed.sort((a, b) => {
-    let valA = '';
-    let valB = '';
-
-    if (sortBy === 'name') {
-      valA = (a.name || '').toLowerCase();
-      valB = (b.name || '').toLowerCase();
-    } else if (sortBy === 'unit') {
-      valA = (a.unit || '').toLowerCase();
-      valB = (b.unit || '').toLowerCase();
-    }
-
-    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
-  });
+  displayed = sortRows(displayed, TENANT_SORT, sortBy, sortOrder);
 
   const tenantInvoices = selectedTenant ? invoices.filter(inv => Number(inv.user_id) === Number(selectedTenant.user_id)) : [];
   const tenantMaintenance = selectedTenant ? maintenanceRequests.filter(req => Number(req.user_id) === Number(selectedTenant.user_id)) : [];
@@ -472,6 +565,15 @@ const AdminTenants = () => {
         date: selectedTenant.archiveDate || selectedTenant.movedOutDate || new Date().toISOString().split(' ')[0],
         detail: `Tenant officially moved out. Reason: ${selectedTenant.archiveReason || 'End of Rent Term'}`
       });
+    }
+    if (selectedTenant.transfers && selectedTenant.transfers.length > 0) {
+      for (const tr of selectedTenant.transfers) {
+        timeline.push({
+          event: 'Unit Changed',
+          date: tr.createdAt ? tr.createdAt.split(' ')[0] : '',
+          detail: `Moved from Unit ${tr.fromRoom} to Unit ${tr.toRoom}. Rent: ₱${Number(tr.oldRent).toLocaleString()} → ₱${Number(tr.newRent).toLocaleString()}.${tr.reason ? ` Reason: ${tr.reason}` : ''}`
+        });
+      }
     }
   }
   const sortedTimeline = timeline.filter(t => t.date).sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -575,12 +677,20 @@ const AdminTenants = () => {
         </button>
       )}
       {t.status === 'active' && (
-        <button
-          onClick={() => handleInitiateMoveOutClick(t)}
-          className="flex items-center gap-1.5 text-amber-700 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-control text-label cursor-pointer transition-colors"
-        >
-          <FontAwesomeIcon icon={faSignOutAlt} className="text-[10px]" /> Move Out
-        </button>
+        <>
+          <button
+            onClick={() => openTransferModal(t)}
+            className="flex items-center gap-1.5 text-sky-700 font-semibold border-0 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-control text-label cursor-pointer transition-colors"
+          >
+            <FontAwesomeIcon icon={faExchangeAlt} className="text-[10px]" /> Change unit
+          </button>
+          <button
+            onClick={() => handleInitiateMoveOutClick(t)}
+            className="flex items-center gap-1.5 text-amber-700 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-control text-label cursor-pointer transition-colors"
+          >
+            <FontAwesomeIcon icon={faSignOutAlt} className="text-[10px]" /> Move Out
+          </button>
+        </>
       )}
       {t.status === 'pending-move-out' && (
         <button
@@ -649,8 +759,8 @@ const AdminTenants = () => {
               <table className="w-full text-body">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className={`${TH} text-left`}>Tenant</th>
-                    <th className={`${TH} text-left`}>Unit</th>
+                    <SortableTh className={`${TH} text-left`} sortKey="name" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Tenant</SortableTh>
+                    <SortableTh className={`${TH} text-left`} sortKey="unit" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Unit</SortableTh>
                     <th className={`${TH} text-left`}>Status</th>
                     <th className={`${TH} text-left`}>Details</th>
                     <th className={`${TH} text-left`}>Actions</th>
@@ -886,17 +996,62 @@ const AdminTenants = () => {
                     <DepositOutcome deposit={selectedTenant.depositOutcome} className="" />
                   )}
 
+                  {/* Transfer history */}
+                  {selectedTenant.transfers && selectedTenant.transfers.length > 0 && (
+                    <div className="bg-sky-50 border border-sky-200 rounded-card p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <FontAwesomeIcon icon={faExchangeAlt} className="text-sky-600" />
+                        <span className="text-body font-bold text-sky-800">Unit Transfer History</span>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedTenant.transfers.map((tr) => (
+                          <div key={tr.id} className="rounded-control bg-white border border-sky-100 p-3 text-label space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-800">Unit {tr.fromRoom} → Unit {tr.toRoom}</span>
+                              <span className="text-caption text-slate-500">{tr.createdAt ? tr.createdAt.split(' ')[0] : ''}</span>
+                            </div>
+                            <div className="text-slate-600">
+                              Monthly Rent: ₱{Number(tr.oldRent).toLocaleString()} → ₱{Number(tr.newRent).toLocaleString()}
+                              {tr.effectivePeriodStart ? ` (effective ${tr.effectivePeriodStart})` : ''}
+                            </div>
+                            {tr.depositInvoiceId && (
+                              <div className="text-amber-700 font-medium">
+                                Deposit top-up bill: {tr.depositInvoiceId} (₱{Number(tr.newDeposit - tr.oldDeposit).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                              </div>
+                            )}
+                            {tr.refundRequestId && (
+                              <div className="text-emerald-700 font-medium">
+                                Deposit excess refund request: #{tr.refundRequestId} (₱{Number(tr.oldDeposit - tr.newDeposit).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                              </div>
+                            )}
+                            {tr.reason && <div className="text-slate-500 italic">"{tr.reason}"</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Actions for non-archived tenants. Pending Review applications are
                       handled on the Applications page (AdminApplications.jsx) — this
                       page's tenant list already excludes that status (see the filter
                       above), so no approve/reject action exists here. */}
                   {selectedTenant.status !== 'archived' && (selectedTenant.status === 'active' || selectedTenant.status === 'Approved') && (
-                    <button 
-                      onClick={() => handleInitiateMoveOutClick(selectedTenant)} 
-                      className="w-full mt-4 flex items-center justify-center gap-2 bg-amber-500 text-white p-2.5 rounded-control border-0 cursor-pointer text-body font-semibold hover:bg-amber-600 transition-colors"
-                    >
-                      <FontAwesomeIcon icon={faSignOutAlt} /> Initiate Move Out
-                    </button>
+                    <>
+                      {selectedTenant.status === 'active' && (
+                        <button
+                          onClick={() => { setShowProfileModal(false); openTransferModal(selectedTenant); }}
+                          className="w-full mt-4 flex items-center justify-center gap-2 bg-sky-600 text-white p-2.5 rounded-control border-0 cursor-pointer text-body font-semibold hover:bg-sky-700 transition-colors"
+                        >
+                          <FontAwesomeIcon icon={faExchangeAlt} /> Change Unit
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleInitiateMoveOutClick(selectedTenant)} 
+                        className={`w-full ${selectedTenant.status === 'active' ? 'mt-2' : 'mt-4'} flex items-center justify-center gap-2 bg-amber-500 text-white p-2.5 rounded-control border-0 cursor-pointer text-body font-semibold hover:bg-amber-600 transition-colors`}
+                      >
+                        <FontAwesomeIcon icon={faSignOutAlt} /> Initiate Move Out
+                      </button>
+                    </>
                   )}
                   {selectedTenant.status === 'pending-move-out' && (
                     <button 
@@ -1215,6 +1370,17 @@ const AdminTenants = () => {
                   </span>
                 </div>
 
+                <div>
+                  <label htmlFor="clearance-move-out-date" className="block text-label font-medium text-slate-700 mb-1">Move-out date *</label>
+                  <input id="clearance-move-out-date" type="date" max={localDateString()} value={clearanceMoveOut}
+                    onChange={(e) => { setClearanceMoveOut(e.target.value); setClearanceMoveOutError(''); }}
+                    aria-invalid={!!clearanceMoveOutError} aria-describedby="clearance-move-out-hint"
+                    className={`w-full px-3 py-2 text-body border rounded-control outline-none focus:border-indigo-500 bg-white text-slate-800 ${clearanceMoveOutError ? 'border-red-400' : 'border-slate-200'}`} />
+                  <p id="clearance-move-out-hint" className={`m-0 mt-1 text-caption ${clearanceMoveOutError ? 'text-red-600' : 'text-slate-500'}`}>
+                    {clearanceMoveOutError || 'The day the tenant actually left. When Settings → Payments "Prorate the final rent period" is on, the last rent period is charged only up to this day.'}
+                  </p>
+                </div>
+
                 {/* Section 1: Itemized deductions (deposit_deductions): category, reason, amount per line */}
                 <div className="space-y-2 border-t border-slate-100 pt-3">
                   <label className="block text-label font-medium text-slate-700">
@@ -1342,6 +1508,166 @@ const AdminTenants = () => {
                 </button>
               </div>
             </Modal>
+        )}
+        {/* ─── CHANGE UNIT (ROOM TRANSFER) MODAL ─── */}
+        {showTransferModal && transferTarget && (
+          <Modal
+            busy={savingAction === 'transfer'}
+            title={`Change Unit — ${transferTarget.name}`}
+            onClose={() => setShowTransferModal(false)}
+            overlayClassName="flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            className="bg-white rounded-card shadow-dialog w-full max-w-lg mx-4 overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-card bg-sky-700 text-white flex items-center justify-center font-bold">
+                  <FontAwesomeIcon icon={faExchangeAlt} />
+                </div>
+                <div>
+                  <h3 className="text-title font-bold text-slate-800 m-0">Change Unit</h3>
+                  <p className="text-label text-slate-500 m-0 mt-0.5">Move tenant to another unit in place</p>
+                </div>
+              </div>
+              <button
+                aria-label="Close"
+                onClick={() => setShowTransferModal(false)}
+                className="text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
+              >
+                <FontAwesomeIcon icon={faTimes} className="text-base" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-left max-h-[75vh] overflow-y-auto">
+              {/* Tenant summary */}
+              <div className="bg-slate-50 border border-slate-200 rounded-card p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-body font-bold text-slate-800 m-0">{transferTarget.name}</p>
+                  <p className="text-label text-slate-500 m-0 mt-0.5">Current: Unit {transferTarget.unit} · {transferTarget.rent}/mo</p>
+                </div>
+                <span className="text-label font-bold text-sky-700 bg-sky-50 border border-sky-200 px-3 py-1 rounded-full">
+                  Active Tenancy
+                </span>
+              </div>
+
+              {/* Vacant room picker */}
+              <div>
+                <label htmlFor="transfer-to-room" className="block text-label font-medium text-slate-700 mb-1">
+                  Target unit *
+                </label>
+                <select
+                  id="transfer-to-room"
+                  value={transferToRoom}
+                  onChange={(e) => handleRoomSelect(e.target.value)}
+                  className="w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 bg-white text-slate-800"
+                >
+                  <option value="">-- Choose a vacant unit --</option>
+                  {vacantRooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      Unit {r.id} ({r.floor || 'Floor'} · ₱{Number(r.rent).toLocaleString()}/mo)
+                    </option>
+                  ))}
+                </select>
+                {vacantRooms.length === 0 && (
+                  <p className="m-0 mt-1 text-caption text-amber-700">No vacant units available.</p>
+                )}
+              </div>
+
+              {previewLoading && (
+                <div className="p-3 bg-slate-50 rounded-control text-label text-slate-500 text-center">
+                  Calculating transfer details…
+                </div>
+              )}
+
+              {/* Transfer Preview */}
+              {transferPreview && (
+                <div className="bg-sky-50/70 border border-sky-200 rounded-card p-4 space-y-2 text-label">
+                  <p className="text-label font-bold text-sky-900 m-0">Transfer Summary</p>
+                  <div className="space-y-1 text-slate-700">
+                    <div className="flex justify-between">
+                      <span>Monthly rent:</span>
+                      <span className="font-semibold">
+                        ₱{Number(transferPreview.oldRent).toLocaleString()} → ₱{Number(transferPreview.newRent).toLocaleString()}
+                        {transferPreview.effectivePeriodStart ? ` (from ${transferPreview.effectivePeriodStart})` : ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Security deposit:</span>
+                      <span className="font-semibold">
+                        ₱{Number(transferPreview.oldDeposit).toLocaleString()} → ₱{Number(transferPreview.newDeposit).toLocaleString()}
+                      </span>
+                    </div>
+                    {transferPreview.depositDifference > 0 && (
+                      <div className="flex justify-between text-amber-800 font-medium">
+                        <span>Deposit top-up needed:</span>
+                        <span>₱{Number(transferPreview.depositDifference).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {transferPreview.depositDifference < 0 && (
+                      <div className="flex justify-between text-emerald-700 font-medium">
+                        <span>Excess deposit refund:</span>
+                        <span>₱{Number(-transferPreview.depositDifference).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {transferPreview.repricedBills > 0 && (
+                      <p className="m-0 text-caption text-slate-600">
+                        {transferPreview.repricedBills} unpaid bill(s) for future periods will be repriced to the new rent.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Utility reading reminder */}
+              <div className="bg-amber-50 border border-amber-200 rounded-card p-3 text-caption text-amber-900 flex items-start gap-2">
+                <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <strong>Reminder:</strong> Save a final utility meter reading for Unit {transferTarget.unit} under Utilities before confirming, so electricity and water can be billed accurately.
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label htmlFor="transfer-reason" className="block text-label font-medium text-slate-700 mb-1">
+                  Reason for transfer *
+                </label>
+                <textarea
+                  id="transfer-reason"
+                  rows={3}
+                  maxLength={255}
+                  value={transferReason}
+                  onChange={(e) => { setTransferReason(e.target.value); setTransferError(''); }}
+                  placeholder="e.g. Tenant requested ground floor unit; upgrade to larger room"
+                  className="w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 bg-white text-slate-800"
+                />
+                <p className="m-0 mt-0.5 text-caption text-slate-400 text-right">{transferReason.length}/255</p>
+              </div>
+
+              {transferError && (
+                <p role="alert" className="m-0 text-label font-semibold text-red-600">
+                  {transferError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setShowTransferModal(false)}
+                className="px-4 py-2 text-body text-slate-600 font-medium hover:bg-slate-100 rounded-control border-0 bg-transparent cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmTransfer}
+                disabled={!transferToRoom || savingAction === 'transfer' || !!transferError}
+                className="px-5 py-2.5 bg-sky-700 text-white rounded-control text-body font-semibold hover:bg-sky-800 shadow-card border-0 cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FontAwesomeIcon icon={faExchangeAlt} />
+                {savingAction === 'transfer' ? 'Transferring…' : 'Confirm Transfer'}
+              </button>
+            </div>
+          </Modal>
         )}
     </div>
   );

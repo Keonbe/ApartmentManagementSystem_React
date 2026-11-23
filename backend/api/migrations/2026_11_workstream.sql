@@ -885,3 +885,30 @@ SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema 
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES ('prorate_final_period', '0');
+
+-- ===== room_transfers =====
+-- A tenant moved to another unit without moving out (transfer_room.php): the same
+-- rent application, contract and rent anniversary; one row per move, kept as the
+-- paper trail (the contract shows the current room). new_rent applies from
+-- effective_period_start; the deposit is matched to it by a top-up invoice
+-- (deposit_invoice_id) or a refund request for the excess (refund_request_id).
+CREATE TABLE IF NOT EXISTS `room_transfers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `from_room` varchar(50) NOT NULL,
+  `to_room` varchar(50) NOT NULL,
+  `old_rent` decimal(10,2) NOT NULL,
+  `new_rent` decimal(10,2) NOT NULL,
+  `old_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `new_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `effective_period_start` date DEFAULT NULL,
+  `deposit_invoice_id` varchar(50) DEFAULT NULL,
+  `refund_request_id` int(11) DEFAULT NULL,
+  `reason` varchar(255) NOT NULL,
+  `transferred_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_room_transfers_app` (`rent_application_id`),
+  CONSTRAINT `fk_room_transfers_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

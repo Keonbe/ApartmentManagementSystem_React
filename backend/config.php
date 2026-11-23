@@ -3064,6 +3064,7 @@ function get_room_tenancy($conn, $room_name) {
                                   WHERE i.rent_application_id = ra.id
                                     AND i.status IN ('pending', 'pending-verification')
                                     AND i.security_deposit > 0
+                                    AND i.billing_period <> '" . DEPOSIT_TOPUP_PERIOD . "'
                               )
                             ORDER BY ra.id DESC LIMIT 1");
     $stmt->bind_param("s", $room_name);
@@ -4380,6 +4381,10 @@ function notice_shortfall_deduction($conn, array $ctx, $monthly_rent) {
 // No reference is stored on these rows: the same contract would repeat on
 // several invoices and read as a reused payment reference.
 const MOVE_OUT_BALANCE_PERIOD = 'Move-out balance';
+// billing_period of the bill for a higher deposit after a room transfer
+// (transfer_room.php). It carries security_deposit > 0 like the move-in bill, so
+// checks for "an unpaid move-in bill" exclude it by this label.
+const DEPOSIT_TOPUP_PERIOD = 'Deposit top-up';
 // On payment_transactions.payment_method and invoices.payment_method; shown as
 // is in Payment History, receipts and the admin ledger.
 const DEPOSIT_PAYMENT_METHOD = 'Security deposit';
@@ -4534,6 +4539,39 @@ function reverse_deposit_application($conn, $app_id) {
     $reopen->close();
     $drop->close();
     return ['invoices_reopened' => count($paid_rows), 'balance_invoices_cancelled' => count($balance_rows)];
+}
+
+// Transfer history for a set of applications, keyed by rent_application_id.
+// Each value is an array of rows, newest first. Called by transfer_room.php
+// (the GET branch) and by get_tenants.php / my_room.php (the profile view).
+function room_transfers_for($conn, array $app_ids) {
+    $out = [];
+    if (!$app_ids) return $out;
+    $ids = array_map('intval', $app_ids);
+    $in = implode(',', $ids);
+    $rows = $conn->query("SELECT rt.*, u.email_address AS admin_email
+        FROM room_transfers rt
+        LEFT JOIN users u ON u.id = rt.transferred_by
+        WHERE rt.rent_application_id IN ($in)
+        ORDER BY rt.created_at DESC");
+    while ($r = $rows->fetch_assoc()) {
+        $out[(int)$r['rent_application_id']][] = [
+            'id' => (int)$r['id'],
+            'fromRoom' => $r['from_room'],
+            'toRoom' => $r['to_room'],
+            'oldRent' => round((float)$r['old_rent'], 2),
+            'newRent' => round((float)$r['new_rent'], 2),
+            'oldDeposit' => round((float)$r['old_deposit'], 2),
+            'newDeposit' => round((float)$r['new_deposit'], 2),
+            'effectivePeriodStart' => $r['effective_period_start'],
+            'depositInvoiceId' => $r['deposit_invoice_id'],
+            'refundRequestId' => $r['refund_request_id'] ? (int)$r['refund_request_id'] : null,
+            'reason' => $r['reason'],
+            'transferredBy' => $r['admin_email'] ?? null,
+            'createdAt' => $r['created_at'],
+        ];
+    }
+    return $out;
 }
 
 // Settings -> Payments "Prorate the final rent period": off by default (rent is

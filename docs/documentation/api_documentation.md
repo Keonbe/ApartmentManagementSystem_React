@@ -1169,6 +1169,8 @@ Endpoints added or split out after the modules above were written (verified agai
 | `POST` [delete_room_image.php](../../backend/api/delete_room_image.php) | admin | `room_id`, `path` | `{gallery}`; 404 | Removes the item and unlinks the file |
 | `POST` [save_contract_template.php](../../backend/api/save_contract_template.php) | admin | `template`, `note`, `base_version` | `{changed, version, id}`; 409 version conflict (carries the current `version`) | New `contract_template_versions` row; log `contract` |
 | `GET` [get_contract_template.php](../../backend/api/get_contract_template.php) | user (`history`, `default` and `full` are admin) | `history`, `default`, `version_id` | template + `version`, `terms_version`, `is_default`; 403 a tenant asking for a version that is not theirs; 404; 422 | none |
+| `POST` [transfer_room.php](../../backend/api/transfer_room.php) | admin | `applicationId`, `toRoom`, `reason` (5–255), optional `preview` (bool) | `{success, transferId, fromRoom, toRoom, oldRent, newRent, oldDeposit, newDeposit, depositDifference, depositInvoiceId, refundRequestId, effectivePeriodStart, repricedBills}`; 404; 409 occupied/held/payment in review/advance credits; 422 same room/child floor rule | Moves tenancy in place: swaps room occupancy/last_tenant, adjusts `rent_applications` rent/room and contract deposit, creates top-up bill or excess deposit refund, reprices future unstarted bills, cancels old visitor pre-registrations, notifies waitlist and tenant; log `tenant` |
+| `GET` [transfer_room.php](../../backend/api/transfer_room.php) | admin | `?applicationId=` | `{success, transfers[]}` | Lists tenancy transfer history (newest first) |
 
 ### 15.3 Household, waitlist and expenses
 

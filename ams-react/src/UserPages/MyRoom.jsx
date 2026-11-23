@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt, faReceipt, faClipboardList, faChevronRight, faExchangeAlt } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
 import RoomKeyTag from '../Components/tenant/RoomKeyTag';
@@ -126,7 +126,9 @@ export default function MyRoom() {
                     status: data.status,
                     requestedMoveOutDate: data.requested_move_out_date,
                     // Itemized move-out deductions from the deposit (empty until clearance).
-                    depositDeductions: Array.isArray(data.deposit_deductions) ? data.deposit_deductions : []
+                    depositDeductions: Array.isArray(data.deposit_deductions) ? data.deposit_deductions : [],
+                    // Room-transfer history (empty until the admin moves the tenant to another unit).
+                    transfers: Array.isArray(data.transfers) ? data.transfers : []
                 });
 
                 setDaysUntilExpiration(Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
@@ -567,6 +569,34 @@ export default function MyRoom() {
                             daysLeft={daysUntilExpiration}
                             onExtend={rentActionsShown && !movingOut && !extensionBlocked ? openExtend : undefined}
                         />
+                    )}
+
+                    {roomDetails.transfers?.length > 0 && (
+                        <div className={`${PANEL} p-4 sm:p-5 border-sky-200 bg-sky-50/40`}>
+                            <h2 className="m-0 text-base font-semibold text-sky-900 flex items-center gap-2">
+                                <FontAwesomeIcon icon={faExchangeAlt} className="text-sky-600 text-sm" />
+                                Unit Transfer History
+                            </h2>
+                            <div className="mt-2.5 space-y-2">
+                                {roomDetails.transfers.map((tr) => (
+                                    <div key={tr.id} className="rounded-xl bg-white border border-sky-100 p-3 text-sm">
+                                        <div className="flex items-center justify-between font-semibold text-slate-800">
+                                            <span>Unit {tr.fromRoom} → Unit {tr.toRoom}</span>
+                                            <span className="text-xs font-normal text-slate-500">{tr.createdAt?.split(' ')[0]}</span>
+                                        </div>
+                                        <p className="m-0 mt-1 text-xs text-slate-600">
+                                            Rent: ₱{Number(tr.oldRent).toLocaleString()} → ₱{Number(tr.newRent).toLocaleString()}
+                                            {tr.effectivePeriodStart ? ` (effective ${tr.effectivePeriodStart})` : ''}
+                                        </p>
+                                        {tr.reason && (
+                                            <p className="m-0 mt-1 text-xs text-slate-500 italic">
+                                                "{tr.reason}"
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
 
                     <nav aria-label="Room shortcuts" className="grid grid-cols-2 gap-2 mt-auto">

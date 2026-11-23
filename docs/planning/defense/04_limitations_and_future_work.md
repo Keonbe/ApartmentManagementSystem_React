@@ -22,7 +22,7 @@ If I continue, the order is: run the usability session and publish the score; fi
 | One admin, no second approver on cash | Small property with one manager; the activity log is the control | DE-3, LI-4 |
 | No accounting, tax or BIR receipts | Separate regulations and software | DE-4 |
 | Utilities typed in, not metered | Meters are read physically | DE-6 |
-| No proration, no room transfers | Rent is whole-month at the partner property; manager handles partial months | DE-10 |
+| ~~No proration, no room transfers~~ (Built 2026-11) | Final-period proration (`prorate_final_period`) and room transfers in place (`transfer_room.php`) were implemented November 2026 | Retired DE-10 |
 | Shortfall collection after move-out not enforced | Depends on negotiation, not software | LI-1 |
 | No installment enforcement | Arrangements vary per tenant | LI-2 |
 | Refund payout outside the system (except PayMongo) | Done in bank and wallet apps | LI-3 |
