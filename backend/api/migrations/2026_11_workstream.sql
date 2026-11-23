@@ -862,3 +862,15 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 -- filled.
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES ('floor_rates', '{"1F": 4000, "2F": 4000, "3F": 3500}');
 UPDATE `system_settings` SET `setting_value` = '{"1F": 4000, "2F": 4000, "3F": 3500}' WHERE `setting_key` = 'floor_rates' AND TRIM(`setting_value`) IN ('', '{}', '[]');
+
+-- ===== list_paging_indexes =====
+-- Server-side list paging: Admin Payments reads only the open bills
+-- (get_invoices.php ?view=desk, WHERE status IN (...)) and the maintenance board
+-- reads open tickets plus recently closed ones (?closedDays=), so both filter on status.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'invoices' AND index_name = 'idx_invoices_status_due') = 0,
+  'ALTER TABLE `invoices` ADD KEY `idx_invoices_status_due` (`status`, `due_date`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'maintenance_requests' AND index_name = 'idx_maint_status_created') = 0,
+  'ALTER TABLE `maintenance_requests` ADD KEY `idx_maint_status_created` (`status`, `created_at`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;

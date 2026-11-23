@@ -157,6 +157,8 @@ CREATE TABLE `invoices` (
   KEY `idx_invoice_payment_group` (`payment_group`),
   KEY `idx_invoices_checkout_intent` (`checkout_payment_intent_id`),
   KEY `idx_invoices_reference_norm` (`reference_norm`),
+  -- Admin Payments reads only the open bills (2026_11_workstream.sql list_paging_indexes).
+  KEY `idx_invoices_status_due` (`status`, `due_date`),
   CONSTRAINT `fk_invoice_rent_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_invoice_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -983,6 +985,8 @@ ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `invoice_id` varchar
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `billing_period` varchar(50) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `invoiced_amount` decimal(10,2) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD INDEX IF NOT EXISTS `idx_maint_invoiced` (`is_invoiced`);
+-- The maintenance board reads open tickets and recently closed ones (2026_11_workstream.sql list_paging_indexes).
+ALTER TABLE `maintenance_requests` ADD INDEX IF NOT EXISTS `idx_maint_status_created` (`status`, `created_at`);
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_date` date DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_window` varchar(20) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `cancel_requested_at` datetime DEFAULT NULL;

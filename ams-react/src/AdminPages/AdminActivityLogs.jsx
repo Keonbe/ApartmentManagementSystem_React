@@ -1,10 +1,11 @@
+import toast from '../utils/toast';
 import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faDollarSign, faWrench, faUserPlus, faFileContract, faCogs, faBullhorn,
-  faChevronLeft, faChevronRight, faTimes, faInfoCircle, faArrowLeft, faDownload,
+  faTimes, faInfoCircle, faArrowLeft, faDownload,
   faKey, faUserShield, faBuilding, faTint, faConciergeBell, faClipboardList, faSync
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +18,8 @@ import { TH, btn } from '../Components/admin/ui/styles';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import Pagination from '../Components/admin/ui/Pagination';
+import useUrlFilter from '../hooks/useUrlFilter';
 
 // Icon and colour per category. Keys match LOG_CATEGORIES in backend/config.php;
 // labels come from the server so the two can't drift apart.
@@ -68,16 +71,22 @@ export default function AdminActivityLogs() {
   // Filters are applied by the server, over the whole log.
   const [category, setCategory] = useState('all');
   const [performer, setPerformer] = useState('all');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  // The committed search lives in the URL (?q=) so a refresh or a shared link keeps it.
+  const [search, setSearch] = useUrlFilter('q', '');
+  const [searchInput, setSearchInput] = useState(search);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
 
   // Debounce typing so each keystroke doesn't hit the server.
   useEffect(() => {
-    const t = setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 350);
+    const t = setTimeout(() => {
+      if (searchInput.trim() === search) return;
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 350);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setSearch is new each render; only typing should restart the timer
   }, [searchInput]);
 
   const buildParams = useCallback((extra = {}) => {
@@ -134,7 +143,7 @@ export default function AdminActivityLogs() {
       const res = await api.get(`get_activity_logs.php?${buildParams({ export: '1', page: '1' })}`);
       if (!res.data.success) throw new Error(res.data.message);
       if (res.data.truncated) {
-        alert(`Only the newest ${res.data.logs.length.toLocaleString()} of ${res.data.total.toLocaleString()} matching entries fit in one export. Narrow the date range to export the rest.`);
+        toast.info(`Only the newest ${res.data.logs.length.toLocaleString()} of ${res.data.total.toLocaleString()} matching entries fit in one export. Narrow the date range to export the rest.`);
       }
       const header =['Log ID', 'Timestamp', 'Category', 'Action', 'Details', 'Performed By', 'Role', 'Email'];
       const rows = res.data.logs.map(l => [
@@ -150,7 +159,7 @@ export default function AdminActivityLogs() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert(e?.response?.data?.message || e.message || 'Export failed.');
+      toast.error(e?.response?.data?.message || e.message || 'Export failed.');
     } finally {
       setExporting(false);
     }
@@ -302,29 +311,7 @@ export default function AdminActivityLogs() {
                 </table>
               </div>
 
-              {total > 0 && (
-                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-label text-slate-500">Page {page} of {pages}</span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      aria-label="Previous page"
-                      className="w-8 h-8 rounded-control border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center cursor-pointer text-slate-600 text-label"
-                    >
-                      <FontAwesomeIcon icon={faChevronLeft} />
-                    </button>
-                    <button
-                      onClick={() => setPage(p => Math.min(pages, p + 1))}
-                      disabled={page === pages}
-                      aria-label="Next page"
-                      className="w-8 h-8 rounded-control border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center cursor-pointer text-slate-600 text-label"
-                    >
-                      <FontAwesomeIcon icon={faChevronRight} />
-                    </button>
-                  </div>
-                </div>
-              )}
+              <Pagination page={page} pages={pages} total={total} limit={PAGE_SIZE} onPage={setPage} noun="entries" />
             </div>
 
           </div>

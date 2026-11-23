@@ -1,3 +1,4 @@
+import toast from '../../../utils/toast';
 import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -237,13 +238,13 @@ export default function GenerateInvoiceModal({ onClose, onSaved }) {
           loadAdjustableInvoices();
           onSaved?.();
         } else if (!invoiceErrors.applyServerErrors(response)) {
-          alert(response.data.message || 'Failed to adjust invoice.');
+          toast.error(response.data.message || 'Failed to adjust invoice.');
         }
       } catch (err) {
         // create_invoice/adjust_invoice return a 4xx body with a specific
         // reason (duplicate id, invalid amount, invoice no longer
         // adjustable, etc.) — surface it instead of a generic alert.
-        if (!invoiceErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Error adjusting invoice. Please verify connection and inputs.'));
+        if (!invoiceErrors.applyServerErrors(err)) toast.error(apiErrorMessage(err, 'Error adjusting invoice. Please verify connection and inputs.'));
       } finally {
         setIssuingInvoice(false);
       }
@@ -270,10 +271,10 @@ export default function GenerateInvoiceModal({ onClose, onSaved }) {
         setInvoiceSuccessMsg(`Invoice ${response.data.invoice_id} successfully saved & issued to ${invoiceForm.tenant}!`);
         onSaved?.();
       } else if (!invoiceErrors.applyServerErrors(response)) {
-        alert(response.data.message || 'Failed to issue invoice.');
+        toast.error(response.data.message || 'Failed to issue invoice.');
       }
     } catch (err) {
-      if (!invoiceErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Error issuing invoice. Please verify connection and inputs.'));
+      if (!invoiceErrors.applyServerErrors(err)) toast.error(apiErrorMessage(err, 'Error issuing invoice. Please verify connection and inputs.'));
     } finally {
       setIssuingInvoice(false);
     }

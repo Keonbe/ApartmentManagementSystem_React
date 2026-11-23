@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -67,6 +68,43 @@ const ADJUSTMENT_LINE_LABELS ={ base_rent: 'Base rent', water: 'Water', electric
 // Bills paid outside the desk cannot be voided here (void_payment.php answers 409 for them too).
 const NOT_VOIDABLE_METHODS = ['Advance credit', 'Security deposit'];
 
+// A paid invoice as a row of the tenant's Payment History. The history is read
+// per tenant (get_invoices.php ?userId=) when the tenant is opened; the ledger
+// itself only loads the open bills (?view=desk).
+const toHistoryEntry = (inv) => {
+  const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
+  const invoiceBreakdown = [
+    ['Rent', inv.base_rent],
+    ['Water', inv.water],
+    ['Electricity', inv.electricity],
+    ['Parking', inv.parking],
+    ['Services', inv.services],
+    ['Maintenance', inv.maintenance],
+    ['Security deposit', inv.security_deposit],
+    ['Late fee', inv.late_fee],
+  ]
+    .filter(([, amount]) => Number(amount) > 0)
+    .map(([label, amount]) => `${label}: ${formatCurrency(amount)}`)
+    .join(' · ');
+  return {
+    id: inv.id,
+    period: inv.billing_period,
+    breakdown: invoiceBreakdown || `Total: ${formatCurrency(inv.total_amount)}`,
+    amount: parseFloat(inv.total_amount || 0),
+    datePaid: inv.paid_at,
+    status: 'paid',
+    method: methodDisplay,
+    paymentTransactions: inv.payment_transactions || [],
+    gateway: inv.payment_gateway,
+    proofOfPaymentPath: inv.proof_of_payment_path,
+    paymentReference: inv.payment_reference,
+    senderName: inv.sender_name,
+    // A desk payment can be voided with a reason; online, combined, advance
+    // and deposit payments cannot (the server decides, this only hides the button).
+    voidable: !inv.payment_gateway && !inv.paymongo_payment_id && !inv.payment_group && !inv.advance_months && !NOT_VOIDABLE_METHODS.includes(inv.payment_method),
+  };
+};
+
 const CHIP_TONES = {
   emerald: 'text-emerald-700', amber: 'text-amber-700', red: 'text-red-700', indigo: 'text-indigo-700', slate: 'text-slate-500',
 };
@@ -127,6 +165,10 @@ const CollectionStatus = ({ status }) => (
 const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
+  // Every paid bill's total (get_invoices.php ?view=desk `collected`).
+  const [collected, setCollected] = useState(0);
+  // The opened tenant's paid bills, read on demand: { tenantId, rows, state }.
+  const [historyLoad, setHistoryLoad] = useState({ tenantId: null, rows: [], state: 'idle' });
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOption, setSortOption] = useState('created-desc');
   const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', ['all', 'unpaid', 'paid', 'pending-verification', 'scheduled', 'processing', 'payment-failed', 'overdue']);
@@ -162,14 +204,14 @@ const AdminPayments = () => {
     try {
       const res = await api.post('/send_payment_reminder.php', { invoice_id: invoiceId });
       if (res.data.success) {
-        alert(res.data.message || 'Payment reminder sent successfully!');
+        toast.success(res.data.message || 'Payment reminder sent successfully!');
         fetchInvoices();
       } else {
-        alert(res.data.message || 'Failed to send reminder.');
+        toast.error(res.data.message || 'Failed to send reminder.');
       }
     } catch (err) {
       console.error('Failed to send reminder:', err);
-      alert(err.response?.data?.message || 'Error sending payment reminder.');
+      toast.error(err.response?.data?.message || 'Error sending payment reminder.');
     } finally {
       setSendingReminder(false);
     }
@@ -181,14 +223,14 @@ const AdminPayments = () => {
     try {
       const res = await api.post('/send_payment_reminder.php', { all: true });
       if (res.data.success) {
-        alert(res.data.message || 'Batch reminders dispatched successfully!');
+        toast.success(res.data.message || 'Batch reminders dispatched successfully!');
         fetchInvoices();
       } else {
-        alert(res.data.message || 'Failed to send batch reminders.');
+        toast.error(res.data.message || 'Failed to send batch reminders.');
       }
     } catch (err) {
       console.error('Batch reminders error:', err);
-      alert(err.response?.data?.message || 'Error sending batch reminders.');
+      toast.error(err.response?.data?.message || 'Error sending batch reminders.');
     } finally {
       setBatchSending(false);
     }
@@ -196,7 +238,7 @@ const AdminPayments = () => {
 
   const loadInvoices = async () => {
     try {
-      const res = await api.get('/get_invoices.php');
+      const res = await api.get('/get_invoices.php', { params: { view: 'desk' } });
       if (!res.data.success) setLoadError(res.data.message || 'The server did not return the invoices.');
       if (res.data.success) {
         invoicesLoadedRef.current = true;
@@ -204,6 +246,7 @@ const AdminPayments = () => {
         const grouped = {};
         // Each tenant's deposit and prepaid-rent position (get_invoices.php).
         const accounts = res.data.accounts || {};
+        setCollected(Number(res.data.collected ?? 0));
 
         res.data.invoices.forEach(inv => {
           if (!grouped[inv.user_id]) {
@@ -216,7 +259,6 @@ const AdminPayments = () => {
               account: accounts[inv.user_id] || null,
               dueDate: inv.due_date ?? "",
               billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, maintenance: 0, addOns: 0 },
-              history: [],
               outstandingBalance: 0,
               advanceAwaiting: 0,
               overdueInvoices: 0,
@@ -245,42 +287,32 @@ const AdminPayments = () => {
             if (inv.created_at && (!t.latestInvoiceCreatedAt || inv.created_at > t.latestInvoiceCreatedAt)) {
               t.latestInvoiceCreatedAt = inv.created_at;
             }
-          } else if (inv.status === 'paid') {
-            const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
-            const invoiceBreakdown = [
-              ['Rent', inv.base_rent],
-              ['Water', inv.water],
-              ['Electricity', inv.electricity],
-              ['Parking', inv.parking],
-              ['Services', inv.services],
-              ['Maintenance', inv.maintenance],
-              ['Security deposit', inv.security_deposit],
-              ['Late fee', inv.late_fee],
-            ]
-              .filter(([, amount]) => Number(amount) > 0)
-              .map(([label, amount]) => `${label}: ${formatCurrency(amount)}`)
-              .join(' · ');
-            const paymentTransactions = inv.payment_transactions || [];
-            t.history.push({
-              id: inv.id, 
-              period: inv.billing_period, 
-              breakdown: invoiceBreakdown || `Total: ${formatCurrency(inv.total_amount)}`,
-              amount: parseFloat(inv.total_amount || 0), 
-              datePaid: inv.paid_at, 
-              status: 'paid', 
-              method: methodDisplay,
-              paymentTransactions,
-              gateway: inv.payment_gateway,
-              proofOfPaymentPath: inv.proof_of_payment_path,
-              paymentReference: inv.payment_reference,
-              senderName: inv.sender_name,
-              // A desk payment can be voided with a reason; online, combined, advance
-              // and deposit payments cannot (the server decides, this only hides the button).
-              voidable: !inv.payment_gateway && !inv.paymongo_payment_id && !inv.payment_group && !inv.advance_months && !NOT_VOIDABLE_METHODS.includes(inv.payment_method),
-            });
           }
         });
-        
+
+        // Tenants with nothing open come from the paid summary, so a fully paid
+        // tenant is still listed (and counted as paid) without their history.
+        (res.data.paid_summary || []).forEach(s => {
+          if (!grouped[s.user_id]) {
+            grouped[s.user_id] = {
+              id: s.user_id,
+              name: s.first_name ? personName(s) : "Unknown User",
+              unit: s.room_name ?? "Unassigned",
+              status: s.latest_status ?? "pending",
+              account: accounts[s.user_id] || null,
+              dueDate: "",
+              billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, maintenance: 0, addOns: 0 },
+              outstandingBalance: 0,
+              advanceAwaiting: 0,
+              overdueInvoices: 0,
+              pendingInvoiceId: null,
+              lastReminderDate: null,
+              reminderCount: 0,
+            };
+          }
+          grouped[s.user_id].paidCount = s.paid_count;
+        });
+
         // The bill the desk acts on: one awaiting the admin's decision first
         // (a proof, then a scheduled cash visit, then a checkout in flight),
         // otherwise the earliest due. An advance payment's months are acted on
@@ -291,7 +323,7 @@ const AdminPayments = () => {
         Object.values(grouped).forEach(t => {
           const open = t.openInvoices || [];
           if (open.length === 0) {
-            if (t.history.length > 0) t.status = 'paid';
+            if (t.paidCount > 0) t.status = 'paid';
             return;
           }
           const sel = [...open].sort((a, b) =>
@@ -380,10 +412,35 @@ const AdminPayments = () => {
   // The page-wide skeleton only until a load has succeeded once (first load or Try
   // again after a failure): a refresh after an action keeps the ledger and any open
   // dialog. A ref, not `tenants`, so a stale closure or an empty ledger cannot flip it.
+  // After an action (payment recorded, voided, adjusted) the opened tenant's
+  // history is read again too, since that is where a just-paid bill lands.
   const fetchInvoices = () => {
     if (!invoicesLoadedRef.current) setLoading(true);
+    if (historyFor.current) loadHistory(historyFor.current);
     return loadInvoices();
   };
+
+  // The selected tenant's Payment History. A late answer for a tenant who is no
+  // longer selected is dropped, so a quick switch cannot show the wrong history.
+  const historyFor = useRef(null);
+  const loadHistory = async (tenantId) => {
+    historyFor.current = tenantId;
+    if (!tenantId) { setHistoryLoad({ tenantId: null, rows: [], state: 'idle' }); return; }
+    setHistoryLoad(prev => ({ tenantId, rows: prev.tenantId === tenantId ? prev.rows : [], state: 'loading' }));
+    try {
+      const res = await api.get('/get_invoices.php', { params: { userId: tenantId } });
+      if (historyFor.current !== tenantId) return;
+      if (!res.data.success) { setHistoryLoad({ tenantId, rows: [], state: 'error' }); return; }
+      const rows = (res.data.invoices || []).filter(inv => inv.status === 'paid').map(toHistoryEntry);
+      setHistoryLoad({ tenantId, rows, state: 'ready' });
+    } catch {
+      if (historyFor.current === tenantId) setHistoryLoad({ tenantId, rows: [], state: 'error' });
+    }
+  };
+  // Reload only when another tenant is opened.
+  useEffect(() => {
+    loadHistory(selectedTenantId);
+  }, [selectedTenantId]);
 
   const fetchContracts = async () => {
     try {
@@ -542,7 +599,7 @@ const AdminPayments = () => {
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
 
   // Summaries
-  const totalCollected = tenants.reduce((sum, t) => sum + t.history.filter(h => h.status === 'paid').reduce((s, h) => s + h.amount, 0), 0);
+  const totalCollected = collected;
   // Overdue while any bill is past due, even one whose proof is awaiting
   // verification (the money is not confirmed yet). The Overdue filter and the
   // Dashboard count the same way; a failed online payment has its own filter.
@@ -750,7 +807,7 @@ const handleMarkAsPaid = async () => {
     const target = confirmTarget.current;
     if (!target || target.tenantId !== activeTenant.id || target.invoiceId !== activeTenant.pendingInvoiceId || target.amount !== totalDue) {
       setShowConfirmModal(false);
-      alert('This bill changed while the confirmation was open. Nothing was recorded — please review it and confirm again.');
+      toast.info('This bill changed while the confirmation was open. Nothing was recorded — please review it and confirm again.');
       return;
     }
 
@@ -805,12 +862,12 @@ const handleMarkAsPaid = async () => {
         // If it's a string (HTML error) or missing the message property, alert a safe fallback
         console.error("Server returned an error format:", res.data);
         setShowConfirmModal(false);
-        if (!recordForm.applyServerErrors(res)) alert(res.data?.message || "Server Error. Check the browser console for details.");
+        if (!recordForm.applyServerErrors(res)) toast.error(res.data?.message || "Server Error. Check the browser console for details.");
       }
     } catch(err) {
       console.error("Network or API Error:", err);
       setShowConfirmModal(false);
-      if (!recordForm.applyServerErrors(err)) alert(apiErrorMessage(err, "A network or server error occurred."));
+      if (!recordForm.applyServerErrors(err)) toast.error(apiErrorMessage(err, "A network or server error occurred."));
     } finally {
       setRecording(false);
     }
@@ -827,7 +884,7 @@ const handleMarkAsPaid = async () => {
       showFlash(res.data?.message || 'Checked with PayMongo.');
       fetchInvoices();
     } catch (err) {
-      alert(apiErrorMessage(err, 'Could not check this payment with PayMongo.'));
+      toast.error(apiErrorMessage(err, 'Could not check this payment with PayMongo.'));
     } finally {
       setCheckingGateway(false);
     }
@@ -847,11 +904,11 @@ const handleMarkAsPaid = async () => {
         fetchInvoices();
         showFlash(`Online checkout cancelled for ${activeTenant.name}. The tenant has been notified; you can now record the payment.`);
       } else {
-        alert(res.data?.message || 'No open checkout to cancel.');
+        toast.error(res.data?.message || 'No open checkout to cancel.');
         fetchInvoices();
       }
     } catch (err) {
-      alert(apiErrorMessage(err, 'Could not cancel the online checkout.'));
+      toast.error(apiErrorMessage(err, 'Could not cancel the online checkout.'));
     } finally {
       setReleasing(false);
     }
@@ -969,7 +1026,9 @@ const handleMarkAsPaid = async () => {
     }
   };
 
-  const filteredHistory = (activeTenant?.history || []).filter(h =>
+  const tenantHistory = historyLoad.tenantId === activeTenant?.id ? historyLoad.rows : [];
+  const historyState = historyLoad.tenantId === activeTenant?.id ? historyLoad.state : 'loading';
+  const filteredHistory = tenantHistory.filter(h =>
     h.period?.toLowerCase().includes(historySearchPeriod.toLowerCase())
   );
 
@@ -1693,7 +1752,12 @@ const handleMarkAsPaid = async () => {
                             </td>
                           </tr>
                         )) : (
-                          <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-body">No records found.</td></tr>
+                          <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-body">
+                            {historyState === 'loading' ? 'Loading payment history…'
+                              : historyState === 'error' ? (
+                                <span>The payment history did not load. <button type="button" onClick={() => loadHistory(activeTenant.id)} className={btn('secondary', 'sm')}>Try again</button></span>
+                              ) : 'No records found.'}
+                          </td></tr>
                         )}
                       </tbody>
                     </table>

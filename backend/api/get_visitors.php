@@ -119,6 +119,22 @@ try {
             $where_sql
             ORDER BY v.id DESC";
 
+    // ?page= (admin log): the same filters, one page at a time, with the
+    // filtered total. Without it the whole filtered list is returned.
+    $paging = $isAdmin ? list_page_request(25, 100) : null;
+    $page_meta = null;
+    if ($paging) {
+        $count_stmt = $conn->prepare("SELECT COUNT(*) AS c FROM visitor_logs v $where_sql");
+        if ($params) $count_stmt->bind_param($types, ...$params);
+        $count_stmt->execute();
+        $page_meta = list_page_meta($paging, $count_stmt->get_result()->fetch_assoc()['c'] ?? 0);
+        $count_stmt->close();
+        $sql .= " LIMIT ? OFFSET ?";
+        $types .= "ii";
+        $params[] = $paging['limit'];
+        $params[] = $paging['offset'];
+    }
+
     if (!empty($params)) {
         $stmt = $conn->prepare($sql);
         $stmt->bind_param($types, ...$params);
@@ -213,7 +229,7 @@ try {
         "success" => true,
         "visitors" => $visitors,
         "stats" => $stats
-    ]);
+    ] + ($page_meta ?? []));
 
 } catch (Exception $e) {
     http_response_code(500);

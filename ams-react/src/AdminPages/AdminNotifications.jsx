@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -23,6 +23,8 @@ import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers'
 import useUrlFilter from '../hooks/useUrlFilter';
 import { btn } from '../Components/admin/ui/styles';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import Pagination from '../Components/admin/ui/Pagination';
+import { readPageMeta } from '../utils/paging';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import LoadError from '../Components/admin/ui/LoadError';
 import Modal from '../Components/admin/Modal';
@@ -69,6 +71,7 @@ const FILTERS = [
 ];
 
 const DECIDED_HERE = ['occupancy_request', 'household_request', 'lease_extension_request'];
+const PAGE_SIZE = 25; // notifications per page (get_notifications.php ?page=)
 
 const AdminNotifications = () => {
   const navigate = useNavigate();
@@ -93,11 +96,31 @@ const AdminNotifications = () => {
 
   const [selectedNotification, setSelectedNotification] = useState(null);
 
+  // The tab and the search are applied on the server, one page at a time; the
+  // search waits until typing pauses. Tab counts and "unread" come from the
+  // server too, over the whole feed rather than the page shown.
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchQuery.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+  const listKey = `${activeFilter}|${search}`;
+  const [pageChoice, setPageChoice] = useState({ key: '', page: 1 });
+  const page = pageChoice.key === listKey ? pageChoice.page : 1;
+  const setPage = (next) => setPageChoice({ key: listKey, page: next });
+  const [pageMeta, setPageMeta] = useState({ total: 0, page: 1, limit: PAGE_SIZE, pages: 1 });
+  const [feedCounts, setFeedCounts] = useState({ unread: 0, pendingByType: {} });
+
   const fetchNotifications = useCallback(async () => {
     try {
-      const response = await api.get('get_notifications.php');
+      const types = FILTERS.find(f => f.key === activeFilter)?.types;
+      const response = await api.get('get_notifications.php', {
+        params: { page, limit: PAGE_SIZE, ...(types ? { types: types.join(',') } : {}), ...(search ? { search } : {}) },
+      });
       if (response.data.success) {
         setLoadFailed(false);
+        setPageMeta(readPageMeta(response.data, response.data.notifications.length));
+        setFeedCounts({ unread: Number(response.data.unread_count ?? 0), pendingByType: response.data.pending_by_type || {} });
         setNotifications(response.data.notifications.map(n => ({
           id: n.id,
           type: n.type,
@@ -122,7 +145,7 @@ const AdminNotifications = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, activeFilter, search]);
 
   useEffect(() => {
     const load = async () => { await fetchNotifications(); };
@@ -192,17 +215,10 @@ const AdminNotifications = () => {
     }
   };
 
-  const filtered = useMemo(() => {
-    const types = FILTERS.find(f => f.key === activeFilter)?.types;
-    const q = searchQuery.toLowerCase();
-    return notifications.filter(n =>
-      (!types || types.includes(n.type)) &&
-      (n.title.toLowerCase().includes(q) || n.message.toLowerCase().includes(q))
-    );
-  }, [notifications, activeFilter, searchQuery]);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const openCount = notifications.filter(n => n.status === 'Pending').length;
+  const filtered = notifications;
+  const unreadCount = feedCounts.unread;
+  const pendingFor = (types) => Object.entries(feedCounts.pendingByType)
+    .reduce((sum, [type, c]) => sum + (!types || types.includes(type) ? c : 0), 0);
 
   const handleProcessRequest = async (notificationId, action) => {
     setProcessingId(notificationId);
@@ -326,7 +342,7 @@ const AdminNotifications = () => {
                   options={FILTERS.map(f => ({
                     value: f.key,
                     label: f.label,
-                    count: loading || (loadFailed && notifications.length === 0) ? null : f.types ? notifications.filter(n => f.types.includes(n.type) && n.status === 'Pending').length : openCount,
+                    count: loading || (loadFailed && notifications.length === 0) ? null : pendingFor(f.types),
                   }))}
                 />
 
@@ -425,6 +441,7 @@ const AdminNotifications = () => {
                       </div>
                     );
                   })}
+                  {!loading && <Pagination page={pageMeta.page} pages={pageMeta.pages} total={pageMeta.total} limit={pageMeta.limit} onPage={setPage} noun="notifications" className="rounded-card border border-slate-200 bg-white" />}
                 </div>
               </div>
 

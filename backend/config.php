@@ -5716,6 +5716,35 @@ function person_name($row, $prefix = '') {
     return implode(' ', $parts);
 }
 
+// Server-side paging for list endpoints (the get_activity_logs.php contract).
+// Opt-in: returns null when the request has no ?page=, and the endpoint then
+// answers with its full list as before (pickers and tenant pages rely on that).
+// Otherwise ['page' => >=1, 'limit' => 1..$max, 'offset' => ...].
+function list_page_request($default_limit = 25, $max_limit = 100) {
+    if (!isset($_GET['page']) || $_GET['page'] === '') return null;
+    $page = max(1, (int)$_GET['page']);
+    $limit = isset($_GET['limit']) && $_GET['limit'] !== '' ? (int)$_GET['limit'] : $default_limit;
+    $limit = min($max_limit, max(1, $limit));
+    return ['page' => $page, 'limit' => $limit, 'offset' => ($page - 1) * $limit];
+}
+
+// The paging fields added to a paged response; `pages` is at least 1 so an
+// empty result still reads "Page 1 of 1".
+function list_page_meta(array $paging, $total) {
+    $total = (int)$total;
+    return [
+        'total' => $total,
+        'page' => $paging['page'],
+        'limit' => $paging['limit'],
+        'pages' => max(1, (int)ceil($total / $paging['limit'])),
+    ];
+}
+
+// A LIKE pattern matching $text literally anywhere ("50%" is not a wildcard).
+function like_contains($text) {
+    return '%' . addcslashes((string)$text, '\\%_') . '%';
+}
+
 function get_setting($conn, $key, $default = null) {
     $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
     $stmt->bind_param("s", $key);

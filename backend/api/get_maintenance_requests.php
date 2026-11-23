@@ -13,6 +13,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_admin($conn);
 
+// ?closedDays=N (the maintenance board): every open ticket, but closed ones
+// (Completed / Rejected / Cancelled) only when they closed in the last N days;
+// `olderClosed` says how many were left out. Without it (or 0) the whole
+// history is returned, as before (the tenant profile reads it that way).
+$closed_days = max(0, min(3650, (int)($_GET['closedDays'] ?? 0)));
+$closed_list = "('Completed', 'Rejected', 'Cancelled')";
+$closed_at = "COALESCE(m.resolved_at, m.started_at, m.acknowledged_at, m.created_at)";
+$window_sql = $closed_days > 0 ? " WHERE (m.status NOT IN $closed_list OR $closed_at >= DATE_SUB(NOW(), INTERVAL $closed_days DAY))" : "";
+
 // Unit comes from the snapshot taken at ticket creation; the tenancy lookup only covers older rows.
 $query = "SELECT m.*, u.first_name, u.last_name, u.suffix,
                  COALESCE(m.room_name, (SELECT ra.room_name FROM rent_applications ra
@@ -21,6 +30,7 @@ $query = "SELECT m.*, u.first_name, u.last_name, u.suffix,
                                         ORDER BY ra.id DESC LIMIT 1)) AS unit_name
           FROM maintenance_requests m
           LEFT JOIN users u ON m.user_id = u.id
+          $window_sql
           ORDER BY FIELD(m.status, 'Pending', 'In Progress', 'Completed', 'Rejected', 'Cancelled'),
                    FIELD(m.urgency, 'Urgent', 'High', 'Medium', 'Low'),
                    m.created_at ASC";
@@ -71,5 +81,12 @@ while ($row = $result->fetch_assoc()) {
     ];
 }
 
-echo json_encode(["success" => true, "requests" => $requests]);
+$out = ["success" => true, "requests" => $requests];
+if ($closed_days > 0) {
+    $older = $conn->query("SELECT COUNT(*) AS c FROM maintenance_requests m
+                           WHERE m.status IN $closed_list AND $closed_at < DATE_SUB(NOW(), INTERVAL $closed_days DAY)");
+    $out['closedDays'] = $closed_days;
+    $out['olderClosed'] = (int)($older->fetch_assoc()['c'] ?? 0);
+}
+echo json_encode($out);
 $conn->close();

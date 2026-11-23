@@ -38,8 +38,36 @@ if (!$is_admin) {
         $types .= "i";
     }
 }
+// ?page= (admin list): one page with the filtered total and per-status counts
+// for the tabs. Without it the newest 300 are returned (tenant page, lookups).
+$paging = $is_admin ? list_page_request(25, 100) : null;
+$page_extra = [];
+if ($paging) {
+    $count_sql = "SELECT COUNT(*) AS c FROM refund_requests r" . ($where ? " WHERE " . implode(" AND ", $where) : "");
+    $cs = $conn->prepare($count_sql);
+    if ($params) $cs->bind_param($types, ...$params);
+    $cs->execute();
+    $page_extra = list_page_meta($paging, $cs->get_result()->fetch_assoc()['c'] ?? 0);
+    $cs->close();
+    $counts = ['all' => 0];
+    $cr = $conn->query("SELECT status, COUNT(*) AS c FROM refund_requests GROUP BY status");
+    while ($cr && ($row = $cr->fetch_assoc())) {
+        $counts[$row['status']] = (int)$row['c'];
+        $counts['all'] += (int)$row['c'];
+    }
+    $page_extra['counts'] = $counts;
+}
+
 if ($where) $sql .= " WHERE " . implode(" AND ", $where);
-$sql .= " ORDER BY r.created_at DESC, r.id DESC LIMIT 300";
+$sql .= " ORDER BY r.created_at DESC, r.id DESC";
+if ($paging) {
+    $sql .= " LIMIT ? OFFSET ?";
+    $types .= "ii";
+    $params[] = $paging['limit'];
+    $params[] = $paging['offset'];
+} else {
+    $sql .= " LIMIT 300";
+}
 
 $stmt = $conn->prepare($sql);
 if ($params) $stmt->bind_param($types, ...$params);
@@ -106,7 +134,7 @@ if ($ids) {
     }
 }
 
-$out = ['success' => true, 'requests' => array_values($requests)];
+$out = ['success' => true, 'requests' => array_values($requests)] + $page_extra;
 if (!$is_admin) {
     $out['eligible'] = refund_eligible($conn, $uid);
 } elseif (!empty($_GET['user_id'])) {
