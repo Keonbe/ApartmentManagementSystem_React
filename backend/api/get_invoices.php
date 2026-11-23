@@ -293,11 +293,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             // many bills they paid for how much. `collected` = all paid bills.
             $response['paid_summary'] = [];
             $collected = 0.0;
+            $collected_this_month = 0.0;
             $sum = $conn->query("SELECT s.user_id, s.paid_count, s.paid_total, s.last_paid_at,
+                        s.paid_this_month,
                         li.status AS latest_status, u.first_name, u.last_name, u.suffix, ra.room_name
                     FROM (SELECT user_id, MAX(id) AS last_id,
                                  SUM(status = 'paid') AS paid_count,
                                  COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount END), 0) AS paid_total,
+                                 COALESCE(SUM(CASE WHEN status = 'paid'
+                                   AND paid_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                   AND paid_at < DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')
+                                   THEN total_amount END), 0) AS paid_this_month,
                                  MAX(CASE WHEN status = 'paid' THEN paid_at END) AS last_paid_at
                             FROM invoices WHERE user_id IS NOT NULL GROUP BY user_id) s
                     JOIN invoices li ON li.id = s.last_id
@@ -305,6 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     LEFT JOIN rent_applications ra ON ra.id = li.rent_application_id");
             while ($sum && ($r = $sum->fetch_assoc())) {
                 $collected += (float)$r['paid_total'];
+                $collected_this_month += (float)$r['paid_this_month'];
                 $response['paid_summary'][] = [
                     'user_id' => (int)$r['user_id'],
                     'first_name' => $r['first_name'] ?? '',
@@ -318,6 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 ];
             }
             $response['collected'] = round($collected, 2);
+            $response['collected_this_month'] = round($collected_this_month, 2);
         }
         echo json_encode($response);
 

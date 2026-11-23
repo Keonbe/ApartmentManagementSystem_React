@@ -198,6 +198,7 @@ const AdminPayments = () => {
   const [selectedTenantId, setSelectedTenantId] = useState(null);
   // Every paid bill's total (get_invoices.php ?view=desk `collected`).
   const [collected, setCollected] = useState(0);
+  const [collectedThisMonth, setCollectedThisMonth] = useState(0);
   // The opened tenant's paid bills, read on demand: { tenantId, rows, state }.
   const [historyLoad, setHistoryLoad] = useState({ tenantId: null, rows: [], state: 'idle' });
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
@@ -279,6 +280,7 @@ const AdminPayments = () => {
         // Each tenant's deposit and prepaid-rent position (get_invoices.php).
         const accounts = res.data.accounts || {};
         setCollected(Number(res.data.collected ?? 0));
+        setCollectedThisMonth(Number(res.data.collected_this_month ?? 0));
 
         res.data.invoices.forEach(inv => {
           if (!grouped[inv.user_id]) {
@@ -659,10 +661,6 @@ const AdminPayments = () => {
   const toVerifyCount = tenants.filter((t) => t.status === 'pending-verification').length;
   const scheduledCount = tenants.filter((t) => t.status === 'scheduled').length;
   const processingCount = tenants.filter((t) => t.status === 'processing').length;
-  const thisMonth = localDateString().slice(0, 7);
-  const collectedThisMonth = tenants.reduce((sum, t) => sum + t.history
-    .filter((h) => h.status === 'paid' && String(h.datePaid || '').slice(0, 7) === thisMonth)
-    .reduce((s, h) => s + h.amount, 0), 0);
   // A card click shows those tenants in the list below.
   const showTenants = (status) => { setActiveTab('billing'); setStatusFilter(status); };
   const cardStatus = loading ? 'loading' : undefined;
@@ -1412,7 +1410,7 @@ const handleMarkAsPaid = async () => {
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
                     <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
                       <p className="text-label text-slate-600 font-medium mb-1 m-0">Period</p>
-                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.billingPeriod || (activeTenant.history[0]?.period ? `Latest: ${activeTenant.history[0].period}` : '—')}</p>
+                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.billingPeriod || (tenantHistory[0]?.period ? `Latest: ${tenantHistory[0].period}` : '—')}</p>
                     </div>
                     {/* A past-due bill shows the period it covers (from move-in), not its lapsed due date. */}
                     {activeTenant.pastDue ? (
@@ -1783,14 +1781,14 @@ const handleMarkAsPaid = async () => {
                       <p className="m-0 mt-1 max-w-md text-caption text-slate-500">
                         {activeTenant.name} has no open invoices or outstanding balance. All previous payments are recorded below in the Payment History.
                       </p>
-                      {activeTenant.history.length > 0 && (
+                      {tenantHistory.length > 0 && (
                         <div className="mt-4 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => handleGenerateReceipt(activeTenant.history[0])}
+                            onClick={() => handleGenerateReceipt(tenantHistory[0])}
                             className={btn('secondary', 'sm')}
                           >
-                            <FontAwesomeIcon icon={faPrint} /> View Latest Receipt ({activeTenant.history[0].period})
+                            <FontAwesomeIcon icon={faPrint} /> View Latest Receipt ({tenantHistory[0].period})
                           </button>
                         </div>
                       )}
