@@ -198,7 +198,6 @@ const AdminPayments = () => {
   const [selectedTenantId, setSelectedTenantId] = useState(null);
   // Every paid bill's total (get_invoices.php ?view=desk `collected`).
   const [collected, setCollected] = useState(0);
-  const [collectedThisMonth, setCollectedThisMonth] = useState(0);
   // The opened tenant's paid bills, read on demand: { tenantId, rows, state }.
   const [historyLoad, setHistoryLoad] = useState({ tenantId: null, rows: [], state: 'idle' });
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
@@ -280,7 +279,6 @@ const AdminPayments = () => {
         // Each tenant's deposit and prepaid-rent position (get_invoices.php).
         const accounts = res.data.accounts || {};
         setCollected(Number(res.data.collected ?? 0));
-        setCollectedThisMonth(Number(res.data.collected_this_month ?? 0));
 
         res.data.invoices.forEach(inv => {
           if (!grouped[inv.user_id]) {
@@ -661,13 +659,10 @@ const AdminPayments = () => {
   const toVerifyCount = tenants.filter((t) => t.status === 'pending-verification').length;
   const scheduledCount = tenants.filter((t) => t.status === 'scheduled').length;
   const processingCount = tenants.filter((t) => t.status === 'processing').length;
-<<<<<<< HEAD
   const thisMonth = localDateString().slice(0, 7);
   const collectedThisMonth = tenants.reduce((sum, t) => sum + (t.history || [])
     .filter((h) => h.status === 'paid' && String(h.datePaid || '').slice(0, 7) === thisMonth)
     .reduce((s, h) => s + h.amount, 0), 0);
-=======
->>>>>>> babf301c10b9b49508f19d014eb5b9410a531ec7
   // A card click shows those tenants in the list below.
   const showTenants = (status) => { setActiveTab('billing'); setStatusFilter(status); };
   const cardStatus = loading ? 'loading' : undefined;
