@@ -32,6 +32,12 @@ $query = "SELECT ur.*,
                  u.email_address AS tenant_email,
                  inv.status AS invoice_status,
                  inv.total_amount AS invoice_total,
+                 inv.amount_paid AS invoice_amount_paid,
+                 inv.due_date AS invoice_due_date,
+                 inv.base_rent AS invoice_base_rent,
+                 inv.paid_at AS invoice_paid_at,
+                 inv.payment_method AS invoice_payment_method,
+                 inv.payment_reference AS invoice_payment_ref,
                  inv.proof_of_payment_path AS invoice_proof_path,
                  inv.proof_rejection_reason AS invoice_proof_rejection
           FROM utility_readings ur
@@ -98,6 +104,18 @@ while ($row = $result->fetch_assoc()) {
                      || ($row['electric_change_pct'] ?? 0) > UTILITY_SPIKE_THRESHOLD_PCT;
     $row['billing_period_label'] = is_valid_utility_period($row['billing_period']) ? utility_period_label($row['billing_period']) : $row['billing_period'];
 
+    $raw_bill = $row['bill_file_path'] ?? '';
+    $paths = [];
+    if (!empty($raw_bill)) {
+        if (str_starts_with($raw_bill, '[') && ($arr = json_decode($raw_bill, true)) && is_array($arr)) {
+            $paths = $arr;
+        } else {
+            $paths = [$raw_bill];
+        }
+    }
+    $row['bill_file_paths'] = $paths;
+    $row['bill_file_path'] = $paths[0] ?? null;
+
     unset($row['prev_water_cons'], $row['prev_elec_cons'], $row['prev_user_id'], $row['prev_id']);
     if (!$is_admin) {
         unset($row['recorded_by'], $row['tenant_email']);
@@ -119,6 +137,14 @@ if ($readings) {
     unset($r);
 }
 
-echo json_encode(["success" => true, "spike_threshold_pct" => UTILITY_SPIKE_THRESHOLD_PCT, "data" => $readings]);
+$self_pay_row = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'utility_allow_tenant_self_pay'")->fetch_assoc();
+$allow_tenant_self_pay = ($self_pay_row['setting_value'] ?? '1') !== '0';
+
+echo json_encode([
+    "success" => true,
+    "spike_threshold_pct" => UTILITY_SPIKE_THRESHOLD_PCT,
+    "allow_tenant_self_pay" => $allow_tenant_self_pay,
+    "data" => $readings
+]);
 $conn->close();
 ?>

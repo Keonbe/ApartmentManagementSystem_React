@@ -714,6 +714,8 @@ Records one unit's water **and** electricity meter readings for a billing month.
 | `electric_curr_reading` | decimal | ✅ |
 | `water_rate_per_unit` / `electric_rate_per_unit` | decimal | — (unit's previous rate, else 40 / 12) |
 | `water_other_fees` / `electric_other_fees` | decimal | — (0) |
+| `water_meter_reset` / `electric_meter_reset` | boolean | — (false; when true, establishes a new baseline for a replaced or zeroed meter) |
+| `water_initial_reading` / `electric_initial_reading` | decimal | — (0.00; starting dial baseline when meter is replaced or reset) |
 | `notes` | string | — |
 
 Response includes `id`, consumption, `total_amount`, and refuses (422) a unit with no billable tenant. Modes: `entry_mode` `metered` (default), `bill` (provider amounts `water_bill_amount` / `electric_bill_amount`, meter values optional) or `total` (`total_amount`), plus extra utility types.
@@ -721,7 +723,7 @@ Response includes `id`, consumption, `total_amount`, and refuses (422) a unit wi
 ---
 
 ### `GET` [get_utility_readings.php](../../backend/api/get_utility_readings.php)
-Lists readings. Tenants receive only their own rows (session-scoped); admins receive all and may filter with `room_name` / `billing_period`. Each row carries `water_change_pct`, `electric_change_pct`, `has_spike` (> 30% over the previous period), `billing_period_label` and `invoice_id`.
+Lists readings. Tenants receive only their own rows (session-scoped); admins receive all and may filter with `room_name` / `billing_period`. Each row carries `water_change_pct`, `electric_change_pct`, `has_spike` (> 30% over the previous period), `billing_period_label`, `invoice_id`, and linked invoice details when synced (`invoice_base_rent`, `invoice_paid_at`, `invoice_payment_method`, `invoice_payment_ref` to distinguish merged rent, separate bill, or cash paid to admin).
 
 | Property | Detail |
 |----------|--------|
@@ -1022,6 +1024,8 @@ Read/write system-wide configuration. **`get_system_settings.php` answers by cal
 | `late_fee_value` | decimal | Fee amount or percentage |
 | `occupant_surcharge_per_person` | decimal | Extra rent per person > 4 occupants |
 | `visitor_overstay_hours` | integer | Hours before visitor flagged as overstay |
+| `utility_auto_sync` | boolean | When enabled (`1`), newly recorded utility readings are automatically synced to the tenant's open invoice upon save (hiding manual sync cards) |
+| `utility_default_billing_mode` | string | Default billing and payment handling mode for new utility bills: `merge` (pay together with rent), `separate` (issue separate bill), or `paid` (tenant paid cash to admin, admin pays for tenant) |
 
 ---
 
@@ -1187,7 +1191,8 @@ Endpoints added or split out after the modules above were written (verified agai
 | `GET` / `POST` [monitor_followups.php](../../backend/api/monitor_followups.php) | admin | POST `kind` `payment` / `document`, `id`; or `action` = `remind_all` (everyone on both lists, same once-a-day rule per item, lapsed skipped; a named lock stops two admins double-sending, 409 while one runs) | GET `{payments[], documents[], counts}`; POST one: 409 reminder already sent today; `remind_all`: `{sent, skipped, message}` | `send_followup_nudge()`; syncs the admin queue; log `billing` |
 | `GET` / `POST` / `PUT` / `DELETE` [house_rules.php](../../backend/api/house_rules.php) | GET public; writes admin | GET `?scope=house|parking|minors|all`; POST/PUT `category`, `title` (<= 255), `title_fil`, `description`, `description_fil`, `is_highlight`, `is_active`, `sort_order`, `scope`; PUT `{action:'reorder', rules:[{id}]}`; DELETE `{id}` (soft) | `{rules[]}` / `{id}`; 404; 422. "Visitors & Guests" is hidden from non-admins when visitor management is off | `house_rules` |
 | `GET` / `POST` / `PUT` / `DELETE` [manage_utility_types.php](../../backend/api/manage_utility_types.php) | GET user (admin `?all=1`); writes admin | `name` (<= 60), `unit_label` (<= 20), `billing_mode` `metered` / `flat`, `default_rate` (0-100000), `is_active`; DELETE `{id}` (sets inactive) | `{types[]}`; 404; 422 | `utility_types`; log `utilities` |
-| `POST` [upload_utility_bill.php](../../backend/api/upload_utility_bill.php) | admin | multipart `reading_id`, `bill` (JPG/PNG/PDF, 10 MB) or `remove=1` | `{bill_file_path}`; 404; 422 | `utility_readings.bill_file_path`; tenant notice on attach; log `utilities` |
+| `POST` [upload_utility_bill.php](../../backend/api/upload_utility_bill.php) | admin | multipart `reading_id`, `bills[]` or `bill` / `water_bill` / `electric_bill` (JPG/PNG/PDF, <=10 MB each, supports multiple files) or `remove=1` | `{bill_file_path, bill_file_paths[]}`; 404; 422 | `utility_readings.bill_file_path` (stored as JSON array string if multiple); tenant notice on attach; log `utilities` |
+| `POST` [merge_utility_into_rent.php](../../backend/api/merge_utility_into_rent.php) | tenant (own) | `reading_id` | `{success, rent_invoice_id, target_invoice_id, message}`; 404 not found; 409 already merged or rent invoice already has utilities; 422 | Atomically merges open separate utility bill into open rent invoice (`base_rent > 0`), updates `invoices.water`, `invoices.electricity`, `invoices.services`, `invoices.total_amount`, points `utility_readings.invoice_id` to rent invoice, cancels standalone invoice; tenant notice; log `billing` |
 
 ### 15.4 Services, maintenance and CCTV
 

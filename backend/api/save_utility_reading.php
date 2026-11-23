@@ -134,8 +134,12 @@ if ($bill_mode) {
         }
         return [null, null, null];
     };
-    [$water_prev_reading, $water_curr_reading, $water_consumption] = $reading_or_error('water_curr_reading', 'Water', $prev_meter['water_prev'] ?? null);
-    [$electric_prev_reading, $electric_curr_reading, $electric_consumption] = $reading_or_error('electric_curr_reading', 'Electricity', $prev_meter['electric_prev'] ?? null);
+    $water_meter_reset = !empty($input['water_meter_reset']);
+    $electric_meter_reset = !empty($input['electric_meter_reset']);
+    $water_prev = $water_meter_reset ? (number_field($input, 'water_initial_reading', 0.0) ?? 0.0) : ($prev_meter['water_prev'] ?? null);
+    $electric_prev = $electric_meter_reset ? (number_field($input, 'electric_initial_reading', 0.0) ?? 0.0) : ($prev_meter['electric_prev'] ?? null);
+    [$water_prev_reading, $water_curr_reading, $water_consumption] = $reading_or_error('water_curr_reading', 'Water', $water_prev);
+    [$electric_prev_reading, $electric_curr_reading, $electric_consumption] = $reading_or_error('electric_curr_reading', 'Electricity', $electric_prev);
     if ($errors) validation_fail($errors);
     $water_rate_per_unit = null;
     $electric_rate_per_unit = null;
@@ -180,8 +184,15 @@ $stmt->execute();
 $prev = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$water_prev_reading = $prev_meter['water_prev'] !== null ? (float)$prev_meter['water_prev'] : 0.00;
-$electric_prev_reading = $prev_meter['electric_prev'] !== null ? (float)$prev_meter['electric_prev'] : 0.00;
+$water_meter_reset = !empty($input['water_meter_reset']);
+$electric_meter_reset = !empty($input['electric_meter_reset']);
+
+$water_prev_reading = $water_meter_reset
+    ? (number_field($input, 'water_initial_reading', 0.00) ?? 0.00)
+    : ($prev_meter['water_prev'] !== null ? (float)$prev_meter['water_prev'] : 0.00);
+$electric_prev_reading = $electric_meter_reset
+    ? (number_field($input, 'electric_initial_reading', 0.00) ?? 0.00)
+    : ($prev_meter['electric_prev'] !== null ? (float)$prev_meter['electric_prev'] : 0.00);
 
 $water_curr_reading = number_field($input, 'water_curr_reading');
 $electric_curr_reading = number_field($input, 'electric_curr_reading');
@@ -191,12 +202,15 @@ $electric_rate_per_unit = number_field($input, 'electric_rate_per_unit', $prev ?
 $water_other_fees = number_field($input, 'water_other_fees', 0.00);
 $electric_other_fees = number_field($input, 'electric_other_fees', 0.00);
 
-// A meter never runs backwards. Previously a lower value was clamped to zero
-// consumption, hiding a typo or a replaced meter and under-billing the month.
-foreach (['water' => ['Water', $water_curr_reading, $water_prev_reading], 'electric' => ['Electricity', $electric_curr_reading, $electric_prev_reading]] as $u => [$label, $curr, $prev_reading]) {
+// A meter never runs backwards unless reset/replaced this cycle.
+foreach (['water' => ['Water', $water_curr_reading, $water_prev_reading, $water_meter_reset], 'electric' => ['Electricity', $electric_curr_reading, $electric_prev_reading, $electric_meter_reset]] as $u => [$label, $curr, $prev_reading, $is_reset]) {
     if ($curr === null) $errors["{$u}_curr_reading"] = "The current {$label} meter reading is required and must be a number.";
     elseif ($curr < 0) $errors["{$u}_curr_reading"] = "Meter readings cannot be negative.";
-    elseif ($curr < $prev_reading) $errors["{$u}_curr_reading"] = "{$label} reading ({$curr}) is lower than the previous reading ({$prev_reading}) for Unit {$room_name}. Check the meter value.";
+    elseif ($curr < $prev_reading) {
+        $errors["{$u}_curr_reading"] = $is_reset
+            ? "{$label} reading ({$curr}) is lower than the new meter's starting reading ({$prev_reading})."
+            : "{$label} reading ({$curr}) is lower than the previous reading ({$prev_reading}) for Unit {$room_name}. If the meter was replaced or reset, check 'Meter replaced / reset this cycle'.";
+    }
 }
 if ($water_rate_per_unit === null || $water_rate_per_unit <= 0 || $water_rate_per_unit > 1000) $errors['water_rate_per_unit'] = "Water rate must be greater than ₱0 and at most ₱1,000 per m³.";
 if ($electric_rate_per_unit === null || $electric_rate_per_unit <= 0 || $electric_rate_per_unit > 1000) $errors['electric_rate_per_unit'] = "Electricity rate must be greater than ₱0 and at most ₱1,000 per kWh.";
@@ -253,6 +267,17 @@ foreach ($raw_items as $raw) {
         $item['amount'] = round($rate, 2);
     }
     $items[] = $item;
+}
+
+$reset_notes = [];
+if (!empty($input['water_meter_reset'])) {
+    $reset_notes[] = "Water meter reset/replaced (baseline: " . ($water_prev_reading ?? 0) . " m³)";
+}
+if (!empty($input['electric_meter_reset'])) {
+    $reset_notes[] = "Electricity meter reset/replaced (baseline: " . ($electric_prev_reading ?? 0) . " kWh)";
+}
+if ($reset_notes) {
+    $notes = trim($notes . ($notes !== '' ? ' | ' : '') . implode('; ', $reset_notes));
 }
 
 $conn->begin_transaction();

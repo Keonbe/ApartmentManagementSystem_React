@@ -1,4 +1,5 @@
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -31,7 +32,35 @@ import { invoiceOwed } from '../utils/invoiceBalance';
 import { personName } from '../utils/personName';
 import askConfirm from '../utils/askConfirm';
 
-const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+const formatCurrency = (n) => `₱${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Semantic method badge styling for the Payment History table
+const renderMethodBadge = (record) => {
+  const isSplit = record.method?.toLowerCase() === 'split' || record.paymentTransactions?.length > 1;
+  const rawMethod = isSplit ? 'Split Payment' : (record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A'));
+  const mLower = rawMethod.toLowerCase();
+
+  let toneClasses = 'bg-slate-100 text-slate-700 border-slate-200';
+  if (isSplit) {
+    toneClasses = 'bg-purple-50 text-purple-700 border-purple-200';
+  } else if (mLower.includes('cash')) {
+    toneClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  } else if (mLower.includes('gcash') || mLower.includes('maya')) {
+    toneClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+  } else if (mLower.includes('bank') || mLower.includes('bdo') || mLower.includes('bpi') || mLower.includes('transfer')) {
+    toneClasses = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+  } else if (mLower.includes('self') || mLower.includes('provider') || mLower.includes('direct')) {
+    toneClasses = 'bg-sky-50 text-sky-700 border-sky-200';
+  } else if (mLower.includes('deposit') || mLower.includes('advance')) {
+    toneClasses = 'bg-amber-50 text-amber-700 border-amber-200';
+  }
+
+  return (
+    <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClasses}`}>
+      {rawMethod}
+    </span>
+  );
+};
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
 // separately on each transaction. QR Ph proofs are recorded using the supported
 // GCash or bank-transfer method that matches where the funds arrived.
@@ -49,6 +78,7 @@ const deskMethodsFor = (label) => {
   if (l.includes('bank') || l.includes('bdo') || l.includes('bpi')) return ['bank_transfer'];
   if (l.includes('cash') || l.includes('in-person') || l.includes('in person')) return ['cash'];
   if (l.includes('qr')) return ['gcash', 'bank_transfer'];
+  if (l.includes('provider') || l.includes('self') || l.includes('direct')) return ['cash', 'bank_transfer', 'gcash'];
   return [];
 };
 const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white';
@@ -125,9 +155,10 @@ const CollectionStatus = ({ status }) => (
 );
 
 const AdminPayments = () => {
+  const [searchParams] = useSearchParams();
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
   const [sortOption, setSortOption] = useState('created-desc');
   const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', ['all', 'unpaid', 'paid', 'pending-verification', 'scheduled', 'processing', 'payment-failed', 'overdue']);
   // Security Deposit Ledger controls (client-side over the contracts list).
@@ -143,6 +174,7 @@ const AdminPayments = () => {
   // "no ledgers" / "no deposits" messages, which would read as nothing owed.
   const [loadError, setLoadError] = useState(null);
   const invoicesLoadedRef = useRef(false);
+
   const depositsState = useLoadState();
   const [previewProof, setPreviewProof] = useState(null);
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -368,7 +400,20 @@ const AdminPayments = () => {
         setTenants(tenantArray);
         // Preserve an explicit selection across refreshes, but never select a
         // tenant automatically on the initial load.
-        setSelectedTenantId(prev => tenantArray.some(t => t.id === prev) ? prev : null);
+        const qTenant = searchParams.get('tenant');
+        const qSearch = searchParams.get('search');
+        setSelectedTenantId(prev => {
+          if (prev && tenantArray.some(t => t.id === prev)) return prev;
+          if (qTenant && tenantArray.some(t => String(t.id) === String(qTenant))) return Number(qTenant);
+          if (qSearch) {
+            const matched = tenantArray.find(t =>
+              (t.unit && t.unit.toLowerCase().includes(qSearch.toLowerCase())) ||
+              (t.name && t.name.toLowerCase().includes(qSearch.toLowerCase()))
+            );
+            if (matched) return matched.id;
+          }
+          return null;
+        });
       }
     } catch(err) { 
       console.error(err); 
@@ -1308,7 +1353,7 @@ const handleMarkAsPaid = async () => {
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
                     <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
                       <p className="text-label text-slate-600 font-medium mb-1 m-0">Period</p>
-                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.billingPeriod || '—'}</p>
+                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.billingPeriod || (activeTenant.history[0]?.period ? `Latest: ${activeTenant.history[0].period}` : '—')}</p>
                     </div>
                     {/* A past-due bill shows the period it covers (from move-in), not its lapsed due date. */}
                     {activeTenant.pastDue ? (
@@ -1319,14 +1364,9 @@ const handleMarkAsPaid = async () => {
                     ) : (
                     <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
                       <p className="text-label text-slate-600 font-medium mb-1 m-0">Due Date</p>
-                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.dueDate || '—'}</p>
+                      <p className="text-body font-medium text-slate-800 m-0">{activeTenant.dueDate || (totalDue > 0 ? '—' : 'None (Paid Up)')}</p>
                     </div>
                     )}
-                    <div className="bg-slate-50 p-3 rounded-control border border-slate-100">
-                      <p className="text-label text-slate-600 font-medium mb-1 m-0">Term</p>
-                      <p className="text-body font-medium text-slate-800 m-0">Monthly</p>
-                      <p className="text-caption leading-snug text-slate-500 m-0 mt-0.5">Due on the move-in day each month</p>
-                    </div>
                     {[['Security Deposit', depositChip(activeTenant.account)], ['Prepaid Rent', prepaidChip(activeTenant.account)]].map(([label, chip]) => (
                       <div key={label} className="bg-white p-3 rounded-control border border-slate-200">
                         <p className="text-label text-slate-600 font-medium mb-1 m-0 capitalize">{label}</p>
@@ -1335,14 +1375,16 @@ const handleMarkAsPaid = async () => {
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between gap-3 mb-6 text-caption text-slate-500">
-                    <span>Amounts, period and due date come from the invoice.</span>
-                    {activeTenant.adjustInvoice && (
-                      <button type="button" onClick={openAdjust} className={btn('secondary', 'sm')}>
-                        <FontAwesomeIcon icon={faFileAlt} /> Adjust invoice…
-                      </button>
-                    )}
-                  </div>
+                  {totalDue > 0 && (
+                    <div className="flex items-center justify-between gap-3 mb-6 text-caption text-slate-500">
+                      <span>Amounts, period and due date come from the invoice.</span>
+                      {activeTenant.adjustInvoice && (
+                        <button type="button" onClick={openAdjust} className={btn('secondary', 'sm')}>
+                          <FontAwesomeIcon icon={faFileAlt} /> Adjust invoice…
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {activeTenant.adjustments?.length > 0 && (
                     <details className="mb-6 rounded-control border border-slate-200 bg-white p-3 text-label text-slate-600">
@@ -1402,30 +1444,32 @@ const handleMarkAsPaid = async () => {
                     </div>
                   )}
 
-                  <div className="flex items-end justify-between gap-4 border-t border-slate-100 pt-4 mb-6">
-                    <div className="max-w-xs flex items-start gap-2 text-caption text-slate-500">
-                      <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 text-indigo-400" />
-                      <p className="m-0">The bill is settled in full at its total. To change a charge or the due date, or to add a one-off charge, adjust the invoice first; a rent extension is billed from the tenant's extension request.</p>
-                    </div>
-                    <div className="text-right flex flex-col items-end">
-                      <div className="mb-3 text-label text-slate-500 space-y-1">
-                        <div className="flex justify-end gap-4"><span className="w-32 text-right">Base Rent:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.baseRent)}</span></div>
-                        {activeTenant.billing.securityDeposit > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Security Deposit:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.securityDeposit)}</span></div>}
-                        {activeTenant.billing.water > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Water:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.water)}</span></div>}
-                        {activeTenant.billing.electricity > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Electricity:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.electricity)}</span></div>}
-                        {activeTenant.billing.parking > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Parking:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.parking)}</span></div>}
-                        {activeTenant.billing.services > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-On Services:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.services)}</span></div>}
-                        {activeTenant.billing.maintenance > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Maintenance Recharge:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.maintenance)}</span></div>}
-                        {activeTenant.billing.lateFee > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Late Fee:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.lateFee)}</span></div>}
-                        <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
+                  {totalDue > 0 ? (
+                    <>
+                      <div className="flex items-end justify-between gap-4 border-t border-slate-100 pt-4 mb-6">
+                        <div className="max-w-xs flex items-start gap-2 text-caption text-slate-500">
+                          <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 text-indigo-400" />
+                          <p className="m-0">The bill is settled in full at its total. To change a charge or the due date, or to add a one-off charge, adjust the invoice first; a rent extension is billed from the tenant's extension request.</p>
+                        </div>
+                        <div className="text-right flex flex-col items-end">
+                          <div className="mb-3 text-label text-slate-500 space-y-1">
+                            <div className="flex justify-end gap-4"><span className="w-32 text-right">Base Rent:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.baseRent)}</span></div>
+                            {activeTenant.billing.securityDeposit > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Security Deposit:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.securityDeposit)}</span></div>}
+                            {activeTenant.billing.water > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Water:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.water)}</span></div>}
+                            {activeTenant.billing.electricity > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Electricity:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.electricity)}</span></div>}
+                            {activeTenant.billing.parking > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Parking:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.parking)}</span></div>}
+                            {activeTenant.billing.services > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-On Services:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.services)}</span></div>}
+                            {activeTenant.billing.maintenance > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Maintenance Recharge:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.maintenance)}</span></div>}
+                            {activeTenant.billing.lateFee > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Late Fee:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.lateFee)}</span></div>}
+                            <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
+                          </div>
+                          <p className="text-label font-medium text-slate-600 mb-1 m-0">Total Due</p>
+                          <p className="text-3xl font-bold text-indigo-600 m-0 mt-0.5">{formatCurrency(totalDue)}</p>
+                        </div>
                       </div>
-                      <p className="text-label font-medium text-slate-600 mb-1 m-0">Total Due</p>
-                      <p className="text-3xl font-bold text-indigo-600 m-0 mt-0.5">{formatCurrency(totalDue)}</p>
-                    </div>
-                  </div>
 
-                  {/* Payment Recording Area */}
-                  {totalDue > 0 && activeTenant.status !== 'paid' && (
+                      {/* Payment Recording Area */}
+                      {activeTenant.status !== 'paid' && (
                     <div className="bg-slate-50 rounded-card border border-slate-200 p-4 mb-6">
                       <div className="mb-4 flex items-start justify-between gap-4">
                         <div className="min-w-0">
@@ -1670,6 +1714,29 @@ const handleMarkAsPaid = async () => {
                     )}
                     <button onClick={() => handleGenerateReceipt()} className={btn('secondary', 'md')}><FontAwesomeIcon icon={faPrint} /> View Draft Receipt</button>
                   </div>
+                    </>
+                  ) : (
+                    <div className="my-6 flex flex-col items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50/60 p-8 text-center">
+                      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-600 shadow-xs">
+                        <FontAwesomeIcon icon={faCheckCircle} />
+                      </div>
+                      <h4 className="m-0 text-title font-bold text-slate-800">Account Paid in Full</h4>
+                      <p className="m-0 mt-1 max-w-md text-caption text-slate-500">
+                        {activeTenant.name} has no open invoices or outstanding balance. All previous payments are recorded below in the Payment History.
+                      </p>
+                      {activeTenant.history.length > 0 && (
+                        <div className="mt-4 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateReceipt(activeTenant.history[0])}
+                            className={btn('secondary', 'sm')}
+                          >
+                            <FontAwesomeIcon icon={faPrint} /> View Latest Receipt ({activeTenant.history[0].period})
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-card p-6 shadow-card flex-1">
@@ -1689,7 +1756,7 @@ const handleMarkAsPaid = async () => {
                         <tr className="border-b border-slate-200 text-label font-medium text-slate-600 bg-slate-50">
                           <th className={`${TH} w-32`}>Period</th>
                           <th className={`${TH} w-28`}>Amount</th>
-                          <th className={`${TH} w-32`}>Method</th>
+                          <th className={`${TH} w-44 whitespace-nowrap`}>Method</th>
                           <th className={`${TH} max-w-xs`}>Breakdown</th>
                           <th className={`${TH} w-40 whitespace-nowrap`}>Date Paid</th>
                           <th className={`${TH} w-28 text-center whitespace-nowrap`}>Proof</th>
@@ -1701,13 +1768,20 @@ const handleMarkAsPaid = async () => {
                           <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="w-32 px-4 py-3 font-medium text-slate-900">{record.period}</td>
                             <td className="w-28 px-4 py-3 font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(record.amount)}</td>
-                            <td className="w-32 px-4 py-3 text-slate-600"><span className="inline-block max-w-full whitespace-normal break-words rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5">{record.method?.toLowerCase() === 'split' || record.paymentTransactions?.length > 1 ? 'Split Payment' : record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
-                            <td className="max-w-xs px-4 py-3 text-slate-600 break-words whitespace-normal" title={record.paymentTransactions?.length ? record.paymentTransactions.map(tx => `${formatCurrency(tx.amount)} ${tx.bank_name || tx.payment_method}${tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}`).join(' + ') : record.breakdown}>
-                              {record.paymentTransactions?.length > 1
-                                ? record.paymentTransactions.map(tx => `${formatCurrency(tx.amount)} ${tx.bank_name || tx.payment_method}${tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}`).join(' + ')
-                                : record.paymentTransactions?.length === 1 && record.method?.toLowerCase() === 'split'
-                                  ? `${formatCurrency(record.paymentTransactions[0].amount)} ${record.paymentTransactions[0].bank_name || record.paymentTransactions[0].payment_method}${record.paymentTransactions[0].reference_number ? ` (Ref: ${record.paymentTransactions[0].reference_number})` : ''}`
-                                  : record.paymentReference ? `Ref: ${record.paymentReference}` : record.breakdown || '—'}
+                            <td className="w-44 px-4 py-3 whitespace-nowrap">{renderMethodBadge(record)}</td>
+                            <td className="max-w-xs px-4 py-3 text-slate-600 break-words whitespace-normal" title={record.breakdown}>
+                              <div className="font-medium text-slate-800">{record.breakdown || '—'}</div>
+                              {record.paymentTransactions?.length > 1 ? (
+                                <div className="text-[11px] text-slate-500 font-mono mt-0.5 space-y-0.5">
+                                  {record.paymentTransactions.map((tx, ti) => (
+                                    <div key={ti}>{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</div>
+                                  ))}
+                                </div>
+                              ) : record.paymentReference ? (
+                                <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                                  Ref: {record.paymentReference}
+                                </div>
+                              ) : null}
                             </td>
                             <td className="w-40 px-4 py-3 text-slate-500 whitespace-nowrap">{record.datePaid}</td>
                             <td className="w-28 px-4 py-3 text-center whitespace-nowrap">

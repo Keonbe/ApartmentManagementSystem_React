@@ -927,3 +927,15 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'lease_renewals' AND column_name = 'previous_notarized_lease_path') = 0,
   'ALTER TABLE `lease_renewals` ADD COLUMN `previous_notarized_lease_path` varchar(255) DEFAULT NULL AFTER `previous_signed_lease_path`', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== utility_multiple_bills =====
+-- Allow attaching multiple provider bills (electricity + water) to a utility reading
+-- by storing JSON array of paths in bill_file_path text.
+ALTER TABLE `utility_readings` MODIFY `bill_file_path` text DEFAULT NULL;
+
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+  ('utility_auto_sync', '1'),
+  ('utility_default_billing_mode', 'merge'),
+  ('utility_allow_tenant_self_pay', '1');
+
+
