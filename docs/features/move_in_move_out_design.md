@@ -172,11 +172,16 @@ These workflows utilize three tables: `users`, `rent_applications`, and `rooms`.
 Sets application status to `pending-move-out` so that the admin is notified of the move-out intent.
 
 ### 5.2 `update_tenant_status.php` (Admin control)
-* **For Move-In (`Approved`)**: Assigns tenant to the room, flags the room as `occupied`, sets lease start/end dates, and generates the initial invoice.
+* **For approval (`Approved`)**: Reserves the unit, creates the initial invoice and draft contract, and leaves competing applications pending. A second application for a room already held by an approved, not moved-in applicant is refused; any competing payment under review also blocks assignment until it is resolved.
+* **For physical move-in (`active`)**: After the confirmed move-in date and initial payment are verified, marks the unit occupied and activates the draft contract. In the same transaction, rejects other Pending Review, Pending Deposit, and Action Required applications for that unit, releases their unpaid holds, opens refund requests for paid amounts, and creates an in-app notice. After commit, each competing applicant receives the admin-configured rejection message by email when email delivery is enabled.
 * **For Move-Out (`moved-out`)**: Releases the room back to `vacant`, records the `last_tenant` metadata for tracking, and clears active occupant variables.
 
 ### 5.3 `archive_tenant.php` (Admin final audit)
 Deactivates user authentication (`is_archived = 1`) and stores final security deposit resolution notes, ensuring historical records remain readable.
+
+**Admin Applications settings (2026-11-24):** The settings modal stores `application_default_statuses` and `application_unit_rejection_message` in `system_settings`. The message supports `{{name}}` and `{{unit}}`; the admin table and board also provide a per-status oldest/newest selector.
+
+**Resubmitting after a unit is assigned (2026-11-24):** An applicant automatically rejected after another applicant moves in cannot reapply to that same unit, either by resubmitting the rejected row or starting a new application. Track Application tells them the unit is taken and routes them to resubmit with no unit selected; the room picker omits that unit and lets them choose another available one. `rent_application.php` enforces the same rule and rechecks availability for resubmissions (`application_competing_rejection.test.js`).
 
 ---
 

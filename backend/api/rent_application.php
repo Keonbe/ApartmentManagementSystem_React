@@ -115,6 +115,17 @@ if ($app_id !== null) {
 }
 $is_update = $app_id !== null;
 
+// Once an applicant was rejected because another applicant moved into a unit,
+// they must choose a different unit on both resubmission and a fresh application.
+$assigned_room_stmt = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND room_name = ? AND status IN ('Rejected', 'Declined') AND rejection_reason = 'Unit assigned to another applicant.' LIMIT 1");
+$assigned_room_stmt->bind_param("is", $user_id, $room_name);
+$assigned_room_stmt->execute();
+$assigned_room_rejection = $assigned_room_stmt->get_result()->fetch_assoc();
+$assigned_room_stmt->close();
+if ($assigned_room_rejection) {
+    application_fail(409, "Unit $room_name was assigned to another applicant. Choose a different available unit to apply.", 'roomName');
+}
+
 // Every personal-detail field is checked together so the form can mark all of
 // them at once (keys are RentApplication.jsx's field names). Lengths follow
 // the user's profile columns (users.first_name / last_name are 30, middle_name
@@ -126,13 +137,12 @@ $min_months = max(1, (int)get_setting($conn, 'min_lease_duration', 3));
 $normalized_contact = normalize_ph_mobile($contact_no);
 
 // The unit must be vacant, or occupied but freeing up (Preview's "Coming
-// Soon"). This was only checked in the browser. A resubmission keeps its unit
-// as before; it still may not move in before the unit is free. A missing unit
-// is left to the field check below.
+// Soon"). Enforce this for new applications and resubmissions; an applicant
+// cannot keep resubmitting to a unit that has since been taken.
 $available_from = null;
 if ($room_name !== '') {
     [$available_from, $room_error] = room_open_for_application($conn, (string)$room_name);
-    if ($room_error !== null && !$is_update) application_fail(409, $room_error, 'roomName');
+    if ($room_error !== null) application_fail(409, $room_error, 'roomName');
 }
 
 // For a unit that is still occupied, "ASAP" means the day it is free.

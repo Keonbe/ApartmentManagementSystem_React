@@ -54,6 +54,8 @@ export const SETTINGS_SCHEMA = [
   { key: 'utilityAllowTenantSelfPay', db: 'utility_allow_tenant_self_pay', type: 'bool', default: true, missingIsOn: true },         // Utilities: allow tenants to pay bills online directly
   { key: 'languageSwitchEnabled', db: 'language_switch_enabled', type: 'bool', default: true, missingIsOn: true },     // tenants and guests see the EN / FIL switch; off = English only
   { key: 'maintenanceMonthlyBudget', db: 'maintenance_monthly_budget', type: 'float', default: 50000 }, // PHP
+  { key: 'applicationDefaultStatuses', db: 'application_default_statuses', type: 'text', emptyIsDefault: true, default: '["pending","approved","cancelled"]' },
+  { key: 'applicationUnitRejectionMessage', db: 'application_unit_rejection_message', type: 'text', emptyIsDefault: true, default: 'Thank you for your interest in Unit {{unit}}. The unit has been assigned to another applicant, so we are unable to proceed with your application. We appreciate your understanding.' },
   {
     key: 'tenantResponsibilityClause', db: 'tenant_responsibility_clause', type: 'text', emptyIsDefault: true,
     default: 'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',

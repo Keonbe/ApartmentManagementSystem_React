@@ -318,7 +318,7 @@ Submit or resubmit a rent/lease application.
 | `doc_<requirementId>` | file | one per active requirement (Settings → Application Requirements); replaces the old `validIdFrontFile` / `validIdBackFile` / `nbiFile` |
 | `appId` | integer | ❌ (for resubmission) |
 
-**Other checks:** a field sent as an array is a `400`; text fields are saved trimmed; `monthsOfRent` is the admin minimum to 24 and the rent saved is the unit's own, never `monthlyRent`; an occupied unit is a `409` (`tests/api/application_submit.test.js`).
+**Other checks:** a field sent as an array is a `400`; text fields are saved trimmed; `monthsOfRent` is the admin minimum to 24 and the rent saved is the unit's own, never `monthlyRent`; the unit must be vacant or listed as upcoming; an applicant rejected because another applicant moved into their unit cannot resubmit or start a fresh application for that same unit (`409`, choose another available unit). The unit availability and same-unit rejection checks run server-side for resubmissions too (`tests/api/application_submit.test.js`, `application_competing_rejection.test.js`).
 
 **File Validation:** JPG/PNG/PDF only, max 10MB, server-side MIME check
 

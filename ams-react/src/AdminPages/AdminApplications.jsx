@@ -1,5 +1,5 @@
 import toast from '../utils/toast';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useSearchParams } from 'react-router-dom';
@@ -10,7 +10,7 @@ import {
   faCheckCircle, faClock, faUsers, faVenusMars,
   faFileAlt, faExclamationTriangle, faHome,
   faList, faColumns, faEye, faFilter, faChevronDown,
-  faFilePdf, faPaperclip, faSpinner, faBolt
+  faFilePdf, faPaperclip, faSpinner, faBolt, faCog, faSave
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
@@ -83,6 +83,41 @@ const STATUS_OPTIONS = [
   },
 ];
 const ALL_STATUS_GROUPS = STATUS_OPTIONS.map(s => s.id);
+const DEFAULT_STATUS_GROUPS = ['pending', 'approved', 'cancelled'];
+const DEFAULT_REJECTION_MESSAGE = 'Thank you for your interest in Unit {{unit}}. The unit has been assigned to another applicant, so we are unable to proceed with your application. We appreciate your understanding.';
+const parseDefaultStatuses = (value) => {
+  try {
+    const parsed = Array.isArray(value) ? value : JSON.parse(value || '[]');
+    const allowed = parsed.filter((id) => ALL_STATUS_GROUPS.includes(id));
+    return allowed.length ? [...new Set(allowed)] : DEFAULT_STATUS_GROUPS;
+  } catch { return DEFAULT_STATUS_GROUPS; }
+};
+const DEFAULT_SORT_ORDER = Object.fromEntries(STATUS_OPTIONS.map(({ id }) => [id, id === 'pending' || id === 'approved' ? 'oldest' : 'newest']));
+const loadApplicationSortOrder = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ams_application_sort_order') || '{}');
+    return Object.fromEntries(STATUS_OPTIONS.map(({ id }) => [id, saved[id] === 'oldest' ? 'oldest' : saved[id] === 'newest' ? 'newest' : DEFAULT_SORT_ORDER[id]]));
+  } catch { return DEFAULT_SORT_ORDER; }
+};
+const APPLICATION_DATE_RANGES = [
+  ['30d', 'Last 30 days'], ['90d', 'Last 90 days'], ['6m', 'Last 6 months'],
+  ['ytd', 'Year to date'], ['all', 'All time'], ['custom', 'Custom dates'],
+];
+const localApplicationDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const applicationDateRangeForPreset = (preset, now = new Date()) => {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (preset === 'all') return { from: '', to: '' };
+  let from;
+  if (preset === '30d' || preset === '90d') {
+    from = new Date(today);
+    from.setDate(from.getDate() - (preset === '30d' ? 29 : 89));
+  } else if (preset === '6m') {
+    from = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+  } else {
+    from = new Date(today.getFullYear(), 0, 1);
+  }
+  return { from: localApplicationDate(from), to: localApplicationDate(today) };
+};
 
 const AdminApplications = () => {
   const [applications, setApplications] = useState([]);
@@ -105,23 +140,36 @@ const AdminApplications = () => {
   const [scheduleMessage, setScheduleMessage] = useState('');
   const [scheduleAttachment, setScheduleAttachment] = useState(null);
   const [scheduling, setScheduling] = useState(false);
+  const [dateRangePreset, setDateRangePreset] = useState('30d');
+  const [appliedDateRange, setAppliedDateRange] = useState(() => applicationDateRangeForPreset('30d'));
+  const [customDateFrom, setCustomDateFrom] = useState(() => applicationDateRangeForPreset('30d').from);
+  const [customDateTo, setCustomDateTo] = useState(() => applicationDateRangeForPreset('30d').to);
+  const [dateRangeError, setDateRangeError] = useState('');
+  const [defaultStatuses, setDefaultStatuses] = useState(DEFAULT_STATUS_GROUPS);
+  const [rejectionMessage, setRejectionMessage] = useState(DEFAULT_REJECTION_MESSAGE);
+  const [showApplicationSettings, setShowApplicationSettings] = useState(false);
+  const [settingsDraftStatuses, setSettingsDraftStatuses] = useState(DEFAULT_STATUS_GROUPS);
+  const [settingsDraftMessage, setSettingsDraftMessage] = useState(DEFAULT_REJECTION_MESSAGE);
+  const [savingApplicationSettings, setSavingApplicationSettings] = useState(false);
+  const [sortOrderByStatus, setSortOrderByStatus] = useState(loadApplicationSortOrder);
 
   // The selected status groups live in the URL, so a Dashboard link works even while
   // this page is already open, and a refresh or bookmark keeps the filter:
-  // no ?status = all groups, ?status=none = none, else a comma list (?status=pending,approved).
+  // no ?status = the everyday queue, ?status=all = every group, ?status=none = none.
   const [urlParams, setUrlParams] = useSearchParams();
   const rawStatus = urlParams.get('status');
   const selectedStatuses = useMemo(() => {
-    if (rawStatus === null) return ALL_STATUS_GROUPS;
+    if (rawStatus === null) return defaultStatuses;
+    if (rawStatus === 'all') return ALL_STATUS_GROUPS;
     if (rawStatus === 'none') return [];
     const picked = rawStatus.split(',').filter(g => ALL_STATUS_GROUPS.includes(g));
     return picked.length ? picked : ALL_STATUS_GROUPS;
-  }, [rawStatus]);
+  }, [rawStatus, defaultStatuses]);
   const setSelectedStatuses = (next) => {
     const list = typeof next === 'function' ? next(selectedStatuses) : next;
     setUrlParams((prev) => {
       const p = new URLSearchParams(prev);
-      if (list.length === ALL_STATUS_GROUPS.length) p.delete('status');
+      if (list.length === ALL_STATUS_GROUPS.length) p.set('status', 'all');
       else if (list.length === 0) p.set('status', 'none');
       else p.set('status', ALL_STATUS_GROUPS.filter(g => list.includes(g)).join(','));
       return p;
@@ -181,10 +229,50 @@ const AdminApplications = () => {
     return new Date(app.preferred_move_in_date).toLocaleDateString();
   };
 
+  const dateFilteredApps = applications.filter((app) => {
+    const appliedDate = String(app.created_at || '').slice(0, 10);
+    if (!appliedDate) return !appliedDateRange.from && !appliedDateRange.to;
+    return (!appliedDateRange.from || appliedDate >= appliedDateRange.from)
+      && (!appliedDateRange.to || appliedDate <= appliedDateRange.to);
+  });
+
   const getCategoryCount = (categoryId) => {
     const category = STATUS_OPTIONS.find(c => c.id === categoryId);
     if (!category) return 0;
-    return applications.filter(a => category.statuses.includes(a.status)).length;
+    return dateFilteredApps.filter(a => category.statuses.includes(a.status)).length;
+  };
+
+  const handleDateRangePreset = (preset) => {
+    setDateRangePreset(preset);
+    setDateRangeError('');
+    if (preset === 'custom') {
+      const fallback = applicationDateRangeForPreset('30d');
+      setCustomDateFrom(appliedDateRange.from || fallback.from);
+      setCustomDateTo(appliedDateRange.to || fallback.to);
+      return;
+    }
+    const range = applicationDateRangeForPreset(preset);
+    setAppliedDateRange(range);
+    setCustomDateFrom(range.from || customDateFrom);
+    setCustomDateTo(range.to || customDateTo);
+  };
+
+  const applyCustomDateRange = (event) => {
+    event.preventDefault();
+    if (!customDateFrom || !customDateTo) {
+      setDateRangeError('Choose both a start and end date.');
+      return;
+    }
+    if (customDateFrom > customDateTo) {
+      setDateRangeError('The start date must be on or before the end date.');
+      return;
+    }
+    if (customDateTo > localApplicationDate(new Date())) {
+      setDateRangeError('The end date cannot be in the future.');
+      return;
+    }
+    setDateRangeError('');
+    setAppliedDateRange({ from: customDateFrom, to: customDateTo });
   };
 
   const loadApplications = async () => {
@@ -220,7 +308,53 @@ const AdminApplications = () => {
   useEffect(() => {
     const load = async () => { await loadApplications(); };
     load();
+    getSystemSettings().then((settings) => {
+      setDefaultStatuses(parseDefaultStatuses(settings.applicationDefaultStatuses));
+      setRejectionMessage(settings.applicationUnitRejectionMessage || DEFAULT_REJECTION_MESSAGE);
+    }).catch(() => {});
   }, []);
+
+  const openApplicationSettings = () => {
+    setSettingsDraftStatuses(defaultStatuses);
+    setSettingsDraftMessage(rejectionMessage);
+    setShowApplicationSettings(true);
+  };
+
+  const saveApplicationSettings = async (event) => {
+    event.preventDefault();
+    if (!settingsDraftStatuses.length) {
+      toast.error('Keep at least one default status selected.');
+      return;
+    }
+    const message = settingsDraftMessage.trim();
+    if (!message || message.length > 1000) {
+      toast.error('Enter a message from 1 to 1,000 characters.');
+      return;
+    }
+    setSavingApplicationSettings(true);
+    try {
+      await api.post('update_system_settings.php', {
+        application_default_statuses: JSON.stringify(STATUS_OPTIONS.map(({ id }) => id).filter((id) => settingsDraftStatuses.includes(id))),
+        application_unit_rejection_message: message,
+      });
+      const normalized = STATUS_OPTIONS.map(({ id }) => id).filter((id) => settingsDraftStatuses.includes(id));
+      setDefaultStatuses(normalized);
+      setRejectionMessage(message);
+      if (rawStatus === null) setSelectedStatuses(normalized);
+      setShowApplicationSettings(false);
+      toast.success('Application settings saved.');
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Could not save application settings.'));
+    } finally { setSavingApplicationSettings(false); }
+  };
+
+  const updateSortOrder = (categoryId, value) => {
+    setSortOrderByStatus((previous) => {
+      const next = { ...previous, [categoryId]: value };
+      localStorage.setItem('ams_application_sort_order', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const updateStatus = async (id, status, rejectionReason = null) => {
     try {
@@ -232,6 +366,10 @@ const AdminApplications = () => {
       if (!res.data.success) {
         toast.error(apiErrorMessage(res, 'Failed to update the application.'));
         return false;
+      }
+      if (Number(res.data.auto_rejected_applications) > 0) {
+        const rejectedCount = Number(res.data.auto_rejected_applications);
+        toast.success(`${rejectedCount} other application${rejectedCount === 1 ? ' was' : 's were'} rejected and notified for this unit.`);
       }
       fetchApplications();
       return true;
@@ -300,6 +438,11 @@ const AdminApplications = () => {
 
   const confirmApprove = async () => {
     if (!approveTarget || isApproving) return;
+    const unitBlocker = getUnitApprovalBlocker(approveTarget);
+    if (unitBlocker) {
+      toast.error(`Unit ${approveTarget.unit} is already held by ${unitBlocker.name || 'another applicant'}. Resolve that application before approving this one.`);
+      return;
+    }
     setIsApproving(true);
     try {
       const res = await api.post('/update_tenant_status.php', { id: approveTarget.id, status: 'Approved' });
@@ -354,7 +497,21 @@ const AdminApplications = () => {
     setShowProfileModal(true);
   };
 
-  const filteredApps = applications.filter(app => {
+  const getUnitApprovalBlocker = (application) => {
+    if (!application) return null;
+    const unitKey = String(application.unit || application.room_name || '').trim().replace(/^unit\s+/i, '').toLowerCase();
+    if (!unitKey) return null;
+    return applications.find((other) => {
+      if (String(other.id) === String(application.id)) return false;
+      const otherUnitKey = String(other.unit || other.room_name || '').trim().replace(/^unit\s+/i, '').toLowerCase();
+      return otherUnitKey === unitKey && ['Approved', 'active', 'pending-move-out'].includes(other.status);
+    }) || null;
+  };
+
+  const selectedAppApprovalBlocker = getUnitApprovalBlocker(selectedApp);
+  const approveTargetBlocker = getUnitApprovalBlocker(approveTarget);
+
+  const filteredApps = dateFilteredApps.filter(app => {
     const q = searchTerm.toLowerCase();
     const matchesSearch = 
       (app.name || '').toLowerCase().includes(q) || 
@@ -368,6 +525,32 @@ const AdminApplications = () => {
 
     return matchesSearch && matchesStatus;
   });
+
+  const knownStatuses = new Set(STATUS_OPTIONS.flatMap((category) => category.statuses));
+  const extraStatuses = isAllStatusesSelected
+    ? [...new Set(filteredApps.map((app) => app.status).filter((status) => status && !knownStatuses.has(status)))]
+    : [];
+  const extraCategories = extraStatuses.map((status) => ({
+    id: `other-${status}`,
+    label: status,
+    statuses: [status],
+    emptyText: `No ${status.toLowerCase()} applications`,
+    icon: faFileAlt,
+    iconColor: 'text-slate-500',
+    borderCol: 'border-slate-400',
+    countBadge: 'bg-slate-100 text-slate-700',
+  }));
+  const applicationGroups = [...STATUS_OPTIONS.filter((category) => selectedStatuses.includes(category.id)), ...extraCategories]
+    .map((category) => {
+      const apps = filteredApps.filter((app) => category.statuses.includes(app.status));
+      const oldestFirst = (sortOrderByStatus[category.id] || DEFAULT_SORT_ORDER[category.id] || 'newest') === 'oldest';
+      apps.sort((a, b) => {
+        const dateA = Date.parse(a.created_at || '') || 0;
+        const dateB = Date.parse(b.created_at || '') || 0;
+        return (dateA - dateB) * (oldestFirst ? 1 : -1) || String(a.name || '').localeCompare(String(b.name || ''));
+      });
+      return { category, apps, oldestFirst };
+    });
 
   const getInitials = (name) => {
     return name ? name.charAt(0).toUpperCase() : '?';
@@ -502,9 +685,14 @@ const AdminApplications = () => {
                 <h2 className="text-section font-bold text-slate-800 m-0">Application Pipeline</h2>
                 <p className="text-body text-slate-500 m-0 mt-1">Manage and track incoming rent applications</p>
               </div>
-              <div className="flex items-center gap-3 w-full max-w-sm bg-white border border-slate-200 rounded-control px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-card">
-                <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
-                <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="flex-1 bg-transparent text-body text-slate-700 outline-none p-0 border-0 placeholder-slate-400 focus-visible:outline-none focus-visible:ring-0" />
+              <div className="flex items-center gap-2 w-full max-w-sm">
+                <div className="flex items-center gap-3 flex-1 min-w-0 bg-white border border-slate-200 rounded-control px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-card">
+                  <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
+                  <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="flex-1 bg-transparent text-body text-slate-700 outline-none p-0 border-0 placeholder-slate-400 focus-visible:outline-none focus-visible:ring-0" />
+                </div>
+                <button type="button" onClick={openApplicationSettings} aria-label="Application settings" title="Application settings" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control border border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600">
+                  <FontAwesomeIcon icon={faCog} />
+                </button>
               </div>
             </div>
 
@@ -513,8 +701,10 @@ const AdminApplications = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 
                 {/* Status Filter Dropdown & Reset */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="relative" ref={filterDropdownRef}>
+                <div className="flex items-end gap-2 flex-wrap">
+                  <div className="grid gap-1 text-caption font-semibold text-slate-600">
+                    <span>Status</span>
+                    <div className="relative" ref={filterDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setShowStatusFilter(prev => !prev)}
@@ -533,7 +723,6 @@ const AdminApplications = () => {
                           icon={faFilter} 
                           className={!isAllStatusesSelected ? 'text-indigo-600' : 'text-slate-500'} 
                         />
-                        <span className="text-slate-600 font-normal hidden sm:inline">Status:</span>
                         <span className="font-bold">{getFilterButtonLabel()}</span>
                       </div>
 
@@ -628,6 +817,7 @@ const AdminApplications = () => {
                         </div>
                       </div>
                     )}
+                    </div>
                   </div>
 
                   {/* Reset Button (shows if filtered) */}
@@ -642,6 +832,29 @@ const AdminApplications = () => {
                       <span>Reset</span>
                     </button>
                   )}
+
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="grid gap-1 text-caption font-semibold text-slate-600">
+                      <span>Applied date</span>
+                      <select aria-label="Filter applications by applied date" value={dateRangePreset} onChange={(event) => handleDateRangePreset(event.target.value)} className="min-w-40 rounded-control border border-slate-200 bg-white px-3 py-2 text-label font-semibold text-slate-700 outline-none focus:border-indigo-500">
+                        {APPLICATION_DATE_RANGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                    </label>
+                    {dateRangePreset === 'custom' && (
+                      <form onSubmit={applyCustomDateRange} className="flex flex-wrap items-end gap-2">
+                        <label className="grid gap-1 text-caption font-semibold text-slate-600">
+                          <span>From</span>
+                          <input aria-label="Applications start date" type="date" value={customDateFrom} max={localApplicationDate(new Date())} onChange={(event) => setCustomDateFrom(event.target.value)} className="rounded-control border border-slate-200 bg-white px-2 py-2 text-label text-slate-700 outline-none focus:border-indigo-500" />
+                        </label>
+                        <label className="grid gap-1 text-caption font-semibold text-slate-600">
+                          <span>To</span>
+                          <input aria-label="Applications end date" type="date" value={customDateTo} max={localApplicationDate(new Date())} onChange={(event) => setCustomDateTo(event.target.value)} className="rounded-control border border-slate-200 bg-white px-2 py-2 text-label text-slate-700 outline-none focus:border-indigo-500" />
+                        </label>
+                        <button type="submit" className={btn('primary', 'sm')}>Apply</button>
+                      </form>
+                    )}
+                    {dateRangeError && <p role="alert" className="m-0 basis-full text-caption font-medium text-red-700">{dateRangeError}</p>}
+                  </div>
                 </div>
 
                 {/* View Switcher & Counter */}
@@ -730,7 +943,28 @@ const AdminApplications = () => {
                         </td>
                       </tr>
                     ) : (
-                      filteredApps.map((app) => (
+                      applicationGroups.map(({ category, apps, oldestFirst }) => (
+                        <Fragment key={category.id}>
+                          <tr className="border-y border-slate-200 bg-slate-50/80">
+                            <td colSpan="7" className="px-5 py-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <FontAwesomeIcon icon={category.icon} className={`${category.iconColor || 'text-slate-500'} text-xs`} />
+                                  <span className="text-label font-bold text-slate-800">{category.label}</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-caption font-semibold ${category.countBadge || 'bg-slate-100 text-slate-700'}`}>{apps.length}</span>
+                                </div>
+                                <label className="flex items-center gap-2 text-caption font-medium text-slate-500">
+                                  <span>Sort</span>
+                                  <select aria-label={`Sort ${category.label} applications`} value={oldestFirst ? 'oldest' : 'newest'} onChange={(event) => updateSortOrder(category.id, event.target.value)} className="rounded-control border border-slate-200 bg-white px-2 py-1 text-caption font-semibold text-slate-700">
+                                    <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
+                                  </select>
+                                </label>
+                              </div>
+                            </td>
+                          </tr>
+                          {apps.length === 0 ? (
+                            <tr><td colSpan="7" className="px-5 py-4 text-label text-slate-500">{category.emptyText} in this date range.</td></tr>
+                          ) : apps.map((app) => (
                         <tr 
                           key={app.id} 
                           {...clickable(() => openProfile(app), { role: null })}
@@ -811,6 +1045,8 @@ const AdminApplications = () => {
                             </button>
                           </td>
                         </tr>
+                          ))}
+                        </Fragment>
                       ))
                     )}
                   </tbody>
@@ -833,7 +1069,21 @@ const AdminApplications = () => {
                       )}
                     </div>
                   ) : (
-                    filteredApps.map((app) => (
+                    applicationGroups.map(({ category, apps, oldestFirst }) => (
+                      <Fragment key={category.id}>
+                        <div className="flex items-center justify-between gap-2 bg-slate-50 px-4 py-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FontAwesomeIcon icon={category.icon} className={`${category.iconColor || 'text-slate-500'} text-xs`} />
+                            <h3 className="m-0 truncate text-label font-bold text-slate-800">{category.label}</h3>
+                            <span className={`rounded-full px-2 py-0.5 text-caption font-semibold ${category.countBadge || 'bg-slate-100 text-slate-700'}`}>{apps.length}</span>
+                          </div>
+                          <select aria-label={`Sort ${category.label} applications`} value={oldestFirst ? 'oldest' : 'newest'} onChange={(event) => updateSortOrder(category.id, event.target.value)} className="shrink-0 rounded-control border border-slate-200 bg-white px-2 py-1 text-caption font-semibold text-slate-700">
+                            <option value="oldest">Oldest</option><option value="newest">Newest</option>
+                          </select>
+                        </div>
+                        {apps.length === 0 ? (
+                          <div className="px-4 py-5 text-label text-slate-500">{category.emptyText} in this date range.</div>
+                        ) : apps.map((app) => (
                       <div key={app.id} className="p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
@@ -870,6 +1120,8 @@ const AdminApplications = () => {
                           <span>Review</span>
                         </button>
                       </div>
+                        ))}
+                      </Fragment>
                     ))
                   )}
                 </div>
@@ -892,14 +1144,13 @@ const AdminApplications = () => {
                 </div>
               ) : (
                 <div className={`grid gap-4 items-start ${
-                  selectedStatuses.length === 1 ? 'grid-cols-1 max-w-md' :
-                  selectedStatuses.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-4xl' :
-                  selectedStatuses.length === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' :
-                  selectedStatuses.length === 4 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4' :
+                  applicationGroups.length === 1 ? 'grid-cols-1 max-w-md' :
+                  applicationGroups.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-4xl' :
+                  applicationGroups.length === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' :
+                  applicationGroups.length === 4 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4' :
                   'grid-cols-1 md:grid-cols-2 xl:grid-cols-5'
                 }`}>
-                  {STATUS_OPTIONS.filter(cat => selectedStatuses.includes(cat.id)).map(cat => {
-                    const colApps = filteredApps.filter(a => cat.statuses.includes(a.status));
+                  {applicationGroups.map(({ category: cat, apps: colApps, oldestFirst }) => {
                     return (
                       <div key={cat.id} className="flex flex-col gap-3 min-w-0">
                         {/* Header: Fixed height h-12 ensures all 5 border lines are at the exact same horizontal position */}
@@ -913,9 +1164,14 @@ const AdminApplications = () => {
                               {cat.label}
                             </h3>
                           </div>
-                          <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap shrink-0 ${cat.countBadge}`}>
-                            {colApps.length}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <select aria-label={`Sort ${cat.label} applications`} value={oldestFirst ? 'oldest' : 'newest'} onChange={(event) => updateSortOrder(cat.id, event.target.value)} className="max-w-20 rounded-control border border-slate-200 bg-white px-1.5 py-1 text-caption font-semibold text-slate-700">
+                              <option value="oldest">Oldest</option><option value="newest">Newest</option>
+                            </select>
+                            <span className={`rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${cat.countBadge || 'bg-slate-100 text-slate-700'}`}>
+                              {colApps.length}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Column body: cards and empty placeholders have matching min-h-[148px] */}
@@ -940,6 +1196,39 @@ const AdminApplications = () => {
           </div>
         </div>
       </main>
+
+      {showApplicationSettings && (
+        <Modal title="Application settings" onClose={() => setShowApplicationSettings(false)} busy={savingApplicationSettings} dirty overlayClassName="flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" className="w-full max-w-xl rounded-card bg-white shadow-dialog">
+          <form onSubmit={saveApplicationSettings} className="p-6 space-y-5">
+            <div>
+              <h2 className="m-0 text-title font-bold text-slate-800">Application settings</h2>
+              <p className="mt-1 mb-0 text-label text-slate-500">Choose the status groups shown by default and the message sent when another applicant gets the unit.</p>
+            </div>
+            <fieldset className="m-0 border-0 p-0">
+              <legend className="mb-2 text-label font-bold text-slate-700">Default displayed statuses</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {STATUS_OPTIONS.map((option) => (
+                  <label key={option.id} className="flex items-center gap-2 rounded-control border border-slate-200 px-3 py-2 text-label text-slate-700">
+                    <input type="checkbox" checked={settingsDraftStatuses.includes(option.id)} onChange={(event) => setSettingsDraftStatuses((previous) => event.target.checked ? [...previous, option.id] : previous.filter((id) => id !== option.id))} />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <label className="grid gap-1.5 text-label font-bold text-slate-700">
+              Message to other applicants
+              <textarea maxLength={1000} rows={5} value={settingsDraftMessage} onChange={(event) => setSettingsDraftMessage(event.target.value)} className="w-full rounded-control border border-slate-200 bg-white p-3 text-body font-normal text-slate-700 outline-none focus:border-indigo-500" />
+              <span className="text-caption font-normal text-slate-500">Use {'{{unit}}'} for the unit name and {'{{name}}'} for the applicant name. Up to 1,000 characters.</span>
+            </label>
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <button type="button" disabled={savingApplicationSettings} onClick={() => setShowApplicationSettings(false)} className={btn('secondary', 'md')}>Cancel</button>
+              <button type="submit" disabled={savingApplicationSettings || !settingsDraftStatuses.length} className={btn('primary', 'md')}>
+                <FontAwesomeIcon icon={savingApplicationSettings ? faSpinner : faSave} spin={savingApplicationSettings} /> Save settings
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* ─── APPLICANT REVIEW MODAL ─── */}
       {showProfileModal && selectedApp && (
@@ -1129,10 +1418,16 @@ const AdminApplications = () => {
 
               {/* Actions */}
               {(selectedApp.status === 'Pending Review' || selectedApp.status === 'Pending Deposit') && (
-                <div className="flex gap-4 mt-8 pt-6 border-t border-slate-200">
+                <div className="flex flex-wrap gap-4 mt-8 pt-6 border-t border-slate-200">
+                    {selectedAppApprovalBlocker && (
+                      <div role="alert" className="basis-full rounded-control border border-amber-300 bg-amber-50 px-4 py-3 text-label text-amber-900">
+                        <strong>Unit {selectedApp.unit} is already held.</strong>{' '}
+                        {selectedAppApprovalBlocker.name || 'Another applicant'} is {selectedAppApprovalBlocker.status === 'Approved' ? 'approved and has not moved in yet' : selectedAppApprovalBlocker.status === 'active' ? 'already living in this unit' : 'in a move-out transition'}. Cancel or reject that application before approving another for this unit.
+                      </div>
+                    )}
                     <button 
                       type="button"
-                      disabled={isApproving}
+                      disabled={isApproving || !!selectedAppApprovalBlocker}
                       onClick={() => setApproveTarget(selectedApp)} 
                       className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white p-4 rounded-card border-0 cursor-pointer text-body font-bold hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-raised hover:shadow-raised hover:-translate-y-0.5"
                     >
@@ -1265,6 +1560,11 @@ const AdminApplications = () => {
         <Modal title="Approve this application?" onClose={() => setApproveTarget(null)} busy={isApproving} overlayClassName="flex items-center justify-center bg-slate-900/50 p-4" className="w-full max-w-md rounded-card bg-white p-6 shadow-raised">
             <h3 className="m-0 text-title font-bold text-slate-800">Approve this application?</h3>
             <p className="mt-2 text-body text-slate-500">This reserves Unit {approveTarget.unit} for {approveTarget.name} and creates their initial payment request. It does not mark them as moved in.</p>
+            {approveTargetBlocker && (
+              <p role="alert" className="mt-3 mb-0 rounded-control border border-amber-300 bg-amber-50 px-3 py-2 text-label text-amber-900">
+                Unit {approveTarget.unit} is already held by {approveTargetBlocker.name || 'another applicant'} ({approveTargetBlocker.status === 'Approved' ? 'Approved · Not Moved In' : approveTargetBlocker.status}). Resolve that application before approving this one.
+              </p>
+            )}
             <div className="mt-6 flex justify-end gap-3">
               <button 
                 type="button"
@@ -1276,9 +1576,9 @@ const AdminApplications = () => {
               </button>
               <button 
                 type="button"
-                disabled={isApproving}
+                disabled={isApproving || !!approveTargetBlocker}
                 onClick={confirmApprove} 
-                className={btn('success', 'md')}
+                className={btn('success', 'md', 'disabled:cursor-not-allowed disabled:opacity-60')}
               >
                 {isApproving ? (
                   <>

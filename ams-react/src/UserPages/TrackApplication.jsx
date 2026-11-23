@@ -428,6 +428,7 @@ export default function TrackApplication() {
     const peso = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
     const dayLabel = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' }) : '');
     const roomLabel = application?.room_name ? `Room ${application.room_name}` : 'your room';
+    const unitTakenRejection = application?.rejection_reason === 'Unit assigned to another applicant.';
     const moveInBalance = application
         ? Math.max(0, Number(application.pending_balance ?? (application.pending_total_amount != null
             ? Number(application.pending_total_amount) - Number(application.pending_amount_paid ?? application.amount_paid ?? 0)
@@ -532,6 +533,11 @@ export default function TrackApplication() {
 
     const rejectedBody = (
         <div className="space-y-4">
+            {unitTakenRejection && (
+                <p className="m-0 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900">
+                    Room {application.room_name} has been assigned to another applicant. Choose a different available room to resubmit.
+                </p>
+            )}
             {(application?.rejection_reason || application?.rejection_attachment_path) && (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
                     <p className="m-0 text-sm font-bold text-rose-800">Reason</p>
@@ -553,8 +559,8 @@ export default function TrackApplication() {
                 </div>
             )}
             {refundCard}
-            <button type="button" onClick={() => navigate('/rent-application', { state: { editApplication: application } })} className={BTN_PRIMARY}>
-                {t('trackApp.fixResubmit')} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+            <button type="button" onClick={() => navigate('/rent-application', { state: { editApplication: unitTakenRejection ? { ...application, room_name: '' } : application } })} className={BTN_PRIMARY}>
+                {unitTakenRejection ? 'Apply to another available room' : t('trackApp.fixResubmit')} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
             </button>
         </div>
     );

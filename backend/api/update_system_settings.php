@@ -110,11 +110,25 @@ $SETTING_RULES = [
     'utility_auto_sync'         => ['type' => 'bool', 'message' => 'Utility auto sync must be on or off.'],
     'utility_default_billing_mode' => ['type' => 'enum', 'values' => ['merge', 'separate', 'paid'], 'message' => 'Utility default billing mode must be merge, separate or paid.'],
     'utility_allow_tenant_self_pay' => ['type' => 'bool', 'message' => 'Utility tenant self-pay setting must be on or off.'],
+    'application_default_statuses' => ['type' => 'application-statuses', 'message' => 'Choose at least one valid default application status.'],
+    'application_unit_rejection_message' => ['type' => 'text', 'min_length' => 1, 'max_length' => 1000, 'message' => 'The automatic rejection message must be between 1 and 1,000 characters.'],
 ];
 function setting_value_invalid(array $rule, string $value): bool {
     if ($rule['type'] === 'bool') return !in_array($value, ['0', '1', 'true', 'false'], true);
     if ($rule['type'] === 'enum') return !in_array($value, $rule['values'], true);
     if ($rule['type'] === 'int') return !ctype_digit($value) || (int)$value < $rule['min'] || (int)$value > $rule['max'];
+    if ($rule['type'] === 'text') {
+        $length = mb_strlen(trim($value));
+        return $length < $rule['min_length'] || $length > $rule['max_length'];
+    }
+    if ($rule['type'] === 'application-statuses') {
+        $statuses = json_decode($value, true);
+        if (!is_array($statuses) || !$statuses || array_keys($statuses) !== range(0, count($statuses) - 1)) return true;
+        $allowed = ['pending', 'approved', 'moved_in', 'rejected', 'cancelled'];
+        foreach ($statuses as $status) if (!is_string($status)) return true;
+        return count(array_unique($statuses)) !== count($statuses)
+            || count(array_diff($statuses, $allowed)) > 0;
+    }
     if (!is_numeric($value)) return true;
     $n = (float)$value;
     return $n < $rule['min'] || (!empty($rule['min_exclusive']) && $n == $rule['min']) || $n > $rule['max'];

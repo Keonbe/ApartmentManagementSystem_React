@@ -558,3 +558,9 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- Installments (2026_10_manager_interview_alignment.sql): a paid invoice was paid in full.
 UPDATE `invoices` SET `amount_paid` = `total_amount` WHERE `status` = 'paid' AND `amount_paid` = 0;
+
+-- Admin Applications defaults also exist in SetupDB; keep seeded databases
+-- complete when this seed runs against an older baseline.
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+('application_default_statuses', '["pending","approved","cancelled"]'),
+('application_unit_rejection_message', 'Thank you for your interest in Unit {{unit}}. The unit has been assigned to another applicant, so we are unable to proceed with your application. We appreciate your understanding.');

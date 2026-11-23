@@ -1168,6 +1168,14 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 -- move-in and lease start within seven days, and current application plus
 -- active/draft contract statuses. Ambiguous or incomplete rows stay untouched.
 DROP TEMPORARY TABLE IF EXISTS `ams_contract_link_candidates`;
+
+-- ===== application pipeline defaults and competing-applicant notice =====
+-- Defaults for the admin's application queue and the message sent to applicants
+-- after another applicant is assigned to the same unit. INSERT IGNORE preserves
+-- any values already customized by the property manager.
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+('application_default_statuses', '["pending","approved","cancelled"]'),
+('application_unit_rejection_message', 'Thank you for your interest in Unit {{unit}}. The unit has been assigned to another applicant, so we are unable to proceed with your application. We appreciate your understanding.');
 CREATE TEMPORARY TABLE `ams_contract_link_candidates` (
   `contract_id` varchar(50) NOT NULL,
   `rent_application_id` int(11) NOT NULL,

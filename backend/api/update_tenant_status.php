@@ -138,9 +138,28 @@ if ($status === 'moved-out') {
 }
 
 if ($id > 0 && !empty($status)) {
+    $auto_rejected_applications = [];
     // Start transaction to ensure data integrity
     $conn->begin_transaction();
     try {
+        // Approvals for the same unit must take the room lock before locking
+        // their application row. This gives competing approvals a consistent
+        // lock order before one of them rejects the pending queue.
+        $approval_prelock_room = null;
+        if ($status === 'Approved') {
+            $room_lookup = $conn->prepare("SELECT room_name FROM rent_applications WHERE id = ?");
+            $room_lookup->bind_param("i", $id);
+            $room_lookup->execute();
+            $approval_prelock_room = $room_lookup->get_result()->fetch_assoc()['room_name'] ?? null;
+            $room_lookup->close();
+            if (!empty($approval_prelock_room)) {
+                $room_prelock = $conn->prepare("SELECT id FROM rooms WHERE id = ? FOR UPDATE");
+                $room_prelock->bind_param("s", $approval_prelock_room);
+                $room_prelock->execute();
+                $room_prelock->get_result()->fetch_assoc();
+                $room_prelock->close();
+            }
+        }
         // APPLICATION_TRANSITIONS (H5): read the current status inside the
         // transaction and refuse a move it doesn't allow — e.g. a Pending
         // Review application can't be pushed straight to moved-out, and an
@@ -154,6 +173,9 @@ if ($id > 0 && !empty($status)) {
             throw new Exception("Application not found.");
         }
         $current_status = $cur_row['status'];
+        if ($status === 'Approved' && !empty($approval_prelock_room) && (string)$cur_row['room_name'] !== (string)$approval_prelock_room) {
+            throw new Exception("This application's unit changed while you were approving it. Refresh and try again.");
+        }
         if (!application_transition_allowed($current_status, $status)) {
             http_response_code(409);
             echo json_encode(["success" => false, "message" => "Cannot move this application from \"$current_status\" to \"$status\"."]);
@@ -407,7 +429,7 @@ if ($id > 0 && !empty($status)) {
             // lease dates, contract and invoices are left as they were.
             resolve_admin_queue($conn, 'move_out_request', $id);
         } elseif ($status === 'active') {
-            $move_in_q = $conn->prepare("SELECT first_name, last_name, suffix, room_name, months_of_rent, occupants, move_in_date FROM rent_applications WHERE id = ? AND status = 'active'");
+            $move_in_q = $conn->prepare("SELECT first_name, last_name, suffix, user_id, room_name, months_of_rent, occupants, move_in_date FROM rent_applications WHERE id = ? AND status = 'active'");
             $move_in_q->bind_param("i", $id);
             $move_in_q->execute();
             $move_in_app = $move_in_q->get_result()->fetch_assoc();
@@ -439,6 +461,45 @@ if ($id > 0 && !empty($status)) {
             $invoice_stmt->bind_param("ssi", $lease_start, $period_label, $id);
             $invoice_stmt->execute();
             $invoice_stmt->close();
+
+            // Physical occupancy is the point that permanently resolves the
+            // competing queue. Approval alone only reserves the unit and must
+            // leave other applicants pending until move-in is confirmed.
+            if ($current_status === 'Approved' && !empty($move_in_app['user_id']) && !empty($move_in_app['room_name'])) {
+                $winner_user_id = (int)$move_in_app['user_id'];
+                $room_name = (string)$move_in_app['room_name'];
+                $competitors = $conn->prepare("SELECT id, user_id, first_name, last_name, suffix, room_name FROM rent_applications WHERE room_name = ? AND id <> ? AND user_id <> ? AND status IN ('Pending Review', 'Pending Deposit', 'Action Required') ORDER BY id FOR UPDATE");
+                $competitors->bind_param("sii", $room_name, $id, $winner_user_id);
+                $competitors->execute();
+                $competing_apps = $competitors->get_result()->fetch_all(MYSQLI_ASSOC);
+                $competitors->close();
+                $message_template = trim((string)get_setting($conn, 'application_unit_rejection_message', 'Thank you for your interest in Unit {{unit}}. The unit has been assigned to another applicant, so we are unable to proceed with your application. We appreciate your understanding.'));
+                if ($message_template === '') $message_template = 'Thank you for your interest in Unit {{unit}}. The unit has been assigned to another applicant.';
+                foreach ($competing_apps as $competing_app) {
+                    $competing_id = (int)$competing_app['id'];
+                    $competing_user_id = (int)$competing_app['user_id'];
+                    if ($payment_in_review = tenancy_payment_in_review($conn, $competing_id)) {
+                        throw new Exception("Cannot confirm Unit $room_name move-in yet: competing application #$competing_id $payment_in_review");
+                    }
+                    $competing_name = trim(person_name($competing_app));
+                    $auto_message = strtr($message_template, ['{{unit}}' => $room_name, '{{name}}' => $competing_name]);
+                    $auto_reason = 'Unit assigned to another applicant.';
+                    $rejected = transition_application($conn, $competing_id, 'Rejected', ['reason' => $auto_reason]);
+                    if (!$rejected['ok']) continue;
+                    foreach (raise_rejection_refunds($conn, $competing_user_id, $competing_id, $auto_reason, $admin_id) as $refund) {
+                        $refunds_raised[] = $refund;
+                    }
+                    release_application_holds($conn, $competing_id, $competing_user_id, 'Unit assigned to another applicant', ['room_name' => $room_name]);
+                    create_notification($conn, $competing_user_id, 'application_update', 'Application Rejected', $auto_message);
+                    log_activity($conn, $admin_id, 'tenant', 'Automatically Rejected Competing Application', "Application ID: $competing_id, Unit: $room_name, moved-in application: $id");
+                    $auto_rejected_applications[] = [
+                        'id' => $competing_id,
+                        'user_id' => $competing_user_id,
+                        'room_name' => $room_name,
+                        'message' => $auto_message,
+                    ];
+                }
+            }
         }
 
         if ($status === 'moved-out') {
@@ -694,10 +755,21 @@ if ($id > 0 && !empty($status)) {
                 error_log('Could not dispatch application decision email: ' . $notification_error->getMessage());
             }
         }
+        foreach ($auto_rejected_applications as $auto_rejected) {
+            try {
+                require_once __DIR__ . '/services/send_notification.php';
+                $auto_tenant_name = notify_recipient_name($conn, $auto_rejected['user_id']);
+                $auto_email = email_application_decision_template($auto_tenant_name, $auto_rejected['room_name'], 'Rejected', $auto_rejected['message']);
+                dispatch_admin_action_notification($conn, $auto_rejected['user_id'], 'application_update', 'Rental Application Rejected', null, $auto_email);
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch competing application rejection email: ' . $notification_error->getMessage());
+            }
+        }
         } catch (Throwable $after_commit) {
             error_log('[AMS] update_tenant_status: saved, follow-up failed: ' . $after_commit->getMessage());
         }
         $response = ["success" => true];
+        if ($auto_rejected_applications) $response['auto_rejected_applications'] = count($auto_rejected_applications);
         if (!empty($refunds_raised)) $response["refunds_raised"] = count($refunds_raised);
         if ($cancellation_fee_kept > 0) $response["cancellation_fee_kept"] = round($cancellation_fee_kept, 2);
         if ($status === 'moved-out') {

@@ -802,7 +802,8 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
 // every status not itself a key — has no allowed transitions.
 const APPLICATION_TRANSITIONS = [
     'Pending Review'   => ['Approved', 'Rejected', 'Declined', 'Action Required', 'Cancelled'],
-    'Action Required'  => ['Pending Review'],
+    'Pending Deposit'  => ['Rejected', 'Declined', 'Cancelled'], // legacy pre-move-in queue
+    'Action Required'  => ['Pending Review', 'Rejected', 'Declined', 'Cancelled'],
     // 'moved-out' from Approved/active covers for-cause contract termination
     // (update_contract_status.php's 'terminate' action), which ends a tenancy
     // immediately rather than through the ordinary move-out notice period.
@@ -5104,6 +5105,7 @@ const ADMIN_ONLY_SETTING_KEYS = [
     'sms_provider', 'sms_sender_name', 'sms_sender_approved', 'sms_daily_cap', 'sms_unit_cost',
     'notifications_email_enabled', 'notifications_sms_enabled', 'notifications_dispatch_mode',
     'notifications_quiet_start', 'notifications_quiet_end', 'notification_log_retention_days',
+    'application_default_statuses', 'application_unit_rejection_message',
     'notification_sweep_last_run', 'notification_queue_last_run',
     'billing_checks_last_run', 'poll_checks_last_run', 'room_hold_check_last_run',
     'login_otp_enabled', 'email_verification_enabled',

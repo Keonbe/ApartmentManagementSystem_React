@@ -1787,3 +1787,9 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('notification_queue_last_run', '2000-01-01 00:00:00'),
 -- Peso cost of one SMS segment, for the announcement cost preview.
 ('sms_unit_cost', '0.50');
+
+-- Admin Applications defaults: first-time installs use the review queue,
+-- approved-but-not-moved-in and cancelled groups; auto-rejection text is editable.
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+('application_default_statuses', '["pending","approved","cancelled"]'),
+('application_unit_rejection_message', 'Thank you for your interest in Unit {{unit}}. The unit has been assigned to another applicant, so we are unable to proceed with your application. We appreciate your understanding.');

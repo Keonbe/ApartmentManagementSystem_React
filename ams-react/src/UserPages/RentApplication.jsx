@@ -154,6 +154,7 @@ export default function RentApplication() {
 
     const editApp = location.state?.editApplication;
     const isEditing = !!editApp;
+    const mustChooseAnotherRoom = isEditing && editApp?.rejection_reason === 'Unit assigned to another applicant.';
     // No room passed in means none chosen yet (it used to default to Room C).
     const passedRoomId = location.state?.selectedRoomId || editApp?.room_name || '';
     // Read once: a draft only applies to a new application.
@@ -257,15 +258,17 @@ export default function RentApplication() {
     }, [defaultEmail, loggedInUser.id]);
 
     // Room picker: an applicant may switch to any vacant unit before submitting.
-    const [selectedRoomId, setSelectedRoomId] = useState(isEditing ? passedRoomId : (location.state?.selectedRoomId || draft.selectedRoomId || passedRoomId));
+    const [selectedRoomId, setSelectedRoomId] = useState(isEditing ? (mustChooseAnotherRoom ? '' : passedRoomId) : (location.state?.selectedRoomId || draft.selectedRoomId || passedRoomId));
     const [rooms, setRooms] = useState([]);
     const [showRoomModal, setShowRoomModal] = useState(false);
+    const sameRoom = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
     // Vacant units, and occupied ones that will free up (Preview's "Coming Soon",
     // availableFrom from get_rooms.php): those can be applied for, moving in
-    // no earlier than the day they are free.
-    const availableRooms = rooms.filter(r => r.status?.toLowerCase() === 'vacant' || r.availableFrom);
+    // no earlier than the day they are free. The rejected unit is excluded
+    // when another applicant has already been assigned to it.
+    const availableRooms = rooms.filter(r => (r.status?.toLowerCase() === 'vacant' || r.availableFrom)
+        && !(mustChooseAnotherRoom && sameRoom(r.id, editApp?.room_name)));
     // Ids compared as strings: the API may send them as numbers.
-    const sameRoom = (a, b) => String(a ?? '') === String(b ?? '');
     const selectedRoom = rooms.find(r => sameRoom(r.id, selectedRoomId)) || null;
     const availableFrom = selectedRoom?.availableFrom || null;
     const moveInLimits = moveInBounds(moveInWindow, availableFrom);
@@ -278,7 +281,7 @@ export default function RentApplication() {
     const surcharge = occupancyExtra(occupancy, occupants);
     const monthlyRent = baseRent === null ? null : baseRent + surcharge;
 
-    // The room list gives the rate and type, also when editing (the unit stays fixed).
+    // The room list gives the rate and type for the selected unit, including when resubmitting.
     useEffect(() => {
         const fetchRooms = async () => {
             try {
@@ -391,9 +394,9 @@ export default function RentApplication() {
             if (!v) return t('rent.errMoveIn');
             return checkMoveInDate(v, moveInWindow, availableFrom);
         },
-        // Only a vacant unit can be applied for (checked once the list has loaded).
+        // Only a vacant or upcoming unit can be applied for (checked once the list has loaded).
         roomName: (v) => (!v ? t('rent.errRoom')
-            : !isEditing && rooms.length && !availableRooms.some(r => sameRoom(r.id, v)) ? t('rent.errRoomTaken', { room: v }) : ''),
+            : rooms.length && !availableRooms.some(r => sameRoom(r.id, v)) ? t('rent.errRoomTaken', { room: v }) : ''),
         agreeTerms: (v) => (v ? '' : t('rent.errTerms')),
         agreeRules: (v) => (v ? '' : t('rent.errRules')),
     }, { idPrefix: 'rent-' });
@@ -922,12 +925,17 @@ export default function RentApplication() {
 
                         {/* Section 3: Room & Rate Overview */}
                         <div className="space-y-4">
+                            {mustChooseAnotherRoom && (
+                                <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
+                                    The room in your previous application has been assigned to another applicant. Choose a different available room to resubmit.
+                                </div>
+                            )}
                             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                                 <div>
                                     <h3 className="text-xl font-black m-0 text-slate-900">{t('rent.roomDetails')}</h3>
                                     <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Selected apartment unit and estimated monthly billing</p>
                                 </div>
-                                {!isReadOnly && !isEditing && (
+                                {!isReadOnly && (
                                     <button
                                         type="button"
                                         onClick={() => setShowRoomModal(true)}
@@ -959,7 +967,7 @@ export default function RentApplication() {
                                 <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between min-h-[125px] ${form.errors.roomName ? 'border-rose-300 bg-rose-50/30 ring-2 ring-rose-200' : selectedRoomId ? 'bg-indigo-50/30 border-indigo-200/80' : 'bg-slate-50/70 border-slate-200/80'}`}>
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('rent.assignedRoom')}</span>
-                                        {!isReadOnly && !isEditing && (
+                                        {!isReadOnly && (
                                             <button
                                                 type="button"
                                                 onClick={() => setShowRoomModal(true)}
