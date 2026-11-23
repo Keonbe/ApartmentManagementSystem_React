@@ -140,6 +140,25 @@ if ($db_now === null) {
     $errors[] = "PHP clock (" . date('Y-m-d H:i') . ") and database clock ($db_now) disagree; check APP_TIMEZONE.";
 }
 
+// --- Error log -------------------------------------------------------------
+// config.php turns log_errors on in production but sets no path, so PHP writes
+// to php.ini's error_log, or to the web server's own log when that is empty.
+// Where it lands, and whether the account PHP runs as can write there, is only
+// knowable on the host (panel audit R-07). The CLI php.ini can differ from the
+// web server's: on a shared host also run phpinfo() once from the web.
+$log_path = trim((string) ini_get('error_log'));
+echo "  error_log=" . ($log_path !== '' ? $log_path : '(unset: the SAPI default, usually the web server log)') . " log_errors=" . (ini_get('log_errors') ? 'on' : 'off') . "\n";
+if ($prod) {
+    if (!ini_get('log_errors')) {
+        $warnings[] = 'log_errors is off in production: PHP errors are not recorded.';
+    }
+    if ($log_path === '') {
+        $warnings[] = 'error_log is not set in php.ini: errors go to the web server log. Confirm you can read it (panel audit R-07), or set error_log to a file outside the web root.';
+    } elseif (is_file($log_path) ? !is_writable($log_path) : !is_writable(dirname($log_path))) {
+        $warnings[] = "error_log ($log_path) is not writable by this user: if the web server runs as a different user, check it can write there.";
+    }
+}
+
 // --- Payment settings ------------------------------------------------------
 $settings = [];
 $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('paymongo_secret_key','paymongo_webhook_secret','deployment_id')");

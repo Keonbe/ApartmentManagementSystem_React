@@ -157,6 +157,8 @@ CREATE TABLE `invoices` (
   KEY `idx_invoice_payment_group` (`payment_group`),
   KEY `idx_invoices_checkout_intent` (`checkout_payment_intent_id`),
   KEY `idx_invoices_reference_norm` (`reference_norm`),
+  -- Admin Payments reads only the open bills (2026_11_workstream.sql list_paging_indexes).
+  KEY `idx_invoices_status_due` (`status`, `due_date`),
   CONSTRAINT `fk_invoice_rent_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_invoice_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -416,6 +418,8 @@ CREATE TABLE `rent_applications` (
   `archive_reason` varchar(255) DEFAULT NULL,
   `archive_notes` text DEFAULT NULL,
   `requested_move_out_date` date DEFAULT NULL,
+  -- The day the tenant actually left, set at the move-out clearance (2026_11_workstream.sql final_period_proration).
+  `moved_out_date` date DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_rent_room` (`room_name`),
   KEY `fk_rent_user` (`user_id`),
@@ -997,6 +1001,8 @@ ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `invoice_id` varchar
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `billing_period` varchar(50) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `invoiced_amount` decimal(10,2) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD INDEX IF NOT EXISTS `idx_maint_invoiced` (`is_invoiced`);
+-- The maintenance board reads open tickets and recently closed ones (2026_11_workstream.sql list_paging_indexes).
+ALTER TABLE `maintenance_requests` ADD INDEX IF NOT EXISTS `idx_maint_status_created` (`status`, `created_at`);
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_date` date DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `scheduled_window` varchar(20) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `cancel_requested_at` datetime DEFAULT NULL;
@@ -1491,6 +1497,29 @@ CREATE TABLE IF NOT EXISTS `refund_request_events` (
   CONSTRAINT `fk_refund_event_request` FOREIGN KEY (`refund_request_id`) REFERENCES `refund_requests` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- A tenant moved to another unit without moving out (transfer_room.php,
+-- 2026_11_workstream.sql room_transfers): one row per move, the paper trail.
+CREATE TABLE IF NOT EXISTS `room_transfers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `from_room` varchar(50) NOT NULL,
+  `to_room` varchar(50) NOT NULL,
+  `old_rent` decimal(10,2) NOT NULL,
+  `new_rent` decimal(10,2) NOT NULL,
+  `old_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `new_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `effective_period_start` date DEFAULT NULL,
+  `deposit_invoice_id` varchar(50) DEFAULT NULL,
+  `refund_request_id` int(11) DEFAULT NULL,
+  `reason` varchar(255) NOT NULL,
+  `transferred_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_room_transfers_app` (`rent_application_id`),
+  CONSTRAINT `fk_room_transfers_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Extra utility types (2026_10_panelist_gaps.sql). Charges post to invoices.services.
 CREATE TABLE IF NOT EXISTS `utility_types` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -1716,6 +1745,8 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('included_occupants', '4'),
 ('late_fee_enabled', 'false'),
 ('contract_require_notarized', '1'),
+-- Off: rent is billed by whole tenancy months; on: the last period of a mid-period move-out is charged per day (rent ÷ 30).
+('prorate_final_period', '0'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),
 -- SMS and email notification channels (checklist 6.6 / 6.7). sms_provider accepts

@@ -10,6 +10,7 @@
 // parking vehicle types, the Glass backdrop, the home page text) and the
 // load / save calls.
 
+import toast from '../utils/toast';
 import api from '../api/axiosConfig';
 import { HOME_CONTENT_DEFAULTS, parseHomeContent } from './homeContent';
 import { SCHEMA_DEFAULTS, parseSchemaSettings, encodeSchemaSettings } from './settingsSchema';
@@ -84,7 +85,9 @@ const parseList = (raw, fallback) => {
 // On failure it returns the defaults, which suits pages that only read a value.
 // A page that saves passes { strict: true } and gets an error instead: showing
 // defaults there as if they were saved would let Save overwrite the real values.
-export const getSystemSettings = async ({ strict = false } = {}) => {
+// A page whose figures matter (a fee, a notice window) passes { warn: true }: the
+// defaults are still returned, but the admin is told they are not the saved values.
+export const getSystemSettings = async ({ strict = false, warn = false } = {}) => {
   try {
     const response = await api.get('get_system_settings.php');
     if (response.data.success && response.data.settings) {
@@ -109,6 +112,7 @@ export const getSystemSettings = async ({ strict = false } = {}) => {
     if (strict) throw e;
     console.warn('Failed to load system settings from backend:', e);
   }
+  if (warn) toast.error('The saved settings could not be loaded, so default values are shown (fees, notice windows, late fee). Reload the page to try again.');
   return { ...DEFAULTS };
 };
 

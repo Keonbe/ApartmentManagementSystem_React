@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
@@ -102,6 +103,9 @@ const toViewModel = (r) => ({
 
 // localStorage flag: the budget panel's details are expanded ('1') or not.
 const BUDGET_OPEN_KEY = 'ams_admin_maint_budget_open';
+// Closed tickets older than this stay off the board until "Show older"
+// (get_maintenance_requests.php ?closedDays=).
+const CLOSED_WINDOW_DAYS = 90;
 
 const COLUMNS = [
   { key: 'Pending', statuses: ['Pending'], icon: faClock, iconClass: 'text-amber-700' },
@@ -823,11 +827,18 @@ const AdminMaintainance = () => {
   const [showNewModal, setShowNewModal] = useState(false);
   const [isSubmittingNew, setIsSubmittingNew] = useState(false);
 
+  // The board loads every open ticket but closed ones only from the last
+  // CLOSED_WINDOW_DAYS (this month's budget needs no more); "Show older" loads
+  // the whole history.
+  const [showOlder, setShowOlder] = useState(false);
+  const [olderClosed, setOlderClosed] = useState(0);
+
   const fetchRequests = useCallback(async () => {
     try {
-      const res = await api.get('get_maintenance_requests.php');
+      const res = await api.get('get_maintenance_requests.php', { params: showOlder ? {} : { closedDays: CLOSED_WINDOW_DAYS } });
       if (res.data?.success && Array.isArray(res.data.requests)) {
         setRequests(res.data.requests.map(toViewModel));
+        setOlderClosed(showOlder ? 0 : Number(res.data.olderClosed ?? 0));
         setLoadError('');
       } else {
         setLoadError(res.data?.message || 'Failed to load maintenance requests.');
@@ -837,12 +848,12 @@ const AdminMaintainance = () => {
     } finally {
       setLoadingReqs(false);
     }
-  }, []);
+  }, [showOlder]);
 
   useEffect(() => {
     const load = async () => { await fetchRequests(); };
     load();
-    getSystemSettings().then(setSettings).catch(() => setSettings(null));
+    getSystemSettings({ warn: true }).then(setSettings).catch(() => setSettings(null));
     api.get('get_rooms.php').then(res => { if (res.data?.success) setRooms(res.data.rooms || []); }).catch(() => {});
   }, [fetchRequests]);
 
@@ -854,12 +865,12 @@ const AdminMaintainance = () => {
     try {
       const res = await api.post('update_maintenance_status.php', { id: dbId, ...payload });
       if (!res.data?.success) {
-        alert(res.data?.message || 'Update failed.');
+        toast.error(res.data?.message || 'Update failed.');
         return false;
       }
       return true;
     } catch (err) {
-      alert(err.response?.data?.message || 'Update failed. Please try again.');
+      toast.error(err.response?.data?.message || 'Update failed. Please try again.');
       return false;
     } finally {
       await fetchRequests();
@@ -947,11 +958,11 @@ const AdminMaintainance = () => {
         setShowNewModal(false);
         return true;
       } else {
-        if (!fieldForm?.applyServerErrors(res)) alert(res.data?.message || 'Failed to create maintenance request.');
+        if (!fieldForm?.applyServerErrors(res)) toast.error(res.data?.message || 'Failed to create maintenance request.');
         return false;
       }
     } catch (err) {
-      if (!fieldForm?.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to create maintenance request.'));
+      if (!fieldForm?.applyServerErrors(err)) toast.error(apiErrorMessage(err, 'Failed to create maintenance request.'));
       return false;
     } finally {
       setIsSubmittingNew(false);
@@ -1120,6 +1131,17 @@ const AdminMaintainance = () => {
               </div>
             )}
 
+            {(olderClosed > 0 || showOlder) && !loadingReqs && (
+              <div role="status" className="flex flex-wrap items-center gap-2 text-label text-slate-500">
+                {showOlder
+                  ? 'Showing every request, including those closed more than ' + CLOSED_WINDOW_DAYS + ' days ago.'
+                  : `${olderClosed} request${olderClosed === 1 ? '' : 's'} closed more than ${CLOSED_WINDOW_DAYS} days ago ${olderClosed === 1 ? 'is' : 'are'} not shown.`}
+                <button type="button" onClick={() => setShowOlder(v => !v)} className={btn('secondary', 'sm')}>
+                  {showOlder ? `Only the last ${CLOSED_WINDOW_DAYS} days` : 'Show older'}
+                </button>
+              </div>
+            )}
+
             {/* Kanban / List Board */}
             {loadingReqs ? (
               <SkeletonCards count={6} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" label="Loading maintenance requests…" />
@@ -1149,7 +1171,8 @@ const AdminMaintainance = () => {
                 })}
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-card overflow-x-auto shadow-card">
+              <>
+              <div className="hidden md:block bg-white border border-slate-200 rounded-card overflow-x-auto shadow-card">
                 <table className="w-full text-left text-body whitespace-nowrap">
                   <thead className={THEAD}>
                     <tr className="text-label font-medium text-slate-600">
@@ -1190,6 +1213,14 @@ const AdminMaintainance = () => {
                   </tbody>
                 </table>
               </div>
+              {/* Phones: the board's request card, one per row, instead of a sideways-scrolling table */}
+              <div className="md:hidden space-y-3">
+                {filteredRequests.map(req => <RequestCard key={req.dbId} req={req} onOpen={openDetail} />)}
+                {filteredRequests.length === 0 && (
+                  <div className="rounded-card border border-slate-200 bg-white py-8 text-center text-body text-slate-500">No maintenance requests found matching criteria.</div>
+                )}
+              </div>
+              </>
             )}
 
           </div>

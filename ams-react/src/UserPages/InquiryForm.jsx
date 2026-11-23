@@ -27,6 +27,7 @@ import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 const DEFAULT_MOVE_IN_MONTHS = 6;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
 import { personName } from '../utils/personName';
+import { readDraft, saveDraft, clearDraft } from '../utils/formDraft';
 
 // Reads the stored session so the form can prefill for a logged-in visitor.
 // Guests get an empty object and type their details in themselves.
@@ -50,13 +51,15 @@ export default function InquiryForm() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const [fullName, setFullName] = useState(() => sessionPrefill().name || '');
-    const [email, setEmail] = useState(() => sessionPrefill().email || '');
-    const [contactNo, setContactNo] = useState(() => sessionPrefill().contact || '');
-    const [roomName, setRoomName] = useState(location.state?.selectedRoomId || '');
-    const [occupants, setOccupants] = useState('');
-    const [moveIn, setMoveIn] = useState('');
-    const [message, setMessage] = useState('');
+    // Unsent text survives a refresh (sessionStorage); the signed-in prefill and a room chosen on the previous page win over it.
+    const [draft] = useState(() => readDraft('inquiryDraft'));
+    const [fullName, setFullName] = useState(() => sessionPrefill().name || draft.fullName || '');
+    const [email, setEmail] = useState(() => sessionPrefill().email || draft.email || '');
+    const [contactNo, setContactNo] = useState(() => sessionPrefill().contact || draft.contactNo || '');
+    const [roomName, setRoomName] = useState(location.state?.selectedRoomId || draft.roomName || '');
+    const [occupants, setOccupants] = useState(draft.occupants || '');
+    const [moveIn, setMoveIn] = useState(draft.moveIn || '');
+    const [message, setMessage] = useState(draft.message || '');
     const [honeypot, setHoneypot] = useState('');
 
     const [rooms, setRooms] = useState([]);
@@ -84,6 +87,10 @@ export default function InquiryForm() {
     const [resumeMsg, setResumeMsg] = useState(null); // { ok, text }
     const redeemed = useRef(false);
     const { setIsChatOpen } = useChat();
+
+    useEffect(() => {
+        saveDraft('inquiryDraft', { fullName, email, contactNo, roomName, occupants, moveIn, message });
+    }, [fullName, email, contactNo, roomName, occupants, moveIn, message]);
 
     useEffect(() => {
         if (!resumeCode || redeemed.current) return;
@@ -217,6 +224,7 @@ export default function InquiryForm() {
                     localStorage.setItem('ams_guest_info', JSON.stringify({ name: clean.full_name, email: clean.email, phone: toPhE164(contactNo), thread_id: res.data.thread_id }));
                 }
                 setExistingThread(!!res.data.existing_thread);
+                clearDraft('inquiryDraft');
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
                 setErrorMsg(res.data.message || t('inquiry.errorNetwork'));

@@ -152,6 +152,15 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           </WithUnit>
         </Field>
 
+        <div className="rounded-control border border-slate-200 p-3">
+          <ChannelRow
+            label="Prorate the final rent period"
+            sublabel="Off by default: rent is billed by whole months from the move-in day. When on, a tenant who moves out partway through a period is charged only for the days up to the move-out date (monthly rent ÷ 30 per day) at the move-out clearance. Rent already paid for later days is returned with the deposit."
+            checked={settings.prorateFinalPeriod}
+            onChange={(on) => updateSetting('prorateFinalPeriod', on)}
+          />
+        </div>
+
         <div className="rounded-control border border-slate-200 p-3 space-y-3">
           <ChannelRow
             label="Charge a late fee"

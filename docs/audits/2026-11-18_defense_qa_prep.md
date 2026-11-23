@@ -80,8 +80,8 @@ Numbers to quote (run 2026-11-21): 169 PHP files in `backend/api/` (about 164 en
 - **Follow-up:** "Can an admin edit the log?" It is insert-only in the app. I haven't verified database-level protection, so don't claim it.
 
 **18. What about proration and late fees?**
-- **Answer:** Rent is billed per whole month. There is no proration in the code, so `todo.md:64` ("prorated billing done") is wrong. Late fees are configurable through settings (`late_fee_enabled`, `late_fee_type`, `late_fee_value`).
-- **Follow-up:** "A tenant moves in on the 20th. What do they pay?" Describe the manager's manual computation (DE-10).
+- **Answer:** Billing runs on each tenant's move-in anniversary date (`rent_period_start()`), so move-in never needs proration. At move-out, final-period proration is automated when Settings → Payments "Prorate the final rent period" (`prorate_final_period`) is enabled (`prorate_final_rent_period()`, charged at `base_rent ÷ 30 × days occupied`; lead-issued future bills cancelled; unused paid days credited to refund). When disabled (default), whole-month billing applies. Late fees are configurable through settings (`late_fee_enabled`, `late_fee_type`, `late_fee_value`).
+- **Follow-up:** "A tenant moves in on the 20th. What do they pay?" Their rent period starts on the 20th each month; the full monthly rate covers the 20th to the 19th of the next month.
 
 ## 4. Security
 
@@ -126,7 +126,7 @@ Numbers to quote (run 2026-11-21): 169 PHP files in `backend/api/` (about 164 en
 ## 6. Scope and limitations
 
 **28. What did you deliberately not build?**
-- **Answer:** One property (DE-1), no owner or accountant role (DE-3), not accounting or tax software and no BIR receipts (DE-4), no metered utilities (DE-6), no proration or room transfers (DE-10), no native app (DE-9).
+- **Answer:** One property (DE-1), no owner or accountant role (DE-3), not accounting or tax software and no BIR receipts (DE-4), no metered utilities (DE-6), no native app (DE-9). Proration and room transfers were previously in DE-10, but both were implemented in November 2026.
 - **Follow-up:** "Isn't one admin doing everything a control weakness?" Yes (LI-4). The activity log is the compensating control.
 
 **29. Is the e-signature legally binding? Does the contract comply with RA 9653?**

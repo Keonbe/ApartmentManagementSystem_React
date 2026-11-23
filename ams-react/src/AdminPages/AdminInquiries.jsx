@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -32,8 +33,8 @@ import SelectMenu from '../Components/admin/ui/SelectMenu';
 import InquiryChatModal from '../Components/admin/inquiries/InquiryChatModal';
 import { useChat } from '../context/ChatContext';
 import FollowUpSettingsModal from '../Components/admin/inquiries/FollowUpSettingsModal';
-import { SkeletonRows } from '../Components/admin/ui/Skeleton';
-import { LoadErrorRow } from '../Components/admin/ui/LoadError';
+import { SkeletonRows, SkeletonCards } from '../Components/admin/ui/Skeleton';
+import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
 
 // "Open" (the default) = still being handled: not yet turned into an application
 // and not closed. "All" is last, for looking something up.
@@ -258,13 +259,13 @@ export default function AdminInquiries() {
     try {
       const res = await api.post('expire_reservations.php', {});
       if (res.data.success) {
-        alert(res.data.message);
+        toast.success(res.data.message || 'Expiry sweep finished.');
         fetchData();
         fetchSupporting();
       }
     } catch (err) {
       console.error('Expiry sweep failed:', err);
-      alert('Failed to run the expiry sweep.');
+      toast.error('Failed to run the expiry sweep.');
     }
   };
 
@@ -313,7 +314,7 @@ export default function AdminInquiries() {
     try {
       await updateReservation(id, status);
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -652,8 +653,8 @@ export default function AdminInquiries() {
               )}
             </div>
 
-            {/* Table */}
-            <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
+            {/* Table (tablet and up) */}
+            <div className="hidden md:block overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
               <div className="overflow-x-auto">
                 {view === 'inquiries' ? (
                   <table className="w-full min-w-[850px] text-left text-body">
@@ -856,6 +857,92 @@ export default function AdminInquiries() {
                   </table>
                 )}
               </div>
+            </div>
+
+            {/* Cards (phones): the same rows without sideways scrolling */}
+            <div className="md:hidden space-y-3">
+              {loading && <SkeletonCards count={3} className="space-y-3" label={view === 'inquiries' ? 'Loading inquiries…' : 'Loading reservations…'} />}
+              {!loading && error && (
+                <div className="rounded-card border border-slate-200 bg-white"><LoadError title={view === 'inquiries' ? "Couldn't load inquiries" : "Couldn't load reservations"} detail={error} onRetry={fetchData} /></div>
+              )}
+              {!loading && !error && view === 'inquiries' && filteredInquiries.length === 0 && (
+                <div className="rounded-card border border-slate-200 bg-white py-12 text-center text-body text-slate-500">
+                  {q ? 'No inquiries match your search.' : statusFilter === 'open' ? 'All caught up: no open inquiries.' : `No ${tabLabel(statusFilter).toLowerCase()} inquiries.`}
+                </div>
+              )}
+              {!loading && !error && view !== 'inquiries' && filteredReservations.length === 0 && (
+                <div className="rounded-card border border-slate-200 bg-white py-12 text-center text-body text-slate-500">{q ? 'No reservations match your search.' : 'No reservations found.'}</div>
+              )}
+              {!loading && !error && view === 'inquiries' && filteredInquiries.map(inq => (
+                <div key={inq.id} className={`space-y-2 rounded-card border bg-white p-4 shadow-card ${isNewInquiry(inq) ? 'border-indigo-300 bg-indigo-50/40' : 'border-slate-200'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="m-0 flex items-center gap-2 font-bold text-slate-800">
+                        {isNewInquiry(inq) && <span className="h-2 w-2 shrink-0 rounded-full bg-indigo-500" aria-hidden="true" />}
+                        <span className="min-w-0 truncate">{inq.fullName}</span>
+                        {isNewInquiry(inq) && <span className="sr-only">(new, not opened yet)</span>}
+                        {inq.unreadCount > 0 && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-600 px-1.5 py-px text-[10px] font-bold text-white">
+                            <FontAwesomeIcon icon={faComment} className="text-[9px]" aria-hidden="true" />{inq.unreadCount}
+                            <span className="sr-only"> unread messages</span>
+                          </span>
+                        )}
+                      </p>
+                      <p className="m-0 mt-0.5 truncate text-label text-slate-500">{inq.email}</p>
+                      <p className="m-0 text-label text-slate-500">{inq.contactNo}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${inquiryBadge(displayStatus(inq))}`}>{displayStatus(inq)}</span>
+                  </div>
+                  <p className="m-0 text-label text-slate-600">
+                    {inq.unit ? `Unit ${inq.unit}` : 'Any available unit'}{inq.occupants ? ` · ${inq.occupants} occupant(s)` : ''} · Move-in {fmtDate(inq.preferredMoveIn)}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-caption text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold capitalize text-slate-600">{inq.source}</span>
+                    {inq.matchedThreadId && <span className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Sender not verified</span>}
+                    <span>Received {fmtDate(inq.createdAt)}</span>
+                    {isOpenInquiry(inq) && daysSince(inq.createdAt) !== null && <span className={ageTone(daysSince(inq.createdAt))}>{ageText(daysSince(inq.createdAt))}</span>}
+                  </div>
+                  {inq.status === 'Closed' && inq.closedReason && <p className="m-0 truncate text-caption text-slate-500">{inq.closedReason}</p>}
+                  <div className="flex justify-end border-t border-slate-100 pt-2">
+                    <button type="button" onClick={() => openDetail(inq)} aria-label={`Manage inquiry from ${inq.fullName}`} className={btn('secondary', 'sm')}>{isOpenInquiry(inq) ? 'Open' : 'View'}</button>
+                  </div>
+                </div>
+              ))}
+              {!loading && !error && view !== 'inquiries' && filteredReservations.map(res => (
+                <div key={res.id} className="space-y-2 rounded-card border border-slate-200 bg-white p-4 shadow-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="m-0 font-bold text-slate-800">Unit {res.unit}{res.roomType ? <span className="font-normal text-slate-500"> · {res.roomType}</span> : null}</p>
+                      <p className="m-0 mt-0.5 font-semibold text-slate-700">{res.reservedFor}</p>
+                      <p className="m-0 text-caption text-slate-500">{res.contactNo || res.email || '—'}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${reservationBadge(res.status)}`}>{res.status}</span>
+                  </div>
+                  <p className="m-0 text-label text-slate-600">
+                    Reserved {fmtDate(res.createdAt)} · Hold expires {fmtDate(res.holdExpiresAt)}
+                    {Number(res.reservationFee) > 0 ? ` · ₱${Number(res.reservationFee).toLocaleString()}` : ''}
+                  </p>
+                  {res.status === 'Active' && (
+                    <p className={`m-0 text-caption font-bold ${Number(res.daysRemaining) <= 2 ? 'text-red-600' : 'text-slate-500'}`}>
+                      {Number(res.daysRemaining) < 0 ? 'Lapsed' : Number(res.daysRemaining) === 0 ? 'Expires today' : `${res.daysRemaining} day(s) left`}
+                    </p>
+                  )}
+                  <div className="flex justify-end gap-1.5 border-t border-slate-100 pt-2">
+                    {res.status === 'Active' ? (
+                      <>
+                        <button type="button" onClick={() => markReservation(res.id, 'Converted')} className="min-h-[44px] cursor-pointer rounded-control border-0 bg-emerald-50 px-3 py-2 text-label font-bold text-emerald-700" title="Mark as converted to an application">
+                          <FontAwesomeIcon icon={faCheckCircle} className="mr-1" /> Converted
+                        </button>
+                        <button type="button" onClick={() => setReasonFor({ kind: 'cancelHold', id: res.id })} aria-label={`Cancel the hold on unit ${res.unit}`} className="min-h-[44px] min-w-[44px] cursor-pointer rounded-control border-0 bg-red-50 px-3 py-2 text-label font-bold text-red-700" title="Cancel hold and release the unit">
+                          <FontAwesomeIcon icon={faBan} />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-label font-medium italic text-slate-500">{res.releasedReason || 'Closed'}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <WaitlistPanel key={waitlistKey} onOpenInquiry={openInquiryById} />

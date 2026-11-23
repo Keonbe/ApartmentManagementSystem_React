@@ -64,6 +64,8 @@ $deductions_by_app = deposit_deductions_for($conn, array_map(
     fn($r) => (int)$r['id'],
     array_filter($rows, fn($r) => in_array($r['status'], $ended_statuses, true))
 ));
+// Room-transfer history: one query for all applications.
+$transfers_by_app = room_transfers_for($conn, array_map(fn($r) => (int)$r['id'], $rows));
 foreach ($rows as $row) {
     $documents = $documents_by_app[(int)$row['id']] ?? [];
     $deposit_outcome = null;
@@ -128,6 +130,7 @@ foreach ($rows as $row) {
         // Only on the tenancy in force: an older moved-out application of the same user gets none.
         'extensionRequest' => in_array($row['status'], $current_statuses, true)
             ? ($extension_by_user[(int)($row['user_id'] ?? 0)] ?? null) : null,
+        'transfers' => $transfers_by_app[(int)$row['id']] ?? [],
     ];
 }
 

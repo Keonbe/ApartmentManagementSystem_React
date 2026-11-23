@@ -1180,6 +1180,8 @@ Endpoints added or split out after the modules above were written (verified agai
 | `POST` [save_contract_template.php](../../backend/api/save_contract_template.php) | admin | `template`, `note`, `base_version` | `{changed, version, id}`; 409 version conflict (carries the current `version`); 422 invalid content, or a `details.owner_signature` that is not a file `upload_contract_signature.php` stored | New `contract_template_versions` row; log `contract` (names an owner e-signature change) |
 | `POST` [upload_contract_signature.php](../../backend/api/upload_contract_signature.php) | admin | multipart `file`: PNG or JPG (content checked), 2 MB, 20 x 10 to 4000 x 4000 px | `{path}` (`uploads/contract_signatures/<32 hex>.png` (or `.jpg`)); 401 / 403; 422 with `errors.file` | Stores the file only; it takes effect when the editor saves the template with it as `details.owner_signature`, and is then printed on the owner's signature line of every contract without its own (2026-11-23); log `contract` |
 | `GET` [get_contract_template.php](../../backend/api/get_contract_template.php) | user (`history`, `default` and `full` are admin) | `history`, `default`, `version_id` | template + `version`, `terms_version`, `is_default`; 403 a tenant asking for a version that is not theirs; 404; 422 | none |
+| `POST` [transfer_room.php](../../backend/api/transfer_room.php) | admin | `applicationId`, `toRoom`, `reason` (5–255), optional `preview` (bool) | `{success, transferId, fromRoom, toRoom, oldRent, newRent, oldDeposit, newDeposit, depositDifference, depositInvoiceId, refundRequestId, effectivePeriodStart, repricedBills}`; 404; 409 occupied/held/payment in review/advance credits; 422 same room/child floor rule | Moves tenancy in place: swaps room occupancy/last_tenant, adjusts `rent_applications` rent/room and contract deposit, creates top-up bill or excess deposit refund, reprices future unstarted bills, cancels old visitor pre-registrations, notifies waitlist and tenant; log `tenant` |
+| `GET` [transfer_room.php](../../backend/api/transfer_room.php) | admin | `?applicationId=` | `{success, transfers[]}` | Lists tenancy transfer history (newest first) |
 
 ### 15.3 Household, waitlist and expenses
 
@@ -1547,3 +1549,4 @@ All endpoints return JSON with this shape on error:
 | 162 | [notarized_contract.php](../../backend/api/notarized_contract.php) | POST | Contract | User/Admin | See §15.2 |
 | 163 | [get_contract_history.php](../../backend/api/get_contract_history.php) | GET | Contract | Admin | See §15.2 |
 | 164 | [upload_contract_signature.php](../../backend/api/upload_contract_signature.php) | POST | Contract | Admin | See §15 |
+| 165 | [transfer_room.php](../../backend/api/transfer_room.php) | GET/POST | Tenants | Admin | See §15.2 |

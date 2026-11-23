@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useEffect } from 'react';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
@@ -24,6 +25,7 @@ const ID_TYPES = ['National ID', "Driver's License", 'Passport', 'UMID / SSS', '
 const PLATE_PATTERN = /^[A-Z0-9][A-Z0-9 -]*$/;
 // update_system_settings.php: 1 to 168 hours.
 const MAX_OVERSTAY_HOURS = 168;
+const PAGE_SIZE = 25; // visitor log rows per page (get_visitors.php ?page=)
 // The desk may back-date a visit by up to a day; the expected check-out may be
 // up to 30 days out (check_in_visitor.php).
 const visitBounds = () => ({ min: addDays(-1), max: localDateString(), outMax: addDays(30) });
@@ -46,6 +48,8 @@ import { TH, THEAD, btn } from '../Components/admin/ui/styles';
 import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import { LoadErrorRow } from '../Components/admin/ui/LoadError';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import Pagination from '../Components/admin/ui/Pagination';
+import { readPageMeta } from '../utils/paging';
 
 // Preset checkout notes; "Other" lets the desk type a short one instead. The
 // chosen text is stored as-is in visitor_logs.checkout_notes.
@@ -177,19 +181,27 @@ export default function AdminVisitors() {
 
   // Loading and error are derived from the filters they belong to, so a filter change
   // shows the spinner without setting state inside the effect.
-  const filterKey = `${statusFilter}|${unitFilter}`;
+  // The page belongs to the filters it was chosen under: a filter change starts
+  // again at page 1 without setting state inside the effect.
+  const [pageChoice, setPageChoice] = useState({ filters: '', page: 1 });
+  const baseFilters = `${statusFilter}|${unitFilter}`;
+  const page = pageChoice.filters === baseFilters ? pageChoice.page : 1;
+  const setPage = (next) => setPageChoice({ filters: baseFilters, page: next });
+  const [pageMeta, setPageMeta] = useState({ total: 0, page: 1, limit: PAGE_SIZE, pages: 1 });
+  const filterKey = `${baseFilters}|${page}`;
   const loading = refreshing || loadedFilters !== filterKey;
   const error = failure && failure.filters === filterKey ? failure.message : null;
 
   const loadVisitors = async () => {
     try {
-      let url = `get_visitors.php?status=${statusFilter}&unit=${unitFilter}`;
+      let url = `get_visitors.php?status=${statusFilter}&unit=${encodeURIComponent(unitFilter)}&page=${page}&limit=${PAGE_SIZE}`;
       if (searchQuery.trim()) {
         url += `&search=${encodeURIComponent(searchQuery.trim())}`;
       }
       const res = await api.get(url);
       if (res.data.success) {
         setVisitors(res.data.visitors || []);
+        setPageMeta(readPageMeta(res.data, (res.data.visitors || []).length));
         setFailure(null);
         if (res.data.stats) {
           setStats(res.data.stats);
@@ -227,11 +239,14 @@ export default function AdminVisitors() {
   useEffect(() => {
     const load = async () => { await Promise.all([loadVisitors(), fetchRooms()]); };
     load();
-  }, [statusFilter, unitFilter]);
+  }, [statusFilter, unitFilter, page]);
 
+  // A new search starts at page 1: moving there reloads through the effect;
+  // already on page 1, reload here.
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchVisitors();
+    if (page !== 1) setPage(1);
+    else fetchVisitors();
   };
 
   // Check In / New Visitor Action
@@ -276,11 +291,11 @@ export default function AdminVisitors() {
         setCheckInForm(emptyCheckInForm());
         fetchVisitors();
       } else if (!checkIn.applyServerErrors(res)) {
-        alert(res.data.message || 'Failed to log visitor.');
+        toast.error(res.data.message || 'Failed to log visitor.');
       }
     } catch (err) {
       console.error('Failed to check in visitor:', err);
-      if (!checkIn.applyServerErrors(err)) alert(apiErrorMessage(err, 'Server error occurred during visitor check-in.'));
+      if (!checkIn.applyServerErrors(err)) toast.error(apiErrorMessage(err, 'Server error occurred during visitor check-in.'));
     } finally {
       setSubmitting(false);
     }
@@ -295,7 +310,7 @@ export default function AdminVisitors() {
     try {
       await sendReview(id, action, '');
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -339,11 +354,11 @@ export default function AdminVisitors() {
         setCheckoutOther('');
         fetchVisitors();
       } else if (!checkIn.applyServerErrors(res)) {
-        alert(res.data.message || 'Failed to checkout visitor.');
+        toast.error(res.data.message || 'Failed to checkout visitor.');
       }
     } catch (err) {
       console.error('Failed to checkout visitor:', err);
-      alert(apiErrorMessage(err, 'Server error during visitor checkout.'));
+      toast.error(apiErrorMessage(err, 'Server error during visitor checkout.'));
     } finally {
       setSubmitting(false);
     }
@@ -363,11 +378,11 @@ export default function AdminVisitors() {
         setShowThresholdModal(false);
         fetchVisitors();
       } else if (!checkIn.applyServerErrors(res)) {
-        alert(res.data.message || 'Failed to save threshold setting.');
+        toast.error(res.data.message || 'Failed to save threshold setting.');
       }
     } catch (err) {
       console.error('Failed to update overstay threshold:', err);
-      alert(apiErrorMessage(err, 'Error updating system setting.'));
+      toast.error(apiErrorMessage(err, 'Error updating system setting.'));
     } finally {
       setSubmitting(false);
     }
@@ -700,6 +715,7 @@ export default function AdminVisitors() {
                   </tbody>
                 </table>
               </div>
+              <Pagination page={pageMeta.page} pages={pageMeta.pages} total={pageMeta.total} limit={pageMeta.limit} onPage={setPage} noun="visitor records" />
             </div>
 
           </div>

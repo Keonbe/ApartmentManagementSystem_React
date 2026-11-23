@@ -86,7 +86,7 @@ This replaces `header('Access-Control-Allow-Origin: *');`. `backend/cors.php` lo
 | development | unset | The built-in hosts plus `http://localhost:5173`, `:5174` and `:8080` |
 | production (or `APP_ENV` unset) | unset | Only the built-in hosts (`https://angcanan-ams.com`, `https://www.angcanan-ams.com`, `http://168.107.72.9`); local origins are never allowed |
 
-`cors.php` reads `ALLOWED_ORIGINS` itself (from `config.env.php` or the environment) because endpoints include it before `config.php`; `cron/check_environment.php` checks the same value. Tests: `cors_origins.test.js` (SPRINT 175, panel S-10).
+`cors.php` reads `ALLOWED_ORIGINS` itself (from `config.env.php` or the environment) because endpoints include it before `config.php`; `cron/check_environment.php` checks the same value. The same check prints the effective PHP `error_log` path and `log_errors` (in production it warns when no path is set or the path is not writable) and compares the PHP and database clocks. Tests: `cors_origins.test.js` (SPRINT 175, panel S-10).
 
 Origins must match exactly: scheme, host and port, with no trailing slash. Separate several with commas:
 

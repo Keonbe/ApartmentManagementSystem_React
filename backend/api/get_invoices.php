@@ -108,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
 
         $user_id_param = $_GET['userId'] ?? null;
+        $desk = !$user_id_param && ($_GET['view'] ?? '') === 'desk';
         if ($user_id_param) {
             // A non-admin may only ever read their own invoices, whatever the
             // ?userId= parameter says.
@@ -139,15 +140,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 exit;
             }
 
-            $query = "SELECT 
-                        i.*, 
-                        u.first_name, 
-                        u.last_name, u.suffix, 
+            // ?view=desk (Admin Payments): only the open bills, plus a per-tenant
+            // summary of what was paid. Each tenant's paid history is then read
+            // with ?userId= when the tenant is opened, so this payload stays the
+            // size of what is owed instead of growing with every month billed.
+            $query = "SELECT
+                        i.*,
+                        u.first_name,
+                        u.last_name, u.suffix,
                         ra.room_name,
                         ra.status AS application_status, " . INVOICE_PERIOD_COLUMNS . "
                       FROM invoices i
                       LEFT JOIN users u ON i.user_id = u.id
-                      LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
+                      LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id" .
+                      ($desk ? " WHERE i.status IN " . billing_open_status_sql() : "") . "
                       ORDER BY i.id DESC";
             $result = $conn->query($query);
         }
@@ -166,7 +172,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $tx_result = $tx_stmt->get_result();
             $tx_stmt->close();
         } else {
-            $tx_result = $conn->query("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id WHERE i.status = 'paid' OR i.amount_paid > 0 ORDER BY pt.id ASC");
+            // The desk view lists only open bills: their parts received so far.
+            $tx_where = $desk ? "i.status IN " . billing_open_status_sql() . " AND i.amount_paid > 0" : "i.status = 'paid' OR i.amount_paid > 0";
+            $tx_result = $conn->query("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id WHERE $tx_where ORDER BY pt.id ASC");
         }
         if ($tx_result) {
             while ($tx = $tx_result->fetch_assoc()) {
@@ -182,9 +190,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
         }
         // Portions of tenant split submissions awaiting review, one query for
-        // the page; each invoice picks its own by id or payment group.
+        // the page; each invoice picks its own by id or payment group. Only the
+        // keys of bills under review are read: the rows are shown for nothing else.
         $split_parts_by_key = [];
-        $parts_result = $conn->query("SELECT payment_key, method, bank_name, amount, reference_number, proof_path FROM payment_proof_parts ORDER BY payment_key, position ASC, id ASC");
+        $parts_result = $conn->query("SELECT payment_key, method, bank_name, amount, reference_number, proof_path FROM payment_proof_parts
+            WHERE payment_key IN (SELECT CAST(id AS CHAR) FROM invoices WHERE status = 'pending-verification'
+                                  UNION SELECT payment_group FROM invoices WHERE status = 'pending-verification' AND payment_group IS NOT NULL)
+            ORDER BY payment_key, position ASC, id ASC");
         if ($parts_result) {
             while ($part = $parts_result->fetch_assoc()) {
                 $split_parts_by_key[$part['payment_key']][] = [
@@ -275,6 +287,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // from the contract, the move-in invoice and advance_credits — the
         // payments page shows these as read-only status (payments audit 2026-09-30).
         if (!$user_id_param) $response['accounts'] = tenant_billing_accounts($conn);
+        if ($desk) {
+            // One row per tenant who was ever billed (so a fully paid tenant is
+            // still listed): the room and status of their latest bill, and how
+            // many bills they paid for how much. `collected` = all paid bills.
+            $response['paid_summary'] = [];
+            $collected = 0.0;
+            $sum = $conn->query("SELECT s.user_id, s.paid_count, s.paid_total, s.last_paid_at,
+                        li.status AS latest_status, u.first_name, u.last_name, u.suffix, ra.room_name
+                    FROM (SELECT user_id, MAX(id) AS last_id,
+                                 SUM(status = 'paid') AS paid_count,
+                                 COALESCE(SUM(CASE WHEN status = 'paid' THEN total_amount END), 0) AS paid_total,
+                                 MAX(CASE WHEN status = 'paid' THEN paid_at END) AS last_paid_at
+                            FROM invoices WHERE user_id IS NOT NULL GROUP BY user_id) s
+                    JOIN invoices li ON li.id = s.last_id
+                    LEFT JOIN users u ON u.id = s.user_id
+                    LEFT JOIN rent_applications ra ON ra.id = li.rent_application_id");
+            while ($sum && ($r = $sum->fetch_assoc())) {
+                $collected += (float)$r['paid_total'];
+                $response['paid_summary'][] = [
+                    'user_id' => (int)$r['user_id'],
+                    'first_name' => $r['first_name'] ?? '',
+                    'last_name' => $r['last_name'] ?? '',
+                    'suffix' => $r['suffix'] ?? '',
+                    'room_name' => $r['room_name'] ?? 'Unassigned',
+                    'latest_status' => $r['latest_status'],
+                    'paid_count' => (int)$r['paid_count'],
+                    'paid_total' => round((float)$r['paid_total'], 2),
+                    'last_paid_at' => $r['last_paid_at'],
+                ];
+            }
+            $response['collected'] = round($collected, 2);
+        }
         echo json_encode($response);
 
     } catch (Exception $e) {

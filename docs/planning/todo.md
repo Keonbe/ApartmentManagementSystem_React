@@ -63,7 +63,7 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 3. ~~**Audit Phase 2 (trustworthy writes):** H7 first, then H5, then H4, then the combined end-of-tenancy helper (H6, M3, M4).~~ Done 2026-09-17 (see [Recently Completed](#recently-completed)).
 4. ~~**Audit Phase 3 (documents):** H2 / B-8, B-6, and the checkout return URLs.~~ Done 2026-09-17 (see [Recently Completed](#recently-completed)).
 5. ~~**Audit Phase 4 (billing integrity):** H8, H9, M12, H10, M8.~~ Done 2026-09-20 (see [Recently Completed](#recently-completed)).
-6. **Close the [Urgent](#urgent--panelist-checklist-gaps) panelist checklist gaps** — the only features the Master Checklist in `panelist_feature_checklist.md` still marks short of ✅: email/SMS notifications, and two-way chat + complaints. (Prorated billing on lease extension — 3.10 — done 2026-09-20, see [Recently Completed](#recently-completed).)
+6. **Close the [Urgent](#urgent--panelist-checklist-gaps) panelist checklist gaps** — the only features the Master Checklist in `panelist_feature_checklist.md` still marks short of ✅: email/SMS notifications, and two-way chat + complaints. (Final-period proration — 3.10 — completed 2026-11 via `prorate_final_period`, see [Recently Completed](#recently-completed).)
 7. **Self-hosted hardening:** HTTPS plus security headers (see Security).
 8. **Remaining work:** the Phase 5 Mediums, then the Phase 6 Lows.
 9. **Last:** other backlog enhancements and fixing stale docs.
@@ -72,7 +72,7 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 
 ## Urgent — Panelist Checklist Gaps
 
-Every feature `panelist_feature_checklist.md`'s Master Checklist still marks 🔧 (partial), 📋 (designed, not built) or ❌ (not started) — i.e. everything short of ✅. Modules 1, 2, 3, 5 and 9–12 are fully ✅ (3.10 closed 2026-09-20 — see [Recently Completed](#recently-completed)); these are the only gaps left, across Modules 6 and 7. Pulled out of Backend/Frontend into its own category because these are panel-facing scope, not audit findings — a panelist grading the checklist will grade these directly.
+Every feature `panelist_feature_checklist.md`'s Master Checklist still marks 🔧 (partial), 📋 (designed, not built) or ❌ (not started) — i.e. everything short of ✅. Modules 1, 2, 3, 5 and 9–12 are fully ✅ (3.10 final-period proration closed 2026-11 — see [Recently Completed](#recently-completed)); these are the only gaps left, across Modules 6 and 7. Pulled out of Backend/Frontend into its own category because these are panel-facing scope, not audit findings — a panelist grading the checklist will grade these directly.
 
 | Status | Priority | Task | Source |
 |---|---|---|---|
@@ -88,7 +88,7 @@ Smallest set from [`2026-11-12_panel_policy_gap_audit.md`](../audits/2026-11-12_
 | Status | Priority | Task | Source |
 |---|---|---|---|
 | [ ] | Urgent | Force the admin password change on first login, remove the admin device-code skip (`random_int` plus hashed code, SPRINT 172: built 2026-11-19 and taken back the same day, see SPRINT.md). | Audit S-14, S-05, S-06; security_audit A-1; SPRINT 145 |
-| [ ] | Urgent | Make every count agree across the docs (79 test files, endpoints 160, tables 51, PHP version) and refresh stale `security_audit.md` rows and checklist Module 11. | Audit §A.13, SPRINT 146 |
+| [x] | Urgent | Make every count agree across the docs (116 API test files / 2,234 tests + 12 frontend test files / 68 tests, 174 endpoints, 53 tables in SetupDB / 54 in active DB, PHP 8.0+) and refresh stale `security_audit.md` rows and checklist Module 11. | Audit §A.13, SPRINT 146 |
 | [ ] | Urgent | Run one SUS session with real users and record n and the score (no user acceptance data exists). | Audit RD-01, SPRINT 148 |
 | [ ] | Medium | Before 2027-01-01: check for the NHSB resolution that follows 2024-01 and update the rent-control settings (cap, coverage limit, valid-until). Existing saved contract templates need re-saving to pick up the new `cl-ejectment` clause and `cl-advice` wording. | SPRINT 149 |
 | [ ] | High | Schedule the nightly backup and record one restore drill. | Audit D-05, SPRINT 87 |
@@ -203,6 +203,14 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | 2026-11-23: Tenant room transfer in place (`transfer_room.php`, audit table `room_transfers`, deposit delta adjustments, unstarted bill repricing, waitlist notifications, My Room and timeline history). SPRINT 248. | SPRINT 248 |
+| [x] | 2026-11-23: Move-out final-period rent proration (`prorate_final_period` setting, daily proration on move-out clearance, `rent_applications.moved_out_date`, unused rent credited to deposit refund). SPRINT 73. | SPRINT 73 |
+| [x] | 2026-11-23: Server-side pagination & indexes on 6 large admin lists (`get_invoices`, `get_maintenance_requests`, `get_visitors`, `get_notifications`, `get_refund_requests`, `get_activity_logs`) with composite indexes `idx_invoices_status_due` and `idx_maint_status_created`. SPRINT 247 / 193. | SPRINT 247 / 193 |
+| [x] | 2026-11-22: Signed lease review workflow (tenant photo/PDF upload, office review, acceptance/rejection notes), in-person notarization tracking (`contract_require_notarized`, `notarized_ready_at`, `notarized_at`), contract renewal history preservation (`previous_signed_lease_path`, `previous_notarized_lease_path`). SPRINT 239 / 240 / 241. | SPRINT 239 / 240 / 241 |
+| [x] | 2026-11-22: Shared toast alerts (`utils/toast.jsx`) replacing 92 admin `alert()` calls across 13 files, sortable table headers (`SortableTh`), URL search query persistence (`?q=`), form drafting (`utils/formDraft.js`), environment check error-log reporting. SPRINT 235 / 209 / 197. | SPRINT 235 / 209 / 197 |
+| [x] | 2026-11-22: Strict SQL mode test suite synchronization for GitHub CI and local XAMPP (`AMS_TEST_MODE=1`). SPRINT 236 / 179. | SPRINT 236 / 179 |
+| [x] | 2026-11-22: Payments Collections tab with aging analysis (31+ days) and sortable tenant balances; Utilities redesign in Dashboard/Reports style with time presets and pagination. SPRINT 234 / 246. | SPRINT 234 / 246 |
+| [x] | 2026-11-22: Messages UI redesign with styled filter dropdowns (All, Active, Past, Problem Reports, Guest Inquiries, Archived) with live counts and `is_past_tenant` support. SPRINT 245. | SPRINT 245 |
 | [x] | 2026-11-21: `npm audit fix` and blocking CI audit (168); `cors.php` honours `ALLOWED_ORIGINS` and keeps local origins out of production (175); floor rates seeded 4,000 / 4,000 / 3,500 (80); the two old report endpoints removed, their deposit figures now in the Financial report (232). | SPRINT 168 / 175 / 80 / 232 |
 | [x] | 2026-11-20 (uncommitted): `get_conversations.php` ranked per partner with two composite indexes (206); PayMongo reconciliation, "Check with PayMongo" button and a by-channel pesos report (183); anonymize action for former tenants, terms version on applications, Data Protection Officer in the Privacy Notice (177). | SPRINT 206 / 183 / 177 |
 | [x] | 2026-11-19 (uncommitted): security hardening: raw error text and request-time table creation removed (170), security headers (169), room_images / qr_codes block svg and html (173), house rules, device and email-verify and password-reset writes logged (174), guest chat token stored hashed (82; the sign-in code / trusted-device / lockout changes of 172 were taken back so prod testing is not disturbed); the rent application legal notice uses the shared modal (209). Open from these: everything in the sign-in part of 172 (hashed code, trusted devices, lockout) and the admin sign-in skip (145), the HTTP to HTTPS redirect (deploy). | [SPRINT.md](../../SPRINT.md) |

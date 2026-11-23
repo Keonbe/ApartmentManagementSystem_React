@@ -1,13 +1,24 @@
 import useScopedRules from '../hooks/useScopedRules';
-import { useLang } from '../config/i18n';
+import { useLang, t } from '../config/i18n';
+import InlineAlert from './InlineAlert';
 
 // Admin-editable rules for one scope ('parking' or 'minors'), optionally with the
 // age categories table. Shown before a parking reservation, on the inquiry form,
 // and on the rent application. Renders nothing when there is nothing to show.
 export default function ScopedRules({ scope, title, withAgeCategories = false, className = '' }) {
   const { lang } = useLang();
-  const { rules, ageCategories, minAge } = useScopedRules(scope, withAgeCategories);
-  if (!rules.length && !ageCategories.length && !(withAgeCategories && minAge > 0)) return null;
+  const { rules, ageCategories, minAge, error, retry } = useScopedRules(scope, withAgeCategories);
+  const empty = !rules.length && !ageCategories.length && !(withAgeCategories && minAge > 0);
+  // A failed load must not read as "there are no rules".
+  if (error && empty) {
+    return (
+      <InlineAlert tone="info" className={className}>
+        {t('common.loadFailed')}{' '}
+        <button type="button" onClick={retry} className="cursor-pointer border-0 bg-transparent p-0 font-bold text-current underline">{t('common.retry')}</button>
+      </InlineAlert>
+    );
+  }
+  if (empty) return null;
 
   const pick = (en, fil) => (lang === 'fil' && fil?.trim() ? fil : en);
 

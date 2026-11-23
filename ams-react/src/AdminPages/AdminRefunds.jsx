@@ -6,7 +6,10 @@ import { apiErrorMessage } from '../utils/apiError';
 import { RefundForm, RefundTrail, StatusBadge } from '../Components/RefundParts';
 import { TYPE_LABELS, GATEWAY_LABELS, peso, when } from '../utils/refundFormat';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
+import Pagination from '../Components/admin/ui/Pagination';
+import { readPageMeta } from '../utils/paging';
 import LoadError from '../Components/admin/ui/LoadError';
+import InlineAlert from '../Components/InlineAlert';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 import DepositReviews from '../Components/admin/DepositReviews';
 import askConfirm from '../utils/askConfirm';
@@ -18,6 +21,7 @@ import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 const PAYOUT_METHODS = ['GCash', 'Maya', 'Bank transfer', 'Cash', 'Other'];
 
 const FILTERS = ['all', 'Pending Review', 'Info Requested', 'Approved', 'Refunded', 'Rejected', 'Cancelled'];
+const PAGE_SIZE = 25; // refund requests per page (get_refund_requests.php ?page=)
 
 export default function AdminRefunds() {
   const [requests, setRequests] = useState([]);
@@ -33,12 +37,29 @@ export default function AdminRefunds() {
   const [tenants, setTenants] = useState([]);
   const [newUserId, setNewUserId] = useState('');
   const [eligible, setEligible] = useState(null);
+  // The two lookups behind the new-refund form: a failure must not look like an empty picker.
+  const [pickerFailed, setPickerFailed] = useState(false);
+  const [eligibleFailed, setEligibleFailed] = useState(false);
+  const [pickerTry, setPickerTry] = useState(0);
   const [showNew, setShowNew] = useState(false);
+
+  // One page of the chosen tab, filtered on the server; `counts` (every status,
+  // whatever the tab) label the tabs.
+  const [pageChoice, setPageChoice] = useState({ filter, page: 1 });
+  const page = pageChoice.filter === filter ? pageChoice.page : 1;
+  const setPage = (next) => setPageChoice({ filter, page: next });
+  const [pageMeta, setPageMeta] = useState({ total: 0, page: 1, limit: PAGE_SIZE, pages: 1 });
+  const [counts, setCounts] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('get_refund_requests.php');
-      if (res.data.success) { setRequests(res.data.requests || []); setLoadFailed(false); }
+      const res = await api.get('get_refund_requests.php', { params: { page, limit: PAGE_SIZE, ...(filter !== 'all' ? { status: filter } : {}) } });
+      if (res.data.success) {
+        setRequests(res.data.requests || []);
+        setPageMeta(readPageMeta(res.data, (res.data.requests || []).length));
+        setCounts(res.data.counts || null);
+        setLoadFailed(false);
+      }
       else setLoadFailed(true);
     } catch (err) {
       setLoadFailed(true);
@@ -46,7 +67,7 @@ export default function AdminRefunds() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, filter]);
 
   useEffect(() => {
     const timer = window.setTimeout(load, 0);
@@ -59,16 +80,18 @@ export default function AdminRefunds() {
       const seen = new Set();
       const list = (res.data.data || []).filter((t) => t.user_id && !seen.has(t.user_id) && seen.add(t.user_id));
       setTenants(list);
-    }).catch(() => {}), 0);
+      setPickerFailed(false);
+    }).catch(() => setPickerFailed(true)), 0);
     return () => window.clearTimeout(timer);
-  }, [showNew, tenants.length]);
+  }, [showNew, tenants.length, pickerTry]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      setEligibleFailed(false);
       if (!newUserId) { setEligible(null); return; }
       api.get('get_refund_requests.php', { params: { user_id: newUserId } })
         .then((res) => setEligible(res.data.eligible || { advance: 0, overpayments: [] }))
-        .catch(() => setEligible(null));
+        .catch(() => { setEligible(null); setEligibleFailed(true); });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [newUserId]);
@@ -117,7 +140,7 @@ export default function AdminRefunds() {
     }
   };
 
-  const shown = requests.filter((r) => filter === 'all' || r.status === filter);
+  const shown = requests;
   const btn = 'cursor-pointer rounded-control border-0 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50';
 
   return (
@@ -138,7 +161,7 @@ export default function AdminRefunds() {
                 label="Filter refund requests by status"
                 value={filter}
                 onChange={setFilter}
-                options={FILTERS.map(f => ({ value: f, label: f === 'all' ? 'All' : f, count: loading || (loadFailed && requests.length === 0) ? null : f === 'all' ? requests.length : requests.filter(r => r.status === f).length }))}
+                options={FILTERS.map(f => ({ value: f, label: f === 'all' ? 'All' : f, count: !counts ? null : (counts[f] ?? 0) }))}
               />
               <button type="button" onClick={() => setShowNew((v) => !v)} className="ml-auto cursor-pointer rounded-control border border-indigo-600 bg-white px-3 py-1.5 text-label font-bold text-indigo-700">
                 {showNew ? 'Close' : 'Open a request for a tenant'}
@@ -153,6 +176,12 @@ export default function AdminRefunds() {
                     {tenants.map((t) => <option key={t.user_id} value={t.user_id}>{t.name} · {t.unit}</option>)}
                   </select>
                 </label>
+                {pickerFailed && !tenants.length && (
+                  <InlineAlert>Couldn't load the tenant list. <button type="button" onClick={() => setPickerTry((n) => n + 1)} className="cursor-pointer border-0 bg-transparent p-0 font-bold text-current underline">Try again</button></InlineAlert>
+                )}
+                {eligibleFailed && (
+                  <InlineAlert>Couldn't load what this tenant can be refunded. Pick the tenant again to retry.</InlineAlert>
+                )}
                 {eligible && (
                   <RefundForm eligible={eligible} busy={busy}
                     onSubmit={(body, reset) => call('create_refund_request.php', { ...body, user_id: Number(newUserId) }, 'Refund request opened.', () => { reset(); setNewUserId(''); })} />
@@ -249,6 +278,7 @@ export default function AdminRefunds() {
                 )}
               </article>
             ))}
+            {!loading && <Pagination page={pageMeta.page} pages={pageMeta.pages} total={pageMeta.total} limit={pageMeta.limit} onPage={setPage} noun="refund requests" className="rounded-card border border-slate-200 bg-white" />}
           </div>
         </main>
       </div>

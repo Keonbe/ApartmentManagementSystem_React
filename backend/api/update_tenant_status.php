@@ -126,6 +126,14 @@ if ($status === 'moved-out') {
     foreach (['damage_deduction' => 'Damage deduction', 'utility_deduction' => 'Utility deduction', 'deposit_interest' => 'Deposit interest', 'notice_deduction' => 'Notice deduction'] as $field => $label) {
         if (isset($input[$field]) && $input[$field] !== '' && ($e = v_amount($input[$field], $label, 0, 1000000))) $amount_errors[$field] = $e;
     }
+    // The day the tenant actually left (optional): a real date, not in the
+    // future. Checked against the move-in day once the tenancy is read below.
+    $move_out_input = $input['move_out_date'] ?? null;
+    if ($move_out_input !== null && $move_out_input !== '') {
+        $mo = is_string($move_out_input) ? DateTime::createFromFormat('!Y-m-d', $move_out_input) : false;
+        if (!$mo || $mo->format('Y-m-d') !== $move_out_input) $amount_errors['move_out_date'] = 'Enter the move-out date as a valid date.';
+        elseif ($move_out_input > date('Y-m-d')) $amount_errors['move_out_date'] = 'The move-out date cannot be in the future.';
+    }
     if ($amount_errors) validation_fail($amount_errors);
 }
 
@@ -203,6 +211,8 @@ if ($id > 0 && !empty($status)) {
         $refunds_raised = [];
         $deposit_refund_raised = null;
         $advance_refund_raised = null;
+        $rent_credit_refund = null; // rent for days after a mid-period move-out, when no deposit was settled
+        $prorated = null;
         $balance_invoice = ['id' => null, 'amount' => 0.0];
         $settled = null;
 
@@ -459,12 +469,37 @@ if ($id > 0 && !empty($status)) {
             // clearance) or 'eviction-pending'; a draft or terminated contract, or
             // one already settled, is not settled twice. Read before end_tenancy()
             // touches any invoice.
-            $deposit_pre = $conn->prepare("SELECT requested_move_out_date, user_id FROM rent_applications WHERE id = ?");
+            $deposit_pre = $conn->prepare("SELECT ra.requested_move_out_date, ra.user_id,
+                    (SELECT lc.lease_start FROM lease_contracts lc WHERE lc.rent_application_id = ra.id ORDER BY lc.id DESC LIMIT 1) AS lease_start
+                FROM rent_applications ra WHERE ra.id = ?");
             $deposit_pre->bind_param("i", $id);
             $deposit_pre->execute();
             $deposit_app = $deposit_pre->get_result()->fetch_assoc() ?: [];
             $deposit_pre->close();
+
+            // The day the tenant left: as entered, else the date on their notice
+            // (when it has passed), else today. Kept on the application, and used
+            // to prorate the last rent period when Settings asks for it.
+            $today = date('Y-m-d');
+            $requested_out = $deposit_app['requested_move_out_date'] ?? null;
+            $move_out_date = ($move_out_input ?? '') !== '' ? $move_out_input
+                : ($requested_out && $requested_out <= $today ? $requested_out : $today);
+            if (!empty($deposit_app['lease_start']) && $move_out_date < $deposit_app['lease_start']) {
+                http_response_code(422);
+                echo json_encode(["success" => false, "message" => "The move-out date cannot be before the move-in day (" . date('M j, Y', strtotime($deposit_app['lease_start'])) . ").",
+                    "errors" => ["move_out_date" => "On or after " . $deposit_app['lease_start'] . "."]]);
+                $conn->rollback();
+                $conn->close();
+                exit;
+            }
+            $mo_stmt = $conn->prepare("UPDATE rent_applications SET moved_out_date = ? WHERE id = ?");
+            $mo_stmt->bind_param("si", $move_out_date, $id);
+            $mo_stmt->execute();
+            $mo_stmt->close();
+            $prorated = prorate_final_rent_period($conn, $id, $move_out_date, $admin_id);
+
             $settled = settle_deposit($conn, $id, null, [
+                'rent_credit' => $prorated['credit'] ?? 0,
                 'damage' => $damage_deduction, 'utility' => $utility_deduction, 'deductions' => $deduction_lines, 'kind' => 'move_out',
                 'prior_status' => $current_status,
                 'notice_deduction' => $input['notice_deduction'] ?? null, 'interest' => $input['deposit_interest'] ?? 0,
@@ -487,6 +522,13 @@ if ($id > 0 && !empty($status)) {
                 $balance_invoice = ['id' => $unsettled['balance_invoice_id'], 'amount' => $unsettled['balance_invoice_amount']];
             }
             if ($settled && $settled['refund_id']) $deposit_refund_raised = ['id' => $settled['refund_id'], 'amount' => $settled['refund_amount']];
+            // No deposit was settled here, so the rent paid for days after the
+            // move-out is returned on its own request.
+            if (!$settled && ($prorated['credit'] ?? 0) > 0 && !empty($deposit_app['user_id'])) {
+                $credit_refund_id = insert_refund_request($conn, (int)$deposit_app['user_id'], $id, 'overpayment', null, $prorated['credit'],
+                    "Rent paid for days after the move-out on " . date('M j, Y', strtotime($move_out_date)) . " (prorated final rent period).", (int)$admin_id, 'admin');
+                $rent_credit_refund = ['id' => $credit_refund_id, 'amount' => $prorated['credit']];
+            }
 
             // One row per deduction, in this same transaction (a failure rolls the clearance back).
             $deduction_summary = [];
@@ -533,6 +575,8 @@ if ($id > 0 && !empty($status)) {
             if ($vacated && $vacated['user_id']) {
                 create_notification($conn, $vacated['user_id'], 'move_out_update', 'Move-Out Completed',
                     "Your move-out has been completed and your clearance recorded. Thank you for staying with us."
+                    . ($prorated ? " Your last rent period was charged only for the days up to your move-out on " . date('M j, Y', strtotime($move_out_date)) . "." : "")
+                    . ($rent_credit_refund ? " A refund request of ₱" . number_format($rent_credit_refund['amount'], 2) . " was opened for rent you paid for days after your move-out. Follow it under My Refunds." : "")
                     . ($deduction_summary ? " Deductions from your deposit: " . implode("; ", $deduction_summary) . "." : "")
                     . ($settled && $settled['notice_deduction'] > 0 ? " ₱" . number_format($settled['notice_deduction'], 2) . " was deducted as rent for {$settled['notice_days']} day(s) of move-out notice not given." : "")
                     . ($settled && $settled['refund_amount'] > 0 ? " ₱" . number_format($settled['refund_amount'], 2) . " of your deposit" . ($settled['interest'] > 0 ? " (with ₱" . number_format($settled['interest'], 2) . " interest)" : "") . " will be returned within " . deposit_refund_days($conn) . " days. Follow it under My Refunds." : "")
@@ -621,6 +665,10 @@ if ($id > 0 && !empty($status)) {
             notify_refund_raised($conn, $deposit_refund_raised['id'], $deposit_refund_raised['amount'], 'a returned security deposit');
             log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$deposit_refund_raised['id']}: ₱" . number_format($deposit_refund_raised['amount'], 2) . " (security deposit, application #$id)");
         }
+        if ($rent_credit_refund) {
+            notify_refund_raised($conn, $rent_credit_refund['id'], $rent_credit_refund['amount'], 'rent paid for days after the move-out');
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$rent_credit_refund['id']}: ₱" . number_format($rent_credit_refund['amount'], 2) . " (prorated final rent period, application #$id)");
+        }
         if ($advance_refund_raised) {
             notify_refund_raised($conn, $advance_refund_raised['id'], $advance_refund_raised['amount'], 'advance rent not used at move-out');
             log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$advance_refund_raised['id']}: ₱" . number_format($advance_refund_raised['amount'], 2) . " (advance rent, application #$id)");
@@ -657,6 +705,9 @@ if ($id > 0 && !empty($status)) {
             if ($balance_invoice['id']) $response["balance_invoice"] = $balance_invoice;
             if ($settled) $response["invoices_paid_from_deposit"] = count($settled['paid_invoices']);
             if ($advance_refund_raised) $response["advance_refund"] = $advance_refund_raised;
+            $response["move_out_date"] = $move_out_date;
+            if ($prorated) $response["prorated"] = ['lines' => $prorated['lines'], 'credit' => $prorated['credit']];
+            if ($rent_credit_refund) $response["rent_credit_refund"] = $rent_credit_refund;
             if ($settled) {
                 $response["deposit"] = ['status' => $settled['status'], 'refund_amount' => $settled['refund_amount'],
                     'notice_deduction' => $settled['notice_deduction'], 'notice_days' => $settled['notice_days'], 'interest' => $settled['interest']];

@@ -928,6 +928,56 @@ SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema 
   'ALTER TABLE `lease_renewals` ADD COLUMN `previous_notarized_lease_path` varchar(255) DEFAULT NULL AFTER `previous_signed_lease_path`', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
+-- ===== list_paging_indexes =====
+-- Server-side list paging: Admin Payments reads only the open bills
+-- (get_invoices.php ?view=desk, WHERE status IN (...)) and the maintenance board
+-- reads open tickets plus recently closed ones (?closedDays=), so both filter on status.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'invoices' AND index_name = 'idx_invoices_status_due') = 0,
+  'ALTER TABLE `invoices` ADD KEY `idx_invoices_status_due` (`status`, `due_date`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'maintenance_requests' AND index_name = 'idx_maint_status_created') = 0,
+  'ALTER TABLE `maintenance_requests` ADD KEY `idx_maint_status_created` (`status`, `created_at`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== final_period_proration =====
+-- Settings -> Payments "Prorate the final rent period" (off by default, so billing
+-- stays by whole tenancy months until the owner turns it on). The move-out
+-- clearance records the day the tenant actually left in rent_applications.moved_out_date;
+-- with the setting on, the last rent period is charged rent / 30 per day up to that day.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'rent_applications' AND column_name = 'moved_out_date') = 0,
+  'ALTER TABLE `rent_applications` ADD COLUMN `moved_out_date` date DEFAULT NULL AFTER `requested_move_out_date`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES ('prorate_final_period', '0');
+
+-- ===== room_transfers =====
+-- A tenant moved to another unit without moving out (transfer_room.php): the same
+-- rent application, contract and rent anniversary; one row per move, kept as the
+-- paper trail (the contract shows the current room). new_rent applies from
+-- effective_period_start; the deposit is matched to it by a top-up invoice
+-- (deposit_invoice_id) or a refund request for the excess (refund_request_id).
+CREATE TABLE IF NOT EXISTS `room_transfers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `from_room` varchar(50) NOT NULL,
+  `to_room` varchar(50) NOT NULL,
+  `old_rent` decimal(10,2) NOT NULL,
+  `new_rent` decimal(10,2) NOT NULL,
+  `old_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `new_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `effective_period_start` date DEFAULT NULL,
+  `deposit_invoice_id` varchar(50) DEFAULT NULL,
+  `refund_request_id` int(11) DEFAULT NULL,
+  `reason` varchar(255) NOT NULL,
+  `transferred_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_room_transfers_app` (`rent_application_id`),
+  CONSTRAINT `fk_room_transfers_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ===== utility_multiple_bills =====
 -- Allow attaching multiple provider bills (electricity + water) to a utility reading
 -- by storing JSON array of paths in bill_file_path text.
@@ -937,5 +987,3 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
   ('utility_auto_sync', '1'),
   ('utility_default_billing_mode', 'merge'),
   ('utility_allow_tenant_self_pay', '1');
-
-

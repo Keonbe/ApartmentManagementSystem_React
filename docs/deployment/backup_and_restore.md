@@ -164,6 +164,8 @@ If `config.env.php` was lost too, restore it from the secure copy (§1) before s
 5. Compare the newest invoice / payment dates with what the manager remembers: anything after the dump time has to be re-entered from the tenants' screenshots.
 6. Start the cron jobs again.
 
+> The weekly `backup-drill.yml` workflow (SPRINT 154) rehearses dump, drop and restore on **seeded CI data**. It proves the commands and the character set, not that a production backup exists or restores: the drill below on the production host is still the record to keep.
+
 ## 5. Monthly restore drill
 
 A backup that has never been restored is not known to work. Once a month (first working day is easy to remember):

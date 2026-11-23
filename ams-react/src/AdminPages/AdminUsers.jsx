@@ -22,8 +22,12 @@ import { SkeletonRows } from '../Components/admin/ui/Skeleton';
 import FilterTabs from '../Components/admin/ui/FilterTabs';
 import { personName } from '../utils/personName';
 import askConfirm from '../utils/askConfirm';
+import useUrlFilter from '../hooks/useUrlFilter';
+import useSort, { sortRows } from '../hooks/useSort';
+import SortableTh from '../Components/admin/ui/SortableTh';
 
 const ROLES = ['all', 'user', 'admin'];
+const USER_SORT = { name: (u) => personName(u), email: (u) => u.email, role: (u) => u.role };
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
 
 const EDIT_FIELDS = [
@@ -62,7 +66,8 @@ const emptyEditForm = { first_name: '', middle_name: '', last_name: '', suffix: 
 const AdminUsers = () => {
   const [users, setUsers]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch]   = useState('');
+  const [search, setSearch]   = useUrlFilter('q', '');
+  const { sortKey, sortDir, toggle: toggleSort } = useSort(['name', 'email', 'role']);
   const [roleFilter, setRoleFilter] = useState('all');
 
   const [editUser, setEditUser]         = useState(null); // user being edited
@@ -120,8 +125,8 @@ const AdminUsers = () => {
         (u.contact_no || '').includes(q)
       );
     }
-    return list;
-  }, [users, search, roleFilter, statusFilter]);
+    return sortRows(list, USER_SORT, sortKey, sortDir);
+  }, [users, search, roleFilter, statusFilter, sortKey, sortDir]);
 
   const openEdit = (u) => {
     setEditUser(u);
@@ -364,11 +369,11 @@ const AdminUsers = () => {
                 <table className="hidden md:table w-full text-body border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className={`${TH} text-left`}>Name</th>
-                      <th className={`${TH} text-left`}>Email</th>
+                      <SortableTh className={`${TH} text-left`} sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>Name</SortableTh>
+                      <SortableTh className={`${TH} text-left`} sortKey="email" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>Email</SortableTh>
                       <th className={`${TH} text-left`}>Contact</th>
                       <th className={`${TH} text-left`}>Gender</th>
-                      <th className={`${TH} text-left`}>Role</th>
+                      <SortableTh className={`${TH} text-left`} sortKey="role" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>Role</SortableTh>
                       <th className={`${TH} text-right`}>Actions</th>
                     </tr>
                   </thead>

@@ -3081,6 +3081,7 @@ function get_room_tenancy($conn, $room_name) {
                                   WHERE i.rent_application_id = ra.id
                                     AND i.status IN ('pending', 'pending-verification')
                                     AND i.security_deposit > 0
+                                    AND i.billing_period <> '" . DEPOSIT_TOPUP_PERIOD . "'
                               )
                             ORDER BY ra.id DESC LIMIT 1");
     $stmt->bind_param("s", $room_name);
@@ -4405,6 +4406,10 @@ function notice_shortfall_deduction($conn, array $ctx, $monthly_rent) {
 // No reference is stored on these rows: the same contract would repeat on
 // several invoices and read as a reused payment reference.
 const MOVE_OUT_BALANCE_PERIOD = 'Move-out balance';
+// billing_period of the bill for a higher deposit after a room transfer
+// (transfer_room.php). It carries security_deposit > 0 like the move-in bill, so
+// checks for "an unpaid move-in bill" exclude it by this label.
+const DEPOSIT_TOPUP_PERIOD = 'Deposit top-up';
 // On payment_transactions.payment_method and invoices.payment_method; shown as
 // is in Payment History, receipts and the admin ledger.
 const DEPOSIT_PAYMENT_METHOD = 'Security deposit';
@@ -4561,6 +4566,163 @@ function reverse_deposit_application($conn, $app_id) {
     return ['invoices_reopened' => count($paid_rows), 'balance_invoices_cancelled' => count($balance_rows)];
 }
 
+// Transfer history for a set of applications, keyed by rent_application_id.
+// Each value is an array of rows, newest first. Called by transfer_room.php
+// (the GET branch) and by get_tenants.php / my_room.php (the profile view).
+function room_transfers_for($conn, array $app_ids) {
+    $out = [];
+    if (!$app_ids) return $out;
+    $ids = array_map('intval', $app_ids);
+    $in = implode(',', $ids);
+    $rows = $conn->query("SELECT rt.*, u.email_address AS admin_email
+        FROM room_transfers rt
+        LEFT JOIN users u ON u.id = rt.transferred_by
+        WHERE rt.rent_application_id IN ($in)
+        ORDER BY rt.created_at DESC");
+    while ($r = $rows->fetch_assoc()) {
+        $out[(int)$r['rent_application_id']][] = [
+            'id' => (int)$r['id'],
+            'fromRoom' => $r['from_room'],
+            'toRoom' => $r['to_room'],
+            'oldRent' => round((float)$r['old_rent'], 2),
+            'newRent' => round((float)$r['new_rent'], 2),
+            'oldDeposit' => round((float)$r['old_deposit'], 2),
+            'newDeposit' => round((float)$r['new_deposit'], 2),
+            'effectivePeriodStart' => $r['effective_period_start'],
+            'depositInvoiceId' => $r['deposit_invoice_id'],
+            'refundRequestId' => $r['refund_request_id'] ? (int)$r['refund_request_id'] : null,
+            'reason' => $r['reason'],
+            'transferredBy' => $r['admin_email'] ?? null,
+            'createdAt' => $r['created_at'],
+        ];
+    }
+    return $out;
+}
+
+// Settings -> Payments "Prorate the final rent period": off by default (rent is
+// billed by whole tenancy months, delimitation DE-10 before 2026-11).
+function prorate_final_period_enabled($conn) {
+    return in_array((string)get_setting($conn, 'prorate_final_period', '0'), ['1', 'true'], true);
+}
+
+// Rent owed for $days of a tenancy period billed at $full: full ÷ 30 per day
+// (the same daily basis as the notice-day deduction), never above $full. The
+// whole period when the tenant stayed to its last day, so a 28-day February is
+// not charged as 28/30. In cents, to avoid float drift.
+function prorated_rent_cents($full, $days, $period_days) {
+    $full_c = (int)round((float)$full * 100);
+    if ($days <= 0) return 0;
+    if ($days >= $period_days) return $full_c;
+    return min($full_c, (int)round($full_c * $days / 30));
+}
+
+// Mid-period move-out (when prorate_final_period_enabled()): the rent invoices of
+// the period holding $move_out_date and of any later period already issued
+// (RENT_INVOICE_LEAD_DAYS ahead) are charged only for the days lived in, at
+// base_rent ÷ 30 a day. Runs inside the clearance transaction, before
+// settle_deposit(), so the deposit sees the lowered totals.
+//   - An open bill is lowered, with an invoice_adjustments row; one lowered to
+//     nothing with nothing paid on it is cancelled; one already covered by the
+//     parts received is marked paid, and the excess is credited.
+//   - A paid bill keeps its record; the rent for the days not lived in is credited.
+// Advance-rent invoices are left alone (end_tenancy() refunds unused credits).
+// Returns ['credit' => amount to give back, 'lines' => [text...], 'invoices' => n]
+// or null when the setting is off or nothing was changed.
+function prorate_final_rent_period($conn, $app_id, $move_out_date, $admin_id) {
+    if (!prorate_final_period_enabled($conn)) return null;
+    $app_id = (int)$app_id;
+    $ls = $conn->prepare("SELECT lease_start FROM lease_contracts WHERE rent_application_id = ? ORDER BY id DESC LIMIT 1");
+    $ls->bind_param("i", $app_id);
+    $ls->execute();
+    $lease_start = $ls->get_result()->fetch_assoc()['lease_start'] ?? null;
+    $ls->close();
+    if (!$lease_start) return null;
+
+    $rows_q = $conn->prepare("SELECT id, base_rent, total_amount, amount_paid, status, rent_period_start
+        FROM invoices
+        WHERE rent_application_id = ? AND rent_period_start IS NOT NULL AND advance_months IS NULL
+          AND base_rent > 0 AND status <> 'cancelled'
+        ORDER BY rent_period_start FOR UPDATE");
+    $rows_q->bind_param("i", $app_id);
+    $rows_q->execute();
+    $rows = $rows_q->get_result()->fetch_all(MYSQLI_ASSOC);
+    $rows_q->close();
+
+    $out_day = new DateTime($move_out_date);
+    $credit_c = 0;
+    $lines = [];
+    $changed = 0;
+    $hist = $conn->prepare("INSERT INTO invoice_adjustments (invoice_id, admin_id, reason, old_total, new_total, changes) VALUES (?, ?, ?, ?, ?, ?)");
+    $admin = $admin_id ? (int)$admin_id : null;
+    foreach ($rows as $r) {
+        [$p_start, $p_end] = rent_period_bounds($lease_start, $r['rent_period_start']);
+        if ($p_end < $move_out_date) continue; // a period that ended before the move-out is owed in full
+        $period_days = (int)(new DateTime($p_start))->diff(new DateTime($p_end))->days + 1;
+        $days = $p_start > $move_out_date ? 0 : (int)(new DateTime($p_start))->diff($out_day)->days + 1;
+        $base_c = (int)round((float)$r['base_rent'] * 100);
+        $new_base_c = prorated_rent_cents($r['base_rent'], $days, $period_days);
+        $cut_c = $base_c - $new_base_c;
+        if ($cut_c <= 0) continue;
+
+        $total_c = (int)round((float)$r['total_amount'] * 100);
+        $paid_c = (int)round((float)$r['amount_paid'] * 100);
+        $ideal_total_c = $total_c - $cut_c;
+        $label = $days > 0 ? "$days of $period_days days" : "period after the move-out";
+        $reason = "Prorated final rent period ($label, moved out " . $out_day->format('M j, Y') . ")";
+
+        if ($r['status'] === 'paid') {
+            // The record stays as paid; the days not lived in come back.
+            $back_c = min($cut_c, $paid_c);
+            if ($back_c <= 0) continue;
+            $credit_c += $back_c;
+            $lines[] = "{$r['id']}: ₱" . number_format($back_c / 100, 2) . " rent for unused days ($label)";
+            $changed++;
+            continue;
+        }
+        if (!in_array($r['status'], BILLING_OPEN_STATUSES, true)) continue;
+
+        $old_total = round($total_c / 100, 2);
+        if ($ideal_total_c <= 0 && $paid_c === 0) {
+            // cancel_reason is varchar(50); the full reason goes to the activity log.
+            $short = 'Prorated: period after the move-out';
+            $c = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE id = ? AND status = ?");
+            $c->bind_param("sss", $short, $r['id'], $r['status']);
+            $c->execute();
+            if ($c->affected_rows < 1) throw new Exception("Invoice {$r['id']} changed while the move-out was being cleared. Try again.");
+            $c->close();
+            $lines[] = "{$r['id']}: cancelled ($label)";
+        } else {
+            // Never below what was already received; anything above it is credited.
+            $new_total_c = max($ideal_total_c, $paid_c);
+            $credit_c += max(0, $paid_c - max(0, $ideal_total_c));
+            $new_base_c = $base_c - ($total_c - $new_total_c);
+            $new_base = round($new_base_c / 100, 2);
+            $new_total = round($new_total_c / 100, 2);
+            $settled = $new_total_c <= $paid_c;
+            $u = $conn->prepare("UPDATE invoices SET base_rent = ?, total_amount = ?,
+                    status = IF(?, 'paid', status), paid_at = IF(?, NOW(), paid_at)
+                WHERE id = ? AND status = ? AND total_amount = ?");
+            $s = $settled ? 1 : 0;
+            $u->bind_param("ddiissd", $new_base, $new_total, $s, $s, $r['id'], $r['status'], $old_total);
+            $u->execute();
+            if ($u->affected_rows < 1) throw new Exception("Invoice {$r['id']} changed while the move-out was being cleared. Try again.");
+            $u->close();
+            $changes = json_encode(['base_rent' => ['from' => round($base_c / 100, 2), 'to' => $new_base]]);
+            $hist->bind_param("sisdds", $r['id'], $admin, $reason, $old_total, $new_total, $changes);
+            if (!$hist->execute()) throw new Exception("Could not record the proration of {$r['id']}.");
+            $lines[] = "{$r['id']}: ₱" . number_format($old_total, 2) . " → ₱" . number_format($new_total, 2) . " ($label)" . ($settled ? ", paid by the parts received" : "");
+        }
+        $changed++;
+    }
+    $hist->close();
+    if ($changed === 0) return null;
+    $credit = round($credit_c / 100, 2);
+    log_activity($conn, $admin_id, 'billing', 'Prorate Final Rent Period',
+        "Application #$app_id, moved out " . $out_day->format('Y-m-d') . ": " . implode('; ', $lines)
+        . ($credit > 0 ? "; ₱" . number_format($credit, 2) . " to give back" : ""));
+    return ['credit' => $credit, 'lines' => $lines, 'invoices' => $changed];
+}
+
 // Settles the held deposit of one contract. The caller owns the transaction.
 //   $opts: damage, utility (deductions entered at clearance), deductions (the
 //   same amounts itemized as [{category, amount}]; without it damage is billed
@@ -4569,7 +4731,9 @@ function reverse_deposit_application($conn, $app_id) {
 //   contract expired), notice_deduction (the admin's amount for unserved notice,
 //   0 up to notice_shortfall_deduction(); omitted = that suggestion), waive_reason
 //   (why it was lowered; required when it is), interest (bank interest earned on
-//   the deposit, returned with it), admin_id, user_id.
+//   the deposit, returned with it), rent_credit (rent paid for days after a
+//   mid-period move-out, prorate_final_rent_period(); pays what is owed, the rest
+//   is returned), admin_id, user_id.
 // Returns ['contract_id', 'deposit', 'interest', 'open_total', 'balance', 'status',
 //   'refund_amount', 'notice_deduction', 'notice_days', 'refund_id', 'deposit_applied',
 //   'paid_invoices', 'balance_invoice_id', 'balance_invoice_amount'] or null when
@@ -4599,7 +4763,10 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     $held = $c['deposit_status'] === 'Held';
     $interest = $held ? max(0.0, min(999999.99, round((float)($opts['interest'] ?? 0), 2))) : 0.0;
     $deposit = $held ? round((float)$c['deposit_amount'], 2) : 0.0;
-    $pool = round($deposit + $interest, 2);
+    // Rent paid for days after the move-out (prorate_final_rent_period()): the
+    // tenant's money, so it goes to what is owed and the rest back, deposit or not.
+    $rent_credit = max(0.0, round((float)($opts['rent_credit'] ?? 0), 2));
+    $pool = round($deposit + $interest + $rent_credit, 2);
 
     // Locked: apply_deposit_to_invoices() below pays these same rows, so a
     // payment landing in between cannot leave the refund worked out on a stale total.
@@ -4665,6 +4832,7 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
         $due = date('M j, Y', strtotime('+' . deposit_refund_days($conn) . ' days'));
         $why = "Security deposit returned after move-out, less deductions"
             . ($interest > 0 ? ", with ₱" . number_format($interest, 2) . " bank interest" : "")
+            . ($rent_credit > 0 ? ", with ₱" . number_format($rent_credit, 2) . " rent paid for days after the move-out" : "")
             . ". To be paid back by $due.";
         $refund_id = insert_refund_request($conn, $user_id, $app_id, 'deposit', null, $refund, $why, (int)($opts['admin_id'] ?? 0), 'admin');
     }
@@ -4672,7 +4840,7 @@ function settle_deposit($conn, $app_id, $contract_id, array $opts) {
     return [
         'contract_id' => $c['id'], 'deposit' => $deposit, 'interest' => $interest, 'open_total' => $open_total, 'balance' => $balance,
         'status' => $status, 'refund_amount' => $refund, 'notice_deduction' => $notice, 'notice_days' => $notice > 0 ? $suggested['days'] : 0,
-        'refund_id' => $refund_id,
+        'refund_id' => $refund_id, 'rent_credit' => $rent_credit,
         'deposit_applied' => $ledger['applied'], 'paid_invoices' => $ledger['paid_invoices'],
         'balance_invoice_id' => $ledger['balance_invoice_id'], 'balance_invoice_amount' => $ledger['balance_invoice_amount'],
     ];
@@ -5739,6 +5907,35 @@ function person_name($row, $prefix = '') {
         if ($value !== '') $parts[] = $value;
     }
     return implode(' ', $parts);
+}
+
+// Server-side paging for list endpoints (the get_activity_logs.php contract).
+// Opt-in: returns null when the request has no ?page=, and the endpoint then
+// answers with its full list as before (pickers and tenant pages rely on that).
+// Otherwise ['page' => >=1, 'limit' => 1..$max, 'offset' => ...].
+function list_page_request($default_limit = 25, $max_limit = 100) {
+    if (!isset($_GET['page']) || $_GET['page'] === '') return null;
+    $page = max(1, (int)$_GET['page']);
+    $limit = isset($_GET['limit']) && $_GET['limit'] !== '' ? (int)$_GET['limit'] : $default_limit;
+    $limit = min($max_limit, max(1, $limit));
+    return ['page' => $page, 'limit' => $limit, 'offset' => ($page - 1) * $limit];
+}
+
+// The paging fields added to a paged response; `pages` is at least 1 so an
+// empty result still reads "Page 1 of 1".
+function list_page_meta(array $paging, $total) {
+    $total = (int)$total;
+    return [
+        'total' => $total,
+        'page' => $paging['page'],
+        'limit' => $paging['limit'],
+        'pages' => max(1, (int)ceil($total / $paging['limit'])),
+    ];
+}
+
+// A LIKE pattern matching $text literally anywhere ("50%" is not a wildcard).
+function like_contains($text) {
+    return '%' . addcslashes((string)$text, '\\%_') . '%';
 }
 
 function get_setting($conn, $key, $default = null) {
