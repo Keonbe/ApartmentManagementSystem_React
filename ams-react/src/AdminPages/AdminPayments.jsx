@@ -168,6 +168,31 @@ const prepaidChip = (account) => {
 
 const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : '');
 
+const PAYMENT_TIME_RANGES = [
+  ['month', 'This month'], ['prev-month', 'Last month'], ['30d', 'Last 30 days'], ['90d', 'Last 90 days'], ['6m', 'Last 6 months'],
+  ['12m', 'Last 12 months'], ['ytd', 'Year to date'], ['custom', 'Custom dates'],
+];
+const paymentRangeForPreset = (preset, now = new Date()) => {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let from;
+  let to = today;
+  if (preset === 'month') {
+    from = new Date(today.getFullYear(), today.getMonth(), 1);
+  } else if (preset === 'prev-month') {
+    from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    to = new Date(today.getFullYear(), today.getMonth(), 0);
+  } else if (preset === '30d' || preset === '90d') {
+    from = new Date(today);
+    from.setDate(from.getDate() - (preset === '30d' ? 29 : 89));
+  } else if (preset === '6m' || preset === '12m') {
+    from = new Date(today.getFullYear(), today.getMonth() - (preset === '6m' ? 5 : 11), 1);
+  } else {
+    from = new Date(today.getFullYear(), 0, 1);
+  }
+  return { from: localDateString(from), to: localDateString(to) };
+};
+const displayRangeDate = (date) => new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
 // What a tenant owes: open invoices less parts received, advance rent excluded.
 // The billing sum is the old fallback for an account with no balance figure; it is
 // skipped when the only open invoice is an advance, or that prepayment would be
@@ -196,13 +221,20 @@ const AdminPayments = () => {
   const [searchParams] = useSearchParams();
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
-  // Every paid bill's total (get_invoices.php ?view=desk `collected`).
-  const [collected, setCollected] = useState(0);
-  // Paid bill total for the current month, independent of lazy-loaded history.
-  const [collectedThisMonth, setCollectedThisMonth] = useState(0);
+  const [timeRangePreset, setTimeRangePreset] = useState('6m');
+  const [appliedTimeRange, setAppliedTimeRange] = useState(() => paymentRangeForPreset('6m'));
+  const [customRangeFrom, setCustomRangeFrom] = useState(() => paymentRangeForPreset('6m').from);
+  const [customRangeTo, setCustomRangeTo] = useState(() => paymentRangeForPreset('6m').to);
+  const [customRangeError, setCustomRangeError] = useState('');
+  const [incomeRange, setIncomeRange] = useState(null);
+  const [incomeRangeLoading, setIncomeRangeLoading] = useState(true);
+  const [incomeRangeError, setIncomeRangeError] = useState('');
+  const [incomeRangeRetry, setIncomeRangeRetry] = useState(0);
+  const incomeRangeRequest = useRef(0);
   // The opened tenant's paid bills, read on demand: { tenantId, rows, state }.
   const [historyLoad, setHistoryLoad] = useState({ tenantId: null, rows: [], state: 'idle' });
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
+  const [billingDateRange, setBillingDateRange] = useState(null);
   const [sortOption, setSortOption] = useState('created-desc');
   const [statusFilter, setStatusFilter] = useUrlFilter('status', 'all', ['all', 'unpaid', 'paid', 'pending-verification', 'scheduled', 'processing', 'payment-failed', 'overdue']);
   // Security Deposit Ledger controls (client-side over the contracts list).
@@ -280,8 +312,6 @@ const AdminPayments = () => {
         const grouped = {};
         // Each tenant's deposit and prepaid-rent position (get_invoices.php).
         const accounts = res.data.accounts || {};
-        setCollected(Number(res.data.collected ?? 0));
-        setCollectedThisMonth(Number(res.data.collected_this_month ?? 0));
 
         res.data.invoices.forEach(inv => {
           if (!grouped[inv.user_id]) {
@@ -518,6 +548,25 @@ const AdminPayments = () => {
     return () => window.removeEventListener(ADMIN_PAYMENTS_EVENT, loadInvoices);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; the loaders only call stable useLoadState callbacks
   }, []);
+
+  useEffect(() => {
+    const requestId = ++incomeRangeRequest.current;
+    let active = true;
+    api.get('/dashboard_stats.php', { params: { section: 'income', ...appliedTimeRange } })
+      .then((res) => {
+        if (!active || requestId !== incomeRangeRequest.current) return;
+        if (!res.data?.success || !res.data?.range) throw new Error(res.data?.message || 'Could not load payment totals for this range.');
+        setIncomeRange(res.data.range);
+      })
+      .catch((error) => {
+        if (!active || requestId !== incomeRangeRequest.current) return;
+        setIncomeRangeError(apiErrorMessage(error, 'Could not load payment totals for this range.'));
+      })
+      .finally(() => {
+        if (active && requestId === incomeRangeRequest.current) setIncomeRangeLoading(false);
+      });
+    return () => { active = false; };
+  }, [appliedTimeRange, incomeRangeRetry]);
   
   // The till records a payment against the bill as issued: the period,
   // charges and due date come from the invoice (payments audit 2026-09-30 —
@@ -553,14 +602,21 @@ const AdminPayments = () => {
     const filtered = tenants.filter(t => {
       const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             t.unit?.toLowerCase().includes(searchTerm.toLowerCase());
+      const rangeInvoices = billingDateRange ? (t.openInvoices || []).filter((invoice) => {
+        const invoiceDate = String(invoice.created_at || invoice.issue_date || '').slice(0, 10);
+        return invoiceDate >= billingDateRange.from && invoiceDate <= billingDateRange.to;
+      }) : (t.openInvoices || []);
+      const rangeHasDebt = rangeInvoices.some((invoice) => !invoice.advance_months && invoiceOwed(invoice) > 0);
+      const rangeHasOverdue = rangeInvoices.some((invoice) => !invoice.advance_months && isPastDue(invoice) && invoiceOwed(invoice) > 0);
+      const rangeHasStatus = (status) => rangeInvoices.some((invoice) => invoice.status === status);
       const matchesStatus = statusFilter === 'all' || 
-                            (statusFilter === 'unpaid' && t.status !== 'paid') ||
-                            (statusFilter === 'paid' && t.status === 'paid') ||
-                            (statusFilter === 'pending-verification' && t.status === 'pending-verification') ||
-                            (statusFilter === 'scheduled' && t.status === 'scheduled') ||
-                            (statusFilter === 'processing' && t.status === 'processing') ||
-                            (statusFilter === 'payment-failed' && t.status === 'payment-failed') ||
-                            (statusFilter === 'overdue' && t.overdueInvoices > 0); // any past-due bill, as the Overdue Accounts card and the Dashboard count it
+                            (statusFilter === 'unpaid' && (billingDateRange ? rangeHasDebt : t.status !== 'paid')) ||
+                            (statusFilter === 'paid' && !billingDateRange && t.status === 'paid') ||
+                            (statusFilter === 'pending-verification' && (billingDateRange ? rangeHasStatus('pending-verification') : t.status === 'pending-verification')) ||
+                            (statusFilter === 'scheduled' && (billingDateRange ? rangeHasStatus('scheduled') : t.status === 'scheduled')) ||
+                            (statusFilter === 'processing' && (billingDateRange ? rangeHasStatus('processing') : t.status === 'processing')) ||
+                            (statusFilter === 'payment-failed' && (billingDateRange ? rangeHasStatus('payment-failed') : t.status === 'payment-failed')) ||
+                            (statusFilter === 'overdue' && (billingDateRange ? rangeHasOverdue : t.overdueInvoices > 0)); // any past-due bill, as the Overdue Accounts card and the Dashboard count it
       return matchesSearch && matchesStatus;
     });
     return filtered.sort((a, b) => {
@@ -584,7 +640,7 @@ const AdminPayments = () => {
       }
       return 0;
     });
-  }, [tenants, searchTerm, sortOption, statusFilter]);
+  }, [tenants, searchTerm, sortOption, statusFilter, billingDateRange]);
   // Keep an explicitly selected tenant's row visible in the list. Scrolls only
   // the list panel, so the page itself does not jump or yank a scrolled list.
   const tenantListRef = useRef(null);
@@ -647,24 +703,103 @@ const AdminPayments = () => {
   const splitCanProcess = paymentParts.length > 0 && paymentParts.length <= 2 && Math.abs(remainingBalance) <= 0.009 && !hasInvalidSplitPart;
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
 
-  // Summaries
-  const totalCollected = collected;
-  // Overdue while any bill is past due, even one whose proof is awaiting
-  // verification (the money is not confirmed yet). The Overdue filter and the
-  // Dashboard count the same way; a failed online payment has its own filter.
-  const overdueCount = tenants.filter(t => t.overdueInvoices > 0).length;
-  const overdueInvoiceCount = tenants.reduce((sum, t) => sum + t.overdueInvoices, 0);
-  const advanceAwaitingTotal = tenants.reduce((sum, t) => sum + t.advanceAwaiting, 0);
-  const totalOutstanding = tenants.reduce((sum, t) => sum + owedBalance(t), 0);
-  // For the summary cards' footers (same tenant statuses as the list's filter).
-  const overdueAmount = tenants.reduce((sum, t) => sum + t.overdueAmount, 0);
-  const owingCount = tenants.filter((t) => owedBalance(t) > 0).length;
-  const toVerifyCount = tenants.filter((t) => t.status === 'pending-verification').length;
-  const scheduledCount = tenants.filter((t) => t.status === 'scheduled').length;
-  const processingCount = tenants.filter((t) => t.status === 'processing').length;
+  const rangeTenants = useMemo(() => tenants.map((tenant) => {
+    const openInvoices = (tenant.openInvoices || []).filter((invoice) => {
+      const invoiceDate = String(invoice.created_at || invoice.issue_date || '').slice(0, 10);
+      return invoiceDate >= appliedTimeRange.from && invoiceDate <= appliedTimeRange.to;
+    });
+    return { tenant, openInvoices };
+  }).filter(({ openInvoices }) => openInvoices.length > 0), [tenants, appliedTimeRange]);
+  const periodOpenInvoices = useMemo(() => rangeTenants.flatMap(({ tenant, openInvoices }) =>
+    openInvoices.map((invoice) => ({ tenant, invoice }))), [rangeTenants]);
+
+  // The selected range follows the Reports income view: invoices are grouped
+  // by issue date, with overdue and verification states measured as of today.
+  const totalCollected = Number(incomeRange?.collected ?? 0);
+  const totalOutstanding = Number(incomeRange?.pending ?? 0);
+  const rangeBilled = Number(incomeRange?.billed ?? 0);
+  const rangeOverdueInvoices = periodOpenInvoices.filter(({ invoice }) => !invoice.advance_months && isPastDue(invoice) && invoiceOwed(invoice) > 0);
+  const rangeOverdueCount = new Set(rangeOverdueInvoices.map(({ tenant }) => tenant.id)).size;
+  const overdueInvoiceCount = rangeOverdueInvoices.length;
+  const overdueAmount = rangeOverdueInvoices.reduce((sum, { invoice }) => sum + invoiceOwed(invoice), 0);
+  const rangeDebtInvoices = periodOpenInvoices.filter(({ invoice }) => !invoice.advance_months && invoiceOwed(invoice) > 0);
+  const owingCount = new Set(rangeDebtInvoices.map(({ tenant }) => tenant.id)).size;
+  const advanceAwaitingTotal = periodOpenInvoices.filter(({ invoice }) => !!invoice.advance_months)
+    .reduce((sum, { invoice }) => sum + invoiceOwed(invoice), 0);
+  const countTenantsWithStatus = (status) => new Set(periodOpenInvoices
+    .filter(({ invoice }) => invoice.status === status).map(({ tenant }) => tenant.id)).size;
+  const toVerifyCount = countTenantsWithStatus('pending-verification');
+  const scheduledCount = countTenantsWithStatus('scheduled');
+  const processingCount = countTenantsWithStatus('processing');
+  // Keep the reminder banner about all current overdue accounts, even when the
+  // summaries are narrowed to an invoice date range.
+  const overdueCount = tenants.filter((tenant) => tenant.overdueInvoices > 0).length;
   // A card click shows those tenants in the list below.
-  const showTenants = (status) => { setActiveTab('billing'); setStatusFilter(status); };
-  const cardStatus = loading ? 'loading' : undefined;
+  const showTenants = (status) => {
+    setActiveTab('billing');
+    setStatusFilter(status);
+    setBillingDateRange({ ...appliedTimeRange });
+  };
+  const cardStatus = loading || incomeRangeLoading ? 'loading' : undefined;
+
+  const handleTimeRangePreset = (preset) => {
+    setTimeRangePreset(preset);
+    setCustomRangeError('');
+    if (preset === 'custom') {
+      setCustomRangeFrom(appliedTimeRange.from);
+      setCustomRangeTo(appliedTimeRange.to);
+      return;
+    }
+    const range = paymentRangeForPreset(preset);
+    setCustomRangeFrom(range.from);
+    setCustomRangeTo(range.to);
+    setIncomeRangeLoading(true);
+    setIncomeRangeError('');
+    setIncomeRange(null);
+    setBillingDateRange((current) => current ? range : current);
+    setAppliedTimeRange(range);
+  };
+  const applyCustomTimeRange = (event) => {
+    event.preventDefault();
+    const from = customRangeFrom;
+    const to = customRangeTo;
+    if (!from || !to) { setCustomRangeError('Choose both a start and end date.'); return; }
+    if (from > to) { setCustomRangeError('The start date must be on or before the end date.'); return; }
+    if (new Date(`${to}T00:00:00`) > new Date(`${localDateString()}T00:00:00`)) { setCustomRangeError('The end date cannot be in the future.'); return; }
+    if ((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000 > 1096) { setCustomRangeError('Choose a period of three years or less.'); return; }
+    setCustomRangeError('');
+    setIncomeRangeLoading(true);
+    setIncomeRangeError('');
+    setIncomeRange(null);
+    const range = { from, to };
+    setBillingDateRange((current) => current ? range : current);
+    setAppliedTimeRange(range);
+  };
+  const timeRangeControls = (context) => (
+    <div className="grid w-full gap-x-2 gap-y-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_11rem] sm:items-end">
+      <label className="grid gap-1 text-caption font-semibold text-slate-600 sm:col-start-4 sm:row-start-1">
+        <span>Time range</span>
+        <select aria-label={`${context} time range`} value={timeRangePreset} onChange={(event) => handleTimeRangePreset(event.target.value)} className="w-full rounded-control border border-slate-200 bg-white px-3 py-2 text-label font-semibold text-slate-700 outline-none focus:border-indigo-500">
+          {PAYMENT_TIME_RANGES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      {timeRangePreset === 'custom' ? (
+        <form onSubmit={applyCustomTimeRange} className="grid grid-cols-2 items-end gap-2 sm:col-span-3 sm:row-start-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <label className="grid min-w-0 gap-1 text-caption font-semibold text-slate-600">
+            <span>From</span>
+            <input aria-label={`${context} start date`} type="date" value={customRangeFrom} max={localDateString()} onChange={(event) => setCustomRangeFrom(event.target.value)} className="min-w-0 w-full rounded-control border border-slate-200 bg-white px-3 py-2 text-label text-slate-700 outline-none focus:border-indigo-500" />
+          </label>
+          <label className="grid min-w-0 gap-1 text-caption font-semibold text-slate-600">
+            <span>To</span>
+            <input aria-label={`${context} end date`} type="date" value={customRangeTo} max={localDateString()} onChange={(event) => setCustomRangeTo(event.target.value)} className="min-w-0 w-full rounded-control border border-slate-200 bg-white px-3 py-2 text-label text-slate-700 outline-none focus:border-indigo-500" />
+          </label>
+          <button type="submit" className={`${btn('primary', 'sm')} col-span-2 sm:col-span-1`}>Apply</button>
+        </form>
+      ) : null}
+      <span className="text-caption text-slate-500 sm:col-span-4 sm:text-right">Invoice dates: {displayRangeDate(appliedTimeRange.from)} – {displayRangeDate(appliedTimeRange.to)}</span>
+      {customRangeError && <p role="alert" aria-live="polite" className="m-0 text-caption font-medium text-red-700 sm:col-span-4">{customRangeError}</p>}
+    </div>
+  );
 
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
@@ -762,39 +897,37 @@ const AdminPayments = () => {
 
   // Outstanding Balance Aging
   const agingData = useMemo(() => {
-    const now = new Date();
     const result = { current: 0, days15: 0, days30: 0, days60plus: 0 };
-    tenants.forEach(t => {
-      if (t.status === 'paid') return;
-      const daysOverdue = t.dueDate ? Math.max(0, Math.ceil((now - new Date(t.dueDate)) / (1000 * 60 * 60 * 24))) : 0;
-      const balance = owedBalance(t);
+    periodOpenInvoices.forEach(({ invoice }) => {
+      if (invoice.advance_months) return;
+      const daysOverdue = isPastDue(invoice) ? daysPastDue(invoice) || 0 : 0;
+      const balance = invoiceOwed(invoice);
       if (daysOverdue <= 0) result.current += balance;
       else if (daysOverdue <= 15) result.days15 += balance;
       else if (daysOverdue <= 30) result.days30 += balance;
       else result.days60plus += balance;
     });
     return result;
-  }, [tenants]);
-
-  // Security deposit and late fee are part of what is actually invoiced, so
-  // leaving them out measured collection against a smaller base than the
-  // amounts tenants were billed — overstating the collection rate on any
-  // move-in or overdue invoice.
-  const billedTotal = (t) => t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance + (t.billing.securityDeposit || 0) + (t.billing.lateFee || 0);
-  const monthlyTarget = tenants.reduce((sum, t) => sum + billedTotal(t), 0);
-  const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + billedTotal(t), 0);
-  const collectionPct = monthlyTarget > 0 ? Math.round((monthlyCollected / monthlyTarget) * 100) : 0;
-  const paidTenantCount = tenants.filter(t => t.status === 'paid').length;
+  }, [periodOpenInvoices]);
+  const collectionPct = incomeRange?.collection_rate ?? 0;
   // Collections row -> that tenant on the billing tab.
   const openTenantBilling = (id) => { setSelectedTenantId(id); setHistoryPage(1); setActiveTab('billing'); };
 
   // Collections tab: one row per tenant, sorted by the chosen column. Oldest is
   // the most days past due among the tenant's open bills (0 = none overdue).
   const collectionRows = useMemo(() => {
-    const rows = tenants.map(t => {
-      const open = t.openInvoices || [];
-      const oldest = open.filter(isPastDue).reduce((max, inv) => Math.max(max, daysPastDue(inv) || 0), 0);
-      return { t, openCount: open.length, owed: owedBalance(t), oldest };
+    const rank = { 'pending-verification': 0, scheduled: 1, processing: 2, 'payment-failed': 3, overdue: 4, pending: 5, unpaid: 6 };
+    const rows = rangeTenants.map(({ tenant: t, openInvoices }) => {
+      const debtInvoices = openInvoices.filter((invoice) => !invoice.advance_months);
+      const oldest = debtInvoices.filter(isPastDue).reduce((max, invoice) => Math.max(max, daysPastDue(invoice) || 0), 0);
+      const owed = debtInvoices.reduce((sum, invoice) => sum + invoiceOwed(invoice), 0);
+      const status = openInvoices.some((invoice) => invoice.status === 'pending-verification') ? 'pending-verification'
+        : openInvoices.some((invoice) => invoice.status === 'scheduled') ? 'scheduled'
+        : openInvoices.some((invoice) => invoice.status === 'processing') ? 'processing'
+        : openInvoices.some((invoice) => invoice.status === 'payment-failed') ? 'payment-failed'
+        : debtInvoices.some(isPastDue) ? 'overdue'
+        : [...openInvoices].sort((a, b) => (rank[a.status] ?? 7) - (rank[b.status] ?? 7))[0]?.status || t.status;
+      return { t, status, openCount: openInvoices.length, owed, oldest };
     });
     const { key, dir } = collectionSort;
     const sign = dir === 'asc' ? 1 : -1;
@@ -805,7 +938,7 @@ const AdminPayments = () => {
       if (va > vb) return 1 * sign;
       return a.t.name.localeCompare(b.t.name);
     });
-  }, [tenants, collectionSort]);
+  }, [rangeTenants, collectionSort]);
 
   const getDaysUntilDue = (dueDateStr) => {
     if (!dueDateStr) return null;
@@ -1145,44 +1278,62 @@ const handleMarkAsPaid = async () => {
         <div className="flex-1 overflow-y-auto">
           <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-            {/* Key figures, in the Dashboard's card style. Each card that names a
-                group of tenants filters the list below to them. */}
-            <section aria-label="Payment summary" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {/* The same invoice-date range drives the summary and Collections tab. */}
+            <section aria-label="Payment summary" className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(34rem,auto)] md:items-start">
+                <div>
+                  <h2 className="m-0 text-title font-bold text-slate-800">Payment summary</h2>
+                  <p className="m-0 mt-1 text-body text-slate-500">Invoices issued in the selected period</p>
+                </div>
+                <div className="md:min-w-[34rem]">{timeRangeControls('Payment summary')}</div>
+              </div>
+              {incomeRangeError && (
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-red-200 bg-red-50 px-3 py-2 text-label text-red-800">
+                  <span>{incomeRangeError}</span>
+                  <button type="button" onClick={() => {
+                    setIncomeRangeLoading(true);
+                    setIncomeRangeError('');
+                    setIncomeRange(null);
+                    setIncomeRangeRetry((retry) => retry + 1);
+                  }} className="border-0 bg-transparent p-0 font-bold text-current underline cursor-pointer">Try again</button>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <StatCard
                 icon={faPesoSign}
                 showIconBadge={false}
                 color="emerald"
                 title="Collected"
                 value={formatCurrency(totalCollected)}
-                subtext={collectedThisMonth > 0 ? `${formatCurrency(collectedThisMonth)} this month` : 'Nothing paid yet this month'}
-                tooltip="Every bill marked paid, across all tenants"
+                subtext={incomeRange?.count ? `${incomeRange.count} invoice${incomeRange.count === 1 ? '' : 's'} issued in this period` : 'No invoices were issued in this period'}
+                tooltip="Amounts collected on invoices issued during the selected period; advance rent is excluded until billed"
                 status={cardStatus}
               />
               <StatCard
                 icon={faFileInvoiceDollar}
                 showIconBadge={false}
-                color={overdueCount > 0 ? 'amber' : totalOutstanding > 0 ? 'blue' : 'emerald'}
+                color={rangeOverdueCount > 0 ? 'amber' : totalOutstanding > 0 ? 'blue' : 'emerald'}
                 title="Still owed"
                 value={formatCurrency(totalOutstanding)}
                 subtext={advanceAwaitingTotal > 0
-                  ? `${owingCount} tenant${owingCount === 1 ? '' : 's'} · advance rent of ${formatCurrency(advanceAwaitingTotal)} not counted`
-                  : owingCount > 0 ? `${owingCount} tenant${owingCount === 1 ? '' : 's'} with open bills` : 'Everyone is paid up'}
-                tooltip="Unpaid balance of every open bill; advance rent awaiting payment is not a debt"
+                  ? `${owingCount} tenant${owingCount === 1 ? '' : 's'} · ${formatCurrency(advanceAwaitingTotal)} advance rent not counted`
+                  : owingCount > 0 ? `${owingCount} tenant${owingCount === 1 ? '' : 's'} with open bills in this period` : 'No open balance in this period'}
+                tooltip="Current unpaid balances on invoices issued during the selected period; advance rent awaiting payment is not a debt"
                 status={cardStatus}
                 onClick={owingCount > 0 ? () => showTenants('unpaid') : undefined}
               />
               <StatCard
                 icon={faExclamationTriangle}
                 showIconBadge={false}
-                color={overdueCount > 0 ? 'red' : 'emerald'}
+                color={rangeOverdueCount > 0 ? 'red' : 'emerald'}
                 title="Overdue"
-                value={`${overdueCount} tenant${overdueCount === 1 ? '' : 's'}`}
-                subtext={overdueCount > 0
+                value={`${rangeOverdueCount} tenant${rangeOverdueCount === 1 ? '' : 's'}`}
+                subtext={rangeOverdueCount > 0
                   ? `${overdueInvoiceCount} bill${overdueInvoiceCount === 1 ? '' : 's'} · ${formatCurrency(overdueAmount)}`
                   : 'Nothing overdue'}
-                tooltip="Tenants with a bill past its due date"
+                tooltip="Tenants with an unpaid bill past its due date, among invoices issued during the selected period"
                 status={cardStatus}
-                onClick={overdueCount > 0 ? () => showTenants('overdue') : undefined}
+                onClick={rangeOverdueCount > 0 ? () => showTenants('overdue') : undefined}
               />
               <StatCard
                 icon={faClipboardCheck}
@@ -1193,10 +1344,11 @@ const handleMarkAsPaid = async () => {
                 subtext={scheduledCount || processingCount
                   ? [scheduledCount && `${scheduledCount} booked to pay in person`, processingCount && `${processingCount} paying online`].filter(Boolean).join(' · ')
                   : toVerifyCount > 0 ? 'Payment proofs waiting for you' : 'No proofs waiting'}
-                tooltip="Payments a tenant sent with a proof, waiting for the office to confirm"
+                tooltip="Tenants with proofs awaiting confirmation on invoices issued during the selected period"
                 status={cardStatus}
                 onClick={toVerifyCount > 0 ? () => showTenants('pending-verification') : undefined}
               />
+              </div>
             </section>
 
             {/* Due Date Indicator Bar with Batch Reminder Button */}
@@ -1263,7 +1415,7 @@ const handleMarkAsPaid = async () => {
                     <div className="flex gap-2">
                       <select aria-label="Filter by payment status" 
                         value={statusFilter} 
-                        onChange={e => setStatusFilter(e.target.value)} 
+                        onChange={e => { setBillingDateRange(null); setStatusFilter(e.target.value); }}
                         className="flex-1 bg-white border border-slate-200 rounded-control px-2 py-1.5 text-label font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
                       >
                         <option value="all">All</option>
@@ -1288,6 +1440,12 @@ const handleMarkAsPaid = async () => {
                       </select>
                     </div>
                   </div>
+                  {billingDateRange && (
+                    <div className="flex items-center justify-between gap-2 rounded-control bg-indigo-50 px-2.5 py-2 text-caption text-indigo-900">
+                      <span>Invoice dates: {displayRangeDate(billingDateRange.from)} – {displayRangeDate(billingDateRange.to)}</span>
+                      <button type="button" onClick={() => { setBillingDateRange(null); setStatusFilter('all'); }} className="shrink-0 border-0 bg-transparent p-0 font-bold text-indigo-800 underline cursor-pointer">Clear</button>
+                    </div>
+                  )}
                 </div>
                 <div ref={tenantListRef} className="relative">
                   {filteredTenants.map(t => {
@@ -1906,23 +2064,30 @@ const handleMarkAsPaid = async () => {
 
             {activeTab === 'collections' && (
             <div className="space-y-6">
-              {/* The building at a glance: this month's collection and what is owed, by age. */}
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(34rem,auto)] md:items-start">
+                <div>
+                  <h2 className="m-0 text-body font-bold text-slate-800">Collections</h2>
+                  <p className="m-0 mt-1 text-label text-slate-500">Collection rate and open bills for the selected invoice dates</p>
+                </div>
+                <div className="md:min-w-[34rem]">{timeRangeControls('Collections')}</div>
+              </div>
+              {/* Collection totals and open-bill aging use the same invoice-date range as the summary. */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <section aria-labelledby="col-month" className="bg-white border border-slate-200 rounded-card shadow-card p-5 sm:p-6">
                   <div className="flex items-baseline justify-between gap-3">
-                    <h3 id="col-month" className="m-0 text-body font-bold text-slate-800">This month</h3>
-                    <span className="text-section font-bold text-slate-900 tabular-nums">{collectionPct}%</span>
+                    <h3 id="col-month" className="m-0 text-body font-bold text-slate-800">Collection rate</h3>
+                    <span className="text-section font-bold text-slate-900 tabular-nums">{rangeBilled > 0 ? `${collectionPct}%` : '—'}</span>
                   </div>
-                  <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={collectionPct} aria-label="Collected this month">
+                  <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={collectionPct} aria-label={`Collection rate for invoices issued ${appliedTimeRange.from} through ${appliedTimeRange.to}`}>
                     <div className={`h-full rounded-full transition-[width] duration-500 ${collectionPct >= 80 ? 'bg-emerald-500' : collectionPct >= 50 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${collectionPct}%` }} />
                   </div>
-                  <p className="m-0 mt-3 text-body text-slate-700 tabular-nums">{formatCurrency(monthlyCollected)} of {formatCurrency(monthlyTarget)} billed</p>
-                  <p className="m-0 mt-1 text-label text-slate-500">{paidTenantCount} of {tenants.length} tenant{tenants.length === 1 ? '' : 's'} paid</p>
+                  <p className="m-0 mt-3 text-body text-slate-700 tabular-nums">{formatCurrency(incomeRange?.collected)} collected of {formatCurrency(rangeBilled)} billed</p>
+                  <p className="m-0 mt-1 text-label text-slate-500">{incomeRange?.count || 0} invoice{incomeRange?.count === 1 ? '' : 's'} issued in this period</p>
                 </section>
 
                 <section aria-labelledby="col-aging" className="bg-white border border-slate-200 rounded-card shadow-card p-5 sm:p-6">
                   <div className="flex items-baseline justify-between gap-3">
-                    <h3 id="col-aging" className="m-0 text-body font-bold text-slate-800">Outstanding by age</h3>
+                    <h3 id="col-aging" className="m-0 text-body font-bold text-slate-800">Open bill aging</h3>
                     <span className="text-section font-bold text-slate-900 tabular-nums">{formatCurrency(totalOutstanding)}</span>
                   </div>
                   <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
@@ -1941,14 +2106,14 @@ const handleMarkAsPaid = async () => {
                 </section>
               </div>
 
-              {/* Every tenant: what they owe and for how long. A row opens them on the billing tab. */}
+              {/* Open bills issued in the selected date range. A row opens that tenant on Billing. */}
               <section aria-labelledby="col-tenants" className="bg-white border border-slate-200 rounded-card shadow-card overflow-hidden">
                 <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-                  <h3 id="col-tenants" className="m-0 text-body font-bold text-slate-800">Tenants</h3>
+                  <h3 id="col-tenants" className="m-0 text-body font-bold text-slate-800">Open bills by tenant</h3>
                   <span className="text-label text-slate-500">Select a tenant to open their billing</span>
                 </div>
                 {collectionRows.length === 0 ? (
-                  <p className="m-0 p-6 text-body text-slate-600">No tenants are billed yet.</p>
+                  <p className="m-0 p-6 text-body text-slate-600">No open bills were issued during this period.</p>
                 ) : (
                   <>
                     <div className="hidden md:block overflow-x-auto">
@@ -1972,11 +2137,11 @@ const handleMarkAsPaid = async () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {collectionRows.map(({ t, openCount, owed, oldest }) => (
+                          {collectionRows.map(({ t, status, openCount, owed, oldest }) => (
                             <tr key={t.id} {...clickable(() => openTenantBilling(t.id))} className="cursor-pointer hover:bg-slate-50 transition-colors outline-none focus-visible:bg-indigo-50">
                               <td className="px-4 py-3 text-body font-semibold text-slate-800">{t.name}</td>
                               <td className="px-4 py-3 text-body text-slate-700">{t.unit}</td>
-                              <td className="px-4 py-3"><CollectionStatus status={t.status} /></td>
+                              <td className="px-4 py-3"><CollectionStatus status={status} /></td>
                               <td className="px-4 py-3 text-body text-slate-700 text-right tabular-nums">{openCount}</td>
                               <td className={`px-4 py-3 text-body text-right font-bold tabular-nums ${owed > 0 ? 'text-red-700' : 'text-slate-500'}`}>{formatCurrency(owed)}</td>
                               <td className={`px-4 py-3 text-body text-right tabular-nums ${oldest > 30 ? 'font-semibold text-red-700' : 'text-slate-700'}`}>{oldest > 0 ? `${oldest} day${oldest === 1 ? '' : 's'}` : '—'}</td>
@@ -1986,12 +2151,12 @@ const handleMarkAsPaid = async () => {
                       </table>
                     </div>
                     <ul className="md:hidden m-0 p-0 list-none divide-y divide-slate-100">
-                      {collectionRows.map(({ t, openCount, owed, oldest }) => (
+                      {collectionRows.map(({ t, status, openCount, owed, oldest }) => (
                         <li key={t.id}>
                           <button type="button" onClick={() => openTenantBilling(t.id)} className="w-full border-0 bg-transparent px-4 py-3 text-left cursor-pointer hover:bg-slate-50">
                             <span className="flex items-center justify-between gap-3">
                               <span className="min-w-0 truncate text-body font-semibold text-slate-800">{t.name} · Unit {t.unit}</span>
-                              <CollectionStatus status={t.status} />
+                              <CollectionStatus status={status} />
                             </span>
                             <span className="mt-1 flex items-center justify-between gap-3 text-label text-slate-600">
                               <span>{openCount} open bill{openCount === 1 ? '' : 's'}{oldest > 0 ? ` · oldest ${oldest} day${oldest === 1 ? '' : 's'}` : ''}</span>
@@ -2063,6 +2228,7 @@ const handleMarkAsPaid = async () => {
                         <th className={TH}>Status</th>
                         <th className={TH}>Fixture Damages</th>
                         <th className={TH}>Unpaid Utilities</th>
+                        <th className={TH}>Deduction details</th>
                         <th className={TH}>Applied to Rent</th>
                         <th className={TH}>Refunded</th>
                       </tr>
@@ -2073,7 +2239,7 @@ const handleMarkAsPaid = async () => {
 
                         return (
                           <Fragment key={idx}>
-                          <tr className={`hover:bg-slate-50/50${items.length > 0 ? ' [&>td]:pb-1.5' : ''}`}>
+                          <tr className="hover:bg-slate-50/50">
                             <td className="py-3.5 px-4 font-bold text-slate-800">{tenantName}</td>
                             <td className="py-3.5 px-4 text-center font-bold text-indigo-600">{unit}</td>
                             <td className="py-3.5 px-4 text-slate-500">{leaseStart} – {leaseEnd}</td>
@@ -2081,25 +2247,16 @@ const handleMarkAsPaid = async () => {
                             <td className="py-3.5 px-4">{depositStatusBadge(status)}</td>
                             <td className={`py-3.5 px-4 font-semibold ${dmg > 0 ? 'text-red-600' : 'text-slate-500'}`}>{dmg > 0 ? formatCurrency(dmg) : '—'}</td>
                             <td className={`py-3.5 px-4 font-semibold ${utl > 0 ? 'text-red-600' : 'text-slate-500'}`}>{utl > 0 ? formatCurrency(utl) : '—'}</td>
+                            <td className="max-w-[24rem] min-w-[15rem] whitespace-normal align-top py-3.5 px-4">{items.length > 0 ? depositItemsList(items) : <span className="text-slate-400">—</span>}</td>
                             <td className="py-3.5 px-4 font-bold text-indigo-600">{appliedRent > 0 ? formatCurrency(appliedRent) : '—'}</td>
                             <td className="py-3.5 px-4 text-slate-500 font-medium">₱0.00 <span className="text-caption text-slate-500 italic font-normal">(Non-Refundable)</span></td>
                           </tr>
-                          {items.length > 0 && (
-                            <tr className="border-t-0">
-                              <td colSpan="9" className="px-4 pb-3 pt-0">
-                                <div className="ml-4 max-w-xl bg-slate-50 border border-slate-100 rounded-control px-3 py-2">
-                                  <p className="text-label font-medium text-slate-600 m-0 mb-1">Deductions</p>
-                                  {depositItemsList(items)}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
                           </Fragment>
                         );
                       }) : (
-                        depositsState.isLoading ? <SkeletonRows cols={9} rows={5} label="Loading deposits…" />
-                        : depositsState.isError ? <LoadErrorRow cols={9} title="Couldn't load deposits" onRetry={fetchContracts} />
-                        : <tr><td colSpan="9" className="py-6 text-center text-slate-500">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
+                        depositsState.isLoading ? <SkeletonRows cols={10} rows={5} label="Loading deposits…" />
+                        : depositsState.isError ? <LoadErrorRow cols={10} title="Couldn't load deposits" onRetry={fetchContracts} />
+                        : <tr><td colSpan="10" className="py-6 text-center text-slate-500">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -2133,8 +2290,8 @@ const handleMarkAsPaid = async () => {
                           ))}
                         </dl>
                         {items.length > 0 && (
-                          <div className="pt-2 border-t border-slate-100">
-                            <p className="text-label font-medium text-slate-600 m-0 mb-1">Deductions</p>
+                          <div className="border-t border-slate-100 pt-2">
+                            <p className="text-label font-semibold text-slate-700 m-0 mb-1">Deduction details</p>
                             {depositItemsList(items)}
                           </div>
                         )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -42,6 +42,7 @@ const AdminOtherSettings = () => {
   const [testingChannel, setTestingChannel] = useState(null);
   const [smsBalance, setSmsBalance] = useState(null);
   const [checkingBalance, setCheckingBalance] = useState(false);
+  const autoBalanceCheckStarted = useRef(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
@@ -124,7 +125,7 @@ const AdminOtherSettings = () => {
     }
   };
 
-  const handleCheckBalance = async () => {
+  const handleCheckBalance = useCallback(async () => {
     setCheckingBalance(true);
     try {
       const res = await api.get('get_sms_balance.php');
@@ -142,7 +143,17 @@ const AdminOtherSettings = () => {
     } finally {
       setCheckingBalance(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'notifications' || settings?.smsProvider !== 'semaphore') {
+      autoBalanceCheckStarted.current = false;
+      return;
+    }
+    if (isDirty || checkingBalance || autoBalanceCheckStarted.current) return;
+    autoBalanceCheckStarted.current = true;
+    handleCheckBalance();
+  }, [activeTab, settings?.smsProvider, isDirty, checkingBalance, handleCheckBalance]);
 
   const handleSettingsSave = async (e) => {
     e.preventDefault();

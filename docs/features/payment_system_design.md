@@ -76,6 +76,8 @@ The no-selection placeholder is scoped to the right billing column; summary metr
 The payment confirmation modal also requires a current tenant selection, so stale modal state cannot dereference a missing tenant.
 For a QR Ph proof under review, Admin Payments offers the supported GCash and Bank Transfer recording methods and prompts the admin to choose the route the funds arrived through; the API does not store a distinct QR Ph transaction method. Non-cash desk payments require a transaction reference, while cash at the desk does not.
 
+Admin Payments' summary cards and Collections tab share date presets and a custom range (up to three years). The range is based on invoice issue dates: collected and billed totals use the income summary, while open-bill, overdue and verification rows show the current state of invoices issued in that range. The security deposit ledger keeps its own all-time view; each deduction's label, reason and amount is shown in the same tenant row under a dedicated Deductions column.
+
 ---
 
 ## 3. Admin Configuration

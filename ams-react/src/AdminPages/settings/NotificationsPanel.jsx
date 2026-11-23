@@ -102,8 +102,29 @@ export default function NotificationsPanel({
                 />
               </Field>
 
-              <Field label="Credit Balance" hint={isDirty ? 'Save your changes first — this uses the saved key.' : 'Uses the saved key. Semaphore allows 2 checks a minute, so a repeat within 60 s shows the last result.'}>
-                <div className="flex flex-wrap items-center gap-3">
+              <Field label="Credit Balance" hint={isDirty ? 'Save your changes first — the balance uses the saved key.' : 'Loads automatically when you open Notifications. Semaphore allows 2 checks a minute; checks within 60 seconds use the cached result.'}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1" role="status" aria-live="polite">
+                    {smsBalance && !smsBalance.error && (
+                      <span className="text-body text-slate-800">
+                        <strong>{smsBalance.credits}</strong> credits
+                        {smsBalance.account && <span className="text-slate-500"> · {smsBalance.account}</span>}
+                        {smsBalance.cached && smsBalance.checkedAt && (
+                          <span className="text-slate-500">
+                            {' '}· as of {new Date(smsBalance.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {checkingBalance && (
+                      <span className="text-label text-slate-500">
+                        <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />
+                        {smsBalance && !smsBalance.error ? 'Refreshing balance…' : 'Loading balance…'}
+                      </span>
+                    )}
+                    {!checkingBalance && !smsBalance && <span className="text-label text-slate-500">Balance loads automatically when you open Notifications.</span>}
+                    {!checkingBalance && smsBalance?.error && <span className="text-label text-red-600">{smsBalance.error}</span>}
+                  </div>
                   <button
                     type="button"
                     onClick={onCheckBalance}
@@ -111,20 +132,8 @@ export default function NotificationsPanel({
                     className="px-4 py-2.5 rounded-card bg-slate-100 hover:bg-slate-200 text-slate-700 text-body font-semibold border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <FontAwesomeIcon icon={checkingBalance ? faSpinner : faDollarSign} spin={checkingBalance} className="mr-2" />
-                    Check balance
+                    Refresh balance
                   </button>
-                  {smsBalance && !smsBalance.error && (
-                    <span className="text-body text-slate-800">
-                      <strong>{smsBalance.credits}</strong> credits
-                      {smsBalance.account && <span className="text-slate-500"> · {smsBalance.account}</span>}
-                      {smsBalance.cached && smsBalance.checkedAt && (
-                        <span className="text-slate-500">
-                          {' '}· as of {new Date(smsBalance.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  {smsBalance?.error && <span className="text-label text-red-600">{smsBalance.error}</span>}
                 </div>
               </Field>
             </>
