@@ -2516,6 +2516,7 @@ function desk_methods_for_label($label) {
     if (strpos($l, 'cash') !== false || strpos($l, 'in-person') !== false || strpos($l, 'in person') !== false) return ['cash'];
     if (strpos($l, 'bank') !== false || strpos($l, 'bdo') !== false || strpos($l, 'bpi') !== false) return ['bank_transfer'];
     if (strpos($l, 'qr') !== false) return ['bank_transfer', 'gcash'];
+    if (strpos($l, 'provider') !== false || strpos($l, 'self') !== false || strpos($l, 'direct') !== false) return ['cash', 'bank_transfer', 'gcash'];
     return [];
 }
 

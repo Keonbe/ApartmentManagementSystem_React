@@ -49,6 +49,9 @@ export const SETTINGS_SCHEMA = [
   { key: 'leaseEndReminderSms', db: 'lease_end_reminder_sms', type: 'bool', default: true, missingIsOn: true },         // ...also by SMS
   { key: 'contractRequireNotarized', db: 'contract_require_notarized', type: 'bool', default: true, missingIsOn: true }, // Contracts page settings: each contract needs a notarized copy
   { key: 'upcomingRoomsEnabled', db: 'upcoming_rooms_enabled', type: 'bool', default: true, missingIsOn: true },       // Preview lists units that will free up
+  { key: 'utilityAutoSync', db: 'utility_auto_sync', type: 'bool', default: true, missingIsOn: true },                 // Utilities: auto-sync readings to invoices
+  { key: 'utilityDefaultBillingMode', db: 'utility_default_billing_mode', type: 'enum', values: ['merge', 'separate', 'paid'], default: 'merge' }, // default billing behavior
+  { key: 'utilityAllowTenantSelfPay', db: 'utility_allow_tenant_self_pay', type: 'bool', default: true, missingIsOn: true },         // Utilities: allow tenants to pay bills online directly
   { key: 'languageSwitchEnabled', db: 'language_switch_enabled', type: 'bool', default: true, missingIsOn: true },     // tenants and guests see the EN / FIL switch; off = English only
   { key: 'maintenanceMonthlyBudget', db: 'maintenance_monthly_budget', type: 'float', default: 50000 }, // PHP
   {

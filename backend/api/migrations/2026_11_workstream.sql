@@ -977,3 +977,13 @@ CREATE TABLE IF NOT EXISTS `room_transfers` (
   KEY `idx_room_transfers_app` (`rent_application_id`),
   CONSTRAINT `fk_room_transfers_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ===== utility_multiple_bills =====
+-- Allow attaching multiple provider bills (electricity + water) to a utility reading
+-- by storing JSON array of paths in bill_file_path text.
+ALTER TABLE `utility_readings` MODIFY `bill_file_path` text DEFAULT NULL;
+
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+  ('utility_auto_sync', '1'),
+  ('utility_default_billing_mode', 'merge'),
+  ('utility_allow_tenant_self_pay', '1');

@@ -11,6 +11,10 @@ const now = new Date();
 const pad = (n) => String(n).padStart(2, '0');
 const period = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
 const today = `${period}-${pad(now.getDate())}`;
+const monthsAgo = (n) => {
+  const d = new Date(now.getFullYear(), now.getMonth() - n, 1);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+};
 const save = (json) => api('save_utility_reading.php', { token: admin, json: { billing_period: period, reading_date: today, entry_mode: 'bill', ...json } });
 const reading = (room) => one('SELECT * FROM utility_readings WHERE room_name = ? AND billing_period = ?', [room, period]);
 
@@ -143,5 +147,115 @@ describe('the meter chain skips bill rows without a reading', () => {
     const res = await api('save_utility_reading.php', { token: admin, json: { room_name: 'B', billing_period: period, reading_date: today, entry_mode: 'metered', water_curr_reading: 60, electric_curr_reading: 600 } });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ water_consumption: 10, electric_consumption: 100 });
+  });
+});
+
+describe('merging utility bill into rent invoice (tenant choice)', () => {
+  it('allows a tenant to merge their standalone utility bill into their open rent invoice', async () => {
+    // Record a reading for Room C (Rosa, user_id=4) as separate bill
+    const resSave = await save({ room_name: 'C', water_bill_amount: 250, electric_bill_amount: 800 });
+    expect(resSave.status).toBe(200);
+    const readingId = resSave.body.id;
+
+    // Sync as separate utility invoice
+    const resSync = await api('sync_utility_to_invoice.php', { token: admin, json: { id: readingId, sync_mode: 'separate' } });
+    expect(resSync.status).toBe(200);
+    const utilInvId = resSync.body.invoice_id;
+
+    // Create an open rent invoice for Room C (Rosa, user_id=5) for the same period
+    const rentInvId = 'INV-RENT-C-' + Date.now();
+    await q(
+      `INSERT INTO invoices (id, user_id, billing_period, base_rent, total_amount, status, due_date)
+       VALUES (?, 5, ?, 8000.00, 8000.00, 'pending', ?)`,
+      [rentInvId, period, today]
+    );
+
+    // Tenant Rosa merges the utility bill into the rent invoice
+    const rosa = await loginAs('rosa');
+    const mergeRes = await api('merge_utility_into_rent.php', { token: rosa, json: { reading_id: readingId } });
+    expect(mergeRes.status).toBe(200);
+    expect(mergeRes.body).toMatchObject({ success: true, rent_invoice_id: rentInvId, merged: true });
+
+    // Verify separate invoice was cancelled and rent invoice was updated
+    const oldInv = await one('SELECT status FROM invoices WHERE id = ?', [utilInvId]);
+    expect(oldInv.status).toBe('cancelled');
+
+    const rentInv = await one('SELECT water, electricity, total_amount FROM invoices WHERE id = ?', [rentInvId]);
+    expect(rentInv).toMatchObject({ water: '250.00', electricity: '800.00', total_amount: '9050.00' });
+  });
+});
+
+describe('meter replacement or reset this cycle', () => {
+  it('allows a lower reading when meter reset is enabled with a new baseline', async () => {
+    // Insert an earlier reading for Room E (user_id=6)
+    await q(
+      `INSERT INTO utility_readings (room_name, user_id, billing_period, reading_date, entry_mode,
+         water_prev_reading, water_curr_reading, water_consumption, water_amount,
+         electric_prev_reading, electric_curr_reading, electric_consumption, electric_amount, is_invoiced)
+       VALUES ('E', 6, ?, ?, 'metered', 100, 150, 50, 2000, 1000, 1200, 200, 2400, 1)`,
+      [monthsAgo(1), `${monthsAgo(1)}-28`]
+    );
+
+    // Recording a lower reading without reset fails
+    const failRes = await api('save_utility_reading.php', {
+      token: admin,
+      json: { room_name: 'E', billing_period: period, reading_date: today, entry_mode: 'metered', water_curr_reading: 10, electric_curr_reading: 50 },
+    });
+    expect(failRes.status).toBe(422);
+    expect(failRes.body.message).toMatch(/lower than the previous reading/);
+
+    // Recording with reset enabled and starting baseline succeeds
+    const okRes = await api('save_utility_reading.php', {
+      token: admin,
+      json: {
+        room_name: 'E',
+        billing_period: period,
+        reading_date: today,
+        entry_mode: 'metered',
+        water_meter_reset: true,
+        water_initial_reading: 0,
+        water_curr_reading: 10,
+        electric_meter_reset: true,
+        electric_initial_reading: 0,
+        electric_curr_reading: 50,
+      },
+    });
+    expect(okRes.status).toBe(200);
+    expect(okRes.body).toMatchObject({
+      water_consumption: 10,
+      electric_consumption: 50,
+    });
+
+    const row = await reading('E');
+    expect(row.notes).toMatch(/reset\/replaced/);
+  });
+});
+
+describe('utility settings and tenant self-pay restriction', () => {
+  it('allows admin to toggle utility_allow_tenant_self_pay and blocks self-pay actions when disabled', async () => {
+    // 1. Admin disables tenant self-pay
+    const updateRes = await api('update_system_settings.php', {
+      token: admin,
+      json: { utility_allow_tenant_self_pay: '0' },
+    });
+    expect(updateRes.status).toBe(200);
+
+    // 2. get_utility_readings returns allow_tenant_self_pay = false
+    const readingsRes = await api('get_utility_readings.php', { token: admin });
+    expect(readingsRes.status).toBe(200);
+    expect(readingsRes.body.allow_tenant_self_pay).toBe(false);
+
+    // 3. Tenant Rosa attempting merge_utility_into_rent is refused with 403
+    const rosa = await loginAs('rosa');
+    const mergeRes = await api('merge_utility_into_rent.php', { token: rosa, json: { reading_id: 1 } });
+    expect(mergeRes.status).toBe(403);
+    expect(mergeRes.body.message).toMatch(/Tenant self-payment for utilities is disabled/);
+
+    // 4. Restore setting to enabled
+    const restoreRes = await api('update_system_settings.php', {
+      token: admin,
+      json: { utility_allow_tenant_self_pay: '1' },
+    });
+    expect(restoreRes.status).toBe(200);
   });
 });

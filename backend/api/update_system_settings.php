@@ -107,8 +107,12 @@ $SETTING_RULES = [
     'cctv_min_reason_length'   => ['type' => 'int', 'min' => 5, 'max' => 200, 'message' => 'The shortest reason must be a whole number of characters between 5 and 200.', 'field' => 'Enter 5 to 200.'],
     'glass_overlay_opacity'    => ['type' => 'int', 'min' => 0, 'max' => 95, 'message' => 'The Glass overlay must be a whole number from 0 to 95 percent.', 'field' => 'Enter 0 to 95.'],
     'glass_blur'               => ['type' => 'int', 'min' => 0, 'max' => 20, 'message' => 'The Glass background blur must be a whole number from 0 to 20 pixels.', 'field' => 'Enter 0 to 20.'],
+    'utility_auto_sync'         => ['type' => 'bool', 'message' => 'Utility auto sync must be on or off.'],
+    'utility_default_billing_mode' => ['type' => 'enum', 'values' => ['merge', 'separate', 'paid'], 'message' => 'Utility default billing mode must be merge, separate or paid.'],
+    'utility_allow_tenant_self_pay' => ['type' => 'bool', 'message' => 'Utility tenant self-pay setting must be on or off.'],
 ];
 function setting_value_invalid(array $rule, string $value): bool {
+    if ($rule['type'] === 'bool') return !in_array($value, ['0', '1', 'true', 'false'], true);
     if ($rule['type'] === 'enum') return !in_array($value, $rule['values'], true);
     if ($rule['type'] === 'int') return !ctype_digit($value) || (int)$value < $rule['min'] || (int)$value > $rule['max'];
     if (!is_numeric($value)) return true;
