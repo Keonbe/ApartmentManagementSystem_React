@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useEffect } from 'react';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
@@ -73,11 +74,11 @@ export default function AdminCctv() {
       if (res.data.success) {
         fetchCctvRequests();
       } else {
-        alert(res.data.message || 'Failed to update request.');
+        toast.error(res.data.message || 'Failed to update request.');
       }
     } catch (err) {
       console.error('Error updating CCTV status:', err);
-      alert(apiErrorMessage(err, 'Server error updating status.'));
+      toast.error(apiErrorMessage(err, 'Server error updating status.'));
     }
   };
 

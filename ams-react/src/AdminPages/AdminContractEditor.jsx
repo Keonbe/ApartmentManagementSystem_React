@@ -1,3 +1,4 @@
+import appToast from '../utils/toast';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -430,7 +431,7 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
       if (err.response?.status === 409) {
         setConflict(err.response.data?.message || 'The contract was updated by someone else.');
       } else {
-        alert(apiErrorMessage(err, 'Failed to save contract.'));
+        appToast.error(apiErrorMessage(err, 'Failed to save contract.'));
       }
     } finally {
       setSaving(false);
@@ -457,7 +458,7 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
       setToast({ type: 'success', title: 'Reset to defaults', message: 'Terms and clauses reset. Click "Save" below to publish.' });
       setTimeout(() => setToast(null), 5000);
     } catch (err) {
-      alert(apiErrorMessage(err, 'Failed to load default template.'));
+      appToast.error(apiErrorMessage(err, 'Failed to load default template.'));
     }
   };
 
@@ -470,7 +471,7 @@ const AdminContractEditor = ({ embedded = false, siteOnly = false }) => {
       setToast({ type: 'info', title: `Loaded Version ${v.version}`, message: 'Loaded into the editor. Save to make it the active version.' });
       setTimeout(() => setToast(null), 5000);
     } catch (err) {
-      alert(apiErrorMessage(err, 'Failed to load version.'));
+      appToast.error(apiErrorMessage(err, 'Failed to load version.'));
     }
   };
 

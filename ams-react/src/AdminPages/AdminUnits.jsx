@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -47,6 +48,8 @@ import LoadError from '../Components/admin/ui/LoadError';
 import { SkeletonCards } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
 import askConfirm from '../utils/askConfirm';
+import InlineAlert from '../Components/InlineAlert';
+import useUrlFilter from '../hooks/useUrlFilter';
 
 const UNIT_TYPES = ['Studio', '1BR', '2BR'];
 const FIELD_CLS = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-control outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white';
@@ -111,7 +114,7 @@ const AdminUnits = () => {
   // and the counts are hidden, never an empty grid and "0% occupied".
   const unitsState = useLoadState();
   const [users, setUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useUrlFilter('q', '');
   const [activeFilter, setActiveFilter] = useState('all');
   const [floorFilter, setFloorFilter] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState(null);
@@ -125,9 +128,13 @@ const AdminUnits = () => {
   // Floor -> fixed rent from Settings. A new unit's rent follows its floor until typed over.
   const [floorRates, setFloorRates] = useState({});
   const [rentTyped, setRentTyped] = useState(false);
+  const [floorRatesFailed, setFloorRatesFailed] = useState(false);
+  const [floorRatesTry, setFloorRatesTry] = useState(0);
   useEffect(() => {
-    api.get('get_system_settings.php').then((res) => setFloorRates(res.data?.settings?.floor_rates || {})).catch(() => {});
-  }, []);
+    api.get('get_system_settings.php')
+      .then((res) => { setFloorRates(res.data?.settings?.floor_rates || {}); setFloorRatesFailed(false); })
+      .catch(() => setFloorRatesFailed(true));
+  }, [floorRatesTry]);
   const [assignForm, setAssignForm] = useState(emptyAssignForm);
   const [extendForm, setExtendForm] = useState({ addMonths: '', newRent: '' });
   const [leaseError, setLeaseError] = useState('');
@@ -145,7 +152,7 @@ const AdminUnits = () => {
 
   const openSetMaintenance = (unit) => {
     if (unit.status === 'occupied' || unit.tenant) {
-      alert(`Unit ${unit.id} is occupied by ${unit.tenant}. An occupied unit cannot be placed under maintenance while a tenant resides there.`);
+      toast.info(`Unit ${unit.id} is occupied by ${unit.tenant}. An occupied unit cannot be placed under maintenance while a tenant resides there.`);
       return;
     }
     setMaintenanceTargetUnit(unit);
@@ -171,11 +178,11 @@ const AdminUnits = () => {
           }));
         }
       } else {
-        alert(res.data.message || 'Failed to complete maintenance.');
+        toast.error(res.data.message || 'Failed to complete maintenance.');
       }
     } catch (err) {
       console.error('Failed to complete maintenance:', err);
-      alert(err.response?.data?.message || 'Server error completing maintenance.');
+      toast.error(err.response?.data?.message || 'Server error completing maintenance.');
     } finally {
       setCompletingMaintenanceId(null);
     }
@@ -468,7 +475,7 @@ const AdminUnits = () => {
         fetchRooms();
         setShowAssignModal(false);
         setAssignForm(emptyAssignForm);
-        alert(response.data.message);
+        toast.success(response.data.message || 'Tenant assigned.');
       } else if (!assignErrors.applyServerErrors(response)) {
         setLeaseError(apiErrorMessage(response, 'Failed to assign tenant.'));
       }
@@ -503,7 +510,7 @@ const AdminUnits = () => {
         setExtendForm({ addMonths: '', newRent: '' });
         setOverrideConflict(false);
         setShowExtendForm(false);
-        alert(response.data.message);
+        toast.success(response.data.message || 'Rent extended.');
       } else if (!extendErrors.applyServerErrors(response)) {
         setLeaseError(apiErrorMessage(response, 'Failed to extend rent.'));
       }
@@ -726,6 +733,9 @@ const AdminUnits = () => {
               <button type="button" onClick={closeAddModal} aria-label="Close" className="btn-interactive text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
+              {floorRatesFailed && (
+                <InlineAlert>The floor rents from Settings could not be loaded, so the rent is not filled in for you. <button type="button" onClick={() => setFloorRatesTry((n) => n + 1)} className="cursor-pointer border-0 bg-transparent p-0 font-bold text-current underline">Try again</button></InlineAlert>
+              )}
               {addUnitError && (
                 <div role="alert" className="text-label font-medium text-red-700 bg-red-50 border border-red-200 rounded-control px-3 py-2">{addUnitError}</div>
               )}
@@ -1084,7 +1094,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
     const inspectionError = editInspectionDate
       ? checkDate(editInspectionDate, { label: 'Last inspection date', min: addYears(-10), max: localDateString() })
       : '';
-    if (inspectionError) { alert(inspectionError); return; }
+    if (inspectionError) { toast.error(inspectionError); return; }
     setIsUpdating(true);
     try {
       const res = await api.post('update_room.php', {
@@ -1099,11 +1109,11 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
           onUpdateSuccess();
         }
       } else {
-        alert(res.data.message || "Failed to update room attributes");
+        toast.error(res.data.message || "Failed to update room attributes");
       }
     } catch (err) {
       console.error("Error updating room monitoring:", err);
-      alert(apiErrorMessage(err, "Failed to update status monitoring attributes."));
+      toast.error(apiErrorMessage(err, "Failed to update status monitoring attributes."));
     } finally {
       setIsUpdating(false);
     }

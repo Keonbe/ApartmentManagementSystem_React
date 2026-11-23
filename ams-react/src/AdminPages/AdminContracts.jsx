@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
@@ -29,8 +30,8 @@ import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers'
 import Modal from '../Components/admin/Modal';
 import useUrlFilter from '../hooks/useUrlFilter';
 import { TH, THEAD, btn } from '../Components/admin/ui/styles';
-import { LoadErrorRow } from '../Components/admin/ui/LoadError';
-import { SkeletonRows } from '../Components/admin/ui/Skeleton';
+import LoadError, { LoadErrorRow } from '../Components/admin/ui/LoadError';
+import { SkeletonRows, SkeletonCards } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
 import { personName } from '../utils/personName';
 import askConfirm from '../utils/askConfirm';
@@ -216,7 +217,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   // The late fee in force (Settings, Payment Options): the new-contract preview quotes it, or says there is none.
   const [lateFee, setLateFee] = useState({ enabled: false, type: 'flat', value: 0 });
   useEffect(() => {
-    getSystemSettings().then(s => {
+    getSystemSettings({ warn: true }).then(s => {
       setOverdueThresholdDays(s.overdueThresholdDays);
       setEndingDays(s.leaseEndReminderDays ?? 30);
       setLateFee({ enabled: !!s.lateFeeEnabled, type: s.lateFeeType, value: Number(s.lateFeeValue) || 0 });
@@ -299,11 +300,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
         setCreateStep(1);
         setForm({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
       } else if (!contractErrors.applyServerErrors(res)) {
-        alert(apiErrorMessage(res, 'Failed to create contract.'));
+        toast.error(apiErrorMessage(res, 'Failed to create contract.'));
       }
     } catch (err) {
       console.error(err);
-      if (!contractErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to create contract.'));
+      if (!contractErrors.applyServerErrors(err)) toast.error(apiErrorMessage(err, 'Failed to create contract.'));
     } finally {
       setGenerating(false);
     }
@@ -329,7 +330,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   // the agreement to the print dialog, where it can be saved as a PDF.
   const handleDownloadContract = async (contract) => {
     if (!(await openPreview(contract))) {
-      alert('Could not load the contract template. Try again.');
+      toast.error('Could not load the contract template. Try again.');
       return;
     }
     setTimeout(() => {
@@ -356,10 +357,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           }));
         }
       } else {
-        alert(apiErrorMessage(res, 'Failed to upload signature.'));
+        toast.error(apiErrorMessage(res, 'Failed to upload signature.'));
       }
     } catch (err) {
-      alert(apiErrorMessage(err, 'Failed to upload signature.'));
+      toast.error(apiErrorMessage(err, 'Failed to upload signature.'));
     }
   };
 
@@ -381,10 +382,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           }));
         }
       } else {
-        alert(apiErrorMessage(res, 'Failed to remove signature.'));
+        toast.error(apiErrorMessage(res, 'Failed to remove signature.'));
       }
     } catch (err) {
-      alert(apiErrorMessage(err, 'Failed to remove signature.'));
+      toast.error(apiErrorMessage(err, 'Failed to remove signature.'));
     }
   };
 
@@ -410,11 +411,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
         }));
         setIsEditingDates(false);
       } else if (!editErrors.applyServerErrors(res)) {
-        alert(apiErrorMessage(res, 'Failed to update rent dates.'));
+        toast.error(apiErrorMessage(res, 'Failed to update rent dates.'));
       }
     } catch (err) {
       console.error(err);
-      if (!editErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to update rent dates.'));
+      if (!editErrors.applyServerErrors(err)) toast.error(apiErrorMessage(err, 'Failed to update rent dates.'));
     } finally {
       setSavingDates(false);
     }
@@ -428,7 +429,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
       if (e.target.files && e.target.files[0]) {
         const fileError = checkFile(e.target.files[0], FILE_RULES.document);
         if (fileError) {
-          alert(fileError);
+          toast.error(fileError);
           return;
         }
         const formData = new FormData();
@@ -450,11 +451,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                }));
             }
           } else {
-            alert(apiErrorMessage(res, 'Failed to upload the document.'));
+            toast.error(apiErrorMessage(res, 'Failed to upload the document.'));
           }
         } catch(err) {
           console.error(err);
-          alert(apiErrorMessage(err, 'Failed to upload the document.'));
+          toast.error(apiErrorMessage(err, 'Failed to upload the document.'));
         }
       }
     };
@@ -474,11 +475,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
            setSelectedContract(prev => ({ ...prev, [docType]: { uploaded: false, fileName: null, uploadDate: null } }));
         }
       } else {
-        alert(apiErrorMessage(res, 'Failed to remove the document.'));
+        toast.error(apiErrorMessage(res, 'Failed to remove the document.'));
       }
     } catch(err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to remove the document.'));
+      toast.error(apiErrorMessage(err, 'Failed to remove the document.'));
     }
   };
 
@@ -500,11 +501,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
       if (res.data.success) {
         await refreshContract(contractId);
       } else {
-        alert(res.data.message || 'Failed to activate contract.');
+        toast.error(res.data.message || 'Failed to activate contract.');
       }
     } catch (err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to activate contract.'));
+      toast.error(apiErrorMessage(err, 'Failed to activate contract.'));
     }
   };
 
@@ -540,11 +541,11 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
       if (res.data.success) {
         await refreshContract(contractId);
       } else {
-        alert(res.data.message || 'Failed to clear eviction flag.');
+        toast.error(res.data.message || 'Failed to clear eviction flag.');
       }
     } catch(err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to clear eviction flag.'));
+      toast.error(apiErrorMessage(err, 'Failed to clear eviction flag.'));
     } finally {
       setClearingEviction(false);
     }
@@ -719,8 +720,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               </div>
             </div>
 
-            {/* Contract Table */}
-            <div className="bg-white border border-slate-200 rounded-card overflow-hidden shadow-card table-scroll-x">
+            {/* Contract Table (tablet and up) */}
+            <div className="hidden md:block bg-white border border-slate-200 rounded-card overflow-hidden shadow-card table-scroll-x">
               <table className="w-full text-left text-body">
                 <thead className={THEAD}>
                   <tr className="text-label font-medium text-slate-600">
@@ -762,6 +763,42 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Contract cards (phones): the same rows, without sideways scrolling */}
+            <div className="md:hidden space-y-3">
+              {contractsState.isLoading && <SkeletonCards count={3} className="space-y-3" label="Loading contracts…" />}
+              {contractsState.isError && <div className="bg-white border border-slate-200 rounded-card"><LoadError title="Couldn't load contracts" onRetry={() => { contractsState.retry(); fetchContracts(); }} /></div>}
+              {contractsState.isReady && filtered.length === 0 && (
+                <div className="bg-white border border-slate-200 rounded-card text-center py-12 text-slate-500 text-body">No contracts found.</div>
+              )}
+              {contractsState.isReady && filtered.map(c => {
+                const docStatus = getDocumentStatus(c);
+                return (
+                  <div key={c.id} className={`bg-white border border-slate-200 rounded-card shadow-card p-4 space-y-3 ${c.status === 'eviction-pending' ? 'bg-red-50/30' : ''}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-800 truncate">{c.tenant}</span>
+                          {c.evictionStatus === 'flagged' && <FontAwesomeIcon icon={faGavel} className="text-red-600 text-[10px]" title="Eviction Pending" />}
+                        </div>
+                        <div className="font-mono text-label font-bold text-indigo-600">{c.id}</div>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span>
+                    </div>
+                    <dl className="m-0 grid grid-cols-2 gap-x-3 gap-y-2 text-label">
+                      <div><dt className="text-slate-500">Unit</dt><dd className="m-0 text-slate-700">{c.unit} <span className="text-slate-500">({c.type})</span></dd></div>
+                      <div><dt className="text-slate-500">Rent</dt><dd className="m-0 font-semibold text-slate-800">{formatCurrency(c.rent)}/mo</dd></div>
+                      <div className="col-span-2"><dt className="text-slate-500">Rent period</dt><dd className="m-0 text-slate-700">{c.leaseStart} → {c.leaseEnd}</dd></div>
+                      <div className="col-span-2"><dt className="text-slate-500">Documents</dt><dd className={`m-0 flex items-center gap-1.5 font-semibold ${docStatus.color}`}><FontAwesomeIcon icon={docStatus.icon} className="text-[10px]" /> {docStatus.label}</dd></div>
+                    </dl>
+                    <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-2">
+                      <button type="button" aria-label={`View contract ${c.id} for ${c.tenant}`} title="View contract" onClick={() => openPreview(c)} className="w-11 h-11 rounded-control text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
+                      <button type="button" aria-label={`Download contract ${c.id} for ${c.tenant} as PDF`} title="Download as PDF" onClick={() => handleDownloadContract(c)} className="w-11 h-11 rounded-control text-slate-500 hover:text-slate-700 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

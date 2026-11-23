@@ -20,7 +20,9 @@ import { formatFileSize, invalidCls } from '../Components/form/formHelpers';
 import { Bone } from '../Components/tenant/Skeleton';
 import { VEHICLE_TYPES, NO_PLATE_TYPES, slotIcon, vehicleIcon, vehicleLabel, typesText, peso } from '../utils/parkingVehicles';
 import '../assets/styles/responsive/user/parking-reservation.responsive.css';
+import { readDraft, saveDraft, clearDraft } from '../utils/formDraft';
 
+const PARKING_DRAFT = 'parkingDraft';
 const INPUT = 'parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-base min-h-[48px]';
 
 // Each slot state's look: tile, icon and the word under the number.
@@ -122,6 +124,11 @@ export default function ParkingReservation() {
     return () => clearTimeout(timer);
   }, [load]);
 
+  // Vehicle details typed in the request form, kept while it is open.
+  useEffect(() => {
+    if (slot) saveDraft(PARKING_DRAFT, { vehicleType, vehicleModel, plateNumber, transmission, durationMonths });
+  }, [slot, vehicleType, vehicleModel, plateNumber, transmission, durationMonths]);
+
   const slots = useMemo(() => data?.slots || [], [data]);
   const mine = data?.my_reservations || [];
   const openOnes = mine.filter((r) => ['Pending', 'Assigned'].includes(r.status));
@@ -152,7 +159,10 @@ export default function ParkingReservation() {
   const openSlot = (s) => {
     setSlot(s);
     setVehicleType(filter !== 'all' && s.vehicle_types.includes(filter) ? filter : s.vehicle_types.length === 1 ? s.vehicle_types[0] : '');
-    setVehicleModel(''); setPlateNumber(''); setTransmission(''); setDurationMonths('');
+    // The last unsent vehicle details come back (never the photo or the rules tick).
+    const saved = readDraft(PARKING_DRAFT);
+    setVehicleModel(saved.vehicleModel || ''); setPlateNumber(saved.plateNumber || ''); setTransmission(saved.transmission || ''); setDurationMonths(saved.durationMonths || '');
+    if (saved.vehicleType && s.vehicle_types.includes(saved.vehicleType)) setVehicleType(saved.vehicleType);
     setFile(null); setAgree(false); setSubmitError(''); form.setErrors({});
   };
   const closeForm = () => { if (!submitting) setSlot(null); };
@@ -181,6 +191,7 @@ export default function ParkingReservation() {
     setSubmitting(true);
     try {
       await api.post('parking_reservation.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      clearDraft(PARKING_DRAFT);
       setSlot(null);
       setSuccess(true);
       load();

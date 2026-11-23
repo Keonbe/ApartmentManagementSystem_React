@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -220,14 +221,14 @@ const AdminApplications = () => {
         rejection_reason: rejectionReason 
       });
       if (!res.data.success) {
-        alert(apiErrorMessage(res, 'Failed to update the application.'));
+        toast.error(apiErrorMessage(res, 'Failed to update the application.'));
         return false;
       }
       fetchApplications();
       return true;
     } catch (err) {
       console.error("Error updating status:", err);
-      alert(apiErrorMessage(err, 'Failed to update the application.'));
+      toast.error(apiErrorMessage(err, 'Failed to update the application.'));
       return false;
     }
   };
@@ -237,7 +238,7 @@ const AdminApplications = () => {
   const [cancellationFee, setCancellationFee] = useState(0);
   const [tenantRequestId, setTenantRequestId] = useState(null); // application the box is ticked for
   useEffect(() => {
-    getSystemSettings().then((s) => setCancellationFee(Number(s.cancellationFee) || 0)).catch(() => {});
+    getSystemSettings({ warn: true }).then((s) => setCancellationFee(Number(s.cancellationFee) || 0)).catch(() => {});
   }, []);
   const [preview, setPreview] = useState(null);
   
@@ -280,8 +281,8 @@ const AdminApplications = () => {
       throw new Error(apiErrorMessage(err, 'Failed to update the application.'), { cause: err });
     }
     if (!res.data.success) throw new Error(apiErrorMessage(res, 'Failed to update the application.'));
-    if (res.data.refunds_raised) alert(`${res.data.refunds_raised} refund request(s) were opened for payments this applicant already made. Review them under Refunds.`);
-    if (res.data.cancellation_fee_kept) alert(`A cancellation fee of ₱${Number(res.data.cancellation_fee_kept).toLocaleString()} was kept${res.data.refunds_raised ? ' from the refund' : ' (nothing was left to refund)'}.`);
+    if (res.data.refunds_raised) toast.success(`${res.data.refunds_raised} refund request(s) were opened for payments this applicant already made. Review them under Refunds.`);
+    if (res.data.cancellation_fee_kept) toast.success(`A cancellation fee of ₱${Number(res.data.cancellation_fee_kept).toLocaleString()} was kept${res.data.refunds_raised ? ' from the refund' : ' (nothing was left to refund)'}.`);
     setTenantRequestId(null);
     setRejectTarget(null);
     setShowProfileModal(false);
@@ -298,7 +299,7 @@ const AdminApplications = () => {
       setShowProfileModal(false);
       await fetchApplications();
     } catch (err) {
-      alert(apiErrorMessage(err, 'Failed to approve the application.'));
+      toast.error(apiErrorMessage(err, 'Failed to approve the application.'));
     } finally {
       setIsApproving(false);
     }
@@ -319,7 +320,7 @@ const AdminApplications = () => {
       setScheduleTarget(null); setScheduleDate(''); setScheduleMessage(''); setScheduleAttachment(null);
       setShowProfileModal(false); fetchApplications();
     } catch (err) {
-      alert(apiErrorMessage(err, 'Could not send the move-in notice.'));
+      toast.error(apiErrorMessage(err, 'Could not send the move-in notice.'));
     } finally { setScheduling(false); }
   };
 

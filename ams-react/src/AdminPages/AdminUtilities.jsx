@@ -1,3 +1,4 @@
+import toast from '../utils/toast';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../Components/AdminDashboardHeader';
@@ -215,15 +216,15 @@ export default function AdminUtilities() {
       }
       const res = await api.post('/sync_utility_to_invoice.php', payload);
       if (res?.data?.success) {
-        alert(res.data.message || "Synced successfully!");
+        toast.success(res.data.message || "Synced successfully!");
         setSyncTargetId(null);
         reloadData();
       } else {
-        alert(res?.data?.message || "Failed to sync.");
+        toast.error(res?.data?.message || "Failed to sync.");
       }
     } catch (err) {
       console.error("Sync error:", err);
-      alert(apiErrorMessage(err, "Failed to sync utility."));
+      toast.error(apiErrorMessage(err, "Failed to sync utility."));
     } finally {
       setSyncingId(null);
     }
@@ -233,7 +234,7 @@ export default function AdminUtilities() {
   const handleBillFile = async (reading, file) => {
     if (file) {
       const fileError = checkFile(file, FILE_RULES.document);
-      if (fileError) { alert(fileError); return; }
+      if (fileError) { toast.error(fileError); return; }
     } else if (!(await askConfirm('Remove the bill file from this reading?'))) {
       return;
     }
@@ -243,9 +244,9 @@ export default function AdminUtilities() {
     setSyncingId(reading.id);
     try {
       const res = await api.post('/upload_utility_bill.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (res?.data?.success) reloadData(); else alert(res?.data?.message || 'Could not update the bill file.');
+      if (res?.data?.success) reloadData(); else toast.error(res?.data?.message || 'Could not update the bill file.');
     } catch (err) {
-      alert(apiErrorMessage(err, 'Could not update the bill file.'));
+      toast.error(apiErrorMessage(err, 'Could not update the bill file.'));
     } finally {
       setSyncingId(null);
     }
@@ -265,11 +266,11 @@ export default function AdminUtilities() {
     setSyncingId(reading.id);
     try {
       const res = await api.post('/delete_utility_reading.php', { id: reading.id });
-      alert(res?.data?.message || "Reading deleted.");
+      toast.success(res?.data?.message || "Reading deleted.");
       if (res?.data?.success) reloadData();
     } catch (err) {
       console.error("Delete reading error:", err);
-      alert(err?.response?.data?.message || "Failed to delete the reading.");
+      toast.error(err?.response?.data?.message || "Failed to delete the reading.");
     } finally {
       setSyncingId(null);
     }
@@ -1070,14 +1071,14 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
             billWarning = `The reading was saved, but the bill could not be attached: ${apiErrorMessage(upErr, 'upload failed.')} Use "Attach bill" on the reading to retry.`;
           }
         }
-        alert([res.data.message || "Utility reading saved successfully!", res.data.warning, billWarning].filter(Boolean).join('\n\n'));
+        toast.success([res.data.message || "Utility reading saved successfully!", res.data.warning, billWarning].filter(Boolean).join('\n\n'));
         onSuccess();
       } else if (!readingForm.applyServerErrors(res)) {
-        alert(res?.data?.message || "Failed to save reading.");
+        toast.error(res?.data?.message || "Failed to save reading.");
       }
     } catch (err) {
       console.error("Save reading error:", err);
-      if (!readingForm.applyServerErrors(err)) alert(apiErrorMessage(err, "Failed to save reading."));
+      if (!readingForm.applyServerErrors(err)) toast.error(apiErrorMessage(err, "Failed to save reading."));
     } finally {
       setSubmitting(false);
     }
@@ -1469,7 +1470,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                 onChange={(ev) => {
                   const f = ev.target.files?.[0] || null;
                   const err = f ? checkFile(f, FILE_RULES.document) : null;
-                  if (err) { alert(err); ev.target.value = ''; setBillFile(null); return; }
+                  if (err) { toast.error(err); ev.target.value = ''; setBillFile(null); return; }
                   setBillFile(f);
                 }}
                 className="w-full rounded-card border border-slate-200 bg-slate-50 px-3 py-2 text-label font-medium text-slate-800"
