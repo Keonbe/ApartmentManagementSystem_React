@@ -498,11 +498,15 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
   const handleRemoveFile = async (contractId, docType) => {
     try {
-      const res = await api.post('/upload_lease_document.php', new URLSearchParams({
-        contractId: contractId,
-        docType: docType,
-        action: 'remove'
-      }));
+      // upload_lease_document.php reads multipart fields from PHP's $_POST.
+      // FormData also avoids axios's shared JSON default hiding these fields.
+      const formData = new FormData();
+      formData.append('contractId', contractId);
+      formData.append('docType', docType);
+      formData.append('action', 'remove');
+      const res = await api.post('/upload_lease_document.php', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       if (res.data.success) {
         fetchContracts();
         if (selectedContract && selectedContract.id === contractId) {
@@ -1352,9 +1356,14 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                     )}
                     <div className="flex justify-end">
                       {selectedContract.signedLease?.uploaded ? (
-                        <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-label font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors">
-                          <FontAwesomeIcon icon={faTimesCircle} /> Remove signed copy
-                        </button>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button onClick={() => handleUploadFile(selectedContract.id, 'signedLease')} className={btn('secondary', 'sm')}>
+                            <FontAwesomeIcon icon={faUpload} /> Replace signed copy
+                          </button>
+                          <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-600 text-label font-semibold rounded-control hover:bg-red-50 cursor-pointer transition-colors">
+                            <FontAwesomeIcon icon={faTimesCircle} /> Remove signed copy
+                          </button>
+                        </div>
                       ) : (
                         <button onClick={() => handleUploadFile(selectedContract.id, 'signedLease')} className={btn('secondary', 'sm')}>
                           <FontAwesomeIcon icon={faUpload} /> Upload a signed copy yourself
