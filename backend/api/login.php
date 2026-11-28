@@ -130,9 +130,19 @@ if ((int)$user["is_archived"] === 1) {
 }
 
 // Skipped while email verification is off (Other Settings → Sign-in Codes).
-if (empty($user['email_verified_at']) && email_verification_enabled($conn)) {
-    echo json_encode(["message" => "Please verify your email address before signing in.", "valid" => false, "email_verification_required" => true]);
-    $conn->close(); exit;
+// Outside production, an account on EMAIL_VERIFY_BYPASS_DOMAINS is marked
+// verified here instead.
+if (empty($user['email_verified_at'])) {
+    if (ams_skips_email_verification($user['email_address'])) {
+        $autoVer = $conn->prepare('UPDATE users SET email_verified_at = NOW(), verification_token = NULL WHERE id = ?');
+        $uid = (int)$user['id'];
+        $autoVer->bind_param('i', $uid);
+        $autoVer->execute();
+        $autoVer->close();
+    } elseif (email_verification_enabled($conn)) {
+        echo json_encode(["message" => "Please verify your email address before signing in.", "valid" => false, "email_verification_required" => true]);
+        $conn->close(); exit;
+    }
 }
 
 // A valid trusted-device cookie skips OTP; only its SHA-256 digest is persisted.

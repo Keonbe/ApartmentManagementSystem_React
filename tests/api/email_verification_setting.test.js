@@ -68,6 +68,37 @@ describe('on', () => {
   });
 });
 
+// The test server sets EMAIL_VERIFY_BYPASS_DOMAINS=autoverify.example.
+describe('a domain on EMAIL_VERIFY_BYPASS_DOMAINS (never in production)', () => {
+  it('is verified at sign-up while the setting stays on', async () => {
+    const email = 'new@autoverify.example';
+    const res = await register(email);
+    expect(res.body).toMatchObject({ success: true, verification_required: false });
+    const user = await one('SELECT email_verified_at, verification_token FROM users WHERE email_address = ?', [email]);
+    expect(user.email_verified_at).not.toBeNull();
+    expect(user.verification_token).toBeNull();
+    expect(await setting('email_verification_enabled')).toBe('1');
+  });
+
+  it('is verified at sign-in, but only with the right password', async () => {
+    const email = 'waiting@autoverify.example';
+    await q(
+      `INSERT INTO users (first_name, last_name, email_address, password, role, email_verified_at, verification_token)
+       VALUES ('Auto', 'Verify', ?, ?, 'user', NULL, REPEAT('b', 64))`, [email, HASH],
+    );
+    const verifiedAt = async () => (await one('SELECT email_verified_at FROM users WHERE email_address = ?', [email])).email_verified_at;
+    expect((await signIn(email, 'wrong-password')).body.valid).toBe(false);
+    expect(await verifiedAt()).toBeNull();
+    expect((await signIn(email, 'tenant123')).body.email_verification_required).toBeUndefined();
+    expect(await verifiedAt()).not.toBeNull();
+  });
+
+  it('does not cover a look-alike domain', async () => {
+    const res = await register('new@notautoverify.example');
+    expect(res.body).toMatchObject({ success: true, verification_required: true });
+  });
+});
+
 describe('off', () => {
   beforeAll(async () => {
     const res = await post({ action: 'set_email_verification', enabled: false });

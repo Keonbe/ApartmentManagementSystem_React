@@ -92,6 +92,7 @@ Editing `config.env.php` takes effect on the next request.
 | `DEPLOYMENT_ID` | *(empty)* | **new** — unique name, e.g. `saas-prod`, `<org>-selfhosted`; required in production |
 | `APP_URL` | *(empty)* | public URL of this deployment's SPA; payment return links must start with it |
 | `DEVICE_OTP_BYPASS_DOMAINS` | *(empty)* | non-production only: comma-separated email domains (e.g. `demo.example`) whose accounts skip the emailed device code; ignored when `APP_ENV=production` |
+| `EMAIL_VERIFY_BYPASS_DOMAINS` | *(empty)* | non-production only: comma-separated email domains whose accounts count as verified at sign-up and sign-in, with no emailed link; ignored when `APP_ENV=production` |
 | `ALLOWED_ORIGINS` | *(empty)* | comma-separated exact origins; `*` is ignored |
 | `PAYMONGO_SECRET_KEY` | *(unset → database)* | **new, optional** — overrides `system_settings.paymongo_secret_key` |
 | `PAYMONGO_WEBHOOK_SECRET` | *(unset → database)* | **new, optional** — overrides `system_settings.paymongo_webhook_secret` |

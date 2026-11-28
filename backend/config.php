@@ -60,8 +60,21 @@ function ams_env_setting($setting_key) {
 // (e.g. demo.example, the seed data's domain) skip the emailed device code.
 // Never true in production, whatever the variable says.
 function ams_skips_device_otp($email) {
+    return ams_email_on_test_domain($email, 'DEVICE_OTP_BYPASS_DOMAINS');
+}
+
+// Test and demo only: accounts on a domain listed in EMAIL_VERIFY_BYPASS_DOMAINS
+// count as verified at sign-up and sign-in, with no emailed link. Empty by
+// default, so email verification follows Settings. Never true in production.
+function ams_skips_email_verification($email) {
+    return ams_email_on_test_domain($email, 'EMAIL_VERIFY_BYPASS_DOMAINS');
+}
+
+// Whether $email's domain is on the comma-separated list in $setting; always
+// false in production.
+function ams_email_on_test_domain($email, $setting) {
     if (APP_ENV === 'production') return false;
-    $domains = array_filter(array_map('trim', explode(',', strtolower((string) ams_env_setting('DEVICE_OTP_BYPASS_DOMAINS')))));
+    $domains = array_filter(array_map('trim', explode(',', strtolower((string) ams_env_setting($setting)))));
     $at = strrpos((string) $email, '@');
     return $at !== false && in_array(strtolower(substr($email, $at + 1)), $domains, true);
 }

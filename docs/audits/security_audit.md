@@ -366,6 +366,12 @@ Reviewed after the chat module (PR #8) and the SMS/email pipeline landed. **Open
 - `backend/room_images/` is public by design, with `-Indexes`, a script-extension block, and an image allowlist + `finfo` check in `store_room_image()`.
 - The PHP chat endpoints take identity from the session (via `config.php`'s header rewrite), use prepared statements, and return only the caller's own threads.
 
+## 6f. Email Verification Bypass Scope (2026-11-28)
+
+| ID | Severity | Issue | Where | Fix |
+|---|---|---|---|---|
+| ~~**EV-1**~~ | ~~Moderate~~ **fixed 2026-11-28, before commit** | An uncommitted change marked **every** unverified account verified whenever `APP_ENV=development`, overriding Settings → Sign-in & Verification, and no test could reach it (`AMS_TEST_MODE` switched it off). | `login.php`, `registration.php` | Only domains listed in `EMAIL_VERIFY_BYPASS_DOMAINS` (empty by default) are auto-verified, never in production (`ams_skips_email_verification()`); covered by `email_verification_setting.test.js`. |
+
 ---
 
 ## 7. Correct & Secure Implementations

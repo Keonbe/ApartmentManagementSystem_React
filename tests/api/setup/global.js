@@ -62,6 +62,7 @@ export default async function setup() {
       DB_NAME: DB.database,
       APP_ENV: 'development',
       DEVICE_OTP_BYPASS_DOMAINS: 'demo.example',
+      EMAIL_VERIFY_BYPASS_DOMAINS: 'autoverify.example',
       PAYMONGO_WEBHOOK_SECRET: WEBHOOK_SECRET,
     },
     stdio: ['ignore', 'ignore', 'pipe'],

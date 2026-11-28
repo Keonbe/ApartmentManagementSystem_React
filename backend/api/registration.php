@@ -65,7 +65,8 @@ if ($exists) fail("Email address is already registered");
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 // Email verification off (Other Settings → Sign-in Codes): the account is
 // verified now and no link is sent.
-$needs_verification = email_verification_enabled($conn);
+// The same applies outside production to a domain on EMAIL_VERIFY_BYPASS_DOMAINS.
+$needs_verification = email_verification_enabled($conn) && !ams_skips_email_verification($email_address);
 $verification_token = $needs_verification ? bin2hex(random_bytes(32)) : null;
 $verified_sql = $needs_verification ? 'NULL' : 'NOW()';
 
