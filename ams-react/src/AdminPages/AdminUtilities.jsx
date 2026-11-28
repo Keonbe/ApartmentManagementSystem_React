@@ -17,6 +17,7 @@ import StatCard from '../Components/admin/StatCard';
 import { LIMITS, MAX_AMOUNT, addDays, checkAmount, checkDate, checkText, localDateString } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import fileUrl from '../api/fileUrl';
+import { billKind } from '../utils/billFiles';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
@@ -269,16 +270,18 @@ export default function AdminUtilities() {
     }
   };
 
+  // `file`: one file (a row's Attach), a list (the viewer's Replace), or null to remove.
   const handleBillFile = async (reading, file) => {
-    if (file) {
-      const fileError = checkFile(file, FILE_RULES.document);
+    const files = file ? [].concat(file) : [];
+    if (files.length) {
+      const fileError = files.map((f) => checkFile(f, FILE_RULES.document)).find(Boolean);
       if (fileError) { toast.error(fileError); return; }
     } else if (!(await askConfirm('Remove the bill file from this reading?'))) {
       return;
     }
     const fd = new FormData();
     fd.append('reading_id', reading.id);
-    if (file) fd.append('bill', file); else fd.append('remove', '1');
+    if (files.length) files.forEach((f) => fd.append('bills[]', f)); else fd.append('remove', '1');
     setSyncingId(reading.id);
     try {
       const res = await api.post('/upload_utility_bill.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -1652,8 +1655,9 @@ function BillViewerModal({ reading, onClose, onReplace, onRemove }) {
         <div className="flex items-center gap-2 px-6 py-2.5 bg-slate-100/70 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
           <span className="text-caption font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1">Bills ({paths.length}):</span>
           {paths.map((p, idx) => {
-            const label = idx === 0 ? 'Electricity Bill' : idx === 1 ? 'Water Bill' : `Attachment #${idx + 1}`;
-            const tabIcon = idx === 0 ? faBolt : idx === 1 ? faTint : faFileAlt;
+            const kind = billKind(p);
+            const label = kind === 'electric' ? 'Electricity Bill' : kind === 'water' ? 'Water Bill' : `Bill ${idx + 1}`;
+            const tabIcon = kind === 'electric' ? faBolt : kind === 'water' ? faTint : faFileAlt;
             return (
               <button
                 key={idx}
@@ -1665,7 +1669,7 @@ function BillViewerModal({ reading, onClose, onReplace, onRemove }) {
                     : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
                 }`}
               >
-                <FontAwesomeIcon icon={tabIcon} className={safeIdx === idx ? 'text-white' : idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-sky-500' : 'text-slate-400'} />
+                <FontAwesomeIcon icon={tabIcon} className={safeIdx === idx ? 'text-white' : kind === 'electric' ? 'text-amber-500' : kind === 'water' ? 'text-sky-500' : 'text-slate-400'} />
                 <span>{label}</span>
               </button>
             );
@@ -1715,7 +1719,7 @@ function BillViewerModal({ reading, onClose, onReplace, onRemove }) {
             onClick={() => fileInputRef.current?.click()}
             className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:border-indigo-300 transition-colors cursor-pointer"
           >
-            Add / Replace Bill Files
+            Replace Bill Files
           </button>
           <button
             type="button"
@@ -2236,7 +2240,10 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings, autoSyn
           try {
             const fd = new FormData();
             fd.append('reading_id', readingId);
-            filesToUpload.forEach((f) => fd.append('bills[]', f));
+            // The two named slots keep their kind; extra documents go as a list.
+            if (electricityBillFile) fd.append('electric_bill', electricityBillFile);
+            if (waterBillFile) fd.append('water_bill', waterBillFile);
+            extraBillFiles.filter(Boolean).forEach((f) => fd.append('bills[]', f));
             const up = await api.post('/upload_utility_bill.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             if (!up?.data?.success) billWarning = up?.data?.message || 'The reading was saved, but the bill files could not be attached.';
           } catch (upErr) {

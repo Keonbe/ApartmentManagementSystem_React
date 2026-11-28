@@ -25,6 +25,13 @@ $remove = !empty($_POST['remove']);
 
 $incoming_files = [];
 if (!$remove) {
+    // The named slots first (electricity, then water): the stored name keeps the
+    // kind so the viewers can label each file. `bills[]` carries any others.
+    foreach (['electric_bill' => 'electric', 'electricity_bill' => 'electric', 'water_bill' => 'water', 'bill' => null] as $k => $kind) {
+        if (!empty($_FILES[$k]) && is_array($_FILES[$k]) && ($_FILES[$k]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $incoming_files[] = $_FILES[$k] + ['kind' => $kind];
+        }
+    }
     if (!empty($_FILES['bills']['name'])) {
         if (is_array($_FILES['bills']['name'])) {
             for ($i = 0; $i < count($_FILES['bills']['name']); $i++) {
@@ -40,11 +47,6 @@ if (!$remove) {
             }
         } elseif ($_FILES['bills']['error'] !== UPLOAD_ERR_NO_FILE) {
             $incoming_files[] = $_FILES['bills'];
-        }
-    }
-    foreach (['bill', 'water_bill', 'electric_bill', 'electricity_bill'] as $k) {
-        if (!empty($_FILES[$k]) && is_array($_FILES[$k]) && ($_FILES[$k]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-            $incoming_files[] = $_FILES[$k];
         }
     }
 }
@@ -98,7 +100,7 @@ if (!$remove) {
             validation_fail(['bill' => "File content does not match allowed formats."]);
         }
         $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-        $name = 'bill_' . bin2hex(random_bytes(16)) . '.' . $ext;
+        $name = 'bill_' . (empty($f['kind']) ? '' : $f['kind'] . '_') . bin2hex(random_bytes(16)) . '.' . $ext;
         if (!move_uploaded_file($f['tmp_name'], $dir . $name)) {
             finfo_close($finfo);
             foreach ($new_paths as $np) { @unlink(__DIR__ . '/../' . $np); }
@@ -113,7 +115,7 @@ $new_val = null;
 if (count($new_paths) === 1) {
     $new_val = $new_paths[0];
 } elseif (count($new_paths) > 1) {
-    $new_val = json_encode($new_paths);
+    $new_val = json_encode($new_paths, JSON_UNESCAPED_SLASHES);
 }
 
 $upd = $conn->prepare("UPDATE utility_readings SET bill_file_path = ? WHERE id = ?");

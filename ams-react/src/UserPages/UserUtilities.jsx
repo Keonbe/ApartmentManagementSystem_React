@@ -4,6 +4,7 @@ import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import { billKind } from '../utils/billFiles';
 import { useLang, dateLocale } from '../config/i18n';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -749,12 +750,10 @@ function TenantBillViewerModal({ reading, onClose }) {
   const isPdf = /\.pdf$/i.test(currentPath);
 
   const getFileLabel = (path, idx) => {
-    const lower = path.toLowerCase();
-    if (lower.includes('electric') || lower.includes('meralco')) return '⚡ Electricity Bill';
-    if (lower.includes('water') || lower.includes('primewater') || lower.includes('maynilad') || lower.includes('manila_water')) return '💧 Water Bill';
-    if (idx === 0) return '⚡ Electricity / Bill 1';
-    if (idx === 1) return '💧 Water / Bill 2';
-    return `Attachment ${idx + 1}`;
+    const kind = billKind(path);
+    if (kind === 'electric') return '⚡ Electricity Bill';
+    if (kind === 'water') return '💧 Water Bill';
+    return `Bill ${idx + 1}`;
   };
 
   return (

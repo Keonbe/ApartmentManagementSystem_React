@@ -98,7 +98,11 @@ if ($owner === null) {
     $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_renewals lr JOIN lease_contracts lc ON lc.id = lr.contract_id JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lr.previous_signed_lease_path IN (?,?) OR lr.previous_notarized_lease_path IN (?,?) LIMIT 1", array_merge($two, $two));
 }
 if ($owner === null) {
-    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM utility_readings WHERE (bill_file_path IN (?,?) OR bill_file_path LIKE CONCAT('%', ?, '%') OR bill_file_path LIKE CONCAT('%', ?, '%')) AND user_id IS NOT NULL LIMIT 1", array_merge($two, $two));
+    // Two or more bills are a JSON array of paths, which older rows hold with
+    // escaped slashes ("uploads\/..."). A reading with no tenant belongs to
+    // nobody (owner 0), so only an admin passes the check below.
+    $quoted = ['"' . $normalized . '"', '"' . str_replace('/', '\\/', $normalized) . '"'];
+    $owner = find_owner($conn, "SELECT COALESCE(user_id, 0) AS owner_id FROM utility_readings WHERE bill_file_path IN (?,?) OR LOCATE(?, bill_file_path) > 0 OR LOCATE(?, bill_file_path) > 0 LIMIT 1", array_merge($two, $quoted));
 }
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT id AS owner_id FROM users WHERE avatar_url IN (?,?) LIMIT 1", $two);
