@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMoneyBillTransfer } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
 import { apiErrorMessage } from '../utils/apiError';
 import { RefundForm, RefundTrail, StatusBadge } from '../Components/RefundParts';
 import ConfirmDialog from '../Components/ConfirmDialog';
@@ -9,6 +10,19 @@ import { TYPE_LABELS, peso, when } from '../utils/refundFormat';
 import { useLang } from '../config/i18n';
 import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 import DepositStatement from '../Components/DepositStatement';
+
+// The receipt or transfer screenshot management attached to a payout.
+// download_file.php serves it to the tenant it was paid to.
+function PayoutProof({ request, t }) {
+  const url = fileUrl(request.payoutProofPath);
+  const isPdf = /\.pdf$/i.test(request.payoutProofPath);
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-[44px] flex-col items-start justify-center gap-1.5 text-sm font-bold text-indigo-700 hover:underline">
+      {!isPdf && <img src={url} alt={t('refunds.proofAlt', { id: request.id })} loading="lazy" className="max-h-48 max-w-full rounded-lg border border-slate-200 bg-slate-50 object-contain" />}
+      <span>{t('refunds.viewProof')}</span>
+    </a>
+  );
+}
 
 export default function UserRefunds() {
   const { t } = useLang();
@@ -130,6 +144,7 @@ export default function UserRefunds() {
               )}
               {r.status === 'Refunded' && <p className="m-0 mt-2 text-sm font-semibold text-emerald-700">{t('refunds.paidOutVia', { method: r.payoutMethod || t('refunds.agreedMethod') })}{r.payoutReference ? ` (${t('refunds.ref', { ref: r.payoutReference })})` : ''}{r.refundedAt ? ` ${t('refunds.on', { date: when(r.refundedAt) })}` : ''}.</p>}
               {r.status === 'Rejected' && <p className="m-0 mt-2 text-sm font-semibold text-rose-700">{r.decisionReason ? t('refunds.reason', { reason: r.decisionReason }) : t('refunds.notApproved')}</p>}
+              {r.status === 'Refunded' && r.payoutProofPath && <PayoutProof request={r} t={t} />}
               <RefundTrail events={r.events} />
 
               {r.status === 'Info Requested' && (

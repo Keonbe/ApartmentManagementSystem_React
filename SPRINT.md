@@ -238,6 +238,7 @@ Project window: 2026-06-30 (first commit) → 2026-11-23. Built from `TASK.md` a
 
 | # | Task | Category | Description | Status | Priority | Start | End |
 |---|------|----------|-------------|--------|----------|-------|-----|
+| 260 | Tenant sees the refund payout proof | Bug fix | Panel comment. My Refunds shows the proof the admin attached (image thumbnail, or a link for a PDF). | Done | Medium | 2026-11-28 | 2026-11-28 |
 | 259 | Household member rent: preview on removal, renewal keeps the room base rate | Bug fix | Panel comment. The rent goes back down when a removal is approved; the Remove confirmation now says so. A renewal with a new rent saved the per-person charge into the room rate, so it doubled or stayed after someone left; Units shows the tenant's rent. A discount at renewal leaves the room rate alone, and both previews use the room rate. Rooms already saved with the charge are not repaired automatically. | Done | High | 2026-11-28 | 2026-11-28 |
 | 258 | Email verification bypass for demo domains | Feature | Outside production, addresses on `EMAIL_VERIFY_BYPASS_DOMAINS` (empty by default) are verified at sign-up or sign-in without an emailed link; every other account still follows Settings. Test in `email_verification_setting.test.js`. | Done | Low | 2026-11-23 | 2026-11-28 |
 | 257 | Admin Payments and header list guards | Bug fix | Deposit summaries and the notification badge no longer assume the response lists are arrays. | Done | Low | 2026-11-23 | 2026-11-23 |

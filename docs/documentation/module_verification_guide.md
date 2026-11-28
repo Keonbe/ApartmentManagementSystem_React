@@ -3162,6 +3162,7 @@ Status: Pending Review → Approved → Refunded; Pending Review ↔ Info Reques
 | **M20-05** | Sec | Tenant cannot decide | Maria calls `update_refund_request.php` | `403` |
 | **M20-06** | Sec | Not the owner | Jose `respond_refund_request.php` on Maria's request | `404` |
 | **M20-07** | Boundary | Reject frees the credits | Reject an advance request | `advance_credits.refund_request_id` is NULL again; a new request can be raised |
+| **M20-08** | Happy | Tenant sees the payout proof | Record a GCash payout with an image; open `/my-refunds` as the tenant | Thumbnail and *View payout proof* open the file |
 
 ### 20.2 Per-Floor Fixed Rent
 
