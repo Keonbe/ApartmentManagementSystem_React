@@ -99,7 +99,10 @@ const monthsBetween = (start, end) => {
   return Math.round((e - s) / (1000 * 60 * 60 * 24 * 30.44));
 };
 
-const openAssignTenant = (unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal) => {
+// What the unit's tenant pays; unit.rent is the room rate, without the per-person charge.
+const tenancyRentOf = (unit) => unit.tenantProfile?.monthlyRent || unit.rent;
+
+const openAssignTenant =(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal) => {
   setSelectedUnit(unit);
   setAssignForm({ ...emptyAssignForm, rent: String(unit.rent) });
   setShowAssignModal(true);
@@ -631,7 +634,7 @@ const AdminUnits = () => {
 
                     {unit.status === 'occupied' || (unit.status === 'reserved' && unit.tenant) ? (
                       <>
-                        <div className="text-label font-bold text-indigo-600 mt-2">{formatCurrency(unit.rent)}/mo</div>
+                        <div className="text-label font-bold text-indigo-600 mt-2">{formatCurrency(tenancyRentOf(unit))}/mo</div>
                         {remaining !== null && (
                           <div className={`text-caption font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-600' : remaining <= 90 ? 'text-amber-700' : 'text-slate-500'}`}>
                             <FontAwesomeIcon icon={faClock} className="text-[9px]" />
@@ -1147,7 +1150,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
                 <h3 className="text-title font-bold text-slate-800 m-0">Unit {unit.id}</h3>
                 <span className={`rounded-full px-2 py-0.5 text-caption font-semibold ring-1 ring-inset ${unitStatePill(unit).cls}`}>{unitStatePill(unit).label}</span>
               </div>
-              <p className="text-label text-slate-500 m-0 mt-0.5">{unit.type} · {floorName(unit.floor)} · {formatCurrency(unit.rent)}/mo</p>
+              <p className="text-label text-slate-500 m-0 mt-0.5">{unit.type} · {floorName(unit.floor)} · {formatCurrency(tenancyRentOf(unit))}/mo</p>
             </div>
           </div>
           <button aria-label="Close" onClick={onClose} className="btn-interactive shrink-0 text-slate-500 hover:text-slate-600 p-1 rounded-control hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
@@ -1269,7 +1272,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
               <dl className="m-0 grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <DetailField icon={faLayerGroup} label="Type" value={unit.type} />
                 <DetailField icon={faStairs} label="Floor" value={floorName(unit.floor)} />
-                <DetailField icon={faPesoSign} label="Monthly rent" value={`${formatCurrency(unit.rent)}`} />
+                <DetailField icon={faPesoSign} label="Monthly rent" value={`${formatCurrency(tenancyRentOf(unit))}`} />
                 <DetailField icon={faClipboardCheck} label="Condition" value={unit.roomCondition || 'Good'} tone={['Poor', 'Needs Repair', 'Under Maintenance'].includes(unit.roomCondition) ? 'amber' : 'emerald'} />
                 <DetailField icon={faCouch} label="Furnishing" value={unit.furnishingStatus || 'Unfurnished'} />
                 <DetailField icon={faCalendarAlt} label="Last inspected" value={unit.lastInspectionDate ? fmtDay(unit.lastInspectionDate) : 'Never'} />
@@ -1487,11 +1490,11 @@ const UnitDetailModal = ({ unit, onClose, onAssign, onRemove, onSetMaintenance, 
                             onKeyDown={blockNonNumericKeys}
                             onChange={e => { setExtendForm({ ...extendForm, newRent: e.target.value }); extendErrors.clearError('newRent'); }}
                             onBlur={() => extendErrors.validateField('newRent', extendForm)}
-                            className={`w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newRent)}`} placeholder={String(unit.rent)} />
+                            className={`w-full px-3 py-2 text-body border border-slate-200 rounded-control outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newRent)}`} placeholder={String(tenancyRentOf(unit))} />
                           <FieldError id="extend-newRent" error={extendErrors.errors.newRent} />
-                          {rentCap && Number(unit.rent) > 0 && Number(unit.rent) <= rentCap.maxCovered && (
+                          {rentCap && Number(tenancyRentOf(unit)) > 0 && Number(tenancyRentOf(unit)) <= rentCap.maxCovered && (
                             <p className="m-0 mt-1 text-caption text-slate-500">
-                              Rent control (RA 9653): at most +{rentCap.percent}% a year for the same tenant, about ₱{(Math.floor(Number(unit.rent) * (1 + rentCap.percent / 100) * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}.
+                              Rent control (RA 9653): at most +{rentCap.percent}% a year for the same tenant, about ₱{(Math.floor(Number(tenancyRentOf(unit)) * (1 + rentCap.percent / 100) * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}.
                             </p>
                           )}
                         </div>

@@ -62,3 +62,32 @@ describe('rent for extra occupants', () => {
     expect(await approveOccupants(5)).toEqual({ occupants: 5, monthly_rent: '5000.00' });
   });
 });
+
+// A renewal's new rent includes the per-person charge; the room rate it leaves
+// behind must not, or the charge stays (or doubles) at the next change.
+describe('after a renewal with a new rent', () => {
+  it('the room keeps the base rate, so the rent drops when someone leaves', async () => {
+    await setSetting('min_lease_duration', 3);
+    await setSetting('max_rent_ahead_months', 12);
+    await q('UPDATE rent_applications SET occupants = 4, monthly_rent = 4000 WHERE id = 1');
+    expect(await approveOccupants(5)).toEqual({ occupants: 5, monthly_rent: '5000.00' });
+    await q("UPDATE lease_contracts SET status = 'active', lease_end = DATE_ADD(CURDATE(), INTERVAL 2 MONTH) WHERE rent_application_id = 1");
+    await q("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = 1 AND status IN ('pending','overdue','unpaid','payment-failed')");
+    const res = await api('admin_extend_rent.php', { token: admin, json: { roomId: 'A', addMonths: 3, newRent: 5000 } });
+    expect(res.status, res.text).toBe(200);
+    expect((await one("SELECT monthly_rent FROM rooms WHERE id = 'A'")).monthly_rent).toBe('4000.00');
+    expect(await approveOccupants(4)).toEqual({ occupants: 4, monthly_rent: '4000.00' });
+  });
+
+  it('a discount at renewal leaves the room rate alone, and My Room is told that rate', async () => {
+    await q('UPDATE rent_applications SET occupants = 4, monthly_rent = 4000 WHERE id = 1');
+    await q("UPDATE rooms SET monthly_rent = 4000 WHERE id = 'A'");
+    expect(await approveOccupants(5)).toEqual({ occupants: 5, monthly_rent: '5000.00' });
+    await q("UPDATE lease_contracts SET status = 'active', lease_end = DATE_ADD(CURDATE(), INTERVAL 2 MONTH) WHERE rent_application_id = 1");
+    await q("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = 1 AND status IN ('pending','overdue','unpaid','payment-failed')");
+    const res = await api('admin_extend_rent.php', { token: admin, json: { roomId: 'A', addMonths: 3, newRent: 4500 } });
+    expect(res.status, res.text).toBe(200);
+    expect((await one("SELECT monthly_rent FROM rooms WHERE id = 'A'")).monthly_rent).toBe('4000.00');
+    expect((await api('household_members.php', { token: tenant })).body.baseRent).toBe(4000);
+  });
+});

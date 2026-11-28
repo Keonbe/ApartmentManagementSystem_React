@@ -124,14 +124,18 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
   // One segment per allowed occupant: named, awaiting approval, free.
   const seats = Array.from({ length: data.maxOccupants }, (_, i) => (i < named ? 'named' : i < named + queued ? 'queued' : 'free'));
   const SEAT = { named: 'bg-indigo-600', queued: 'bg-amber-400', free: 'bg-slate-200' };
-  // What approving one more person does to the rent, as process_tenant_request.php
-  // counts it: a named person fills a place already paid for; past that, the
-  // count rises and every person above the included number adds the charge
-  // (apply_occupant_count(), occupant_surcharge()).
+  // What approving a request does to the rent, as process_tenant_request.php
+  // counts and prices it: the room rate plus the charge for each person above
+  // the included number (apply_occupant_count(), occupant_surcharge()). A named
+  // person fills a place already counted; past that the count rises.
   const countAfter = Math.max(data.occupants, named + queued + 1);
-  const rentRise = occupancyExtra(occupancy, countAfter) - occupancyExtra(occupancy, data.occupants);
+  const rentAt = (n) => (data.baseRent ?? monthlyRent - occupancyExtra(occupancy, data.occupants)) + occupancyExtra(occupancy, n);
+  const rentChange = rentAt(countAfter) - monthlyRent;
   const surchargePerPerson = occupancy.fee;
   const peso = (n) => `₱${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // A removal: one fewer, never below the lease holder plus the members still named.
+  const rentAfterRemoval = rentAt(Math.max(named - 1, data.occupants - 1));
+  const removalChange = rentAfterRemoval - monthlyRent;
 
   return (
     <section aria-labelledby="household-heading" className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 text-left flex flex-col gap-5">
@@ -229,6 +233,13 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
               {confirming && (
                 <div role="group" aria-label={`Confirm for ${m.fullName}`} className="flex flex-col gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 animate-fade-in">
                   <span className="text-sm font-semibold text-slate-800">{m.status === 'Pending' ? 'Withdraw this request?' : 'Ask management to remove them?'}</span>
+                  {m.status === 'Active' && (
+                    <span className="text-sm text-slate-700">
+                      {removalChange !== 0
+                        ? `Your rent goes ${removalChange < 0 ? 'down' : 'up'} by ${peso(Math.abs(removalChange))} to ${peso(rentAfterRemoval)} a month, on the bills issued after management approves.`
+                        : 'Your rent stays the same.'}
+                    </span>
+                  )}
                   <span className="flex flex-wrap gap-2">
                     <button type="button" disabled={busy} onClick={() => requestRemove(m)}
                       className="min-h-[40px] px-3 rounded-lg bg-rose-700 hover:bg-rose-800 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50">
@@ -314,13 +325,13 @@ export default function HouseholdPanel({ data, error, onChanged, addOpen, onAddO
                   />
                 </label>
                 {/* Rent preview for this request, with the real numbers. */}
-                <div className={`sm:col-span-2 rounded-xl border p-3 text-sm ${rentRise > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
-                  <p className={`m-0 font-bold ${rentRise > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
-                    {rentRise > 0 ? `Your rent goes up by ${peso(rentRise)} a month` : 'Your rent stays the same'}
+                <div className={`sm:col-span-2 rounded-xl border p-3 text-sm ${rentChange > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <p className={`m-0 font-bold ${rentChange > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                    {rentChange !== 0 ? `Your rent goes ${rentChange > 0 ? 'up' : 'down'} by ${peso(Math.abs(rentChange))} a month` : 'Your rent stays the same'}
                   </p>
                   <p className="m-0 mt-1 text-slate-700">
-                    {rentRise > 0
-                      ? `This makes ${countAfter} occupants. Up to ${occupancy.included} are included in your rent, and each person above ${occupancy.included} adds ${peso(surchargePerPerson)}. Once management approves, your rent becomes ${peso(monthlyRent + rentRise)} a month on the bills issued after that.`
+                    {rentChange !== 0
+                      ? `This makes ${countAfter} occupants. Up to ${occupancy.included} are included in your rent, and each person above ${occupancy.included} adds ${peso(surchargePerPerson)}. Once management approves, your rent becomes ${peso(rentAt(countAfter))} a month on the bills issued after that.`
                       : countAfter === data.occupants
                         ? `Your room is already registered for ${data.occupants} people, so naming them fills a place you pay for.`
                         : surchargePerPerson > 0

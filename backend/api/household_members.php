@@ -77,9 +77,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 
+    // The room rate apply_occupant_count() adds the per-person charge to, so the
+    // page can say what the rent will be once a request is approved.
+    $stmt = $conn->prepare("SELECT monthly_rent FROM rooms WHERE id = ?");
+    $stmt->bind_param("s", $app['room_name']);
+    $stmt->execute();
+    $room_rate = $stmt->get_result()->fetch_assoc()['monthly_rent'] ?? null;
+    $stmt->close();
+
     echo json_encode([
         "success"       => true,
         "hasLease"      => true,
+        "baseRent"      => $room_rate !== null ? (float)$room_rate : 4000.0,
         "leaseHolder"   => person_name($app),
         "roomName"      => $app['room_name'],
         "occupants"     => (int)$app['occupants'],

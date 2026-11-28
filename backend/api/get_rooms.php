@@ -181,6 +181,8 @@ try {
                     'name' => $tenantFullName, 'userId' => $row['user_id'] !== null ? (int)$row['user_id'] : null,
                     'avatar' => $row['avatar_url'] ?: null, 'email' => $row['tenant_email'] ?: null,
                     'phone' => $row['tenant_phone'] ?: null, 'applicationId' => $appId, 'applicationStatus' => $row['status'],
+                    // What this tenant pays (room rate + per-person charge, or the renewal rent).
+                    'monthlyRent' => (float) $row['monthly_rent'],
                 ];
             }
         }

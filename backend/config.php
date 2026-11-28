@@ -681,7 +681,7 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
         throw new ExtensionRefused("Extensions are 1 to " . MAX_RENT_AHEAD_MONTHS_CEILING . " months.");
     }
 
-    $stmt = $conn->prepare("SELECT id, user_id, room_name, status, requested_move_out_date FROM rent_applications WHERE id = ? FOR UPDATE");
+    $stmt = $conn->prepare("SELECT id, user_id, room_name, status, requested_move_out_date, occupants FROM rent_applications WHERE id = ? FOR UPDATE");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
     $app = $stmt->get_result()->fetch_assoc();
@@ -770,9 +770,17 @@ function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null
     $stmt->close();
 
     // The room mirrors the contract (get_rooms.php and the occupancy views read it).
-    if ($new_rent !== null) {
+    // rooms.monthly_rent is the base rate apply_occupant_count() adds the
+    // per-person charge to, so the charge inside the tenancy rent is taken out
+    // (saving it whole would charge it twice, or keep it after someone leaves).
+    // A lower rent for a tenant paying that charge is their own discount, not a
+    // new rate for the unit: the room keeps its rate.
+    $surcharge = $new_rent !== null ? occupant_surcharge($conn, (int)$app['occupants']) : 0;
+    if ($new_rent !== null && !($surcharge > 0 && $rent_at_renewal < $current_rent)) {
+        $room_rate = round($rent_at_renewal - $surcharge, 2);
+        if ($room_rate <= 0) $room_rate = $rent_at_renewal;
         $stmt = $conn->prepare("UPDATE rooms SET lease_end = ?, monthly_rent = ? WHERE id = ?");
-        $stmt->bind_param("sds", $new_end, $rent_at_renewal, $app['room_name']);
+        $stmt->bind_param("sds", $new_end, $room_rate, $app['room_name']);
     } else {
         $stmt = $conn->prepare("UPDATE rooms SET lease_end = ? WHERE id = ?");
         $stmt->bind_param("ss", $new_end, $app['room_name']);
