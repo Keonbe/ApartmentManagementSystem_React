@@ -222,6 +222,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $legacy_cash_overpayment = count($payments) === 1 && $payments[0]['method'] === 'cash' && $payment_total_cents > $open_total_cents;
     $settlement_splits = $legacy_cash_overpayment ? null : $payments;
+    // One payment: the bill carries the reference the desk confirmed, not the
+    // one typed on the tenant's proof. A blank one keeps what the bill has.
+    if (count($payments) === 1 && $payments[0]['reference_number'] !== null) {
+        $payment_reference = $payments[0]['reference_number'];
+    }
     $result = settle_payment_key($conn, $invoice_id, $payment_method, $payment_reference, $amount_paid, $settlement_splits, (int)$admin_id);
     payment_reference_unlock($conn);
     // A group settles all or nothing, so a failure recorded nothing.

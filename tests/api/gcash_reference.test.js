@@ -76,10 +76,13 @@ describe("a tenant's own provider receipt", () => {
 describe('the desk', () => {
   it('records a spaced GCash reference as its 13 digits', async () => {
     await addInvoice('INV-TEST-GC-DESK', { status: 'pending-verification', amount: 600 });
-    await q("UPDATE invoices SET payment_method = 'GCash (Manual)' WHERE id = 'INV-TEST-GC-DESK'");
+    // The tenant's proof carried a wrong number; the desk records the right one.
+    await q("UPDATE invoices SET payment_method = 'GCash (Manual)', payment_reference = 'GC-OLD' WHERE id = 'INV-TEST-GC-DESK'");
     const res = await api('record_payment_admin.php', { token: admin, json: { invoiceId: 'INV-TEST-GC-DESK', payments: [{ method: 'gcash', amount: 600, reference_number: '9000 222-333444' }] } });
     expect(res.status, res.text).toBe(200);
-    expect((await one("SELECT payment_reference FROM invoices WHERE id = 'INV-TEST-GC-DESK'")).payment_reference).toBe('9000222333444');
+    // On the payment record and on the bill.
+    expect((await one("SELECT reference_number FROM payment_transactions WHERE invoice_id = 'INV-TEST-GC-DESK'")).reference_number).toBe('9000222333444');
+    expect(await one("SELECT status, payment_reference FROM invoices WHERE id = 'INV-TEST-GC-DESK'")).toEqual({ status: 'paid', payment_reference: '9000222333444' });
   });
 });
 
