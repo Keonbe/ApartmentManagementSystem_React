@@ -4,6 +4,25 @@ Shared instructions for every AI tool used on this repo. Claude Code also reads 
 
 React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, Router 7) → plain PHP 8.0 endpoints (`backend/api/*.php`, no framework; `config.php` sets `MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT`, so a failed query throws `mysqli_sql_exception`: in a `try` after `commit()` that makes a saved change look failed) → MariaDB 10.4 `ams_db`, XAMPP Apache :8080. Chat also has a Node Socket.IO sidecar (`websocket-server/server.js`, :3001; frontend URL `VITE_CHAT_SOCKET_URL` in `src/api/env.js`).
 
+## How to work (every task, every agent)
+
+**Never, unless the user asks for that exact thing:** commit, push, `git stash` / `reset` / `checkout --` / `clean`; delete or overwrite work you did not write; change or weaken sign-in, permissions or verification; make code behave differently under `APP_ENV` or `AMS_TEST_MODE` so a change avoids the tests; add a feature or behaviour nobody asked for (if it looks useful, suggest it).
+
+**Before editing**
+- Run `git status`. Uncommitted changes you did not make belong to the user or another agent: say so and leave them. Only one agent edits this working tree at a time.
+- More than a one-file fix: give a plan that opens with a TL;DR and wait for approval. If the request can be read two ways, ask.
+
+**While editing**
+- Read the code before you rely on it: open the definition of every helper, field and API response you use, and check its real type and name (a past change passed an already formatted name string to `personName()`, so dialogs showed a blank name).
+- Every sentence shown to users must be true in the code: no invented policies, timelines, accepted documents or building features. Tenant pages need English and Filipino through `t()` (`config/i18n.js`).
+- Keep existing behaviour you were not asked to change (default sort order, existing confirmations: never stack a second confirm dialog on one).
+
+**Before saying "done"** (all of it, not a sample)
+1. Review your own `git diff` with the checklist under Workflow rules.
+2. Run what applies: frontend `npm run lint`, `npm test`, `npm run build:local`; backend `php -l`, `phpstan`, `cd tests/api && npm test`.
+3. Update the docs and `SPRINT.md` (one row per feature or fix; the row must describe what the code really does).
+4. Report under these headings: **Changed** / **Checked** (each command and its result) / **Not checked** (browser pass, anything skipped or failing) / **Docs**. "Passed" means you ran it and read the output; a build is not proof a screen works.
+
 ## Session start
 1. Read the open rows of `SPRINT.md` (the committed task/progress tracker).
 2. `git status` + `git log --oneline -5`.
