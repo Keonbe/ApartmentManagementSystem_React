@@ -10,7 +10,7 @@ import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';
 import DocumentPreviewModal from '../Components/DocumentPreviewModal';
 import QrPreviewModal from '../Components/QrPreviewModal';
-import { LIMITS, checkPaymentReference, checkText, isBankMethod } from '../utils/validation';
+import { LIMITS, checkPaymentReference, checkText, gcashDigits, isBankMethod } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -221,8 +221,7 @@ export default function PaymentUpload() {
     const handleReferenceChange = (e) => {
         const val = e.target.value;
         if (isGcash) {
-            const numericVal = val.replace(/\D/g, '').slice(0, 13);
-            setReferenceNo(numericVal);
+            setReferenceNo(gcashDigits(val));
         } else {
             setReferenceNo(val);
         }
@@ -468,7 +467,7 @@ export default function PaymentUpload() {
                                 }}
                                 required
                                 inputMode={isGcash ? "numeric" : "text"}
-                                maxLength={isGcash ? 13 : isBankMethod(paymentMethod) ? 55 : LIMITS.paymentReference}
+                                maxLength={isGcash ? undefined : isBankMethod(paymentMethod) ? 55 : LIMITS.paymentReference}
                                 className={INPUT_CLS + invalidCls(form.errors.payment_reference)}
                                 placeholder={isGcash ? t('paymentUpload.refGcashPlaceholder') : t('paymentUpload.refBankPlaceholder')}
                             />

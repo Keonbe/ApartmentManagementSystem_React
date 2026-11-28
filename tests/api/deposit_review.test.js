@@ -156,7 +156,7 @@ describe('answering a review', () => {
     expect((await contract()).deposit_status).toBe('Refund Pending');
     // Once the last open refund is paid, the contract reads Refunded.
     expect((await api('update_refund_request.php', { token: admin, json: { id: refunds[0].id, action: 'approve' } })).status).toBe(200);
-    const paid2 = await api('update_refund_request.php', { token: admin, form: payoutForm(refunds[0].id, { method: 'GCash', reference: 'R-1' }) });
+    const paid2 = await api('update_refund_request.php', { token: admin, form: payoutForm(refunds[0].id, { method: 'GCash', reference: '9000000000001' }) });
     expect(paid2.status).toBe(200);
     expect((await contract()).deposit_status).toBe('Refunded');
     // The admin queue notice for the adjustment says it is ready for payout, not that it needs review.

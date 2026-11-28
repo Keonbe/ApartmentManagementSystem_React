@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useLang } from '../config/i18n';
 import { SPLIT_SCHEDULE_MAX_DAYS, checkSplit, maxForPortion } from '../utils/splitPayment';
-import { addDays, localDateString } from '../utils/validation';
+import { PH_BANKS, addDays, gcashDigits, localDateString } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import FieldError from './form/FieldError';
 import FileChip from './form/FileChip';
 import { invalidCls } from './form/formHelpers';
 
-const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank'];
 const METHOD_LABEL = { cash: 'Cash', gcash: 'GCash', bank_transfer: 'Bank transfer' };
 
 // Portion editor for a split payment: one row per way the tenant is paying.
@@ -62,7 +61,7 @@ export default function SplitPaymentForm({ parts, setParts, total, showErrors, f
                 <label htmlFor={`split-bank-${index}`} className="mb-1 block text-xs font-bold text-slate-700">{t('payBills.sendingBank')}</label>
                 <select id={`split-bank-${index}`} className={inputCls + invalidCls(errors.bank)} value={part.bank_name} onChange={(e) => update(index, { bank_name: e.target.value })}>
                   <option value="">{t('payBills.selectBank')}</option>
-                  {BANKS.map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                  {PH_BANKS.map((bank) => <option key={bank} value={bank}>{bank}</option>)}
                 </select>
                 <FieldError id={`split-bank-${index}`} error={errors.bank} />
               </div>
@@ -73,9 +72,9 @@ export default function SplitPaymentForm({ parts, setParts, total, showErrors, f
                 <div>
                   <label htmlFor={`split-ref-${index}`} className="mb-1 block text-xs font-bold text-slate-700">{t('payBills.refNo')} <span className="text-red-500">*</span></label>
                   <input id={`split-ref-${index}`} type="text" autoComplete="off" value={part.reference_number}
-                    maxLength={gcash ? 13 : 55} inputMode={gcash ? 'numeric' : 'text'}
+                    maxLength={gcash ? undefined : 55} inputMode={gcash ? 'numeric' : 'text'}
                     placeholder={gcash ? '13-digit GCash reference' : 'e.g. BDO-2026-000123'}
-                    onChange={(e) => update(index, { reference_number: gcash ? e.target.value.replace(/\D/g, '') : e.target.value })}
+                    onChange={(e) => update(index, { reference_number: gcash ? gcashDigits(e.target.value) : e.target.value })}
                     className={inputCls + invalidCls(errors.reference)} />
                   <FieldError id={`split-ref-${index}`} error={errors.reference} />
                 </div>

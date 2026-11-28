@@ -118,6 +118,10 @@ if ($via_gateway) {
     // Cash is handed over and signed for; anything else leaves a trace to keep.
     $needs_proof = $method !== 'Cash';
     if ($needs_proof && $reference === '') refund_fail(400, "Enter the payout reference.");
+    if ($method === 'GCash') {
+        $reference = normalize_payment_reference($reference);
+        if (!preg_match('/^\d{13}$/', $reference)) refund_fail(400, "GCash reference numbers must be exactly 13 digits.");
+    }
     if ($reference === '') $reference = null;
 
     // The proof is checked here, before anything is written; the file itself is

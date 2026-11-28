@@ -2572,8 +2572,10 @@ function normalize_payment_portions($payments, $max = 10) {
         if ($method === 'bank_transfer' && !$listed_bank && !$custom_bank) {
             return $fail("Choose a supported originating bank for each bank transfer.");
         }
-        if ($method === 'gcash' && $reference !== '' && !preg_match('/^\d{13}$/', $reference)) {
-            return $fail("GCash reference numbers must be exactly 13 digits.");
+        if ($method === 'gcash' && $reference !== '') {
+            $digits = normalize_payment_reference($reference); // spaces and dashes dropped
+            if (!preg_match('/^\d{13}$/', $digits)) return $fail("GCash reference numbers must be exactly 13 digits.");
+            $reference = $digits;
         }
         if ($method === 'bank_transfer' && $reference !== '' && strlen($reference) > 55) {
             return $fail("Bank references must be 55 characters or fewer.");

@@ -17,7 +17,7 @@ import DepositReviews from '../Components/admin/DepositReviews';
 import askConfirm from '../utils/askConfirm';
 import { fileUrl } from '../api/fileUrl';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
-import { LIMITS } from '../utils/validation';
+import { LIMITS, gcashDigits } from '../utils/validation';
 import Modal from '../Components/admin/Modal';
 import { btn as adminBtn, INPUT, PANEL, PANEL_HEADER, PANEL_TITLE } from '../Components/admin/ui/styles';
 
@@ -435,14 +435,14 @@ export default function AdminRefunds() {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <label className="block text-label font-medium text-slate-600">Payout method
                         <select aria-label={`Payout method for request ${r.id}`} value={payout[r.id]?.method || ''}
-                          onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], method: e.target.value } }))} className={`${INPUT} mt-1`}>
+                          onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], method: e.target.value, reference: '' } }))} className={`${INPUT} mt-1`}>
                           <option value="">Choose a method</option>
                           {PAYOUT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
                         </select>
                       </label>
                       <label className="block text-label font-medium text-slate-600">{payout[r.id]?.method === 'Cash' ? 'Receipt number (optional)' : 'Payout reference'}
-                        <input aria-label={`Payout reference for request ${r.id}`} placeholder={payout[r.id]?.method === 'Cash' ? 'Receipt number' : 'Enter the transfer reference'} maxLength={100} value={payout[r.id]?.reference || ''}
-                          onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], reference: e.target.value } }))} className={`${INPUT} mt-1`} />
+                        <input aria-label={`Payout reference for request ${r.id}`} placeholder={payout[r.id]?.method === 'Cash' ? 'Receipt number' : payout[r.id]?.method === 'GCash' ? '13-digit GCash reference' : 'Enter the transfer reference'} maxLength={payout[r.id]?.method === 'GCash' ? undefined : 100} inputMode={payout[r.id]?.method === 'GCash' ? 'numeric' : 'text'} value={payout[r.id]?.reference || ''}
+                          onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], reference: p[r.id]?.method === 'GCash' ? gcashDigits(e.target.value) : e.target.value } }))} className={`${INPUT} mt-1`} />
                       </label>
                       <div className="sm:col-span-2">
                         <label className="block text-label font-medium text-slate-600">
@@ -472,8 +472,11 @@ export default function AdminRefunds() {
                           </div>
                         )}
                       </div>
+                      {payout[r.id]?.method === 'GCash' && payout[r.id]?.reference && payout[r.id].reference.length !== 13 && (
+                        <p role="alert" className="m-0 text-caption font-semibold text-red-600 sm:col-span-2">GCash reference numbers must be exactly 13 digits.</p>
+                      )}
                       <button type="button"
-                        disabled={busy || !payout[r.id]?.method || (payout[r.id].method !== 'Cash' && (!payout[r.id]?.reference?.trim() || !payout[r.id]?.file))}
+                        disabled={busy || !payout[r.id]?.method || (payout[r.id].method !== 'Cash' && (!payout[r.id]?.reference?.trim() || !payout[r.id]?.file)) || (payout[r.id].method === 'GCash' && payout[r.id].reference.length !== 13)}
                         onClick={() => recordPayout(r)} className={adminBtn('primary', 'sm', 'sm:col-span-2 sm:w-fit')}>Record payout</button>
                     </div>
                   </section>

@@ -32,6 +32,15 @@ if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
 }
 $upload_error = $_FILES['proof']['error'] ?? $_FILES['proofImage']['error'] ?? UPLOAD_ERR_NO_FILE;
 
+// A GCash reference is exactly 13 digits, as in submit_split_payment.php and the
+// desk. Spaces and dashes from a pasted number are dropped before the check.
+$gcash_ref_error = '';
+if (stripos((string)$payment_method, 'gcash') !== false && is_string($payment_reference) && trim($payment_reference) !== '') {
+    $digits = normalize_payment_reference($payment_reference);
+    if (preg_match('/^\d{13}$/', $digits)) $payment_reference = $digits;
+    else $gcash_ref_error = 'GCash reference numbers must be exactly 13 digits.';
+}
+
 // Every field is checked before anything is saved, and all problems are
 // reported together (field names as the PayBills / PaymentUpload forms use).
 $is_bank = preg_match('/bank|bdo|bpi|metrobank|landbank|rcbc|unionbank|security|maya bank/i', (string)$payment_method);
@@ -40,7 +49,7 @@ $errors = array_filter([
     'payment_method' => v_str($payment_method, 'Payment method', 1, 50),
     // The column holds 100 characters; longer would fail the write after the
     // proof file is saved.
-    'payment_reference' => v_str($payment_reference, 'Reference number', 1, 100, false),
+    'payment_reference' => v_str($payment_reference, 'Reference number', 1, 100, false) ?: $gcash_ref_error,
     'sender_name' => v_str($sender_name, 'Sender name', 1, 150, false),
     'bank_name' => $is_bank ? v_enum($bank_name, 'Originating bank', PHILIPPINE_BANKS) : '',
     // A proof without a file would leave the bill "under verification" with
@@ -61,13 +70,23 @@ if (!$is_admin) {
         echo json_encode(["success" => false, "message" => "Payment service is currently disabled by management."]);
         exit;
     }
+    // A receipt for a utility bill the tenant paid to the provider: no money goes
+    // to management, so its payment mode and channel switches do not apply.
+    $provider_receipt = false;
+    if (str_starts_with((string)$payment_method, 'Self-Paid (') && get_setting($conn, 'utility_allow_tenant_self_pay', '1') !== '0') {
+        $q = $conn->prepare("SELECT 1 FROM invoices i JOIN utility_readings ur ON ur.invoice_id = i.id WHERE i.id = ? AND i.user_id = ? AND i.base_rent = 0 LIMIT 1");
+        $q->bind_param("si", $invoice_id, $user_id);
+        $q->execute();
+        $provider_receipt = (bool)$q->get_result()->fetch_assoc();
+        $q->close();
+    }
     $pmode = get_setting($conn, 'payment_mode', 'manual');
-    if ($pmode === 'sandbox') {
+    if (!$provider_receipt && $pmode === 'sandbox') {
         http_response_code(403);
         echo json_encode(["success" => false, "message" => "Manual payment proof upload is currently disabled (Sandbox mode active)."]);
         exit;
     }
-    $method_lower = strtolower((string)$payment_method);
+    $method_lower = $provider_receipt ? '' : strtolower((string)$payment_method);
     if (strpos($method_lower, 'qr') !== false) {
         $ch_val = get_setting($conn, 'payment_ch_qrph_manual', 'true');
         if ($ch_val === 'false' || $ch_val === '0') {

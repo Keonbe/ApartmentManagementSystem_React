@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~3 min, 2,234 tests (116 files; 2026-11-23, all passing)
+npm test           # ~3 min, 2,259 tests (119 files; 2026-11-28, all passing)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -198,6 +198,7 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `demo_seed.test.js` | 8 | `seed_demo_full.sql` / `seed_demo_reset.sql`: the demo set loads on a live-style database, every workflow state shows up through the real endpoints, and the reset removes it |
 | `guest_chat_links.test.js` | 11 | Guest inquiry chat: a repeat inquiry never receives an existing conversation's token, one-time "continue" links (`guest_chat_resume.php`), reply emails throttled to one per unseen batch |
 | `void_payment.test.js` | 13 | `void_payment.php` (SPRINT 182, F-04): admin only, reason 5-220 characters, unknown / unpaid bill refused; a desk payment is voided (bill `pending`, or `overdue` past its due date, payment rows removed, tenant notified, reason / admin / amount in the adjustment history and activity log); a second or simultaneous void changes nothing (409); the bill can be paid again; refused for online, combined, advance, advance-credit and deposit-paid bills, a bill with a refund request, and the move-in bill of a tenant who has moved in |
+| `gcash_reference.test.js` | 8 | A GCash reference is 13 digits: short, long, lettered ones → 422 on `upload_payment_proof.php` (nothing saved), spaced digits stored clean; a short one on a refund payout → 400; a spaced one confirmed at the desk; a provider receipt passes a closed bank channel for a utility bill only |
 | `utility_bill_file.test.js` | 4 | Two bill files open for the tenant and the admin (403 for another tenant), also rows with escaped slashes; a reading with no tenant opens for the admin only; electricity and water files are named by kind |
 | `refund_payout.test.js` | 10 | `update_refund_request.php` payout by hand (SPRINT 182, P-13): method from the fixed list, reference and proof required except for cash, wrong file type refused, proof saved under a random name only when the payout is recorded (no file for a stale or unapproved request), opened by an admin and the tenant paid but not another tenant, JSON still works for cash |
 | `security_hardening.test.js` | 5 | SPRINT 169 / 174 / 82: `nosniff` and a referrer policy on every API response, no frame header on the API, HSTS only over HTTPS and not for a local host; house rule add / edit / reorder / remove, verified email and password reset requests are logged; a new inquiry stores only the sha256 of the guest token. (The sign-in code, trusted-device and lockout changes of SPRINT 172 were taken back 2026-11-19 and are not tested.) |

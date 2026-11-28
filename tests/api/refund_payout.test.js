@@ -42,7 +42,7 @@ describe('the payout method and what it needs', () => {
     expect((await payout(id, { method: 'Carrier pigeon', reference: 'X-1' })).status).toBe(400);
     expect((await payout(id, { method: '', reference: 'X-1' })).status).toBe(400);
     expect((await payout(id, { method: 'GCash', reference: '' })).status).toBe(400);
-    const noProof = await payout(id, { method: 'GCash', reference: 'X-1', proof: null });
+    const noProof = await payout(id, { method: 'GCash', reference: '9000000000900', proof: null });
     expect(noProof.status).toBe(422);
     expect(noProof.body.message).toMatch(/proof/i);
     expect((await row(id)).status).toBe('Approved');
@@ -75,10 +75,10 @@ describe('the payout method and what it needs', () => {
 describe('the proof file', () => {
   it('is stored under a random name, recorded on the request and noted in its trail', async () => {
     const id = await approvedRefund();
-    const res = await payout(id, { method: 'GCash', reference: 'GC-100', message: 'Sent this morning' });
+    const res = await payout(id, { method: 'GCash', reference: '9000 000 000100', message: 'Sent this morning' });
     expect(res.body.success).toBe(true);
     const r = await row(id);
-    expect(r).toMatchObject({ status: 'Refunded', payout_method: 'GCash', payout_reference: 'GC-100' });
+    expect(r).toMatchObject({ status: 'Refunded', payout_method: 'GCash', payout_reference: '9000000000100' });
     expect(r.payout_proof_path).toMatch(/^uploads\/refunds\/payout_[0-9a-f]{32}\.png$/);
     expect(fs.existsSync(path.join(ROOT, 'backend', r.payout_proof_path))).toBe(true);
     const ev = await one("SELECT message FROM refund_request_events WHERE refund_request_id = ? AND action = 'mark_refunded'", [id]);
@@ -111,7 +111,7 @@ describe('the proof file', () => {
   it('an unapproved request cannot be paid out, and no file is kept', async () => {
     const r = await q("INSERT INTO refund_requests (user_id, type, amount, reason, status, raised_by_role) VALUES (?, 'overpayment', 500, 'test', 'Pending Review', 'admin')", [MARIA]);
     const count = files().length;
-    expect((await payout(r.insertId, { method: 'GCash', reference: 'GC-1' })).status).toBe(409);
+    expect((await payout(r.insertId, { method: 'GCash', reference: '9000000000001' })).status).toBe(409);
     expect(files().length).toBe(count);
   });
 

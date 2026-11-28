@@ -3163,6 +3163,7 @@ Status: Pending Review → Approved → Refunded; Pending Review ↔ Info Reques
 | **M20-06** | Sec | Not the owner | Jose `respond_refund_request.php` on Maria's request | `404` |
 | **M20-07** | Boundary | Reject frees the credits | Reject an advance request | `advance_credits.refund_request_id` is NULL again; a new request can be raised |
 | **M20-08** | Happy | Tenant sees the payout proof | Record a GCash payout with an image; open `/my-refunds` as the tenant | Thumbnail and *View payout proof* open the file |
+| **M20-09** | Negative | Short GCash reference | `mark_refunded` with GCash and reference `12345` | `400` "exactly 13 digits"; stays Approved (`gcash_reference.test.js`) |
 
 ### 20.2 Per-Floor Fixed Rent
 
@@ -3187,7 +3188,9 @@ Status: Pending Review → Approved → Refunded; Pending Review ↔ Info Reques
 | **M20-23** | Negative | Bad file | Upload an `.exe` | `422` |
 | **M20-24** | Happy | Proof | Make the reading's invoice `pending`; Maria uploads proof | Invoice `pending-verification`; admin reject shows the reason in `invoice_proof_rejection` |
 | **M20-25** | Happy | Two bill files | Admin attaches water and electricity files; tenant opens both | `200` each; another tenant `403` (`utility_bill_file.test.js`) |
+| **M20-26** | Negative | Short GCash reference on the proof | Utilities → Pay Management → GCash, 12 digits | Refused in the form; the endpoint answers `422` |
 | **M20-27** | Happy | Replace bill files | Admin → Utilities → View Bill → *Replace Bill Files*, pick two files | Both replace the old ones |
+| **M20-28** | Boundary | Channels off | Turn manual GCash and bank off; tenant opens *Pay Admin Separately* | Neither is listed; a provider receipt still uploads |
 
 ### 20.4 Other Utility Types and Vacant-Unit Block
 

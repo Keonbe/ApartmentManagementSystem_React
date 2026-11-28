@@ -186,13 +186,19 @@ export const checkAmount = (value, { min = 0, max = MAX_AMOUNT, label = t('valid
 // invoices.payment_reference.
 // A bank transfer, whatever the bank: 'BDO', 'BPI (Manual)', 'Bank Transfer'…
 export const isBankMethod = (method = '') => /bank|bdo|bpi/i.test(String(method));
+// Sending banks a tenant can pick (all are in config.php PHILIPPINE_BANKS).
+export const PH_BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank'];
+// What a GCash reference input keeps: digits only, 13 at most. Pasted spaces
+// are removed first, so no maxLength on the input (it would cut digits off).
+export const gcashDigits = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 13);
 
 export const checkPaymentReference = (reference, method = '') => {
   const ref = String(reference ?? '').trim();
   const m = String(method).toLowerCase();
   if (!ref) return t('validation.refRequired');
   if (m.includes('gcash')) {
-    return /^\d{13}$/.test(ref) ? '' : t('validation.refGcash');
+    // Spaces and dashes are dropped by the server too (older proofs hold them).
+    return /^\d{13}$/.test(ref.replace(/[\s-]/g, '')) ? '' : t('validation.refGcash');
   }
   if (isBankMethod(m)) {
     if (ref.length > 55) return t('validation.refBank');

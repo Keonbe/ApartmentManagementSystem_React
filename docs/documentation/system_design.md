@@ -725,7 +725,7 @@ Stored in `sessionStorage` under key `loggedInUser`, together with `sessionToken
 | FR-5.7 | The system shall display payment history with receipt viewer, including payment method, reference number, and proof of payment. | ✅ |
 | FR-5.8 | The system shall track outstanding balances per tenant with aging analysis (current, 1–15 days, 16–30 days, 60+ days). | ✅ |
 | FR-5.9 | The system shall track security deposit status with deductions (fixture damage, unpaid utilities) and applied-to-rent calculations. | ✅ |
-| FR-5.10 | The system shall validate GCash reference numbers (exactly 13 digits) and Bank Transfer references (max 55 characters, not purely numeric). | ✅ |
+| FR-5.10 | The system shall validate GCash reference numbers (exactly 13 digits) and Bank Transfer references (max 55 characters). | ✅ |
 | FR-5.11 | The system shall auto-mark invoices as `overdue` when the `due_date` passes. | 🔲 |
 | FR-5.12 | The system shall cross-reference uploaded proof with payment reference number for admin verification. | 🔲 |
 

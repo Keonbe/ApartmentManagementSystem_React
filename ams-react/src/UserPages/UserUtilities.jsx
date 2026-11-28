@@ -5,6 +5,7 @@ import fileUrl from '../api/fileUrl';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import { billKind } from '../utils/billFiles';
+import { PH_BANKS, checkPaymentReference, gcashDigits, isBankMethod } from '../utils/validation';
 import { useLang, dateLocale } from '../config/i18n';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -28,6 +29,15 @@ function readingTotal(r) {
   return money(r.water_amount) + money(r.water_other_fees) + money(r.electric_amount) + money(r.electric_other_fees) + items;
 }
 
+// Ways to pay management for a utility bill, limited to the channels it has
+// switched on (get_payment_channels.php).
+const ADMIN_METHODS = [
+  { value: 'GCash', label: 'GCash', offered: (c) => c.id === 'gcash_manual' },
+  { value: 'Maya', label: 'Maya', offered: (c) => c.family === 'manual' },
+  { value: 'Bank Transfer', label: 'Bank Transfer', offered: (c) => c.id === 'bdo_manual' || c.id === 'bpi_manual' },
+  { value: 'Cash at Office', label: 'Cash (Settled at Office)', offered: (c) => c.id === 'in_person' },
+];
+
 export default function UserUtilities() {
   const navigate = useNavigate();
   const { t, lang } = useLang();
@@ -36,6 +46,16 @@ export default function UserUtilities() {
   const [error, setError] = useState(null);
   const [allowTenantSelfPay, setAllowTenantSelfPay] = useState(true);
   const [viewingBillReading, setViewingBillReading] = useState(null);
+  // Until the channels are read (or if that fails) all are listed; the server still refuses a closed one.
+  const [adminMethods, setAdminMethods] = useState(ADMIN_METHODS);
+
+  useEffect(() => {
+    api.get('/get_payment_channels.php')
+      .then((res) => {
+        if (res.data?.success) setAdminMethods(ADMIN_METHODS.filter((m) => (res.data.channels || []).some(m.offered)));
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchReadings = useCallback(async () => {
     try {
@@ -372,7 +392,7 @@ export default function UserUtilities() {
                     </div>
                   )}
 
-                  <ReadingPayment r={r} onChanged={fetchReadings} onViewBill={() => setViewingBillReading(r)} allowTenantSelfPay={allowTenantSelfPay} />
+                  <ReadingPayment r={r} onChanged={fetchReadings} onViewBill={() => setViewingBillReading(r)} allowTenantSelfPay={allowTenantSelfPay} adminMethods={adminMethods} />
 
                   {/* Notes Footer */}
                   {r.notes && (
@@ -407,7 +427,7 @@ export default function UserUtilities() {
 // For open standalone utility bills, tenant can:
 // 1. Pay Together with Rent (merges into their open monthly rent invoice)
 // 2. Pay Separately (pay online via Pay Bills or upload offline payment proof)
-function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true }) {
+function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true, adminMethods = ADMIN_METHODS }) {
   const { t } = useLang();
   const navigate = useNavigate();
   const [openProofForm, setOpenProofForm] = useState(false);
@@ -415,6 +435,9 @@ function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true })
   const [merging, setMerging] = useState(false);
   const [method, setMethod] = useState('Self-Paid (Provider Direct)');
   const [reference, setReference] = useState('');
+  const [bankName, setBankName] = useState('');
+  const isGcash = method === 'GCash';
+  const needsBank = isBankMethod(method);
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -449,11 +472,16 @@ function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true })
     e.preventDefault();
     const fileError = file ? checkFile(file, FILE_RULES.paymentProof) : 'Please upload a receipt or screenshot of your payment.';
     if (fileError) { setMsg({ ok: false, text: fileError }); return; }
+    if (needsBank && !bankName) { setMsg({ ok: false, text: 'Please choose the bank you paid from.' }); return; }
     if (!reference.trim()) { setMsg({ ok: false, text: 'Please enter a valid reference or official receipt (OR) number.' }); return; }
+    // Re-checked here: the method can be changed after the number was typed.
+    const refError = isGcash || needsBank ? checkPaymentReference(reference, method) : '';
+    if (refError) { setMsg({ ok: false, text: refError }); return; }
     const fd = new FormData();
     fd.append('invoice_id', r.invoice_id);
     fd.append('payment_reference', reference.trim());
     fd.append('payment_method', method);
+    if (needsBank) fd.append('bank_name', bankName);
     fd.append('proof', file);
     setBusy(true);
     setMsg(null);
@@ -544,11 +572,11 @@ function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true })
                 </button>
 
                 {/* Choice 3: Pay Admin Separately */}
-                <button
+                {adminMethods.length > 0 && <button
                   type="button"
                   onClick={() => {
                     setPayMode('admin');
-                    setMethod('GCash');
+                    setMethod(adminMethods[0].value);
                     setOpenProofForm(true);
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-300 transition-colors cursor-pointer"
@@ -556,7 +584,7 @@ function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true })
                 >
                   <FontAwesomeIcon icon={faUpload} className="text-xs" />
                   <span>Pay Admin Separately</span>
-                </button>
+                </button>}
               </div>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">
@@ -614,19 +642,19 @@ function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true })
               >
                 Paid Provider
               </button>
-              <button
+              {adminMethods.length > 0 && <button
                 type="button"
-                onClick={() => { setPayMode('admin'); setMethod('GCash'); }}
+                onClick={() => { setPayMode('admin'); setMethod(adminMethods[0].value); }}
                 className={`px-2.5 py-1 rounded text-xs font-semibold transition-all cursor-pointer border-0 ${
                   payMode === 'admin' ? 'bg-white text-indigo-700 shadow-2xs' : 'bg-transparent text-slate-600'
                 }`}
               >
                 Pay Management
-              </button>
+              </button>}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <div className={`grid grid-cols-1 gap-2.5 ${needsBank ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">
                 {payMode === 'provider' ? 'Provider / Channel' : 'Payment Method'}
@@ -646,15 +674,25 @@ function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true })
                     <option value="Self-Paid (Online Banking)">Online Banking Bills Pay</option>
                   </>
                 ) : (
-                  <>
-                    <option value="GCash">GCash</option>
-                    <option value="Maya">Maya</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cash at Office">Cash (Settled at Office)</option>
-                  </>
+                  adminMethods.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)
                 )}
               </select>
             </div>
+
+            {needsBank && (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">Sending Bank</label>
+                <select
+                  aria-label="Sending Bank"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500"
+                >
+                  <option value="">Select bank</option>
+                  {[...PH_BANKS, 'Other'].map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">
@@ -663,9 +701,10 @@ function ReadingPayment({ r, onChanged, onViewBill, allowTenantSelfPay = true })
               <input
                 aria-label="Reference Number"
                 value={reference}
-                maxLength={100}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder={payMode === 'provider' ? 'e.g. Meralco OR / 10-digit ref' : 'e.g. GCash / Bank ref no.'}
+                inputMode={isGcash ? 'numeric' : 'text'}
+                maxLength={isGcash ? undefined : needsBank ? 55 : 100}
+                onChange={(e) => setReference(isGcash ? gcashDigits(e.target.value) : e.target.value)}
+                placeholder={isGcash ? '13-digit GCash reference' : payMode === 'provider' ? 'e.g. Meralco OR / 10-digit ref' : 'e.g. Bank ref no.'}
                 className="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800 outline-none focus:border-indigo-500"
               />
             </div>
