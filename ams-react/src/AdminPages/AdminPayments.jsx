@@ -802,15 +802,16 @@ const AdminPayments = () => {
   );
 
   // Security Deposit Tracking summaries (Non-refundable)
-  const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
+  const contractList = Array.isArray(contracts) ? contracts : [];
+  const totalDepositsHeld = contractList.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
   // Refundable contracts: what is returned (or on its way) and what is withheld.
-  const totalDepositRefunds = contracts.filter(c => ['Refund Pending', 'Refunded'].includes(c.deposit_status)).reduce((sum, c) => sum + parseFloat(c.refund_amount || 0), 0);
-  const totalDepositForfeited = contracts.reduce((sum, c) => sum + (Array.isArray(c.deposit_items) ? c.deposit_items : []).filter(i => i.category === 'forfeiture').reduce((a, i) => a + parseFloat(i.amount || 0), 0), 0);
-  const totalDepositDeductions = contracts.reduce((sum, c) => sum + parseFloat(c.damage_deduction || 0) + parseFloat(c.utility_deduction || 0), 0);
+  const totalDepositRefunds = contractList.filter(c => ['Refund Pending', 'Refunded'].includes(c.deposit_status)).reduce((sum, c) => sum + parseFloat(c.refund_amount || 0), 0);
+  const totalDepositForfeited = contractList.reduce((sum, c) => sum + (Array.isArray(c.deposit_items) ? c.deposit_items : []).filter(i => i.category === 'forfeiture').reduce((a, i) => a + parseFloat(i.amount || 0), 0), 0);
+  const totalDepositDeductions = contractList.reduce((sum, c) => sum + parseFloat(c.damage_deduction || 0) + parseFloat(c.utility_deduction || 0), 0);
   // A deposit is applied once move-out or termination records its disposition
   // (deposit_status 'Applied to …'); 'Pending' means it was never paid.
   const depositApplied = (c) => String(c.deposit_status || '').startsWith('Applied');
-  const totalAppliedToRent = contracts.filter(depositApplied).reduce((sum, c) => {
+  const totalAppliedToRent = contractList.filter(depositApplied).reduce((sum, c) => {
     const dep = parseFloat(c.deposit_amount || 0);
     const dmg = parseFloat(c.damage_deduction || 0);
     const utl = parseFloat(c.utility_deduction || 0);
@@ -850,7 +851,7 @@ const AdminPayments = () => {
   ];
   const visibleContracts = (() => {
     const term = depositSearch.trim().toLowerCase();
-    const rows = contracts.map((c) => ({ c, d: depositRowData(c), end: c.leaseEnd || c.lease_end || '' }));
+    const rows = contractList.map((c) => ({ c, d: depositRowData(c), end: c.leaseEnd || c.lease_end || '' }));
     const kept = rows.filter(({ c, d }) => {
       if (term && !`${d.tenantName} ${d.unit}`.toLowerCase().includes(term)) return false;
       if (depositFilter === 'all') return true;
@@ -2213,7 +2214,7 @@ const handleMarkAsPaid = async () => {
                       {DEPOSIT_SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                   </div>
-                  <span className="text-caption text-slate-500 font-semibold sm:ml-auto whitespace-nowrap">{visibleContracts.length} of {contracts.length}</span>
+                  <span className="text-caption text-slate-500 font-semibold sm:ml-auto whitespace-nowrap">{visibleContracts.length} of {contractList.length}</span>
                 </div>
 
                 {/* Detailed Deposits Table */}
@@ -2256,7 +2257,7 @@ const handleMarkAsPaid = async () => {
                       }) : (
                         depositsState.isLoading ? <SkeletonRows cols={10} rows={5} label="Loading deposits…" />
                         : depositsState.isError ? <LoadErrorRow cols={10} title="Couldn't load deposits" onRetry={fetchContracts} />
-                        : <tr><td colSpan="10" className="py-6 text-center text-slate-500">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
+                        : <tr><td colSpan="10" className="py-6 text-center text-slate-500">{contractList.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -2300,7 +2301,7 @@ const handleMarkAsPaid = async () => {
                   }) : (
                     depositsState.isLoading ? <SkeletonList rows={4} label="Loading deposits…" />
                     : depositsState.isError ? <LoadError title="Couldn't load deposits" onRetry={fetchContracts} />
-                    : <div className="py-6 text-center text-slate-500 text-body">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</div>
+                    : <div className="py-6 text-center text-slate-500 text-body">{contractList.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</div>
                   )}
                 </div>
             </div>

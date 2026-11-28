@@ -59,7 +59,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     try {
       const response = await api.get('get_notifications.php');
       if (response.data.success) {
-        setNotifications(response.data.notifications);
+        setNotifications(response.data.notifications || []);
       }
     } catch (err) {
       console.error(err);
@@ -205,7 +205,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     navigate(path);
   };
 
-  const unreadCount = notifications.filter(n => !Number(n.is_read)).length;
+  const unreadCount = (notifications || []).filter(n => !Number(n.is_read)).length;
 
   return (
     <>
