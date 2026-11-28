@@ -237,6 +237,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 | [x] | Two-way chat (PR #8, 2026-09-22/24): Socket.IO sidecar `websocket-server/` with HTTP polling fallback, flat `messages` table, `get_chat_history` / `send_message` / `get_conversations` / `get_admin_user`, `ChatWidget` + `ChatContext`, admin inbox `/admin-messages`. Checklist 7.2–7.5 ✅; gaps in the Urgent row | [chat_design As built](../features/chat_design.md) |
 | [x] | Announcements (2026-09-24): unit picker, drafts that notify nobody, SMS/email channels honoured (`create_announcement.php`) | [Checklist 6.5](../features/panelist_feature_checklist.md) |
 | [x] | SMS/email pipeline (2026-09-22/24): dispatcher + queue wired into the admin endpoints; live Semaphore driver (the only SMS provider) following Semaphore's API rules | [sms_email_implementation.md](../features/sms_email_implementation.md) |
+| [x] | Usability enhancements (ISO 25010, 2026-11-28): application guide and progress stepper, breadcrumbs, form modals that keep typed input, sortable Contracts and Applications tables, confirmation prompts | `SPRINT.md` row 256 |
 | [x] | Admin settings split into side tabs (`AdminPages/settings/*`, 2026-09-24) | `7919567` |
 | [x] | Room showcase images: admin upload/delete, public preview gallery (`upload_room_images.php`, `rooms.gallery`) | `e3169ef` |
 | [x] | Animation system and mobile polish across user and admin pages | `1fccee6`…`391a754` |

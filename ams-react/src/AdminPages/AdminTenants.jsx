@@ -93,7 +93,7 @@ const AdminTenants = () => {
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   // The column headers and the mobile selects drive the same ?sort= / ?dir= state.
-  const { sortKey: sortBy, sortDir: sortOrder, toggle: toggleSort, setSortKey: setSortBy, setSortDir: setSortOrder } = useSort(['name', 'unit']);
+  const { sortKey: sortBy, sortDir: sortOrder, toggle: toggleSort, setSort } = useSort(['name', 'unit']);
 
   const [invoices, setInvoices] = useState([]);
   const [maintenanceRequests, setMaintenanceRequests] = useState([]);
@@ -435,6 +435,13 @@ const AdminTenants = () => {
   };
 
   const handleRestoreTenant = async (id) => {
+    const target = (archivedTenants || []).find(t => t.id === id);
+    const name = target?.name || 'this tenant';
+    if (!(await askConfirm(`Restore ${name}? This will reactivate the tenant's profile and tenancy history.`, {
+      title: 'Restore Tenant',
+      confirmLabel: 'Restore',
+      tone: 'primary',
+    }))) return;
     try {
       const res = await api.post('/restore_tenant.php', { id });
       if (res.data.success) {
@@ -903,7 +910,7 @@ const AdminTenants = () => {
                   <select
                     aria-label="Sort tenants"
                     value={sortValue}
-                    onChange={e => { const [by, order] = e.target.value.split('-'); setSortBy(by); setSortOrder(order); }}
+                    onChange={e => { const [by, order] = e.target.value.split('-'); setSort(by, order); }}
                     className="h-9 px-3 text-label font-medium border border-slate-300 rounded-control outline-none bg-white text-slate-700 focus:border-indigo-500 cursor-pointer"
                   >
                     {SORTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

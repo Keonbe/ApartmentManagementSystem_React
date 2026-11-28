@@ -1,6 +1,6 @@
 import { readStoredUser } from '../utils/readStoredUser';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X } from 'lucide-react';
+import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X, ChevronDown, ChevronUp, HelpCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import SuccessModal from '../Components/SuccessModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -24,6 +24,7 @@ import { occupancyFrom, occupancyExtra, occupancyRuleText } from '../utils/occup
 import '../assets/styles/responsive/user/rent-application.responsive.css';
 import { Bone, SkeletonGroup } from '../Components/tenant/Skeleton';
 import LegalModal from '../Components/LegalModal';
+import Breadcrumb from '../Components/Breadcrumb';
 
 const GENDERS = ['Male', 'Female', 'Other'];
 const MAX_MONTHS = 24;
@@ -350,6 +351,9 @@ export default function RentApplication() {
     const [showTermsModal, setShowTermsModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+    const [showGuide, setShowGuide] = useState(true);
+    const [showTipsFaq, setShowTipsFaq] = useState(false);
+
     const isPendingReview = ['pending', 'pending review'].includes(applicationStatus?.toLowerCase());
     const isReadOnly = isPendingReview || applicationStatus === 'accepted';
     // An application still in progress, or a current tenancy: the same statuses
@@ -357,6 +361,37 @@ export default function RentApplication() {
     const hasActiveApplication = ['pending', 'pending review', 'approved', 'action required', 'pending deposit', 'active', 'pending-move-out']
         .includes(applicationStatus?.toLowerCase()) && !editApp;
     const isTenant = ['active', 'pending-move-out'].includes(applicationStatus?.toLowerCase());
+
+    // Live progress stepper completion states
+    const isStep1Done = Boolean(
+        String(firstName || '').trim() &&
+        String(lastName || '').trim() &&
+        String(phoneRawNumber || '').trim() &&
+        String(email || '').trim() &&
+        gender &&
+        String(emergencyName || '').trim() &&
+        emergencyRelationship &&
+        String(emergencyPhone || '').trim()
+    );
+    const isStep2Done = Boolean(
+        String(previousAddress || '').trim() &&
+        occupants &&
+        Number(monthsOfRent) >= minMonths &&
+        (isASAP || prefMoveInDate) &&
+        selectedRoomId
+    );
+    const isStep3Done = Boolean(
+        requirementsState === 'ready' &&
+        (requirements.length === 0 || requirements.every(r => !r.is_required || docFiles[r.id]?.file || onFile[r.id]?.file_path))
+    );
+    const isStep4Done = Boolean(agreePrivacy && agreeRules);
+
+    const scrollToSection = (sectionId) => {
+        const el = document.getElementById(sectionId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
 
     // Save the unsent form as the applicant types.
     useEffect(() => {
@@ -600,6 +635,14 @@ export default function RentApplication() {
         <div className="rent-app-root w-full min-h-[calc(100vh-76px)] bg-slate-50/70 py-8 md:py-12 px-4 sm:px-6 lg:px-10 box-border flex flex-col items-center">
             <div className="w-full max-w-5xl xl:max-w-6xl space-y-8 flex flex-col justify-start text-left">
 
+                <Breadcrumb
+                    items={[
+                        { label: t('rent.crumbHome'), to: '/home', icon: 'home' },
+                        { label: t('rent.crumbRooms'), to: '/preview' },
+                        { label: isEditing ? t('rent.crumbEdit') : t('rent.heading') }
+                    ]}
+                />
+
                 <div className="rent-app-header-row pb-5 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="rent-app-heading text-3xl sm:text-4xl font-sans font-black m-0 tracking-tight select-none text-slate-900">
@@ -620,6 +663,207 @@ export default function RentApplication() {
                         </div>
                     )}
                 </div>
+
+                {/* Onboarding Guide Card (Collapsible) */}
+                {!hasActiveApplication && (
+                    <div className="bg-gradient-to-br from-indigo-50/80 via-white to-slate-50 border border-indigo-100 rounded-3xl p-6 shadow-sm space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
+                                    <Sparkles className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-900 m-0">{t('rent.guideTitle')}</h2>
+                                    <p className="text-xs text-slate-500 font-medium m-0">{t('rent.guideSubtitle')}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTipsFaq(prev => !prev)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-200 shadow-2xs transition-all cursor-pointer"
+                                >
+                                    <HelpCircle className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>{t(showTipsFaq ? 'rent.guideHideNotes' : 'rent.guideShowNotes')}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowGuide(prev => !prev)}
+                                    className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                                >
+                                    <span>{t(showGuide ? 'rent.guideHide' : 'rent.guideShow')}</span>
+                                    {showGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
+                            </div>
+                        </div>
+
+                        {showGuide && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                                <div className="bg-white/80 backdrop-blur-xs border border-indigo-100/60 rounded-2xl p-4 space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">1</span>
+                                        <h3 className="text-sm font-bold text-slate-900 m-0">{t('rent.step1Title')}</h3>
+                                    </div>
+                                    <p className="text-xs text-slate-500 m-0 leading-relaxed">
+                                        {t('rent.step1Text')}
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/80 backdrop-blur-xs border border-indigo-100/60 rounded-2xl p-4 space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">2</span>
+                                        <h3 className="text-sm font-bold text-slate-900 m-0">{t('rent.step2Title')}</h3>
+                                    </div>
+                                    <p className="text-xs text-slate-500 m-0 leading-relaxed">
+                                        {t('rent.step2Text')}
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/80 backdrop-blur-xs border border-indigo-100/60 rounded-2xl p-4 space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">3</span>
+                                        <h3 className="text-sm font-bold text-slate-900 m-0">{t('rent.step3Title')}</h3>
+                                    </div>
+                                    <p className="text-xs text-slate-500 m-0 leading-relaxed">
+                                        {t('rent.step3Text')}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {showTipsFaq && (
+                            <div className="bg-white rounded-2xl border border-indigo-100 p-4 space-y-3 text-xs text-slate-600 animate-fade-in">
+                                <h4 className="font-bold text-indigo-950 flex items-center gap-1.5 m-0 text-sm">
+                                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                                    {t('rent.notesTitle')}
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <strong className="block text-slate-800 mb-1">{t('rent.noteDocsTitle')}</strong>
+                                        {t('rent.noteDocsText')}
+                                    </div>
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <strong className="block text-slate-800 mb-1">{t('rent.noteRulesTitle')}</strong>
+                                        {t('rent.noteRulesText')}
+                                    </div>
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <strong className="block text-slate-800 mb-1">{t('rent.notePayTitle')}</strong>
+                                        {t('rent.notePayText')}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* 4-Step Progress Stepper */}
+                {!hasActiveApplication && (
+                    <nav aria-label={t('rent.progressLabel')} className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-sm space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-500">{t('rent.progressLabel')}</span>
+                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                                {t('rent.progressCount').replace('{done}', [isStep1Done, isStep2Done, isStep3Done, isStep4Done].filter(Boolean).length)}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+                            <button
+                                type="button"
+                                onClick={() => scrollToSection('section-personal')}
+                                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                    isStep1Done
+                                        ? 'bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50'
+                                        : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/70'
+                                }`}
+                            >
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-colors ${
+                                    isStep1Done
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-indigo-600 text-white'
+                                }`}>
+                                    {isStep1Done ? <Check className="w-4 h-4 stroke-[3]" /> : '1'}
+                                </span>
+                                <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-800 truncate">{t('rent.progressPersonal')}</div>
+                                    <div className={`text-[11px] font-medium truncate ${isStep1Done ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                        {isStep1Done ? t('rent.progressDone') : t('rent.progressStep').replace('{n}', 1)}
+                                    </div>
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => scrollToSection('section-room-terms')}
+                                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                    isStep2Done
+                                        ? 'bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50'
+                                        : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/70'
+                                }`}
+                            >
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-colors ${
+                                    isStep2Done
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                    {isStep2Done ? <Check className="w-4 h-4 stroke-[3]" /> : '2'}
+                                </span>
+                                <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-800 truncate">{t('rent.progressRoom')}</div>
+                                    <div className={`text-[11px] font-medium truncate ${isStep2Done ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                        {isStep2Done ? t('rent.progressDone') : t('rent.progressStep').replace('{n}', 2)}
+                                    </div>
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => scrollToSection('section-docs')}
+                                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                    isStep3Done
+                                        ? 'bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50'
+                                        : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/70'
+                                }`}
+                            >
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-colors ${
+                                    isStep3Done
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                    {isStep3Done ? <Check className="w-4 h-4 stroke-[3]" /> : '3'}
+                                </span>
+                                <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-800 truncate">{t('rent.progressDocs')}</div>
+                                    <div className={`text-[11px] font-medium truncate ${isStep3Done ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                        {isStep3Done ? t('rent.progressDone') : t('rent.progressStep').replace('{n}', 3)}
+                                    </div>
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => scrollToSection('section-terms')}
+                                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                    isStep4Done
+                                        ? 'bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50'
+                                        : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/70'
+                                }`}
+                            >
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-colors ${
+                                    isStep4Done
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                    {isStep4Done ? <Check className="w-4 h-4 stroke-[3]" /> : '4'}
+                                </span>
+                                <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-800 truncate">{t('rent.progressAgree')}</div>
+                                    <div className={`text-[11px] font-medium truncate ${isStep4Done ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                        {isStep4Done ? t('rent.progressAgreed') : t('rent.progressStep').replace('{n}', 4)}
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    </nav>
+                )}
 
                 {hasActiveApplication ? (
                     isTenant ? (
@@ -661,7 +905,7 @@ export default function RentApplication() {
                     <form className="rent-app-form-card bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-900/[0.03] p-6 sm:p-8 md:p-10 space-y-10" onSubmit={handleFormSubmit} noValidate>
 
                         {/* Section 1: Personal Details */}
-                        <div className="space-y-6">
+                        <div id="section-personal" className="space-y-6 scroll-mt-6">
                             <div className="border-b border-slate-100 pb-3">
                                 <h3 className="text-xl font-black m-0 text-slate-900">{t('rent.personalDetails')}</h3>
                                 <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Applicant contact and identity details on file</p>
@@ -761,8 +1005,10 @@ export default function RentApplication() {
                             </div>
                         </div>
 
-                        {/* Section 2: Rental Preferences & Move-in Details */}
-                        <div className="space-y-6">
+                        {/* Section 2 & 3: Room Preferences and Details */}
+                        <div id="section-room-terms" className="space-y-10 scroll-mt-6">
+                            {/* Section 2: Rental Preferences & Move-in Details */}
+                            <div className="space-y-6">
                             <div className="border-b border-slate-100 pb-3">
                                 <h3 className="text-xl font-black m-0 text-slate-900">Rental Preferences</h3>
                                 <p className="text-slate-500 text-xs mt-1 m-0 font-medium">Specify your residential history, move-in target, and rent terms</p>
@@ -1018,9 +1264,10 @@ export default function RentApplication() {
                                 </div>
                             </div>
                         </div>
+                        </div>
 
                         {/* Section 4: Verification Documents */}
-                        <div className="space-y-6">
+                        <div id="section-docs" className="space-y-6 scroll-mt-6">
                             <div className="border-b border-slate-100 pb-3">
                                 <h3 className="text-xl font-black m-0 text-slate-900">{t('rent.verificationDocs')}</h3>
                                 <p className="text-slate-500 text-xs mt-1.5 m-0 font-semibold">{t('rent.acceptedFormats')}</p>
@@ -1070,7 +1317,7 @@ export default function RentApplication() {
                             )}
                         </div>
 
-                        <div className="pt-8 border-t border-slate-200 flex flex-col items-center gap-4">
+                        <div id="section-terms" className="pt-8 border-t border-slate-200 flex flex-col items-center gap-4 scroll-mt-6">
                             {/* Messages that belong to no single field (was a popup). */}
                             <InlineAlert className="w-full" onDismiss={() => setNotice('')}>{notice}</InlineAlert>
                             <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">

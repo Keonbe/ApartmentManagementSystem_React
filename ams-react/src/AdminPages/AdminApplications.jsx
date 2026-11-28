@@ -24,6 +24,8 @@ import { TH, btn } from '../Components/admin/ui/styles';
 import { SkeletonList } from '../Components/admin/ui/Skeleton';
 import LoadError from '../Components/admin/ui/LoadError';
 import SignedContractReview from '../Components/admin/SignedContractReview';
+import useSort, { sortRows } from '../hooks/useSort';
+import SortableTh from '../Components/admin/ui/SortableTh';
 
 const STATUS_OPTIONS = [
   { 
@@ -119,9 +121,18 @@ const applicationDateRangeForPreset = (preset, now = new Date()) => {
   return { from: localApplicationDate(from), to: localApplicationDate(today) };
 };
 
+const APP_SORT = {
+  name: (a) => a.name || '',
+  unit: (a) => a.unit || a.room_name || '',
+  moveIn: (a) => a.preferred_move_in_date || '',
+  applied: (a) => a.created_at || '',
+  status: (a) => a.status || '',
+};
+
 const AdminApplications = () => {
   const [applications, setApplications] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const { sortKey: sortBy, sortDir: sortOrder, toggle: toggleSort, setSortKey: setSortBy } = useSort(['group', 'name', 'unit', 'moveIn', 'applied', 'status']);
   const [selectedApp, setSelectedApp] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -349,6 +360,8 @@ const AdminApplications = () => {
   };
 
   const updateSortOrder = (categoryId, value) => {
+    // Picking a date order leaves the column sort.
+    if (sortBy !== 'group') setSortBy('group');
     setSortOrderByStatus((previous) => {
       const next = { ...previous, [categoryId]: value };
       localStorage.setItem('ams_application_sort_order', JSON.stringify(next));
@@ -526,6 +539,9 @@ const AdminApplications = () => {
     return matchesSearch && matchesStatus;
   });
 
+  // A clicked column header sorts the rows inside each group (table view only);
+  // 'group' means each group's own date order.
+  const columnSort = viewMode === 'table' && sortBy !== 'group';
   const knownStatuses = new Set(STATUS_OPTIONS.flatMap((category) => category.statuses));
   const extraStatuses = isAllStatusesSelected
     ? [...new Set(filteredApps.map((app) => app.status).filter((status) => status && !knownStatuses.has(status)))]
@@ -549,7 +565,7 @@ const AdminApplications = () => {
         const dateB = Date.parse(b.created_at || '') || 0;
         return (dateA - dateB) * (oldestFirst ? 1 : -1) || String(a.name || '').localeCompare(String(b.name || ''));
       });
-      return { category, apps, oldestFirst };
+      return { category, apps: columnSort ? sortRows(apps, APP_SORT, sortBy, sortOrder) : apps, oldestFirst };
     });
 
   const getInitials = (name) => {
@@ -916,12 +932,12 @@ const AdminApplications = () => {
                 <table className="hidden md:table w-full text-body">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className={TH}>Applicant</th>
-                      <th className={TH}>Requested Unit</th>
+                      <SortableTh className={TH} sortKey="name" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Applicant</SortableTh>
+                      <SortableTh className={TH} sortKey="unit" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Requested Unit</SortableTh>
                       <th className={TH}>Tenancy Terms</th>
-                      <th className={TH}>Move In By</th>
-                      <th className={TH}>Applied On</th>
-                      <th className={TH}>Status</th>
+                      <SortableTh className={TH} sortKey="moveIn" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Move In By</SortableTh>
+                      <SortableTh className={TH} sortKey="applied" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Applied On</SortableTh>
+                      <SortableTh className={TH} sortKey="status" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Status</SortableTh>
                       <th className={`${TH} text-right`}>Actions</th>
                     </tr>
                   </thead>
@@ -955,8 +971,8 @@ const AdminApplications = () => {
                                 </div>
                                 <label className="flex items-center gap-2 text-caption font-medium text-slate-500">
                                   <span>Sort</span>
-                                  <select aria-label={`Sort ${category.label} applications`} value={oldestFirst ? 'oldest' : 'newest'} onChange={(event) => updateSortOrder(category.id, event.target.value)} className="rounded-control border border-slate-200 bg-white px-2 py-1 text-caption font-semibold text-slate-700">
-                                    <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
+                                  <select aria-label={`Sort ${category.label} applications`} value={columnSort ? 'column' : oldestFirst ? 'oldest' : 'newest'} onChange={(event) => updateSortOrder(category.id, event.target.value)} className="rounded-control border border-slate-200 bg-white px-2 py-1 text-caption font-semibold text-slate-700">
+                                    {columnSort && <option value="column" disabled>By column</option>}<option value="oldest">Oldest first</option><option value="newest">Newest first</option>
                                   </select>
                                 </label>
                               </div>
@@ -1077,8 +1093,8 @@ const AdminApplications = () => {
                             <h3 className="m-0 truncate text-label font-bold text-slate-800">{category.label}</h3>
                             <span className={`rounded-full px-2 py-0.5 text-caption font-semibold ${category.countBadge || 'bg-slate-100 text-slate-700'}`}>{apps.length}</span>
                           </div>
-                          <select aria-label={`Sort ${category.label} applications`} value={oldestFirst ? 'oldest' : 'newest'} onChange={(event) => updateSortOrder(category.id, event.target.value)} className="shrink-0 rounded-control border border-slate-200 bg-white px-2 py-1 text-caption font-semibold text-slate-700">
-                            <option value="oldest">Oldest</option><option value="newest">Newest</option>
+                          <select aria-label={`Sort ${category.label} applications`} value={columnSort ? 'column' : oldestFirst ? 'oldest' : 'newest'} onChange={(event) => updateSortOrder(category.id, event.target.value)} className="shrink-0 rounded-control border border-slate-200 bg-white px-2 py-1 text-caption font-semibold text-slate-700">
+                            {columnSort && <option value="column" disabled>By column</option>}<option value="oldest">Oldest</option><option value="newest">Newest</option>
                           </select>
                         </div>
                         {apps.length === 0 ? (

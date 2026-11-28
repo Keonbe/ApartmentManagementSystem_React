@@ -41,6 +41,8 @@ import { SkeletonRows, SkeletonCards } from '../Components/admin/ui/Skeleton';
 import useLoadState from '../hooks/useLoadState';
 import { personName } from '../utils/personName';
 import askConfirm from '../utils/askConfirm';
+import useSort, { sortRows } from '../hooks/useSort';
+import SortableTh from '../Components/admin/ui/SortableTh';
 
 const MAX_LEASE_MONTHS = 24;
 const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-control outline-none text-slate-800 bg-white focus:border-indigo-500';
@@ -71,6 +73,16 @@ const statusConfig = {
 // Unknown/blank statuses must not borrow the green "Active" styling.
 const UNKNOWN_STATUS = { label: 'Unknown', color: 'bg-slate-100 text-slate-600 border-slate-200' };
 const statusOf = (s) => statusConfig[String(s || '').toLowerCase()] || UNKNOWN_STATUS;
+
+// 'recent' (the default) has no getter, so the rows keep the server's order.
+const CONTRACT_SORT = {
+  id: (c) => c.id || '',
+  tenant: (c) => c.tenant || '',
+  unit: (c) => c.unit || '',
+  period: (c) => c.leaseStart || '',
+  rent: (c) => Number(c.rent) || 0,
+  status: (c) => c.status || '',
+};
 
 const formatCurrency = (n) => (Number.isFinite(Number(n)) ? `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
@@ -281,6 +293,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     });
   }, [inView, searchQuery, filterStatus, endingDays, requireNotarized]);
 
+  const { sortKey: sortBy, sortDir: sortOrder, toggle: toggleSort } = useSort(['recent', 'id', 'tenant', 'unit', 'period', 'rent', 'status']);
+  const displayedContracts = useMemo(() => sortRows(filtered, CONTRACT_SORT, sortBy, sortOrder), [filtered, sortBy, sortOrder]);
+
   const handleTenantSelect = (e) => {
     const selected = tenantOptions.find(t => t.id == e.target.value);
     if (selected) {
@@ -399,6 +414,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   };
 
   const handleSignatureRemove = async (contractId, docType) => {
+    const party = docType === 'ownerSignature' ? "owner's" : "tenant's";
+    if (!(await askConfirm(`Remove the ${party} signature from this contract?`, { title: 'Remove Signature', confirmLabel: 'Remove', tone: 'danger' }))) return;
     const formData = new FormData();
     formData.append('contractId', contractId);
     formData.append('docType', docType);
@@ -497,6 +514,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   };
 
   const handleRemoveFile = async (contractId, docType) => {
+    const label = docType === 'notarizedLease' ? 'notarized agreement' : 'signed agreement';
+    if (!(await askConfirm(`Remove the uploaded ${label} scan?`, { title: 'Remove Document', confirmLabel: 'Remove', tone: 'danger' }))) return;
     try {
       // upload_lease_document.php reads multipart fields from PHP's $_POST.
       // FormData also avoids axios's shared JSON default hiding these fields.
@@ -534,6 +553,15 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   };
 
   const handleActivateContract = async (contractId) => {
+    const target = contracts.find(c => c.id === contractId);
+    const tenantName = target?.tenant || 'this tenant';
+    if (!(await askConfirm(`Activate contract for ${tenantName} (Unit ${target?.unit || '—'})? This will set the contract status to Active.`, {
+      title: 'Activate Contract',
+      confirmLabel: 'Activate Contract',
+      tone: 'primary'
+    }))) {
+      return;
+    }
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'activate' });
       if (res.data.success) {
@@ -838,13 +866,20 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               <table className="w-full text-left text-body">
                 <thead className={THEAD}>
                   <tr className="text-label font-medium text-slate-600">
-                    <th className={TH}>Contract ID</th><th className={TH}>Tenant</th><th className={TH}>Unit</th><th className={TH}>Rent Period</th><th className={TH}>Rent</th><th className={TH}>Documents</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Actions</th>
+                    <SortableTh className={TH} sortKey="id" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Contract ID</SortableTh>
+                    <SortableTh className={TH} sortKey="tenant" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Tenant</SortableTh>
+                    <SortableTh className={TH} sortKey="unit" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Unit</SortableTh>
+                    <SortableTh className={TH} sortKey="period" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Rent Period</SortableTh>
+                    <SortableTh className={TH} sortKey="rent" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Rent</SortableTh>
+                    <th className={TH}>Documents</th>
+                    <SortableTh className={TH} sortKey="status" activeKey={sortBy} dir={sortOrder} onSort={toggleSort}>Status</SortableTh>
+                    <th className={`${TH} text-right`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="stagger-children">
                   {contractsState.isLoading && <SkeletonRows cols={8} label="Loading contracts…" />}
                   {contractsState.isError && <LoadErrorRow cols={8} title="Couldn't load contracts" onRetry={() => { contractsState.retry(); fetchContracts(); }} />}
-                  {contractsState.isReady && filtered.map(c => {
+                  {contractsState.isReady && displayedContracts.map(c => {
                     const docStatus = getDocumentStatus(c);
                     return (
                       <tr key={c.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${c.status === 'eviction-pending' ? 'bg-red-50/30' : ''}`}>
@@ -894,7 +929,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       </tr>
                     );
                   })}
-                  {contractsState.isReady && filtered.length === 0 && (
+                  {contractsState.isReady && displayedContracts.length === 0 && (
                     <tr><td colSpan="8" className="py-10 text-center text-slate-500 text-body">{inView.length === 0 ? (tenancy === 'current' ? 'No contracts for current tenants.' : 'No past tenants\' contracts.') : 'No contracts match the search or filter.'}</td></tr>
                   )}
                 </tbody>
@@ -905,10 +940,10 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
             <div className="md:hidden space-y-3">
               {contractsState.isLoading && <SkeletonCards count={3} className="space-y-3" label="Loading contracts…" />}
               {contractsState.isError && <div className="bg-white border border-slate-200 rounded-card"><LoadError title="Couldn't load contracts" onRetry={() => { contractsState.retry(); fetchContracts(); }} /></div>}
-              {contractsState.isReady && filtered.length === 0 && (
+              {contractsState.isReady && displayedContracts.length === 0 && (
                 <div className="bg-white border border-slate-200 rounded-card text-center py-12 text-slate-500 text-body">No contracts found.</div>
               )}
-              {contractsState.isReady && filtered.map(c => {
+              {contractsState.isReady && displayedContracts.map(c => {
                 const docStatus = getDocumentStatus(c);
                 return (
                   <div key={c.id} className={`bg-white border border-slate-200 rounded-card shadow-card p-4 space-y-3 ${c.status === 'eviction-pending' ? 'bg-red-50/30' : ''}`}>
@@ -1111,7 +1146,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
       {flagTarget && (
         <ReasonModal
           title="Flag for Eviction"
-          description="Records the legal ground and tells the tenant. Settling the unpaid rent, or clearing the flag, ends the review."
+          description={`${contracts.find(c => c.id === flagTarget)?.tenant || 'Tenant'} · Unit ${contracts.find(c => c.id === flagTarget)?.unit || '—'}. Records the legal ground and tells the tenant. Settling the unpaid rent, or clearing the flag, ends the review.`}
           label="Details (order reference, what was found, notes)"
           required={false}
           confirmLabel="Flag for Eviction"

@@ -24,9 +24,12 @@ const DEFAULT_OVERLAY = 'flex items-center justify-center bg-black/50 backdrop-b
 export default function Modal({
   title, labelledBy, onClose, busy = false, role = 'dialog', as: Card = 'div',
   className = DEFAULT_CARD, overlayClassName = DEFAULT_OVERLAY, z, cardRef,
-  closeOnBackdrop = true, dirty = false, children, ...cardProps
+  closeOnBackdrop, dirty = false, children, ...cardProps
 }) {
   const [askDiscard, setAskDiscard] = useState(false);
+  // Modals rendering as a form do not close on backdrop click by default to avoid accidental data loss.
+  const effectiveCloseOnBackdrop = closeOnBackdrop ?? (Card !== 'form');
+
   const close = () => {
     if (busy) return;
     if (dirty) { setAskDiscard(true); return; }
@@ -43,7 +46,7 @@ export default function Modal({
       style={{ zIndex: z ?? 50 + depth * 10 }}
       // mousedown, not click: a drag that starts in a field and ends on the
       // backdrop must not close the form.
-      onMouseDown={(e) => { if (closeOnBackdrop && e.target === e.currentTarget) close(); }}
+      onMouseDown={(e) => { if (effectiveCloseOnBackdrop && e.target === e.currentTarget) close(); }}
     >
       <Card
         ref={dialogRef}
